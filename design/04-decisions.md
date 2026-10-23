@@ -636,7 +636,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - **Ed25519 signatures** through Node's built-in `crypto` (still zero dependencies):
     - the **private key** stays in `~/.config/mirai/` (one per machine), readable only by your
       user and denied to agents (D-30);
-    - the **public key is committed** (`.mirai/keys/<machine>.pub`);
+    - the **public key is committed** (`.mirai/keys/<key-id>.pub`; the key id is derived from the key, unit 06);
     - every signature carries `{key_id, ts}` (TL3-19);
     - CI's `mirai-verify` job checks signatures with the public keys from the **base** commit
       (D-15), so it needs no secret, and a PR can't add its own key.
@@ -647,7 +647,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     - proof records sign the code-change hash (D-16) and the trace result.
   - **Key lifecycle** (R3-M10, AR3-10):
     - **bootstrap:** the first public key lands in the `init` commit, which you push by hand;
-    - **key changes go only through a key MR** made by `mirai key add | rotate | revoke`, which
+    - **key changes go only through a key MR** (in Milestone A: your own key-only commit from `mirai key new | revoke`, unit 06), which
       changes only `.mirai/keys/`. `mirai-verify` refuses key changes in any other MR, and refuses
       any MR with a MIRAI trailer that touches `.mirai/keys/`. The key MR passes by a
       self-signature check plus a label you set;

@@ -14,7 +14,8 @@ review.
 | 04 | [Status model](units/04-status-model/) | A | 2026-10-23 | 67 / 67 | Four state machines (201 state pairs tested), human-only moves, derived `built`/`integrated`/`done` ordered by journal seq, status file format; unpark = re-plan/retry/drop; `mirai status` moved to unit 05 |
 | 05a | [Store core](units/05a-store-core/) | A | 2026-10-23 | 80 / 80 | Store outside the project (private, never symlinked), repo id from first commit + remote, journal with one store-wide `seq`, status files with compare-and-swap, `mirai status`, personal per-repo config; refuses a changed identity instead of starting a fresh store. Unit 05 split into 05a/05b |
 | 05b | [Logs and guards](units/05b-logs-and-guards/) | A | 2026-10-23 | 88 / 88 | Run log with metric fields (`agent_run`: tier, model, round, rung, limit share and its source), run state and heartbeat, branch registry failing closed, global usage ledger (deltas, never counted twice) and one run at a time across projects, `mirai log` (allowlist), run and lock lines in `mirai status` |
+| 06 | [Signing, `mirai approve` / `mirai drop`](units/06-signing/) | A | 2026-10-23 | 102 / 102 | Ed25519 keys (one per machine, public keys committed by you), signed human lines bound to repo and purpose, keys only from the integration branch pinned in the store, status files checked against their signed line, `mirai key new\|show\|revoke`, approve/drop in a real terminal; honest limits in `docs/signing.md` |
 
-**Next:** unit 06, signing + `mirai approve` / `mirai drop` (Ed25519 keys, signed human moves).
+**Next:** unit 07, the lint framework + `mirai lint`. Dogfooding starts: from unit 07 on, each unit's own spec and progress use MIRAI's config, status model and run log (PM-18).
 **Added:** proposals P1–P11 from the unit 02 review are in `design/07` (units 13, 14, 16, 17, 18, 30, 39, 47, 52, 57 and Later).
 **Done:** the external clones moved to `~/Projects/mirai-sources/` (read-only) on 2026-10-23.

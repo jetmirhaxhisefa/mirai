@@ -5,7 +5,8 @@ import { escapeInvisible, shown } from '../../status/text.js';
 import { TICKET_ID } from '../../status/ticket-file.js';
 import { openStore } from '../../store/home.js';
 import { allTicketFacts, readJournal, ticketsInJournal } from '../../store/journal.js';
-import { readTicketStatus, ticketsInStore } from '../../store/tickets.js';
+import { checkStatusAgainstJournal, readTicketStatus, ticketsInStore } from '../../store/tickets.js';
+import { loadSigningKey } from '../../sign/keys.js';
 import { readHeartbeat, readRunState } from '../../store/run.js';
 import { runLockHolder } from '../../store/global.js';
 
@@ -34,11 +35,24 @@ export default {
     }
     const ids = only !== undefined ? [only] : known;
     const facts = allTicketFacts(events);
+    const mine = myKeyId(io.env);
 
     const rows = ids.map((ticket) => {
       const read = readTicketStatus(store, ticket);
       const status = read?.status ?? null;
-      const base = { ticket, written: status?.state ?? null, seq: status?.seq ?? null, park_reason: status?.park_reason ?? null, note: status?.note ?? null, migrated_from: read?.migratedFrom ?? null };
+      // The status is checked against the journal's latest line for it (unit 06); a signed line
+      // was verified by readJournal.
+      let line = null;
+      let mismatch = null;
+      try {
+        line = status ? checkStatusAgainstJournal(status, events) : null;
+      } catch (err) {
+        if (!(err instanceof StoreError)) throw err;
+        mismatch = `${err.message.replace(/^ticket \S+: /, '')} (run: mirai doctor)`;
+      }
+      const signedBy = status?.written_by === 'human' && line ? line.signature.key_id : null;
+      const base = { ticket, written: status?.state ?? null, seq: status?.seq ?? null, park_reason: status?.park_reason ?? null, note: status?.note ?? null, migrated_from: read?.migratedFrom ?? null, signed_by: signedBy, signed_by_you: signedBy !== null && signedBy === mine };
+      if (mismatch) return { ...base, state: null, source: null, why: null, error: mismatch };
       try {
         const { state, source, why } = deriveTicketState(status, facts.get(ticket) ?? { mr: 'none' });
         return { ...base, state, source, why: status === null && source === 'written' ? 'no status file yet' : why, error: null };
@@ -81,6 +95,7 @@ function line(r, width) {
   const state = `${r.state}${r.source === 'written' && r.park_reason ? ` (${r.park_reason})` : ''}`;
   const detail = r.source === 'derived' ? r.why : r.seq !== null ? `seq ${r.seq}` : r.why;
   const parts = [id, state.padEnd(22), r.source.padEnd(8), detail];
+  if (r.source === 'written' && r.signed_by) parts.push(r.signed_by_you ? `by you (signed, ${r.signed_by})` : `signed by ${r.signed_by}`);
   if (r.source === 'written' && r.note) parts.push(shown(r.note));
   if (r.migrated_from !== null) parts.push(`(written by an older MIRAI, schema ${r.migrated_from})`);
   return parts.join('  ');
@@ -146,4 +161,13 @@ function lockLine(lock) {
   const who = lock.this_repo ? 'this repo' : shown(lock.repo_id ?? 'another repo');
   const detail = `run ${shown(lock.run_id ?? '?')}, pid ${lock.pid}`;
   return lock.alive ? `held by ${who} (${detail})` : `left by a dead run of ${who} (${detail}); the next run breaks it`;
+}
+
+// This machine's key id, to say "by you" only for your own signatures; null without a key.
+function myKeyId(env) {
+  try {
+    return loadSigningKey(env).keyId;
+  } catch {
+    return null;
+  }
 }

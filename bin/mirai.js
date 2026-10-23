@@ -11,5 +11,6 @@ if (tooOld) {
 const { main } = await import('../src/cli/main.js');
 // A frozen copy, so no command can change the environment for the rest of the process.
 const env = Object.freeze({ ...process.env });
-const io = { stdout: process.stdout, stderr: process.stderr, env, cwd: process.cwd() };
+// stdin is there for the human-only commands, which ask in a real terminal (unit 06).
+const io = { stdin: process.stdin, stdout: process.stdout, stderr: process.stderr, env, cwd: process.cwd() };
 process.exitCode = await main(process.argv.slice(2), io);

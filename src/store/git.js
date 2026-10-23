@@ -4,23 +4,26 @@ import { StoreError } from '../cli/errors.js';
 
 // The read-only git calls the store needs (unit 05a): never a shell, a fixed environment, no
 // fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 22
-// (D-54). Only `rev-parse`, `rev-list` and `config --get` / `--get-regexp` are used, with
-// replace refs off, so `refs/replace` can't change which commits count as the roots.
+// (D-54). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp` and (unit 06) `ls-tree`
+// / `cat-file` are used, with replace refs off, so `refs/replace` can't change which commits
+// count as the roots or which keys are committed.
 
 const TIMEOUT_MS = 10_000;
 const MAX_OUTPUT = 1024 * 1024;
 
-function git(cwd, args, env, { timeout = TIMEOUT_MS } = {}) {
+// `raw: true` returns the output as bytes, untouched; `input` is written to git's stdin.
+function git(cwd, args, env, { timeout = TIMEOUT_MS, raw = false, input } = {}) {
   try {
     const out = execFileSync('git', ['--no-replace-objects', '-c', 'core.fsmonitor=false', ...args], {
       cwd,
       env: { PATH: env.PATH ?? '/usr/bin:/bin', HOME: env.HOME ?? '/nonexistent', GIT_CONFIG_NOSYSTEM: '1' },
-      encoding: 'utf8',
+      encoding: raw ? 'buffer' : 'utf8',
       timeout,
       maxBuffer: MAX_OUTPUT,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(input !== undefined ? { input } : {}),
+      stdio: [input !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
-    return { ok: true, out: out.trim() };
+    return { ok: true, out: raw ? out : out.trim() };
   } catch (err) {
     if (err.code === 'ENOENT') throw new StoreError('git is not installed or not on PATH', { code: 'no-git' });
     if (err.signal) throw new StoreError(`git ${args[0]} took longer than ${timeout / 1000} s`, { code: 'git-timeout' });
@@ -65,6 +68,54 @@ export function remotes(root, env) {
     if (nl === -1) continue;
     const name = entry.slice(0, nl).replace(/^remote\./, '').replace(/\.url$/, '');
     if (!found.has(name)) found.set(name, entry.slice(nl + 1));
+  }
+  return found;
+}
+
+// The entries of a tree path on a ref: [{ mode, type, sha, path }]. Null when the ref or path
+// is missing. Used to read committed public keys from the integration branch (unit 06).
+export function lsTree(root, ref, path, env) {
+  const r = git(root, ['ls-tree', '-z', `${ref}^{tree}`, '--', path], env);
+  if (!r.ok) return null;
+  return r.out.split('\0').filter(Boolean).map((line) => {
+    const tab = line.indexOf('\t');
+    const [mode, type, sha] = line.slice(0, tab).split(' ');
+    return { mode, type, sha, path: line.slice(tab + 1) };
+  });
+}
+
+// The id of a tree path on a ref (to cache what was read from it), or null.
+export function treeId(root, ref, path, env) {
+  const r = git(root, ['rev-parse', '--verify', '--quiet', `${ref}:${path}`], env);
+  return r.ok && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(r.out) ? r.out : null;
+}
+
+// Several blobs' exact bytes in one git call (cat-file --batch): a Map from id to a Buffer, or
+// to null when the blob is missing or larger than `maxBytes`.
+export function catBlobs(root, shas, env, { maxBytes = 16 * 1024 } = {}) {
+  const found = new Map();
+  if (shas.length === 0) return found;
+  for (const sha of shas) {
+    if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) throw new StoreError('not a blob id', { code: 'git-output' });
+  }
+  const r = git(root, ['cat-file', '--batch'], env, { raw: true, input: Buffer.from(`${shas.join('\n')}\n`) });
+  if (!r.ok) throw new StoreError('git cat-file failed', { code: 'git-output' });
+  const out = r.out;
+  let at = 0;
+  for (const sha of shas) {
+    const nl = out.indexOf(0x0a, at);
+    if (nl === -1) throw new StoreError('git cat-file returned less than asked', { code: 'git-output' });
+    const head = out.subarray(at, nl).toString('latin1');
+    at = nl + 1;
+    const m = /^([0-9a-f]+) (\w+) (\d+)$/.exec(head);
+    if (!m) {
+      found.set(sha, null); // "<sha> missing"
+      continue;
+    }
+    const size = Number(m[3]);
+    const body = out.subarray(at, at + size);
+    at += size + 1; // the content, then a newline
+    found.set(sha, m[2] === 'blob' && size <= maxBytes ? Buffer.from(body) : null);
   }
   return found;
 }

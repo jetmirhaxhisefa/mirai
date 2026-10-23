@@ -93,7 +93,7 @@ test('T1: the repo id: stable across moves and remote spellings, tied to the fir
 test('T1b: a store under another id for this checkout is refused, never replaced by a fresh one', () => {
   const { env, repo, home } = setup({ remote: 'https://github.com/acme/app' });
   const store = createStore({ cwd: repo, env });
-  writeTicketStatus(store, { ticket: 'T-1', state: 'ready-for-dev' });
+  writeTicketStatus(store, { ticket: 'T-1', state: 'in-progress' });
 
   // A branch edits the integration branch to an orphan branch with other roots.
   git(repo, ['checkout', '-q', '--orphan', 'evil'], home);
@@ -137,7 +137,7 @@ test('T2: the store lives outside the work tree; a HOME inside the checkout is r
 test('T3: permissions: symlinked or shared folders and readable files are refused; new files are 0600', () => {
   const { env, repo } = setup();
   const store = createStore({ cwd: repo, env });
-  writeTicketStatus(store, { ticket: 'T-1', state: 'ready-for-dev' });
+  writeTicketStatus(store, { ticket: 'T-1', state: 'in-progress' });
   for (const f of ['seq', 'journal.jsonl', join('tickets', 'T-1', 'status.json')]) assert.equal(mode(join(store.dir, f)), 0o600, f);
   assert.equal(mode(join(store.repoHome, 'store.json')), 0o600);
   for (const d of [store.home, store.repoHome, store.dir, join(store.dir, 'tickets', 'T-1')]) assert.equal(mode(d), 0o700, d);
@@ -227,7 +227,7 @@ test('T6: a torn last line is skipped and counted, then cut off by the next appe
   assert.equal(after.torn, 0);
   assert.deepEqual(after.events.map((e) => e.message), ['one', 'two']);
   assert.equal(after.events[1].seq, 3, 'the torn line\'s number stays a gap');
-  assert.ok(readFileSync(journal, 'utf8').split('\n').every((l) => l === '' || l.startsWith('{"schema_version":1,"seq":')));
+  assert.ok(readFileSync(journal, 'utf8').split('\n').every((l) => l === '' || l.startsWith('{"schema_version":2,"seq":')));
   assert.equal(readFileSync(`${journal}.torn`, 'utf8'), '{"schema_version":1,"seq":2,"ts":"2026-10\n', 'the fragment is kept for doctor');
   assert.equal(mode(`${journal}.torn`), 0o600);
 
@@ -307,7 +307,7 @@ test('T9: status files: round trip with the journal seq; a bad ticket key never 
     assert.throws(() => writeTicketStatus(store, { ticket: bad, state: 'draft' }), TypeError, bad);
   }
   assert.deepEqual(readdirSync(join(store.dir, 'tickets')), ['T-12']);
-  assert.throws(() => writeTicketStatus(store, { ticket: 'T-1', state: 'ready-for-dev', written_by: 'human' }), /by must be script/);
+  assert.throws(() => writeTicketStatus(store, { ticket: 'T-1', state: 'ready-for-dev', written_by: 'human' }), /needs your signing key/);
 
   // Compare-and-swap: a write based on an old read is refused.
   const stale = refused(() => writeTicketStatus(store, { ticket: 'T-12', state: 'in-progress' }, { expectSeq: seq - 1 }), 'stale-write');
@@ -324,7 +324,7 @@ test('T9: status files: round trip with the journal seq; a bad ticket key never 
 
   // A write that would leave the ticket unreadable with the journal's facts is refused.
   appendEvent(store, { type: 'mr_opened', by: 'script', ticket: 'T-20', head: 'b'.repeat(40), target: 'main' });
-  assert.throws(() => writeTicketStatus(store, { ticket: 'T-20', state: 'ready-for-dev' }), /can't be written while its MR is open/);
+  assert.throws(() => writeTicketStatus(store, { ticket: 'T-20', state: 'draft' }), /can't be written while its MR is open/);
   assert.equal(readTicketStatus(store, 'T-20'), null);
 
   // A ticket folder swapped for a symbolic link is refused on read, too.
@@ -406,10 +406,10 @@ test('T10: facts from the journal: merged beats blocked, a closed MR waits for y
 
   assert.deepEqual(Object.keys(EVENT_TYPES), [
     'status_written', 'pushed', 'mr_opened', 'mr_merged', 'mr_closed', 'epic_merged', 'branch_registered',
-    'branch_cleared', 'checkout_moved', 'lock_broken', 'note', 'template_gap',
+    'branch_cleared', 'checkout_moved', 'lock_broken', 'approval', 'note', 'template_gap',
   ]);
   assert.deepEqual(Object.keys(EVENT_TYPES).filter((t) => !EVENT_TYPES[t].privileged), ['note', 'template_gap']);
-  assert.throws(() => appendEvent(store, { type: 'note', by: 'human', message: 'x' }), /by must be one of/);
+  assert.throws(() => appendEvent(store, { type: 'note', by: 'human', message: 'x' }), /never a signed human line/);
   assert.throws(() => appendEvent(store, { type: 'mr_closed', by: 'unverified', ticket: 'T-5' }), /written only by MIRAI itself/);
   assert.throws(() => appendEvent(store, { type: 'mr_merged', by: 'script', ticket: 'T-5', target: 'main' }), /target must be one of/);
 });

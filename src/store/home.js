@@ -154,7 +154,7 @@ function readMeta(file) {
   }
   const ok = meta !== null && typeof meta === 'object' && Number.isInteger(meta.schema_version)
     && typeof meta.repo_id === 'string' && Array.isArray(meta.roots) && typeof meta.checkout === 'string'
-    && (meta.remote === null || typeof meta.remote === 'string');
+    && (meta.remote === null || typeof meta.remote === 'string') && typeof meta.integration_branch === 'string' && BRANCH.test(meta.integration_branch);
   if (!ok) throw new StoreError(`${file}: is not a valid store file`, { path: file, code: 'corrupt', hint: 'run: mirai doctor' });
   if (meta.schema_version > STORE_SCHEMA_VERSION) {
     throw new StoreError(`${file}: written by a newer MIRAI (store schema ${meta.schema_version})`, { path: file, code: 'version', hint: 'update MIRAI before using this store' });
@@ -233,7 +233,9 @@ export function createStore({ cwd, env, now = () => new Date() }) {
   atomicWrite(join(p.dir, 'seq'), '0\n');
   atomicWrite(join(p.dir, 'journal.jsonl'), '');
   atomicWrite(join(p.dir, 'branches.json'), EMPTY_REGISTRY); // written now, so a missing one means lost
-  const meta = { schema_version: STORE_SCHEMA_VERSION, repo_id: id.repoId, roots: id.roots, remote: id.remote, checkout: id.checkout, created_at: now().toISOString() };
+  // The integration branch is recorded here: it's the trust anchor for signing keys (unit 06),
+  // so it must never come from the work tree's config, which any branch can edit.
+  const meta = { schema_version: STORE_SCHEMA_VERSION, repo_id: id.repoId, roots: id.roots, remote: id.remote, integration_branch: id.branch, checkout: id.checkout, created_at: now().toISOString() };
   atomicWrite(p.metaFile, `${JSON.stringify(meta, null, 2)}\n`);
   return openStore({ cwd, env, identity: id });
 }
@@ -270,7 +272,15 @@ export function openStore({ cwd, env, optional = false, identity }) {
       hint: `use ${meta.checkout}, or remove that checkout and run MIRAI here (D-52)`,
     });
   }
-  const opened = { repoId: id.repoId, checkout: id.checkout, home, repoHome: p.repoHome, dir: p.dir };
+  // `branch` and `gitEnv` let the journal read the integration branch's public keys (unit 06).
+  if (meta.integration_branch !== id.branch) {
+    throw new StoreError(`${PROJECT_CONFIG} names ${id.branch} as the integration branch, but this store was set up for ${meta.integration_branch}`, {
+      code: 'branch-changed',
+      exitCode: EXIT.BLOCKED,
+      hint: `put integration_branch = "${meta.integration_branch}" back; changing it is a setup change (run: mirai doctor)`,
+    });
+  }
+  const opened = { repoId: id.repoId, checkout: id.checkout, branch: meta.integration_branch, gitEnv: Object.freeze({ PATH: env.PATH, HOME: env.HOME }), home, repoHome: p.repoHome, dir: p.dir };
   checkCounter(opened);
   if (meta.checkout !== id.checkout) {
     // A moved checkout: the new path and its event are written under the journal lock, and
