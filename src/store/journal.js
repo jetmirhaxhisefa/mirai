@@ -6,6 +6,7 @@ import { validate } from '../config/schema.js';
 import { TICKET, PARK_REASONS } from '../status/machines.js';
 import { TICKET_ID } from '../status/ticket-file.js';
 import { appendLine, atomicWrite, jsonLine, lastJsonLine, readJsonLines, readPrivateFile, withLock } from './files.js';
+import { appendRunLineRaw, newestRunLogSeq } from './run-log.js';
 
 // The store journal (unit 05a; D-06): one append-only file of what happened in this repo, and
 // one store-wide counter, `seq`, shared with the run logs (05b). Order comes from `seq` only;
@@ -93,20 +94,60 @@ function readCounter(file) {
   return Number(text.slice(0, -1));
 }
 
-// Takes the next store-wide number and runs `fn(seq)` under the journal lock. `fn` writes the
-// lines that carry this number (a journal event, a run-log line in 05b). Returns its result.
+// Runs `fn({ take, event, runLine })` under the journal lock, so several lines can be written
+// in one step (unit 05b):
+// - `take()` takes the next store-wide number; call it again for more. A number taken and not
+//   used stays a gap;
+// - `event(seq, { type, by, ...fields })` appends a journal event;
+// - `runLine(runId, seq, { item, event, ...fields })` appends a run-log line.
+// Each file stays in `seq` order, because everything is written under this one lock. A number
+// must have been taken here, used once, and be higher than the last one written to the same
+// file; anything else is refused before it's written, because one out-of-order line would make
+// the file unreadable (fail closed). Returns fn's result.
 export function withSeq(store, fn) {
   const p = paths(store);
   return withLock(p.lock, 'journal', ({ broken }) => {
     let seq = readCounter(p.counter);
-    const next = () => {
+    const unused = new Set();
+    const lastIn = new Map(); // file key → last number written to it in this step
+    const take = () => {
       seq += 1;
       atomicWrite(p.counter, `${seq}\n`);
+      unused.add(seq);
       return seq;
     };
-    if (broken) appendRaw(p, next(), { type: 'lock_broken', by: 'script', lock: 'journal', pid: broken.pid });
-    return fn(next());
+    const use = (key, n) => {
+      if (!unused.has(n)) throw new TypeError(`seq ${n} was not taken in this step, or is already used`);
+      if (n <= (lastIn.get(key) ?? 0)) throw new TypeError(`seq ${n} is not after ${lastIn.get(key)} in the same file`);
+      unused.delete(n);
+      lastIn.set(key, n);
+    };
+    const event = (n, ev) => {
+      use('journal', n);
+      appendRaw(p, n, ev);
+    };
+    if (broken) event(take(), { type: 'lock_broken', by: 'script', lock: 'journal', pid: broken.pid });
+    return fn({
+      take,
+      event,
+      runLine: (runId, n, line) => {
+        use(`run:${runId}`, n);
+        appendRunLineRaw(store, runId, n, line);
+      },
+    });
   });
+}
+
+// Checks an event without writing it, including the line's size: `{ type, by, item?,
+// ...fields }`. Throws a TypeError (bad fields) or a RangeError (too long). Used before a
+// number is taken, so a bad event never uses one up.
+export function checkEvent(event) {
+  const { schema_version: _v, seq: _s, ts: _t, ...rest } = event;
+  const line = { schema_version: JOURNAL_SCHEMA_VERSION, seq: 1, ts: new Date().toISOString(), ...rest };
+  const problems = eventProblems(line);
+  if (problems.length > 0) throw new TypeError(`journal event ${event.type}: ${problems.join('; ')}`);
+  jsonLine(line);
+  return rest;
 }
 
 function appendRaw(p, seq, event) {
@@ -120,14 +161,11 @@ function appendRaw(p, seq, event) {
 // lock, for a file that must carry the same number (a ticket status file); when it returns
 // false, nothing is appended (the number stays a gap). Returns the seq, or null when skipped.
 export function appendEvent(store, event, { before } = {}) {
-  const p = paths(store);
-  const { schema_version: _v, seq: _s, ts: _t, ...rest } = event;
-  // Check before taking a number, so a bad event doesn't use one up.
-  const probe = eventProblems({ schema_version: JOURNAL_SCHEMA_VERSION, seq: 1, ts: new Date().toISOString(), ...rest });
-  if (probe.length > 0) throw new TypeError(`journal event ${event.type}: ${probe.join('; ')}`);
-  return withSeq(store, (seq) => {
+  const rest = checkEvent(event); // before taking a number, so a bad event doesn't use one up
+  return withSeq(store, ({ take, event: write }) => {
+    const seq = take();
     if (before && before(seq) === false) return null;
-    appendRaw(p, seq, rest);
+    write(seq, rest);
     return seq;
   });
 }
@@ -158,15 +196,18 @@ export function readJournal(store) {
 }
 
 // The counter must be at least the highest seq in the journal; a lower one (a restored or
-// edited counter) would hand out numbers twice. Reads only the journal's last line. (05b adds
-// the newest run log's last line, which shares the counter.)
+// edited counter) would hand out numbers twice. The run logs share the counter, so the newest
+// run log's last line counts too (unit 05b). Reads only the last lines.
 export function checkCounter(store) {
   const p = paths(store);
   const counter = readCounter(p.counter);
   const last = lastJsonLine(p.journal);
-  const highest = Number.isSafeInteger(last?.seq) ? last.seq : 0;
+  const journalSeq = Number.isSafeInteger(last?.seq) ? last.seq : 0;
+  const runSeq = newestRunLogSeq(store);
+  const highest = Math.max(journalSeq, runSeq);
   if (counter < highest) {
-    throw new StoreError(`${p.counter}: the counter (${counter}) is behind the journal (${highest})`, { path: p.counter, code: 'counter-behind', hint: 'run: mirai doctor' });
+    const where = runSeq > journalSeq ? 'the newest run log' : 'the journal';
+    throw new StoreError(`${p.counter}: the counter (${counter}) is behind ${where} (${highest})`, { path: p.counter, code: 'counter-behind', hint: 'run: mirai doctor' });
   }
   return counter;
 }

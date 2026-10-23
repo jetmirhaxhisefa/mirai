@@ -17,6 +17,9 @@ const NAME_HINT = 'lowercase letters, digits and "-", starting with a letter';
 
 // A git branch name (a subset of git check-ref-format): components don't start with "." or
 // end with ".lock"; no "..", "//", "@{", a lone "@", control or special characters.
+// A subscription plan name (D-57), shared by the global config, the run log and the usage ledger.
+export const PLAN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
 export const BRANCH = /^(?!\/)(?!-)(?!@$)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*(?:^|\/)\.)(?!.*\.lock(?:\/|$))(?!.*[/.]$)[^\s~^:?*[\\\x00-\x1f\x7f]+$/;
 
 function relativePath(value, path, report) {
@@ -175,7 +178,7 @@ export const CONFIG_SCHEMA = {
     },
     subscription: {
       type: 'table',
-      fields: { plan: { type: 'string', pattern: /^[a-z0-9][a-z0-9-]*$/, patternHint: 'for example "max-20x"' } },
+      fields: { plan: { type: 'string', pattern: PLAN, patternHint: 'for example "max-20x" (at most 32 characters)' } },
     },
     usage: {
       type: 'table',

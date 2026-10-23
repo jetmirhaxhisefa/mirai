@@ -1,11 +1,13 @@
 import { EXIT } from '../exit-codes.js';
-import { StatusError, UsageError } from '../errors.js';
+import { StatusError, StoreError, UsageError } from '../errors.js';
 import { deriveTicketState } from '../../status/derive.js';
 import { escapeInvisible, shown } from '../../status/text.js';
 import { TICKET_ID } from '../../status/ticket-file.js';
 import { openStore } from '../../store/home.js';
 import { allTicketFacts, readJournal, ticketsInJournal } from '../../store/journal.js';
 import { readTicketStatus, ticketsInStore } from '../../store/tickets.js';
+import { readHeartbeat, readRunState } from '../../store/run.js';
+import { runLockHolder } from '../../store/global.js';
 
 // mirai status [<ticket>] [--json] (unit 05a, moved from unit 04). Reads the ticket status
 // files and the journal from the store, and shows each ticket's effective state: derived from
@@ -46,15 +48,19 @@ export default {
       }
     });
     const failed = rows.some((r) => r.error !== null);
+    const run = runInfo(store);
+    const lock = lockInfo(store, runLockHolder(io.env));
 
     if (args.values.json) {
-      const out = { repo_id: store.repoId, torn_lines: torn, tickets: rows };
+      const out = { repo_id: store.repoId, torn_lines: torn, run, global_lock: lock, tickets: rows };
       if (only !== undefined) out.events = events.filter((e) => e.ticket === only);
       io.stdout.write(`${escapeInvisible(JSON.stringify(out, null, 2))}\n`);
       return failed ? EXIT.BLOCKED : EXIT.OK;
     }
 
     io.stdout.write(`repo: ${store.repoId}\n`);
+    io.stdout.write(`${runLine(run)}\n`);
+    io.stdout.write(`global lock: ${lockLine(lock)}\n`);
     if (torn > 0) io.stdout.write('warning: the journal ends with a half-written line (a crash); it was skipped\n');
     if (rows.length === 0) io.stdout.write('\nno tickets yet\n');
     else io.stdout.write('\n');
@@ -85,4 +91,59 @@ const FIELDS = ['state', 'park_reason', 'branch', 'sha', 'head', 'target'];
 function eventLine(e) {
   const fields = FIELDS.filter((k) => e[k] !== undefined).map((k) => `${k}=${shown(e[k])}`);
   return [`seq ${e.seq}`, e.ts, e.type, ...fields].join('  ');
+}
+
+// The current run, its heartbeat (only when it belongs to this run), or null (unit 05b).
+// The ticket and step come from the heartbeat when it belongs to this run (it's updated as the
+// run goes), else from state.json. A damaged heartbeat is shown, not fatal: status is where
+// you look when something is wrong.
+function runInfo(store) {
+  const state = readRunState(store);
+  if (state === null) return null;
+  let beat = null;
+  let unreadable = false;
+  try {
+    beat = readHeartbeat(store);
+  } catch (err) {
+    if (!(err instanceof StoreError)) throw err;
+    unreadable = true;
+  }
+  const live = ['running', 'paused'].includes(state.state);
+  const mine = beat && beat.run_id === state.run_id && live ? beat : null;
+  const heartbeat = unreadable ? { unreadable: true } : mine ? { age_ms: mine.ageMs, stale: mine.stale, future: mine.future } : null;
+  return { run_id: state.run_id, state: state.state, ticket: mine?.ticket ?? state.ticket ?? null, step: mine?.step ?? state.step ?? null, heartbeat };
+}
+
+function lockInfo(store, holder) {
+  if (holder === null) return { held: false };
+  if (holder.unreadable) return { held: true, unreadable: true };
+  return { held: true, repo_id: holder.repo_id ?? null, run_id: holder.run_id ?? null, pid: holder.pid, alive: holder.alive, this_repo: holder.repo_id === store.repoId };
+}
+
+const age = (ms) => (ms < 90_000 ? `${Math.max(0, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`);
+
+function runLine(run) {
+  if (run === null) return 'run: none';
+  const parts = [`run: ${run.run_id}`, run.state];
+  if (run.ticket) parts.push(`ticket ${run.ticket}${run.step ? ` (${run.step})` : ''}`);
+  if (run.heartbeat?.unreadable) {
+    parts.push('heartbeat unreadable (run: mirai doctor)');
+  } else if (run.heartbeat?.future) {
+    parts.push('heartbeat dated in the future (a clock change?) — the run may have died (mirai resume checks it)');
+  } else if (run.heartbeat) {
+    parts.push(run.heartbeat.stale
+      ? `heartbeat ${age(run.heartbeat.age_ms)} ago — the run may have died (mirai resume checks it)`
+      : `heartbeat ${age(run.heartbeat.age_ms)} ago`);
+  } else if (['running', 'paused'].includes(run.state)) {
+    parts.push('no heartbeat — the run may have died (mirai resume checks it)');
+  }
+  return parts.join('  ');
+}
+
+function lockLine(lock) {
+  if (!lock.held) return 'free';
+  if (lock.unreadable) return 'unreadable (run: mirai doctor)';
+  const who = lock.this_repo ? 'this repo' : shown(lock.repo_id ?? 'another repo');
+  const detail = `run ${shown(lock.run_id ?? '?')}, pid ${lock.pid}`;
+  return lock.alive ? `held by ${who} (${detail})` : `left by a dead run of ${who} (${detail}); the next run breaks it`;
 }

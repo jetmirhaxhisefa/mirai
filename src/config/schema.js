@@ -9,6 +9,7 @@ import { closest } from '../util/closest.js';
 //   { type: 'array', items: node, minItems, uniqueBy }
 //   { type: 'string', pattern, patternHint, check }
 //   { type: 'integer', min, max }
+//   { type: 'number', min, max }               any finite number (unit 05b)
 //   { type: 'boolean' }
 //   { type: 'enum', values: [...] }
 //   { type: 'choice', pick: (value) => node }   one of several shapes, chosen by the value
@@ -63,6 +64,13 @@ function check(value, node, path, report, locate) {
       }
       return runCheck(node, value, path, report, locate);
     }
+    case 'number':
+      // Any finite number, fractions allowed (unit 05b: shares and minutes).
+      if (typeof value !== 'number' || !Number.isFinite(value)) return report(path, `${label(path)} must be a number`, undefined, 'type');
+      if ((node.min !== undefined && value < node.min) || (node.max !== undefined && value > node.max)) {
+        return report(path, `${label(path)} must be between ${node.min ?? '-∞'} and ${node.max ?? '∞'}`, undefined, 'range');
+      }
+      return runCheck(node, value, path, report, locate);
     case 'boolean':
       if (typeof value !== 'boolean') return report(path, `${label(path)} must be true or false`, undefined, 'type');
       return runCheck(node, value, path, report, locate);

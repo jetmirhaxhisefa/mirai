@@ -301,6 +301,13 @@ export function isAlive(pid) {
   }
 }
 
+// The current holder of a lock, `{ ...record, alive }`, or null when it's free. For reports.
+export function lockHolder(path) {
+  const lock = readLock(path);
+  if (lock === null) return null;
+  return lock.holder ? { ...lock.holder, alive: isAlive(lock.holder.pid) } : { unreadable: true, alive: false };
+}
+
 function readLock(path) {
   let text;
   try {
@@ -349,10 +356,12 @@ const holderDead = (lock) => Boolean(lock?.holder) && !isAlive(lock.holder.pid);
 // ourselves, so it's refused at once.
 const heldHere = new Set();
 
-// Takes a lock. `waitMs` 0 never waits. Returns { release, broken }: `broken` is the dead
-// holder's record when a stale lock was broken on the way, so the caller can log it.
-export function acquireLock(path, purpose, { waitMs = SHORT_LOCK_WAIT_MS, describe } = {}) {
-  const content = `${JSON.stringify({ pid: process.pid, host: hostname(), purpose, started_at: new Date().toISOString() })}\n`;
+// Takes a lock. `waitMs` 0 never waits. `extra` adds fields to the lock record (the global run
+// lock names its repo and run). Returns { release, broken }: `broken` is the dead holder's
+// record when a stale lock was broken on the way, so the caller can log it. `describe(holder)`
+// words the "held" message.
+export function acquireLock(path, purpose, { waitMs = SHORT_LOCK_WAIT_MS, describe, extra = {} } = {}) {
+  const content = `${JSON.stringify({ ...extra, pid: process.pid, host: hostname(), purpose, started_at: new Date().toISOString() })}\n`;
   if (heldHere.has(path)) throw new Error(`this process already holds ${path} (locks are not re-entrant)`);
   const deadline = Date.now() + waitMs;
   let broken = null;

@@ -10,6 +10,7 @@ import { readConfigFile, PROJECT_CONFIG } from '../config/load.js';
 import { atomicWrite, checkPrivateDir, ensurePrivateDir, readPrivateFile } from './files.js';
 import { isShallow, refExists, remotes, rootCommits, topLevel } from './git.js';
 import { appendEvent, checkCounter } from './journal.js';
+import { EMPTY_REGISTRY } from './branches.js';
 
 // The MIRAI home and the store of one repo (unit 05a; D-47). The home is in your user's
 // Application Support, outside every project:
@@ -231,6 +232,7 @@ export function createStore({ cwd, env, now = () => new Date() }) {
   ensurePrivateDir(join(p.dir, 'tickets'));
   atomicWrite(join(p.dir, 'seq'), '0\n');
   atomicWrite(join(p.dir, 'journal.jsonl'), '');
+  atomicWrite(join(p.dir, 'branches.json'), EMPTY_REGISTRY); // written now, so a missing one means lost
   const meta = { schema_version: STORE_SCHEMA_VERSION, repo_id: id.repoId, roots: id.roots, remote: id.remote, checkout: id.checkout, created_at: now().toISOString() };
   atomicWrite(p.metaFile, `${JSON.stringify(meta, null, 2)}\n`);
   return openStore({ cwd, env, identity: id });
