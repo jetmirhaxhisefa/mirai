@@ -620,7 +620,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     change, not that the review was good.
   - The records folder is a protected path (D-15) and agents are denied `Edit` on it (D-30). An
     agent change to it parks the ticket.
-  - The unit's "done when" includes the full happy path, with an `e2e: yes` ticket: E2E written →
+  - The unit's "done when" includes the full happy path, with an `e2e: true` ticket: E2E written →
     review PASS → QA PASS → gate-result record → built → push succeeds.
 
 ### D-17 · Human-only moves are signed, and given in a real terminal
@@ -841,14 +841,14 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
 
   | Setting | Values | Default |
   |---|---|---|
-  | `tdd` | `auto` · `on` · `off` | `auto` |
+  | `tdd` | `auto` · `first` · `after` | `auto` |
   | `tests` | `required` · `optional` | `required` |
 
   - **`tdd: auto`:** TDD for logic-heavy work (business rules, APIs, calculations, and bug fixes,
     where the bug is reproduced in a test first). Tests-after or QA evidence for UI styling,
     config, glue and migrations. The ticket planner proposes it per ticket, and you can override.
     When a ticket changes untested existing code, characterization tests come first (D-45).
-  - **`tdd: off, tests: required`:** tests after the code, no red check. Every AC still needs a
+  - **`tdd: after, tests: required`:** tests after the code, no red check. Every AC still needs a
     test or QA evidence (`mirai trace`, D-35).
   - **`tests: optional`:** the MR says "no tests" clearly, and review and QA carry the weight.
   - **High-risk tickets keep `tests: required`** unless you override that ticket.
@@ -1524,7 +1524,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
 - **Decision:**
   1. **A critical-journeys list** per project, in the feature map ("if this breaks we lose users
      or money"), each with an ID `J-n`. Setup proposes it from the business context (D-43), and you approve it.
-  2. **The ticket planner marks `e2e: yes`** only when a ticket creates or changes a critical
+  2. **The ticket planner marks `e2e: true`** only when a ticket creates or changes a critical
      journey. You can override it at ticket approval.
   3. **Ivy writes or updates the E2E test** for that journey, not Kai, so the developer doesn't
      grade himself. **She writes it after the build and before review** (U2, R2-C4): build →

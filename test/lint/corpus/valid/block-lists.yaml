@@ -1,0 +1,13 @@
+downstream:
+  - story-PMT-12
+  # a comment between items
+    # an indented one
+
+  - "quoted: item"
+  - 'single'
+  - 42
+  - item with words  # and a comment
+after: done
+empty_list_key:
+last:
+  - only

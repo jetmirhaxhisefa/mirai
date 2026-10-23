@@ -194,3 +194,43 @@ files were checked by format. **Flags:**
 **Verdict: Approved (data only), vendored.** A pinned copy of the TOML 1.0.0 files lives in
 `test/vendor/toml-test/`, with `LICENSE` and `PROVENANCE.json` (commit and a SHA-256 over the
 file list and contents). The read-only clone is in `~/Projects/mirai-sources/toml-test/`.
+
+---
+
+## Addendum: yaml/yaml-test-suite (2026-10-24, unit 07a)
+
+| Field | Value |
+|---|---|
+| Source | https://github.com/yaml/yaml-test-suite |
+| Author / activity | YAML language team (Ingy döt Net, Tina Müller); main last commit 2025-12-25; the latest data release is `data-2022-01-17` |
+| License | MIT (`License` at `v2022-01-17`, the same as on main today) |
+| Pinned commit | `6e6c296ae9c9d2d5c4134b4b64d01b29ac19ff6f` (tag `data-2022-01-17`, generated from main `v2022-01-17` = `45db50aecf9b1520f8258938c88f396e96f30831`) |
+| What we use | **Data only:** for each of the 402 cases, `in.yaml`, `in.json`, `error` and `===` (the name): 1180 files, 47 KB |
+| What we don't use | The event files (`test.event`), emitter outputs (`out.yaml`, `emit.yaml`), the `tags/` and `name/` symlink folders, and everything on main: the Makefile, `bin/` and the generators. Nothing from the repo is run |
+
+**How it was fetched:** `git clone --no-checkout` into the session scratchpad, because
+`~/Projects/mirai-sources/` is read-only on purpose. Then `git archive` of the pinned commit into
+an empty folder. Nothing was checked out or run, and no hooks exist in a fresh clone.
+
+**Read:** all 402 `in.yaml` inputs, every `in.json` and every `===` name were read in full, with
+spaces, tabs, line ends and invisible characters shown. The 94 `error` files are empty markers,
+and their presence is what counts. **Flags:**
+- No shell, network or install commands; no telemetry; no secret reads.
+- No text addressed to an agent.
+- URLs appear only as YAML values and tag URIs: `example.com`, `example.org`, `foo.com`, and
+  `tag:yaml.org` / `tag:clarkevans.com` tags.
+- Non-ASCII bytes appear only as test content: an emoji anchor, ♥ ☮ ☺, curly quotes in three
+  names, and one ↓ in a comment (P2AD).
+- No raw carriage returns, NUL or other control bytes.
+- Three cases have both `error` and `in.json` (9MQT/01, DK95/01, DK95/06). The `error` marker
+  wins.
+
+**Verdict: Approved (data only), vendored.** A pinned copy lives in
+`test/vendor/yaml-test-suite/`, with `LICENSE` and `PROVENANCE.json` (the commit, its tree
+`493d388a50385d992cfaa628a88171aa1965c50b`, and a SHA-256 over every file). The test (unit 07a,
+T6) recomputes the hash and refuses extra files.
+
+**Re-checking against upstream.** The scratchpad clone doesn't last, so the record names a
+check anyone can repeat: every vendored file's `git hash-object` equals the blob at the same path
+in `git ls-tree -r 6e6c296a…` (or the GitHub trees API). This was done on 2026-10-24: all 1180
+files match, and no file of the four kinds is missing.

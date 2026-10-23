@@ -1,0 +1,28 @@
+{
+  "two": [
+    "a",
+    "b"
+  ],
+  "none": [],
+  "blank": [],
+  "spaced": [
+    "a",
+    "b"
+  ],
+  "quoted": [
+    "x, y",
+    "z]",
+    "#1"
+  ],
+  "mixed": [
+    1,
+    -2,
+    true,
+    null,
+    "text"
+  ],
+  "urls": [
+    "https://a.example/x",
+    "b:c"
+  ]
+}

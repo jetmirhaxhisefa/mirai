@@ -1,0 +1,11 @@
+{
+  "double": "Login: v2 # not a comment",
+  "escapes": "a \"b\" c\\d\ne\tf é ☺",
+  "single": "it's 'quoted' # too",
+  "single_backslash": "C:\\temp\\n",
+  "yes_text": "yes",
+  "empty_double": "",
+  "empty_single": "",
+  "number_text": "007",
+  "date_text": "2026-02-30"
+}

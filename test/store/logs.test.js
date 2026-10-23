@@ -49,7 +49,7 @@ test('T11: run log: a line with tier, model and limit_share validates; bad lines
     [{ item: 'run', event: 'run_exploded' }, /unknown run-log event/],
     [{ item: 'T-1', event: 'finding', id: 'F-1', round: 1, severity: 'blocking', category: 'correctness', file: 'src/a.js', fingerprint: 'a'.repeat(64), text_ref: { ref: '../../etc/passwd', sha256: 'b'.repeat(64) } }, /ref is not valid/],
     [{ item: 'T-1', event: 'template_gap', template: 'story', section: 'x'.repeat(5000), message: 'm' }, /longer than 4096/],
-    [{ item: 'T-1', event: 'checks', tdd: 'auto', tdd_applied: 'on', tests_policy: 'required', tests: { passed: 1, failed: 0, skipped: 0 }, named: Array.from({ length: 500 }, (_, i) => ({ name: `check-${i}`, result: 'pass' })) }, /more than 16384/],
+    [{ item: 'T-1', event: 'checks', tdd: 'auto', tdd_applied: 'first', tests_policy: 'required', tests: { passed: 1, failed: 0, skipped: 0 }, named: Array.from({ length: 500 }, (_, i) => ({ name: `check-${i}`, result: 'pass' })) }, /more than 16384/],
   ];
   for (const [l, why] of bad) assert.throws(() => buildRunLine(run.run_id, 9, l), why);
   // A refused line takes no number: checked before the counter moves.
@@ -79,8 +79,8 @@ test('T11: run log: a line with tier, model and limit_share validates; bad lines
   assert.throws(() => buildRunLine(run.run_id, 9, launched({ rung: 4 })), /rung must be between 1 and 3/);
 
   // Checks log the setting and what it resolved to, and the tests policy (D-23).
-  buildRunLine(run.run_id, 9, { item: 'T-1', event: 'checks', tdd: 'auto', tdd_applied: 'off', tests_policy: 'required', tests: { passed: 4, failed: 0, skipped: 1 }, named: [{ name: 'lint', result: 'pass' }] });
-  assert.throws(() => buildRunLine(run.run_id, 9, { item: 'T-1', event: 'checks', tdd: 'auto', tdd_applied: 'auto', tests_policy: 'required', tests: { passed: 0, failed: 0, skipped: 0 }, named: [] }), /tdd_applied must be one of: on, off/);
+  buildRunLine(run.run_id, 9, { item: 'T-1', event: 'checks', tdd: 'auto', tdd_applied: 'after', tests_policy: 'required', tests: { passed: 4, failed: 0, skipped: 1 }, named: [{ name: 'lint', result: 'pass' }] });
+  assert.throws(() => buildRunLine(run.run_id, 9, { item: 'T-1', event: 'checks', tdd: 'auto', tdd_applied: 'auto', tests_policy: 'required', tests: { passed: 0, failed: 0, skipped: 0 }, named: [] }), /tdd_applied must be one of: first, after/);
   // A finding's outcome comes later.
   buildRunLine(run.run_id, 9, { item: 'T-1', event: 'finding_outcome', id: 'F-1', outcome: 'disputed' });
   assert.match(newRunId(new Date('2026-10-23T22:14:05Z')), /^r-20261023-221405-[0-9a-f]{4}$/);

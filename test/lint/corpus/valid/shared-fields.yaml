@@ -1,0 +1,8 @@
+id: prd-login
+type: prd
+template: prd@v2
+status: draft
+version: 3
+owner: jet
+updated: "2026-10-24"
+derived_from: [brief-login]

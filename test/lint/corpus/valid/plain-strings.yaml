@@ -1,0 +1,15 @@
+title: Login for staff accounts
+path: src/auth/login.js
+url: https://example.com/a?b=c#frag
+punct: a, b; c (d) e]f}g
+inner_quotes: it's "fine"
+colon_inside: 10:30am at host:8080
+hash_inside: issue#12
+backslash: C:\temp\x
+trailing: spaces are trimmed   
+nbsp_inside: a b
+trailing_nbsp: x 
+neg_word: -5abc
+version_text: v1.2.3
+dash_inner: well-known
+plus: +plus

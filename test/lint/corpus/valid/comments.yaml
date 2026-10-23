@@ -1,0 +1,6 @@
+# a full-line comment
+  # an indented comment
+id: x   # after a value
+owner: # after an empty value
+tags: [a]  # after a list
+#no space needed at the start of a line

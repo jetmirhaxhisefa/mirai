@@ -137,7 +137,7 @@ export const CONFIG_SCHEMA = {
     testing: {
       type: 'table',
       fields: {
-        tdd: { type: 'enum', values: ['auto', 'on', 'off'] },
+        tdd: { type: 'enum', values: ['auto', 'first', 'after'] },
         tests: { type: 'enum', values: ['required', 'optional'] },
         levels: { type: 'array', items: level, uniqueBy: 'name' },
         e2e_budget_minutes: { type: 'integer', min: 1 },

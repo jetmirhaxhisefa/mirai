@@ -117,7 +117,7 @@ All three are confirmed. The `.git/` placement was my mistake in round 1's fix f
 ### R2-C4 · The E2E test written after review breaks the review proof again (AR2-2, TL2-8)
 
 - **Problem:** Ivy writes the E2E test **after** review PASS, and it's committed with the ticket.
-  E2E files count as code, so the patch-id changes and `pre-push` refuses every `e2e: yes`
+  E2E files count as code, so the patch-id changes and `pre-push` refuses every `e2e: true`
   ticket. It's the R-C1 bug again.
 - **Options:**
   - **(a)** Change the order: build → checks → **Ivy writes the E2E test** → review (Rex

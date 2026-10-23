@@ -46,7 +46,7 @@ milestone's exit check on real tickets, and the calibration run uses pilot ticke
 ```
  setup (once per project)
    └─► intake ─► PRD ─► design (HLD / ADR / LLD) ─► tickets ─► per ticket: plan ─► build (TDD by setting)
-                                                     ─► checks ─► E2E test (Ivy, if e2e: yes) ─► review ─► QA ─► ship (orchestrator: push + MR)
+                                                     ─► checks ─► E2E test (Ivy, if e2e: true) ─► review ─► QA ─► ship (orchestrator: push + MR)
                                                                                                                   └─► you merge
                                                                                                                        └─► release
    every stage: writes the run log, updates status, can stop for a human, can be resumed
@@ -588,7 +588,7 @@ which documents are required.
   - `risk: normal|high` (auto-set from risk paths and keywords, can be raised by hand);
   - `size`;
   - `repo` (which entry of the `repos` list; every ticket belongs to exactly one repo);
-  - `e2e: yes|no` (`yes` only when the ticket creates or changes a critical journey, §10; you can
+  - `e2e: true|false` (`true` only when the ticket creates or changes a critical journey, §10; you can
     override it at ticket approval);
   - `tdd` and `tests` when they differ from the project setting (§7; proposed by Tess, set only
     by you);
@@ -646,7 +646,7 @@ BR-n  →  FR-n / NFR-n  →  AC-FR-n.m / AC-NFR-n.m  →  ticket covers_ac  →
   - every ticket AC is covered by a test (unit, integration, API or E2E, each tagged with the AC
     ID), **unless the ticket's `tests` setting is `optional`**, in which case QA evidence is
     enough (§7);
-  - every `e2e: yes` ticket has a test tagged with its `J-n` and AC IDs;
+  - every `e2e: true` ticket has a test tagged with its `J-n` and AC IDs;
   - every AC has QA evidence;
   - every NFR's verification method and every ADR "Confirmation" check exists.
 - **Where it runs (R2-M11):** at the ticket gate, and **locally at ship time**, where it can see
@@ -754,13 +754,13 @@ overridden per epic or ticket by you only; agents can't change them.
 
 | Setting | Values | Default |
 |---|---|---|
-| `tdd` | `auto` · `on` · `off` | `auto` |
+| `tdd` | `auto` · `first` · `after` | `auto` |
 | `tests` | `required` · `optional` | `required` |
 
 - **`tdd: auto`:** TDD for logic-heavy work (business rules, APIs, calculations, bug fixes, where
   the bug is reproduced in a test first). Tests after the code, or QA evidence, for UI styling,
   config, glue and migrations. Tess proposes it per ticket; you can override.
-- **`tdd: off, tests: required`:** tests are written after the code and there's no red check.
+- **`tdd: after, tests: required`:** tests are written after the code and there's no red check.
   Every AC still needs a test or QA evidence (`mirai trace`).
 - **`tests: optional`:** the ticket can ship without tests. The MR says "no tests" clearly, and
   review and QA carry the weight.
@@ -789,7 +789,7 @@ overridden per epic or ticket by you only; agents can't change them.
    writes the test, runs it through `run_tests(level, path)` (inside the project's containers),
    and records the failing output. A test that passes on its first run is flagged: it may not test
    anything.
-4. **Green:** write the minimum code to pass it. **Refactor** with the tests green. With TDD off,
+4. **Green:** write the minimum code to pass it. **Refactor** with the tests green. With `tdd: after`,
    the code comes first and the tests follow, at the levels the plan names.
 5. **Bugs follow the prove-it pattern:** a test that reproduces the bug comes first.
 6. **Matrix audit:** every matrix row and AC has a test that ran and passed. "Never edit the
@@ -1043,11 +1043,11 @@ checks cover.
 
 ---
 
-## 8a. E2E test (per ticket, only when `e2e: yes`)
+## 8a. E2E test (per ticket, only when `e2e: true`)
 
 | | |
 |---|---|
-| **Trigger** | checks green on a ticket marked `e2e: yes` (§5) |
+| **Trigger** | checks green on a ticket marked `e2e: true` (§5) |
 | **Who** | `mirai-qa` (Ivy), **before review** (U2, R2-C4) |
 | **Inputs** | the ticket's ACs, its critical journey `J-n`, the feature map's stable selectors, the running app (started by the orchestrator) |
 | **Output** | new or updated Playwright test files for that journey, tagged with `J-n` and the AC IDs. The orchestrator commits them on the ticket branch. |
@@ -1067,7 +1067,7 @@ the code and the E2E test together**, there is **one proof**, and the test itsel
 
 | | |
 |---|---|
-| **Trigger** | checks green, and the E2E test written when `e2e: yes` (§8a) |
+| **Trigger** | checks green, and the E2E test written when `e2e: true` (§8a) |
 | **Who** | `mirai-reviewer` (persona proposed: **Rex**), fresh context, model by the ladder |
 | **Inputs** | the diff since `baseline_revision` (code **and** any E2E test) and the plan's claims, **as files in the per-launch read-only input folder, never pasted** (B8, R3-C3); the plan's frozen intent; the ACs; conventions; ADRs it must obey. Instruction files come from a **clean export of the integration branch**, never from the work tree (R3-M9). |
 | **Output** | Rex's verdict and findings as **structured final output**, captured from stdout by the launcher (never read from a file in the work tree, R2-C1). The orchestrator stores them as `review-<ticket>-r<n>.json` in the store, never committed and never posted to the git host (§15a), plus a summary line. On PASS a small signed **proof file** (see "Records" below). |
@@ -1193,7 +1193,7 @@ QA has two parts that used to be mixed up (`08` Q6):
   it from the business context, and you approve it (§1 step 3a).
 - **E2E tests cover mainly happy paths plus one or two key failure paths per journey.** Edge cases
   go to unit and API tests. The suite grows with journeys, not with features.
-- **Only tickets marked `e2e: yes`** get E2E work (§5). Ivy, not Kai, writes or updates the E2E
+- **Only tickets marked `e2e: true`** get E2E work (§5). Ivy, not Kai, writes or updates the E2E
   test for that journey, before review (§8a), so the developer doesn't grade his own work. Each
   test is tagged with the journey `J-n` and the AC IDs.
 - **All other ACs** are covered by AC-tagged unit and integration tests (seen by `mirai trace`)

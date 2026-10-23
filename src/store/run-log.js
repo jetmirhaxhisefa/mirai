@@ -60,8 +60,8 @@ export const RUN_EVENTS = Object.freeze({
   },
   checks: {
     // The setting (auto/on/off) and what it resolved to for this ticket (D-23).
-    tdd: { type: 'enum', values: ['auto', 'on', 'off'] },
-    tdd_applied: { type: 'enum', values: ['on', 'off'] },
+    tdd: { type: 'enum', values: ['auto', 'first', 'after'] },
+    tdd_applied: { type: 'enum', values: ['first', 'after'] },
     tests_policy: { type: 'enum', values: ['required', 'optional'] },
     tests: { type: 'table', fields: { passed: count, failed: count, skipped: count }, required: ['passed', 'failed', 'skipped'] },
     named: {

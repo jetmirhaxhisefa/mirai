@@ -53,7 +53,7 @@ flowchart TD
         PNG --> B["Build, TDD by setting<br/>developer runs named checks via run_tests"]
         B --> C["Checks by the orchestrator, in hardened containers:<br/>named checks, nothing new broke vs baseline,<br/>diff coverage, floor guard, trace<br/>signed gate-result record"]
         C -- "red, uses a round" --> B
-        C -- green --> EW{"e2e: yes?"}
+        C -- green --> EW{"e2e: true?"}
         EW -- yes --> E2W["Write the E2E test<br/>qa, before review"]
         EW -- no --> R
         E2W --> R["Review code + E2E test<br/>reviewer, depth by risk"]
@@ -94,7 +94,7 @@ flowchart TD
   after handover uses one round of the ticket's shared budget, which covers checks, review and QA
   together. Failures the developer fixes inside its own session don't count. The orchestrator,
   not the agent, commits after each green step.
-- **E2E before review (U2):** when `e2e: yes`, QA writes the E2E test before review, so the
+- **E2E before review (U2):** when `e2e: true`, QA writes the E2E test before review, so the
   reviewer checks it with the code and one proof covers both.
 - **No ship gate:** push and MR are automatic; your merge is the gate.
 - **Parking:** when the budget runs out, the ticket is parked with a note instead of retried.
@@ -283,7 +283,7 @@ sequenceDiagram
         DV->>O: handover after running named checks itself (run_tests)
         O->>O: kill agent process group, commit with trailer, code hash at commit
         O->>O: named checks in hardened containers, signed gate-result record, red evidence vs baseline + stub
-        O->>QA: if e2e: yes, write the E2E test
+        O->>QA: if e2e: true, write the E2E test
         O->>RV: review code + E2E test (diff in input folder, instruction files from the integration branch)
         RV-->>O: PASS as structured output, findings stay local
         O->>QA: verify ACs (run_tests qa-explore, script passed as content)

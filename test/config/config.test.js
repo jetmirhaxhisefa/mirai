@@ -49,14 +49,14 @@ const reasons = (err) => (err.errors ?? [{ reason: err.reason }]).map((e) => e.r
 
 test('T1: layers merge in order, tables per key, arrays replaced, sources recorded', () => {
   const { files } = repo({
-    project: `${MINIMAL}[models]\nlight = "project-light"\n[testing]\ntdd = "on"\n[[testing.levels]]\nname = "unit"\ncommand = ["npm", "test"]\n[[repos]]\nname = "api"\npath = "api"\n`,
+    project: `${MINIMAL}[models]\nlight = "project-light"\n[testing]\ntdd = "first"\n[[testing.levels]]\nname = "unit"\ncommand = ["npm", "test"]\n[[repos]]\nname = "api"\npath = "api"\n`,
     personal: 'schema_version = 1\n[models]\nlight = "my-light"\n[run]\nstop_by = "06:30"\n',
     global: 'schema_version = 1\n[subscription]\nplan = "max-20x"\n[usage]\nnight_max = 10\n',
   });
   const { config, sources } = loadConfig(files);
   assert.equal(config.models.light, 'my-light', 'personal wins over project');
   assert.equal(config.models.deep, 'claude-opus-5-5', 'defaults fill the rest of the table');
-  assert.equal(config.testing.tdd, 'on');
+  assert.equal(config.testing.tdd, 'first');
   assert.equal(config.testing.tests, 'required', 'table merged per key');
   assert.deepEqual(config.repos, [{ name: 'api', path: 'api' }], 'array replaced whole, not merged with the default');
   assert.equal(config.usage.night_max, 10);
@@ -189,7 +189,7 @@ test('T8: exact types, enums, times and unknown keys', () => {
   assert.deepEqual(err.errors.map((e) => [e.path, e.reason, e.hint]), [
     ['retention.days', 'retention.days must be a whole number', 'write it without a decimal point'],
     ['testing.e2e_budget_minutes', 'testing.e2e_budget_minutes must be a whole number', undefined],
-    ['testing.tdd', 'testing.tdd must be one of: auto, on, off', undefined],
+    ['testing.tdd', 'testing.tdd must be one of: auto, first, after', undefined],
     ['run.stop_by', 'run.stop_by is not valid', 'a 24-hour time as a string, for example "06:30"'],
     ['gate.code_pathz', 'unknown key gate.code_pathz', 'did you mean "code_paths"?'],
   ]);

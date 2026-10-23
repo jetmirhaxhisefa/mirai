@@ -170,7 +170,7 @@ pass after the discussion finished. **Later superseded:** `mirai exec test` beca
 - **Agreed (2026-10-22):**
   1. **A critical-journeys list** per project, in the feature map. Setup proposes it from the
      business context (Q4), and you approve it.
-  2. **The ticket planner marks `e2e: yes`** only when a ticket creates or changes a critical
+  2. **The ticket planner marks `e2e: true`** only when a ticket creates or changes a critical
      journey. You can override it at ticket approval.
   3. **Ivy writes or updates the E2E test** for that journey, not Kai, so the developer doesn't
      grade himself. It's tagged with the journey and AC IDs, committed with the ticket, and run in
@@ -218,14 +218,14 @@ pass after the discussion finished. **Later superseded:** `mirai exec test` beca
 
      | Setting | Values | Default |
      |---|---|---|
-     | `tdd` | `auto` · `on` · `off` | `auto` |
+     | `tdd` | `auto` · `first` · `after` | `auto` |
      | `tests` | `required` · `optional` | `required` |
 
   2. **`tdd: auto`:** TDD for logic-heavy work (business rules, APIs, calculations, bug fixes,
      where the bug is reproduced in a test first). Tests-after or QA evidence for UI styling,
      config, glue and migrations. The ticket planner proposes it per ticket, and you can
      override.
-  3. **`tdd: off, tests: required`:** tests are written after the code, and there's no red check.
+  3. **`tdd: after, tests: required`:** tests are written after the code, and there's no red check.
      Every AC still needs a test or QA evidence (`mirai trace`).
   4. **`tests: optional`:** the MR states "no tests" clearly, and review and QA carry the weight.
   5. **High-risk tickets keep `tests: required`** unless you override that ticket.

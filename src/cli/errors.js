@@ -88,8 +88,8 @@ export function formatError(err, env) {
   const lines = [`mirai: ${clean(String(err.message).split('\n')[0])}`];
   if (err.hint) lines.push(clean(err.hint));
   for (const e of err.listed ? err.errors : []) {
-    lines.push(`${e.source}:${e.line}:${e.column}: ${e.reason}`);
-    if (e.hint) lines.push(`  hint: ${e.hint}`);
+    lines.push(clean(`${e.source}:${e.line}:${e.column}: ${e.reason}`));
+    if (e.hint) lines.push(`  hint: ${clean(e.hint)}`);
   }
   if (env.MIRAI_DEBUG === '1' && err.stack) {
     const frames = err.stack.split('\n').filter((l) => /^\s+at /.test(l));

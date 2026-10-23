@@ -1,0 +1,14 @@
+{
+  "downstream": [
+    "story-PMT-12",
+    "quoted: item",
+    "single",
+    42,
+    "item with words"
+  ],
+  "after": "done",
+  "empty_list_key": null,
+  "last": [
+    "only"
+  ]
+}

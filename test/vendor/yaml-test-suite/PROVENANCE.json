@@ -1,0 +1,15 @@
+{
+  "source": "https://github.com/yaml/yaml-test-suite",
+  "commit": "6e6c296ae9c9d2d5c4134b4b64d01b29ac19ff6f",
+  "tree": "493d388a50385d992cfaa628a88171aa1965c50b",
+  "release": "data-2022-01-17 (generated from main v2022-01-17, 45db50aecf9b1520f8258938c88f396e96f30831)",
+  "commit_date": "2022-01-17",
+  "license": "MIT (LICENSE in this folder, from v2022-01-17; the data release has no licence file of its own)",
+  "vendored_on": "2026-10-24",
+  "what": "Test data only: for each of the 402 cases, in.yaml, in.json, error and === (the case name). No event files, emitter outputs or symlink folders. No code from the repo is vendored or run.",
+  "files": 1180,
+  "vetting": "research/06-skill-vetting.md, addendum 2026-10-24 (yaml-test-suite)",
+  "sha256": "1a5c143b1c860b5551b7eeb1e1f35bde71c36ae5c5f727cd0e4ce1be811a6381",
+  "sha256_recipe": "SHA-256 over every file except LICENSE and PROVENANCE.json, sorted by path, each as '<path>\\0<sha256 hex of its bytes>\\n'. Test T6 recomputes it.",
+  "upstream_check": "Each vendored file's git blob SHA-1 (git hash-object <file>) equals the blob at the same path in tree 493d388a… (git ls-tree -r 6e6c296a…, or the GitHub trees API for that commit)."
+}

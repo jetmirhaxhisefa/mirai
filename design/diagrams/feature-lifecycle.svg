@@ -175,7 +175,7 @@
 <text x="510.0" y="952.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
 <tspan x="510.0" dy="0">Each ticket: ACs · risk</tspan>
 <tspan x="510.0" dy="18.75">· size · depends on</tspan>
-<tspan x="510.0" dy="18.75">· e2e yes/no</tspan>
+<tspan x="510.0" dy="18.75">· e2e true/false</tspan>
 <tspan x="510.0" dy="18.75">Epic: release mode</tspan>
 </text>
 <rect x="700" y="920" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
@@ -252,7 +252,7 @@
 <tspan x="1130.0" dy="0">Build</tspan>
 <tspan x="1130.0" dy="18.75">Kai: stub -&gt; red</tspan>
 <tspan x="1130.0" dy="18.75">(assertion fails) -&gt; green</tspan>
-<tspan x="1130.0" dy="18.75">tdd auto/on/off · run_tests</tspan>
+<tspan x="1130.0" dy="18.75">tdd auto/first/after · run_tests</tspan>
 </text>
 <rect x="1320" y="1360" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
 <text x="1440.0" y="1382.75" font-size="15" fill="#1e1e1e" text-anchor="middle">
@@ -265,7 +265,7 @@
 <rect x="1630" y="1360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
 <text x="1750.0" y="1401.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
 <tspan x="1750.0" dy="0">Write E2E test</tspan>
-<tspan x="1750.0" dy="18.75">Ivy, only if e2e: yes</tspan>
+<tspan x="1750.0" dy="18.75">Ivy, only if e2e: true</tspan>
 <tspan x="1750.0" dy="18.75">critical journeys only</tspan>
 </text>
 <rect x="1940" y="1360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
