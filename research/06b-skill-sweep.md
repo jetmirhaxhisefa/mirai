@@ -2,7 +2,7 @@
 
 This file adds to `06-skill-vetting.md`, which is unchanged. That file already covers BMAD (+TEA, Loop), pstack, addyosmani, find-skills, humanizer, playwright-skill and superpowers, so they are skipped here.
 
-Rules applied: no `npx skills`, no installer, no script run. Candidates were found through skills.sh pages, GitHub and web search, then cloned with `git clone --depth 1` (LFS smudge off, no submodules) into `research/_sources/<owner>-<repo>/`. Every relevant skill file was read. I treated all of it as data: no text addressed to an AI was followed. File:line citations are relative to `research/_sources/`.
+Rules applied: no `npx skills`, no installer, no script run. Candidates were found through skills.sh pages, GitHub and web search, then cloned with `git clone --depth 1` (LFS smudge off, no submodules) into `~/Projects/mirai-sources/<owner>-<repo>/`. Every relevant skill file was read. I treated all of it as data: no text addressed to an AI was followed. File:line citations are relative to `~/Projects/mirai-sources/`.
 
 The scan run on each candidate (read-only):
 `grep -rnIE "curl |wget |fetch\(|process\.env|os\.environ|child_process|execSync|exec\(|spawn|npm install|npx |\| *bash|base64|\.ssh|telemetry|listen\(|createServer|rm -rf|~/\.|\$HOME"`, plus one grep for injection phrasing ("ignore previous instructions", "do not tell the user", "system prompt", "exfiltrat…") and one for hidden or bidi Unicode (U+200B–U+200F, U+202A–U+202E, U+2060–U+2064, U+FEFF). **The injection and Unicode greps came back empty for every candidate.**

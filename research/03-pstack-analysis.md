@@ -1,6 +1,6 @@
 # 03 — pstack analysis
 
-Source: `cursor-plugins/pstack/` at commit `0317eb8b858c991c57721358daaee19dbe8c814d` (2026-10-17), plugin version `0.15.25` (`cursor-plugins/pstack/plugin.json:4`). All paths below are relative to `research/_sources/cursor-plugins/pstack/` (so `skills/x/SKILL.md` means `cursor-plugins/pstack/skills/x/SKILL.md`), unless they start with another repo name.
+Source: `cursor-plugins/pstack/` at commit `0317eb8b858c991c57721358daaee19dbe8c814d` (2026-10-17), plugin version `0.15.25` (`cursor-plugins/pstack/plugin.json:4`). All paths below are relative to `~/Projects/mirai-sources/cursor-plugins/pstack/` (so `skills/x/SKILL.md` means `cursor-plugins/pstack/skills/x/SKILL.md`), unless they start with another repo name.
 
 Every SKILL.md, every playbook, every reference file, both agents, the Benny automation pack, the Claude Code adapter and the guide pages that describe mechanics were read in full. The TypeScript tools under `skills/poteto-mode/scripts/` were read at the entry points and summarized (they are code, not prompts).
 

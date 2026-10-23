@@ -7,7 +7,7 @@ version: 5
 
 Every part of MIRAI, what it's for, where the idea comes from, and whether it's in the MVP.
 - "Notes" refers to the user's notes (`research/01-notes-analysis.md`).
-- Prior-art paths are relative to `research/_sources/`.
+- Prior-art paths are relative to `~/Projects/mirai-sources/`.
 - Row numbers like `#20` point to `research/05-reuse-matrix.md`.
 - "R-…" points to themes in `06-review-round-1.md`. "D-…" points to `04-decisions.md`.
 - "Q…" in version 3 points to `08-followup-discussion.md`.

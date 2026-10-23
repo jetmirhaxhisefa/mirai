@@ -16,7 +16,7 @@ For each stage it says:
 - which prior-art mechanism it is based on, and what we changed.
 
 Decisions referenced here (D-nn) are in `04-decisions.md`. Interview answers (Q1–Q12) are in
-`00-interview-log.md`. Prior-art paths are relative to `research/_sources/`; "pilot" means
+`00-interview-log.md`. Prior-art paths are relative to `~/Projects/mirai-sources/`; "pilot" means
 `people-management-tool/platform`. Version 2 applied the round-1 decisions (`06-review-round-1.md`
 §G) and the follow-up agreements Q1–Q9 (`08-followup-discussion.md`). Version 3 applies review
 round 2 (`06-review-round-2.md`, fixes R2-C1…R2-M15 and your decisions U1–U5 in §G). Version 4

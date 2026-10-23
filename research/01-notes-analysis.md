@@ -4,7 +4,7 @@ Inputs:
 - `notes/main-notes/2_Efforts/AI Agent Setup Guide for Development Projects.md` (729 lines), cited as **Guide:line**.
 - `notes/main-notes/3_Atlas/Lauren Tan Workshop - Trusting AI Coding Agents - Detailed Notes.md` (143 lines), cited as **Lauren:line**.
 
-**Path convention.** All prior-art paths are relative to `research/_sources/`:
+**Path convention.** All prior-art paths are relative to `~/Projects/mirai-sources/`:
 - `bmad-method/skills/<skill>/...` for BMAD;
 - `bmad-tea/skills/...` for TEA;
 - `cursor-plugins/pstack/...` for pstack;

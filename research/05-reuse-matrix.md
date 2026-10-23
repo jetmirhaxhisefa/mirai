@@ -6,7 +6,7 @@ How to read the Decision column:
 - **Build new**: no prior art covers it.
 - **Drop**: not worth building, or not in scope.
 
-Names use the `mirai-` prefix. The prefix is a **proposal**; it gets confirmed in Phase 1. Paths are relative to `research/_sources/`; "pilot" = `people-management-tool/platform`.
+Names use the `mirai-` prefix. The prefix is a **proposal**; it gets confirmed in Phase 1. Paths are relative to `~/Projects/mirai-sources/`; "pilot" = `people-management-tool/platform`.
 
 MVP column: my recommendation only. It is decided in Phase 1.
 

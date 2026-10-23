@@ -1,6 +1,6 @@
 # 02 — BMAD Method analysis
 
-Sources (all relative to `research/_sources/`):
+Sources (all relative to `~/Projects/mirai-sources/`):
 
 | Repo | Commit | What it is |
 |---|---|---|
