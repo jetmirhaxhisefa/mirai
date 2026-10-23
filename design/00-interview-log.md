@@ -278,3 +278,38 @@ Recorded in `design/06-review-round-1.md` §G (2026-10-21). The ones that change
   containers, and Claude Code runs under strict blocking rules (D7, `research/09`).
 - **Q12 / runtime:** subscription only. `--bare` is out, and budgets are counted in turns,
   tokens and minutes.
+
+## Changes from review round 2
+
+See `06-review-round-2.md` §G (2026-10-23). The answers above stay; these refine them:
+- **Q10 pilot:** the pilot starts **right after Milestone A** (U1). Units are first built and
+  tested on the sample app (since round 3: its own private repo, in the pilot's stacks, R3-M1);
+  the pilot then repeats each milestone's exit check, and calibration uses pilot tickets.
+- **Q5 gates for small work (U4):**
+  - `quick` track: approve the ticket, then merge. Two actions (three once the release stage
+    adds your production go/no-go, R3-M4).
+  - `standard` track: the brief is approved together with the PRD (the track sits in the PRD
+    header).
+  - `full` track keeps its own brief gate.
+  - No supervised `ship` gate: your merge is the gate.
+- **Q7 resume:** the MVP assumes one machine (U3); no run-log lines are committed.
+- **Q4 E2E (U2):** Ivy writes the E2E test **before** review, and Rex reviews it with the code.
+  One proof covers both.
+- **Milestone D order (U5):** the second-project install comes first; workspace mode and Cursor
+  are built "when needed".
+
+## Changes from review round 3
+
+See `06-review-round-3.md` §D (2026-10-23). The answers above stay; these refine them:
+- **Overnight safety (V1 = (a)):** D7 is kept as it is. Agents run as your own macOS user under
+  the blocking rules; no separate user, no container. All round-3 fixes apply, and the remaining
+  risk is stated honestly. **Condition:** if the red-team tests show the docker socket,
+  ssh-agent, keychain or real `.env` is reachable and can't be closed by configuration, headless
+  runs are blocked and this decision comes back to you.
+- **Design reviews end here (V2):** after the round-3 fixes, safety is carried by the red-team
+  suite. No headless agent launch happens before it passes.
+- **Q5 merging (V3):** the orchestrator merges the **docs MR** after your signed ticket-set
+  approval. Documents only; code is never merged by MIRAI. This refines "nothing merges without
+  you" from round 1: that still holds for all code.
+- **Q10 pilot:** MIRAI reads the base branch from `[git] integration_branch` (`mirai/pilot`
+  during the pilot), so the pilot never touches the product's real `main` (R3-C1).

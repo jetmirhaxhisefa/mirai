@@ -1,0 +1,458 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -320 2890 3170" width="2890" height="3170" font-family="Helvetica, Arial, sans-serif">
+<defs>
+<marker id="m0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1e1e1e"/></marker>
+<marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f3dc4"/></marker>
+<marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#868e96"/></marker>
+<marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c92a2a"/></marker>
+<marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e67700"/></marker>
+</defs><rect x="0" y="-320" width="2890" height="3170" fill="#ffffff"/>
+<text x="80" y="-240" font-size="40" fill="#1e1e1e" text-anchor="start" font-weight="bold">
+<tspan x="80" dy="0">MIRAI — one feature from request to live  (design v5, approved)</tspan>
+</text>
+<text x="80" y="-202" font-size="18" fill="#495057" text-anchor="start">
+<tspan x="80" dy="0">Every document: author agent -&gt; script lint -&gt; separate verifier agent -&gt; YOU approve.  Every ticket: a plain script runs the loop with round caps.  Agents never merge, never deploy to production.</tspan>
+</text>
+<rect x="1320" y="-165" width="150" height="50" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1395.0" y="-135.45" font-size="13" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1395.0" dy="0">Agent (persona)</tspan>
+</text>
+<polygon points="1565.0,-165 1640,-140.0 1565.0,-115 1490,-140.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="1565.0" y="-135.45" font-size="13" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1565.0" dy="0">Your decision</tspan>
+</text>
+<rect x="1660" y="-165" width="150" height="50" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1735.0" y="-135.45" font-size="13" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1735.0" dy="0">Script / CI (no AI)</tspan>
+</text>
+<rect x="1830" y="-165" width="150" height="50" rx="12" fill="#d3f9d8" stroke="#2b8a3e" stroke-width="2"/>
+<text x="1905.0" y="-135.45" font-size="13" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1905.0" dy="0">Project tool</tspan>
+</text>
+<rect x="2000" y="-165" width="150" height="50" rx="12" fill="#fff3bf" stroke="#e67700" stroke-width="2"/>
+<text x="2075.0" y="-135.45" font-size="13" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2075.0" dy="0">Parked / paused</tspan>
+</text>
+<rect x="2170" y="-165" width="150" height="50" rx="12" fill="#f3f0ff" stroke="#5f3dc4" stroke-width="2"/>
+<text x="2245.0" y="-135.45" font-size="13" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2245.0" dy="0">Report / note</tspan>
+</text>
+<rect x="40" y="-90" width="2810" height="300" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="-54" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">1 · Intake and requirements   (start with /mirai-new)</tspan>
+</text>
+<rect x="80" y="40" width="240" height="110" rx="12" fill="#d3f9d8" stroke="#2b8a3e" stroke-width="2"/>
+<text x="200.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">New feature request</tspan>
+<tspan x="200.0" dy="18.75">(your text, or an issue</tspan>
+<tspan x="200.0" dy="18.75">in your tracker)</tspan>
+</text>
+<rect x="390" y="40" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="510.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="510.0" dy="0">Intake + interview</tspan>
+<tspan x="510.0" dy="18.75">Nora (product manager)</tspan>
+<tspan x="510.0" dy="18.75">one question + a guess</tspan>
+</text>
+<rect x="700" y="40" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="820.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="820.0" dy="0">Business brief</tspan>
+<tspan x="820.0" dy="18.75">Nora: problem, users,</tspan>
+<tspan x="820.0" dy="18.75">proposed track</tspan>
+</text>
+<polygon points="1140.0,15 1270,95.0 1140.0,175 1010,95.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="1140.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1140.0" dy="0">Approve brief</tspan>
+<tspan x="1140.0" dy="18.75">+ track?</tspan>
+<tspan x="1140.0" dy="18.75">full track only</tspan>
+</text>
+<rect x="1320" y="40" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1440.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1440.0" dy="0">Write PRD</tspan>
+<tspan x="1440.0" dy="18.75">Nora, strict template</tspan>
+<tspan x="1440.0" dy="18.75">BR -&gt; FR / NFR -&gt; AC ids</tspan>
+</text>
+<rect x="1630" y="40" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1750.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1750.0" dy="0">Lint PRD</tspan>
+<tspan x="1750.0" dy="18.75">script: sections,</tspan>
+<tspan x="1750.0" dy="18.75">ids, no TBD</tspan>
+</text>
+<rect x="1940" y="40" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="2060.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2060.0" dy="0">Verify PRD</tspan>
+<tspan x="2060.0" dy="18.75">Vera (verifier)</tspan>
+<tspan x="2060.0" dy="18.75">fresh context, other model</tspan>
+</text>
+<polygon points="2380.0,15 2510,95.0 2380.0,175 2250,95.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="2380.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2380.0" dy="0">Approve PRD?</tspan>
+<tspan x="2380.0" dy="18.75">you (always)</tspan>
+<tspan x="2380.0" dy="18.75">standard: + brief, track</tspan>
+</text>
+<polyline points="320,95.0 390,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="630,95.0 700,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="940,95.0 1010,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1270,95.0 1320,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1560,95.0 1630,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1870,95.0 1940,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2180,95.0 2250,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2060.0,40 2060.0,-30 1440.0,-30 1440.0,40" fill="none" stroke="#c92a2a" stroke-width="2" marker-end="url(#m3)"/>
+<text x="1400.0" y="-42" font-size="14" fill="#c92a2a" text-anchor="start">
+<tspan x="1400.0" dy="0">blocking findings (max 2 rounds,</tspan>
+<tspan x="1400.0" dy="17.5">loop guard counts them)</tspan>
+</text>
+<polyline points="820.0,150 820.0,215 200.0,215 200.0,150" fill="none" stroke="#868e96" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#m2)"/>
+<text x="160.0" y="203" font-size="14" fill="#868e96" text-anchor="start">
+<tspan x="160.0" dy="0">quick track: straight to</tspan>
+<tspan x="160.0" dy="17.5">step 3 (one ticket)</tspan>
+</text>
+<rect x="40" y="350" width="2810" height="300" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="386" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">2 · Design   (full track, or an ADR-worthy decision; otherwise straight to 3)</tspan>
+</text>
+<rect x="80" y="480" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="200.0" y="521.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">Read the codebase</tspan>
+<tspan x="200.0" dy="18.75">Arlo (architect)</tspan>
+<tspan x="200.0" dy="18.75">ratify what exists</tspan>
+</text>
+<rect x="390" y="480" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="510.0" y="521.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="510.0" dy="0">HLD</tspan>
+<tspan x="510.0" dy="18.75">arc42 shape + C4</tspan>
+<tspan x="510.0" dy="18.75">context + containers</tspan>
+</text>
+<rect x="700" y="480" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="820.0" y="521.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="820.0" dy="0">ADRs</tspan>
+<tspan x="820.0" dy="18.75">one per hard decision</tspan>
+<tspan x="820.0" dy="18.75">MADR, immutable</tspan>
+</text>
+<rect x="1010" y="480" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1130.0" y="521.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1130.0" dy="0">LLD per epic</tspan>
+<tspan x="1130.0" dy="18.75">only if new data model,</tspan>
+<tspan x="1130.0" dy="18.75">API or &gt;1 module</tspan>
+</text>
+<rect x="1320" y="480" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1440.0" y="521.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1440.0" dy="0">Lint design</tspan>
+<tspan x="1440.0" dy="18.75">script: sections,</tspan>
+<tspan x="1440.0" dy="18.75">Mermaid, links, trace</tspan>
+</text>
+<rect x="1630" y="480" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1750.0" y="521.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1750.0" dy="0">Verify design</tspan>
+<tspan x="1750.0" dy="18.75">Vera: coverage map,</tspan>
+<tspan x="1750.0" dy="18.75">adversarial, feasibility</tspan>
+</text>
+<polygon points="2070.0,455 2200,535.0 2070.0,615 1940,535.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="2070.0" y="530.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2070.0" dy="0">Approve design?</tspan>
+<tspan x="2070.0" dy="18.75">you (always)</tspan>
+</text>
+<polyline points="320,535.0 390,535.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="630,535.0 700,535.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="940,535.0 1010,535.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1250,535.0 1320,535.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1560,535.0 1630,535.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1870,535.0 1940,535.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2380.0,175 2390.0,320 200.0,320 200.0,480" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1750.0,480 1750.0,410 510.0,410 510.0,480" fill="none" stroke="#c92a2a" stroke-width="2" marker-end="url(#m3)"/>
+<text x="470.0" y="398" font-size="14" fill="#c92a2a" text-anchor="start">
+<tspan x="470.0" dy="0">blocking findings</tspan>
+</text>
+<rect x="40" y="790" width="2810" height="300" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="826" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">3 · Split into tickets</tspan>
+</text>
+<rect x="80" y="920" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="200.0" y="961.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">Epics + stories</tspan>
+<tspan x="200.0" dy="18.75">Tess (ticket planner)</tspan>
+<tspan x="200.0" dy="18.75">vertical slices</tspan>
+</text>
+<rect x="390" y="920" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="510.0" y="952.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="510.0" dy="0">Each ticket: ACs · risk</tspan>
+<tspan x="510.0" dy="18.75">· size · depends on</tspan>
+<tspan x="510.0" dy="18.75">· e2e yes/no</tspan>
+<tspan x="510.0" dy="18.75">Epic: release mode</tspan>
+</text>
+<rect x="700" y="920" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="820.0" y="961.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="820.0" dy="0">Graph lint + mirai trace</tspan>
+<tspan x="820.0" dy="18.75">no cycles, every</tspan>
+<tspan x="820.0" dy="18.75">FR / AC covered</tspan>
+</text>
+<rect x="1010" y="920" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1130.0" y="970.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1130.0" dy="0">Verify tickets</tspan>
+<tspan x="1130.0" dy="18.75">Vera</tspan>
+</text>
+<polygon points="1450.0,895 1580,975.0 1450.0,1055 1320,975.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="1450.0" y="961.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1450.0" dy="0">Approve ticket set?</tspan>
+<tspan x="1450.0" dy="18.75">you (always)</tspan>
+<tspan x="1450.0" dy="18.75">quick: the one ticket</tspan>
+</text>
+<rect x="1630" y="920" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1750.0" y="952.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1750.0" dy="0">Docs MR</tspan>
+<tspan x="1750.0" dy="18.75">orchestrator merges it</tspan>
+<tspan x="1750.0" dy="18.75">after your signed</tspan>
+<tspan x="1750.0" dy="18.75">approval (docs only)</tspan>
+</text>
+<rect x="1940" y="920" width="240" height="110" rx="12" fill="#d3f9d8" stroke="#2b8a3e" stroke-width="2"/>
+<text x="2060.0" y="961.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2060.0" dy="0">Store tickets</tspan>
+<tspan x="2060.0" dy="18.75">ONE place: repo .md</tspan>
+<tspan x="2060.0" dy="18.75">or your tracker</tspan>
+</text>
+<rect x="2250" y="920" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="2370.0" y="970.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2370.0" dy="0">ready-for-dev</tspan>
+<tspan x="2370.0" dy="18.75">queue</tspan>
+</text>
+<polyline points="320,975.0 390,975.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="630,975.0 700,975.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="940,975.0 1010,975.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1250,975.0 1320,975.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1580,975.0 1630,975.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1870,975.0 1940,975.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2180,975.0 2250,975.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2070.0,615 2080.0,760 200.0,760 200.0,920" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<rect x="40" y="1230" width="2810" height="580" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="1266" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">4 · Per ticket — supervised or overnight (orchestrator: a plain script, not an agent)</tspan>
+</text>
+<rect x="80" y="1360" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="200.0" y="1382.75" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">Branch</tspan>
+<tspan x="200.0" dy="18.75">project's own pattern</tspan>
+<tspan x="200.0" dy="18.75">from integration branch</tspan>
+<tspan x="200.0" dy="18.75">· stacked (max 2)</tspan>
+<tspan x="200.0" dy="18.75">· or feature/&lt;epic&gt;</tspan>
+</text>
+<rect x="390" y="1360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="510.0" y="1392.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="510.0" dy="0">Plan</tspan>
+<tspan x="510.0" dy="18.75">Kai (developer)</tspan>
+<tspan x="510.0" dy="18.75">test list · declares</tspan>
+<tspan x="510.0" dy="18.75">protected paths + deps</tspan>
+</text>
+<polygon points="830.0,1335 960,1415.0 830.0,1495 700,1415.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="830.0" y="1392.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="830.0" dy="0">Plan gate</tspan>
+<tspan x="830.0" dy="18.75">auto on quick;</tspan>
+<tspan x="830.0" dy="18.75">you if high risk,</tspan>
+<tspan x="830.0" dy="18.75">protected paths, deps</tspan>
+</text>
+<rect x="1010" y="1360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1130.0" y="1392.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1130.0" dy="0">Build</tspan>
+<tspan x="1130.0" dy="18.75">Kai: stub -&gt; red</tspan>
+<tspan x="1130.0" dy="18.75">(assertion fails) -&gt; green</tspan>
+<tspan x="1130.0" dy="18.75">tdd auto/on/off · run_tests</tspan>
+</text>
+<rect x="1320" y="1360" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1440.0" y="1382.75" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1440.0" dy="0">Checks</tspan>
+<tspan x="1440.0" dy="18.75">orchestrator, hardened</tspan>
+<tspan x="1440.0" dy="18.75">containers: nothing new</tspan>
+<tspan x="1440.0" dy="18.75">broke vs baseline ·</tspan>
+<tspan x="1440.0" dy="18.75">diff coverage</tspan>
+</text>
+<rect x="1630" y="1360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1750.0" y="1401.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1750.0" dy="0">Write E2E test</tspan>
+<tspan x="1750.0" dy="18.75">Ivy, only if e2e: yes</tspan>
+<tspan x="1750.0" dy="18.75">critical journeys only</tspan>
+</text>
+<rect x="1940" y="1360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="2060.0" y="1392.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2060.0" dy="0">Review</tspan>
+<tspan x="2060.0" dy="18.75">Rex: code + E2E test</tspan>
+<tspan x="2060.0" dy="18.75">depth by risk</tspan>
+<tspan x="2060.0" dy="18.75">findings stay local</tspan>
+</text>
+<rect x="2250" y="1360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="2370.0" y="1392.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2370.0" dy="0">QA on running app</tspan>
+<tspan x="2370.0" dy="18.75">Ivy: every AC</tspan>
+<tspan x="2370.0" dy="18.75">with evidence</tspan>
+<tspan x="2370.0" dy="18.75">(Playwright container)</tspan>
+</text>
+<rect x="2560" y="1360" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="2680.0" y="1392.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2680.0" dy="0">Ship</tspan>
+<tspan x="2680.0" dy="18.75">orchestrator commits</tspan>
+<tspan x="2680.0" dy="18.75">(Mirai-Ticket trailer),</tspan>
+<tspan x="2680.0" dy="18.75">pushes, opens MR</tspan>
+</text>
+<polyline points="320,1415.0 390,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="630,1415.0 700,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="960,1415.0 1010,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1250,1415.0 1320,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1560,1415.0 1630,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1870,1415.0 1940,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2180,1415.0 2250,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2490,1415.0 2560,1415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2370.0,1030 2380.0,1200 200.0,1200 200.0,1360" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1440.0,1360 1440.0,1305 1130.0,1305 1130.0,1360" fill="none" stroke="#c92a2a" stroke-width="2" marker-end="url(#m3)"/>
+<text x="1090.0" y="1293" font-size="14" fill="#c92a2a" text-anchor="start">
+<tspan x="1090.0" dy="0">red</tspan>
+</text>
+<polyline points="2060.0,1360 2060.0,1287 1155.0,1287 1130.0,1360" fill="none" stroke="#c92a2a" stroke-width="2" marker-end="url(#m3)"/>
+<text x="1115.0" y="1275" font-size="14" fill="#c92a2a" text-anchor="start">
+<tspan x="1115.0" dy="0">blocking</tspan>
+</text>
+<polyline points="2370.0,1360 2370.0,1269 1180.0,1269 1130.0,1360" fill="none" stroke="#c92a2a" stroke-width="2" marker-end="url(#m3)"/>
+<text x="1140.0" y="1257" font-size="14" fill="#c92a2a" text-anchor="start">
+<tspan x="1140.0" dy="0">AC fails</tspan>
+</text>
+<rect x="970" y="1550" width="480" height="130" rx="12" fill="#fff3bf" stroke="#e67700" stroke-width="2"/>
+<text x="1210.0" y="1592.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1210.0" dy="0">PARKED  (waits for you: mirai unpark</tspan>
+<tspan x="1210.0" dy="18.75">re-plan · retry · drop, with your note)</tspan>
+<tspan x="1210.0" dy="18.75">cap 2 rounds (3 high risk) · budget in turns/tokens/min</tspan>
+<tspan x="1210.0" dy="18.75">same failure twice · no progress</tspan>
+</text>
+<polyline points="1440.0,1470 1210.0,1550" fill="none" stroke="#e67700" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#m4)"/>
+<rect x="80" y="1550" width="430" height="130" rx="12" fill="#fff3bf" stroke="#e67700" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="295.0" y="1592.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="295.0" dy="0">PAUSED  (subscription limit hit)</tspan>
+<tspan x="295.0" dy="18.75">checkpoint -&gt; wait for reset -&gt; resume</tspan>
+<tspan x="295.0" dy="18.75">same counters, no new rounds</tspan>
+<tspan x="295.0" dy="18.75">stops at your morning cut-off</tspan>
+</text>
+<polyline points="1130.0,1470 295.0,1550" fill="none" stroke="#e67700" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#m4)"/>
+<rect x="2210" y="1550" width="440" height="130" rx="12" fill="#f3f0ff" stroke="#5f3dc4" stroke-width="2"/>
+<text x="2430.0" y="1601.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2430.0" dy="0">Morning report</tspan>
+<tspan x="2430.0" dy="18.75">MRs (+ stack order) · parked · pauses</tspan>
+<tspan x="2430.0" dy="18.75">turns / tokens / minutes · inbox</tspan>
+</text>
+<polyline points="1450,1615.0 2210,1615.0" fill="none" stroke="#5f3dc4" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#m1)"/>
+<rect x="80" y="1710" width="2730" height="70" rx="12" fill="#f3f0ff" stroke="#5f3dc4" stroke-width="2"/>
+<text x="1445.0" y="1750.25" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1445.0" dy="0">Env faults (stack down, flaky test, API error) never use a round: preflight, re-run once, circuit breaker stops the night.  Stacked child: when the parent changes it waits; when the parent merges, MIRAI rebases it (--onto) and re-checks; same code hash = review still counts.</tspan>
+</text>
+<rect x="40" y="1970" width="2810" height="600" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="2006" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">5 · Merge and go live   (release mode is chosen per epic)</tspan>
+</text>
+<text x="80" y="2042" font-size="22" fill="#1971c2" text-anchor="start" font-weight="bold">
+<tspan x="80" dy="0">A) release: per-ticket   (default)</tspan>
+</text>
+<rect x="80" y="2080" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="200.0" y="2121.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">CI on the MR</tspan>
+<tspan x="200.0" dy="18.75">mirai-verify (recomputes</tspan>
+<tspan x="200.0" dy="18.75">the hash) + test job</tspan>
+</text>
+<polygon points="520.0,2055 650,2135.0 520.0,2215 390,2135.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="520.0" y="2130.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="520.0" dy="0">Review MR + merge</tspan>
+<tspan x="520.0" dy="18.75">you (always)</tspan>
+</text>
+<rect x="700" y="2080" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="820.0" y="2121.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="820.0" dy="0">Ticket -&gt; done</tspan>
+<tspan x="820.0" dy="18.75">derived from the merge</tspan>
+<tspan x="820.0" dy="18.75">release: pending</tspan>
+</text>
+<rect x="1010" y="2080" width="240" height="110" rx="12" fill="#d3f9d8" stroke="#2b8a3e" stroke-width="2"/>
+<text x="1130.0" y="2112.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1130.0" dy="0">Deploy to staging</tspan>
+<tspan x="1130.0" dy="18.75">project's own CD</tspan>
+<tspan x="1130.0" dy="18.75">(only if the project</tspan>
+<tspan x="1130.0" dy="18.75">has staging)</tspan>
+</text>
+<rect x="1320" y="2080" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1440.0" y="2121.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1440.0" dy="0">Verify deploy</tspan>
+<tspan x="1440.0" dy="18.75">Ivy: smoke + ACs</tspan>
+<tspan x="1440.0" dy="18.75">with evidence</tspan>
+</text>
+<polygon points="1760.0,2055 1890,2135.0 1760.0,2215 1630,2135.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="1760.0" y="2130.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1760.0" dy="0">Go to production?</tspan>
+<tspan x="1760.0" dy="18.75">you (always)</tspan>
+</text>
+<rect x="1940" y="2080" width="240" height="110" rx="12" fill="#d3f9d8" stroke="#2b8a3e" stroke-width="2"/>
+<text x="2060.0" y="2121.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2060.0" dy="0">Production deploy</tspan>
+<tspan x="2060.0" dy="18.75">+ smoke check</tspan>
+<tspan x="2060.0" dy="18.75">-&gt; LIVE (or rolled back)</tspan>
+</text>
+<polyline points="320,2135.0 390,2135.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="650,2135.0 700,2135.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="940,2135.0 1010,2135.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1250,2135.0 1320,2135.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1560,2135.0 1630,2135.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1890,2135.0 1940,2135.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2680.0,1470 2690.0,1940 200.0,1940 200.0,2080" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<text x="80" y="2332" font-size="22" fill="#1971c2" text-anchor="start" font-weight="bold">
+<tspan x="80" dy="0">B) release: together   (whole epic at once)</tspan>
+</text>
+<rect x="80" y="2360" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="200.0" y="2410.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">Ticket MRs target</tspan>
+<tspan x="200.0" dy="18.75">feature/&lt;epic&gt;</tspan>
+</text>
+<polygon points="520.0,2335 650,2415.0 520.0,2495 390,2415.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="520.0" y="2401.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="520.0" dy="0">Merge each into</tspan>
+<tspan x="520.0" dy="18.75">feature/&lt;epic&gt;?</tspan>
+<tspan x="520.0" dy="18.75">you (inbox batch)</tspan>
+</text>
+<rect x="700" y="2360" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="820.0" y="2410.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="820.0" dy="0">All tickets</tspan>
+<tspan x="820.0" dy="18.75">integrated</tspan>
+</text>
+<rect x="1010" y="2360" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1130.0" y="2401.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1130.0" dy="0">Final E2E test</tspan>
+<tspan x="1130.0" dy="18.75">Ivy: every AC</tspan>
+<tspan x="1130.0" dy="18.75">of the epic</tspan>
+</text>
+<rect x="1320" y="2360" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1440.0" y="2401.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1440.0" dy="0">One MR</tspan>
+<tspan x="1440.0" dy="18.75">feature/&lt;epic&gt; -&gt;</tspan>
+<tspan x="1440.0" dy="18.75">integration branch + CI</tspan>
+</text>
+<polygon points="1760.0,2335 1890,2415.0 1760.0,2495 1630,2415.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="1760.0" y="2410.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1760.0" dy="0">Merge + release?</tspan>
+<tspan x="1760.0" dy="18.75">you (always)</tspan>
+</text>
+<rect x="1940" y="2360" width="240" height="110" rx="12" fill="#d3f9d8" stroke="#2b8a3e" stroke-width="2"/>
+<text x="2060.0" y="2410.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2060.0" dy="0">Same deploy path as A</tspan>
+<tspan x="2060.0" dy="18.75">-&gt; LIVE</tspan>
+</text>
+<polyline points="320,2415.0 390,2415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="650,2415.0 700,2415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="940,2415.0 1010,2415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1250,2415.0 1320,2415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1560,2415.0 1630,2415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1890,2415.0 1940,2415.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<rect x="2250" y="2350" width="240" height="110" rx="12" fill="#f3f0ff" stroke="#5f3dc4" stroke-width="2"/>
+<text x="2370.0" y="2391.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2370.0" dy="0">Feature flags:</tspan>
+<tspan x="2370.0" dy="18.75">only when you ask</tspan>
+<tspan x="2370.0" dy="18.75">for one in a ticket</tspan>
+</text>
+<rect x="40" y="2620" width="2810" height="80" rx="12" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="1445.0" y="2655.6" font-size="16" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1445.0" dy="0">Safety under every agent run:  OS sandbox, no escape  ·  deny rules: nothing outside the project, no commit/push, no gh/docker/claude/mirai  ·  hooks block secrets</tspan>
+<tspan x="1445.0" dy="20.0">tests only through the MIRAI MCP broker in hardened containers  ·  pre-push + CI secret scan  ·  only the orchestrator commits and pushes  ·  red-team suite green before any headless run</tspan>
+</text>
+<rect x="40" y="2730" width="2810" height="80" rx="12" fill="#f3f0ff" stroke="#5f3dc4" stroke-width="2"/>
+<text x="1445.0" y="2765.6" font-size="16" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1445.0" dy="0">Logged under every step:  orchestrator store (run progress, rounds, budgets, reviews, QA; 90-day retention, mirai clean) + signed records on the branch  -&gt;  trust metrics</tspan>
+<tspan x="1445.0" dy="20.0">+ mirai feedback &lt;ticket&gt; "&lt;text&gt;" and the reason on every edit/reject  -&gt;  MIRAI suggests which gates can move to auto; it never flips one itself</tspan>
+</text>
+</svg>

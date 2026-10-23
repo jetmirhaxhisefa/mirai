@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -240 2900 1745" width="2900" height="1745" font-family="Helvetica, Arial, sans-serif">
+<defs>
+<marker id="m0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1e1e1e"/></marker>
+</defs><rect x="0" y="-240" width="2900" height="1745" fill="#ffffff"/>
+<text x="80" y="-160" font-size="40" fill="#1e1e1e" text-anchor="start" font-weight="bold">
+<tspan x="80" dy="0">MIRAI — installing it into a project  (design v5, approved)</tspan>
+</text>
+<text x="80" y="-122" font-size="18" fill="#495057" text-anchor="start">
+<tspan x="80" dy="0">One command copies a pinned version. One setup skill fills in the project. Claude Code first; Codex as a verifier later; Cursor when needed. Project files never leave the project.</tspan>
+</text>
+<rect x="40" y="-90" width="1900" height="270" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="-54" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">1 · Install (script, no AI)</tspan>
+</text>
+<rect x="80" y="40" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="200.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">npx github:&lt;you&gt;/mirai</tspan>
+<tspan x="200.0" dy="18.75">#vX.Y.Z init</tspan>
+<tspan x="200.0" dy="18.75">pinned git tag</tspan>
+</text>
+<rect x="390" y="40" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="510.0" y="72.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="510.0" dy="0">Copy framework</tspan>
+<tspan x="510.0" dy="18.75">.mirai/framework/ + mirai.lock</tspan>
+<tspan x="510.0" dy="18.75">hashes; each file marked</tspan>
+<tspan x="510.0" dy="18.75">framework/project/rendered</tspan>
+</text>
+<rect x="700" y="40" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="820.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="820.0" dy="0">Generate Claude Code</tspan>
+<tspan x="820.0" dy="18.75">files + the strict</tspan>
+<tspan x="820.0" dy="18.75">settings bundle</tspan>
+</text>
+<rect x="1010" y="40" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1130.0" y="72.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1130.0" dy="0">Hooks in the trust root</tspan>
+<tspan x="1130.0" dy="18.75">(MIRAI home) · Ed25519</tspan>
+<tspan x="1130.0" dy="18.75">key pair · CI jobs:</tspan>
+<tspan x="1130.0" dy="18.75">mirai-verify + tests</tspan>
+</text>
+<rect x="1320" y="40" width="240" height="110" rx="12" fill="#f3f0ff" stroke="#5f3dc4" stroke-width="2"/>
+<text x="1440.0" y="81.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1440.0" dy="0">Next: run</tspan>
+<tspan x="1440.0" dy="18.75">/mirai-setup</tspan>
+<tspan x="1440.0" dy="18.75">in Claude Code</tspan>
+</text>
+<polyline points="320,95.0 390,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="630,95.0 700,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="940,95.0 1010,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1250,95.0 1320,95.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<rect x="40" y="310" width="2810" height="300" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="346" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">2 · Setup skill (AI; you only answer the gaps)</tspan>
+</text>
+<rect x="80" y="440" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="200.0" y="472.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="200.0" dy="0">Detect</tspan>
+<tspan x="200.0" dy="18.75">stack · named checks ·</tspan>
+<tspan x="200.0" dy="18.75">test levels · compose</tspan>
+<tspan x="200.0" dy="18.75">mounts · branch pattern</tspan>
+</text>
+<rect x="390" y="440" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="510.0" y="481.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="510.0" dy="0">Ledger of what exists</tspan>
+<tspan x="510.0" dy="18.75">keep · rewrite · move</tspan>
+<tspan x="510.0" dy="18.75">· automate · delete</tspan>
+</text>
+<rect x="700" y="440" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="820.0" y="472.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="820.0" dy="0">Interview the gaps</tspan>
+<tspan x="820.0" dy="18.75">one question + a guess</tspan>
+<tspan x="820.0" dy="18.75">where docs live · repos</tspan>
+<tspan x="820.0" dy="18.75">· resources · tdd/tests</tspan>
+</text>
+<rect x="1010" y="440" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="1130.0" y="472.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1130.0" dy="0">Business context</tspan>
+<tspan x="1130.0" dy="18.75">from your sources</tspan>
+<tspan x="1130.0" dy="18.75">(files, links, text)</tspan>
+<tspan x="1130.0" dy="18.75">+ critical journeys</tspan>
+</text>
+<rect x="1320" y="440" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1440.0" y="472.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1440.0" dy="0">Test levels + baseline</tspan>
+<tspan x="1440.0" dy="18.75">known failures recorded</tspan>
+<tspan x="1440.0" dy="18.75">· gaps reported,</tspan>
+<tspan x="1440.0" dy="18.75">not fixed</tspan>
+</text>
+<rect x="1630" y="440" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1750.0" y="472.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1750.0" dy="0">Strict settings bundle</tspan>
+<tspan x="1750.0" dy="18.75">sandbox · deny rules ·</tspan>
+<tspan x="1750.0" dy="18.75">hooks · MIRAI MCP broker</tspan>
+<tspan x="1750.0" dy="18.75">(run_tests, no shell)</tspan>
+</text>
+<rect x="1940" y="440" width="240" height="110" rx="12" fill="#d3f9d8" stroke="#2b8a3e" stroke-width="2"/>
+<text x="2060.0" y="481.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2060.0" dy="0">Where each artifact</tspan>
+<tspan x="2060.0" dy="18.75">type lives: ONE place</tspan>
+<tspan x="2060.0" dy="18.75">(repo, or one tool)</tspan>
+</text>
+<rect x="2250" y="440" width="240" height="110" rx="12" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="2370.0" y="481.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2370.0" dy="0">Generate verify skill</tspan>
+<tspan x="2370.0" dy="18.75">start app · login</tspan>
+<tspan x="2370.0" dy="18.75">· feature map</tspan>
+</text>
+<polygon points="2690.0,415 2820,495.0 2690.0,575 2560,495.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="2690.0" y="481.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2690.0" dy="0">Approve config</tspan>
+<tspan x="2690.0" dy="18.75">+ context?</tspan>
+<tspan x="2690.0" dy="18.75">you</tspan>
+</text>
+<polyline points="320,495.0 390,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="630,495.0 700,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="940,495.0 1010,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1250,495.0 1320,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1560,495.0 1630,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1870,495.0 1940,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2180,495.0 2250,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="2490,495.0 2560,495.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1440.0,150 1440.0,280 200.0,280 200.0,440" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<rect x="2560" y="670" width="300" height="130" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="2710.0" y="702.75" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2710.0" dy="0">mirai doctor</tspan>
+<tspan x="2710.0" dy="18.75">install · hooks · CI or local-only</tspan>
+<tspan x="2710.0" dy="18.75">· integration branch</tspan>
+<tspan x="2710.0" dy="18.75">· red-team suite: must pass</tspan>
+<tspan x="2710.0" dy="18.75">before any headless run</tspan>
+</text>
+<polyline points="2690.0,575 2710.0,670" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<rect x="40" y="890" width="1260" height="560" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="56" y="926" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="56" dy="0">3 · What ends up where</tspan>
+</text>
+<rect x="80" y="980" width="1180" height="460" rx="12" fill="#f3f0ff" stroke="#5f3dc4" stroke-width="2"/>
+<text x="670.0" y="1084.0" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="670.0" dy="0">IN THE PROJECT (committed)</tspan>
+<tspan x="670.0" dy="18.75">.mirai/framework/  — pinned MIRAI copy</tspan>
+<tspan x="670.0" dy="18.75">.mirai/mirai.lock  — version + file hashes</tspan>
+<tspan x="670.0" dy="18.75">.mirai/config.toml  — integration_branch · repos · resources</tspan>
+<tspan x="670.0" dy="18.75">      · test levels · named checks · tdd/tests · tiers · gates</tspan>
+<tspan x="670.0" dy="18.75">.mirai/custom/  — overrides  ·  .mirai/context/  — business, feature map</tspan>
+<tspan x="670.0" dy="18.75">signed approvals + proofs · branch.json · handover.json · public key</tspan>
+<tspan x="670.0" dy="18.75">docs/…  — PRD · HLD · ADR · LLD · tickets (if in repo)</tspan>
+<tspan x="670.0" dy="18.75">CLAUDE.md · AGENTS.md · .claude/  — generated   ·   .env.test  — dummy secrets</tspan>
+<tspan x="670.0" dy="18.75"> </tspan>
+<tspan x="670.0" dy="18.75">OUTSIDE THE PROJECT (never committed, agents can't read it)</tspan>
+<tspan x="670.0" dy="18.75">~/Library/Application Support/mirai/&lt;repo-id&gt;/</tspan>
+<tspan x="670.0" dy="18.75">      store (runs, rounds, status, reviews, QA) · trust root</tspan>
+<tspan x="670.0" dy="18.75">      · git hooks · broker · reports · config.user.toml</tspan>
+<tspan x="670.0" dy="18.75">~/.config/mirai/  — signing key</tspan>
+</text>
+<rect x="1320" y="890" width="1260" height="560" rx="12" fill="none" stroke="#868e96" stroke-width="1" stroke-dasharray="8 6"/>
+<text x="1336" y="926" font-size="26" fill="#343a40" text-anchor="start" font-weight="bold">
+<tspan x="1336" dy="0">4 · Later: update and sync-back</tspan>
+</text>
+<rect x="1360" y="980" width="240" height="90" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1480.0" y="1020.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1480.0" dy="0">mirai update</tspan>
+<tspan x="1480.0" dy="18.75">to a new tag</tspan>
+</text>
+<rect x="1670" y="980" width="240" height="100" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1790.0" y="1016.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1790.0" dy="0">Diff + 3-way merge</tspan>
+<tspan x="1790.0" dy="18.75">with your local edits</tspan>
+<tspan x="1790.0" dy="18.75">+ config migrations</tspan>
+</text>
+<polygon points="2100.0,955 2220,1025.0 2100.0,1095 1980,1025.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="2100.0" y="1020.875" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="2100.0" dy="0">Apply?</tspan>
+<tspan x="2100.0" dy="18.75">you</tspan>
+</text>
+<polyline points="1600,1025.0 1670,1030.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1910,1030.0 1980,1025.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<rect x="1360" y="1180" width="240" height="100" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1480.0" y="1216.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1480.0" dy="0">mirai promote</tspan>
+<tspan x="1480.0" dy="18.75">move a local improvement</tspan>
+<tspan x="1480.0" dy="18.75">into a framework path</tspan>
+</text>
+<rect x="1670" y="1180" width="240" height="110" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1790.0" y="1212.125" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1790.0" dy="0">mirai contribute</tspan>
+<tspan x="1790.0" dy="18.75">only 'framework' files</tspan>
+<tspan x="1790.0" dy="18.75">· leak scanner on diff</tspan>
+<tspan x="1790.0" dy="18.75">+ PR text</tspan>
+</text>
+<rect x="1360" y="1340" width="240" height="100" rx="12" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<text x="1480.0" y="1376.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1480.0" dy="0">Fresh branch from</tspan>
+<tspan x="1480.0" dy="18.75">MIRAI upstream</tspan>
+<tspan x="1480.0" dy="18.75">neutral git identity</tspan>
+</text>
+<polygon points="1820.0,1315 1950,1390.0 1820.0,1465 1690,1390.0" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2"/>
+<text x="1820.0" y="1376.5" font-size="15" fill="#1e1e1e" text-anchor="middle">
+<tspan x="1820.0" dy="0">Read diff +</tspan>
+<tspan x="1820.0" dy="18.75">open PR on MIRAI?</tspan>
+<tspan x="1820.0" dy="18.75">you</tspan>
+</text>
+<polyline points="1600,1230.0 1670,1235.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1790.0,1290 1480.0,1340" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+<polyline points="1600,1390.0 1690,1390.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m0)"/>
+</svg>
