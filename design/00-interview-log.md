@@ -313,3 +313,27 @@ See `06-review-round-3.md` §D (2026-10-23). The answers above stay; these refin
   you" from round 1: that still holds for all code.
 - **Q10 pilot:** MIRAI reads the base branch from `[git] integration_branch` (`mirai/pilot`
   during the pilot), so the pilot never touches the product's real `main` (R3-C1).
+
+## Changes at the start of implementation
+
+Agreed on 2026-10-23, after "APPROVED: start implementation":
+- **The pilot is confirmed:** `~/Projects/people-management-tool/platform`, installed on
+  `mirai/pilot` at unit 30.
+- **The pilot's work:**
+  - **First ticket:** stories for the app's real components. Storybook is already installed in
+    `frontend/`, so the ticket needs no new packages.
+  - **Second topic:** Roles & Permissions for the whole app. You discuss it with Nora once
+    Milestone B exists; its design (HLD, ADRs) needs Milestone D's design units.
+- **Your plan:** Max 20x for now; it may change, and MIRAI will run on several projects. So
+  there's **one usage budget across all projects** (D-57).
+- **Step 0, the usage spike, is dropped.** Unit 30's usage note is the first reading.
+- **The sample app is a test bench, not a product.** It's a small private repo in the pilot's
+  stacks, used to test each unit safely and cheaply (dummy secrets, seeded failing and flaky
+  tests). Its feature can be anything small; it doesn't need Storybook. The real "new project"
+  tests are the pilot install (unit 30), a fresh `/mirai-setup` on the pilot after Milestone B,
+  and the second-project install (unit 59).
+- **Before unit 30:**
+  - merge or park the pilot's `BKT-48/ai-architecture-setup-mvp` branch;
+  - install and log in to the `gh` CLI;
+  - check that the pilot's GitHub organisation allows required checks on a private repo, and
+    who has access.

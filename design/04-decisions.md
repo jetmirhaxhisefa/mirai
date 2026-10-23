@@ -1891,3 +1891,33 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - **Code is never merged by MIRAI** (D-22).
 - **Consequences:** one action less per feature, and approved documents are on the integration
   branch before the night starts.
+
+### D-57 · One usage budget across all projects
+
+- **Context:** the usage pass mark (D-38: one night uses at most 15% of the weekly limit) was
+  written for one project. You'll run MIRAI on several projects on one subscription (Max 20x
+  today, possibly another plan later), so per-project caps could add up past your limit.
+  Agreed on 2026-10-23, at the start of implementation.
+- **Decision:**
+  - **A global config** in `~/.config/mirai/config.toml`, outside every project and denied to
+    agents like the signing key. It holds only:
+    - `[subscription] plan` (e.g. `max-20x`): informational, recorded with every run;
+    - `[usage] night_max` (default 15): the share of the weekly limit all MIRAI runs together
+      may use in one night;
+    - `[usage] week_max` (default 60): the same, for the week;
+    - `[usage] reserve` (default 40): MIRAI starts no new ticket when less than this share of
+      the weekly limit is left, whatever used it (your daytime work included).
+  - **A global usage ledger** in `~/Library/Application Support/mirai/global/`, next to the
+    per-repo homes. Every run appends its limit share there, with the repo id and plan.
+  - **One MIRAI run at a time across all projects** (a global run lock). Simple, and it keeps the
+    shared budget honest; parallel runs are Later.
+  - **Checked before every ticket**, not only at run start. When the next ticket could break a
+    cap, the run stops cleanly like `run.stop_by` and the report says which cap.
+  - **A plan change** is one value. `doctor` then warns that the limit-share numbers from
+    calibration were measured on the old plan.
+- **Personal, never in a repository.** Your plan and usage caps are about you, not the project.
+  In a project many developers share, each person's MIRAI reads their own global config. So
+  **no project file holds subscription or usage settings**, and the config loader rejects
+  `[subscription]` or `[usage]` in `.mirai/config.toml`.
+- **Consequences:** projects never need usage caps. The 15% pass mark in D-38 now means "all of
+  your MIRAI runs together".

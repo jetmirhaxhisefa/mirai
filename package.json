@@ -1,0 +1,16 @@
+{
+  "name": "mirai",
+  "version": "0.1.0",
+  "description": "MIRAI: agents, skills and workflows that take work from idea to deployment",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mirai": "bin/mirai.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}
