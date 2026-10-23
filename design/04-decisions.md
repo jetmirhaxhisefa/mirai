@@ -1921,3 +1921,21 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   `[subscription]` or `[usage]` in `.mirai/config.toml`.
 - **Consequences:** projects never need usage caps. The 15% pass mark in D-38 now means "all of
   your MIRAI runs together".
+
+### D-58 · Any model may be mapped to a tier; MIRAI shows which model runs judgement work
+
+- **Context:** D-14 fixes judgement steps (PRD, design, high-risk review) to the `deep` tier, and
+  config maps each tier to a model. A personal file could map `deep` to a small model, which
+  would quietly downgrade judgement work. Both 03b reviewers flagged it (2026-10-23).
+- **Decision** (your choice): **freedom with visibility.**
+  - Any model may be set for any tier, in the project file or in your personal per-repo file.
+  - The defaults stay: `light` = Haiku, `standard` = Sonnet, `deep` = Opus (Fable also counts
+    as deep).
+  - **A model outside its tier's usual family is a warning, not an error.** `mirai config check`
+    always prints the model of each tier and where it was set, and the warning names what runs
+    on that tier.
+  - **Every run shows the model actually used for judgement steps:** the launcher logs it
+    (unit 19), and the run report and morning report show it per PRD, design and high-risk
+    review (units 29 and 56).
+- **Consequences:** D-14's rule still holds at the tier level (judgement steps always use
+  `deep`); what `deep` means is your choice, made visible.

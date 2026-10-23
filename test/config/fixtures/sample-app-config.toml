@@ -1,0 +1,66 @@
+# A copy of the config written by hand for mirai-sample-app (unit 03b, test T13).
+# The real file is installed into the sample app by unit 10.
+schema_version = 1
+preset = "supervised"
+
+[git]
+integration_branch = "main"
+branch_pattern = "feature/{ticket}-{slug}"
+
+[testing]
+tdd = "auto"
+tests = "required"
+e2e_budget_minutes = 10
+
+[[testing.levels]]
+name = "unit"
+adapter = "phpunit"
+command = ["php", "artisan", "test", "--testsuite=Unit"]
+purpose = "model and rule logic"
+budget_minutes = 5
+
+[[testing.levels]]
+name = "api"
+adapter = "phpunit"
+command = ["php", "artisan", "test", "--testsuite=Feature"]
+purpose = "HTTP endpoints, auth and policies"
+required_for = ["endpoint-changes"]
+budget_minutes = 5
+
+[[testing.levels]]
+name = "ui"
+adapter = "vitest"
+command = ["npx", "vitest", "run"]
+budget_minutes = 5
+
+[[testing.levels]]
+name = "e2e"
+adapter = "playwright"
+command = ["npx", "playwright", "test"]
+required_for = ["critical-journeys"]
+budget_minutes = 10
+
+[checks]
+composer-validate = ["composer", "validate", "--no-interaction"]
+format = ["vendor/bin/pint", "--test"]
+lint = ["npm", "run", "lint"]
+types = ["npx", "tsc", "--noEmit"]
+build = ["npm", "run", "build"]
+
+[compose]
+files = ["docker-compose.yml"]
+env_file = "backend/.env.testing"
+
+[[repos]]
+name = "."
+path = "."
+remote = "https://github.com/jetmirhaxhisefa/mirai-sample-app.git"
+
+[gate]
+code_paths = ["backend/**", "frontend/**", "e2e/**", "!backend/vendor/**"]
+
+[gate.risk]
+high = ["backend/app/Http/Controllers/AuthController.php", "backend/app/Policies/**"]
+
+[retention]
+days = 90

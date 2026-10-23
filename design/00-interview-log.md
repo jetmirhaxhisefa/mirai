@@ -337,3 +337,7 @@ Agreed on 2026-10-23, after "APPROVED: start implementation":
   - install and log in to the `gh` CLI;
   - check that the pilot's GitHub organisation allows required checks on a private repo, and
     who has access.
+- **Models (D-58, during unit 03b):** you keep full freedom to map any model to any tier, in the
+  project file or your personal file. MIRAI doesn't block a small model for judgement work; it
+  shows which model each tier uses, warns when a tier uses a model outside its usual family, and
+  every report shows the model used for PRDs, designs and high-risk reviews.

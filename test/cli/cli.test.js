@@ -214,12 +214,14 @@ function sourceFiles(...dirs) {
 test('T12: source files import only node: modules and relative paths, as plain strings', () => {
   const files = sourceFiles(join(ROOT, 'src'), join(ROOT, 'bin'));
   assert.ok(files.length > 0);
-  const literal = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)['"]([^'"]+)['"]/g;
+  // Real import and export statements only (multi-line too), not the word "from" in text.
+  const literal = /(?:^|\n)\s*(?:import|export)\s[^'"]*?\bfrom\s*['"]([^'"]+)['"]|(?:^|\n)\s*import\s*['"]([^'"]+)['"]|\b(?:import|require)\s*\(\s*['"]([^'"]+)['"]/g;
   const anyDynamic = /\bimport\s*\(|\brequire\s*\(|\bcreateRequire\b/g;
   const literalDynamic = /\b(?:import|require)\s*\(\s*['"][^'"]+['"]\s*\)/g;
   for (const f of files) {
     const src = readFileSync(f, 'utf8');
-    for (const [, s] of src.matchAll(literal)) {
+    for (const m of src.matchAll(literal)) {
+      const s = m[1] ?? m[2] ?? m[3];
       assert.ok(s.startsWith('node:') || s.startsWith('./') || s.startsWith('../'), `${f} imports "${s}"`);
     }
     // Every dynamic import or require must use a plain string, so the loaded code is fixed.
@@ -236,5 +238,5 @@ test('T13: the test script runs only MIRAI tests under test/', () => {
 });
 
 test('T14: the real command list is pinned, so every new command is a reviewed test change', () => {
-  assert.deepEqual(COMMANDS.map((c) => c.name), ['version']);
+  assert.deepEqual(COMMANDS.map((c) => c.name), ['config', 'version']);
 });
