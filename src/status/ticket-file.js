@@ -9,6 +9,8 @@ import { TICKET, PARK_REASONS } from './machines.js';
 
 export const STATUS_SCHEMA_VERSION = 1;
 export const STATUS_FILE_MAX_BYTES = 16 * 1024;
+// A ticket key; checked before it's ever used as a folder name in the store (unit 05a).
+export const TICKET_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const WRITABLE = TICKET.states.filter((s) => !TICKET.derived.includes(s));
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/;
 const KEY_ORDER = ['schema_version', 'ticket', 'state', 'park_reason', 'replans', 'seq', 'written_at', 'written_by', 'note'];
@@ -17,7 +19,7 @@ const SCHEMA = {
   type: 'table',
   fields: {
     schema_version: { type: 'integer', min: 1 },
-    ticket: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, patternHint: 'a ticket key such as "PROJ-123"' },
+    ticket: { type: 'string', pattern: TICKET_ID, patternHint: 'a ticket key such as "PROJ-123"' },
     state: { type: 'enum', values: WRITABLE },
     park_reason: { type: 'enum', values: PARK_REASONS },
     replans: { type: 'integer', min: 0, max: 1 },

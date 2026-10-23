@@ -17,7 +17,7 @@ const NAME_HINT = 'lowercase letters, digits and "-", starting with a letter';
 
 // A git branch name (a subset of git check-ref-format): components don't start with "." or
 // end with ".lock"; no "..", "//", "@{", a lone "@", control or special characters.
-const BRANCH = /^(?!\/)(?!-)(?!@$)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*(?:^|\/)\.)(?!.*\.lock(?:\/|$))(?!.*[/.]$)[^\s~^:?*[\\\x00-\x1f\x7f]+$/;
+export const BRANCH = /^(?!\/)(?!-)(?!@$)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*(?:^|\/)\.)(?!.*\.lock(?:\/|$))(?!.*[/.]$)[^\s~^:?*[\\\x00-\x1f\x7f]+$/;
 
 function relativePath(value, path, report) {
   if (value === '' || value.startsWith('/') || value.includes('\\') || value.split('/').includes('..') || value.includes('\0')) {

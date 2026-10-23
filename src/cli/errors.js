@@ -1,4 +1,5 @@
 import { EXIT } from './exit-codes.js';
+import { escapeInvisible } from '../status/text.js';
 
 // An expected failure with a known exit code. The message is shown to the user as one line.
 export class MiraiError extends Error {
@@ -56,6 +57,21 @@ export class StatusError extends MiraiError {
   }
 }
 
+// The orchestrator store or the repo around it is wrong (unit 05): a corrupt line, a counter
+// behind the journal, a wrong owner or mode, a second checkout, no store yet. Exit code 3, like
+// a config error: the setup or its files need fixing. `code` is stable; `hint` often names
+// `mirai doctor`. A refusal (a lock held too long, a stale write) passes `exitCode: BLOCKED`.
+export class StoreError extends MiraiError {
+  constructor(message, { path, line, code, hint, exitCode = EXIT.CONFIG } = {}) {
+    super(message, exitCode);
+    this.name = 'StoreError';
+    this.path = path;
+    this.line = line;
+    this.code = code;
+    this.hint = hint;
+  }
+}
+
 // Anything thrown (even `throw null` or a string) becomes an Error, so the
 // error path itself can never crash.
 export function toError(thrown) {
@@ -63,10 +79,14 @@ export function toError(thrown) {
   return new Error(thrown === undefined || thrown === null ? 'unknown error' : String(thrown));
 }
 
+// Messages can carry paths and names from files (a folder name, a checkout path); control and
+// invisible characters in them are escaped, so nothing reaches the terminal raw (unit 05a).
+const clean = (text) => escapeInvisible(String(text)).replace(/[\u0000-\u001f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
 // One line for the user; the stack (without the repeated message) only when MIRAI_DEBUG=1.
 export function formatError(err, env) {
-  const lines = [`mirai: ${String(err.message).split('\n')[0]}`];
-  if (err.hint) lines.push(err.hint);
+  const lines = [`mirai: ${clean(String(err.message).split('\n')[0])}`];
+  if (err.hint) lines.push(clean(err.hint));
   for (const e of err.listed ? err.errors : []) {
     lines.push(`${e.source}:${e.line}:${e.column}: ${e.reason}`);
     if (e.hint) lines.push(`  hint: ${e.hint}`);
