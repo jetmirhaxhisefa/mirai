@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/toml-lang/toml-test",
+  "commit": "ff49d109861c1ad25af53f687f2aef19ab650600",
+  "commit_date": "2026-09-15",
+  "license": "MIT (LICENSE in this folder)",
+  "vendored_on": "2026-10-23",
+  "what": "Test data only: the TOML 1.0.0 file list (tests/files-toml-1.0.0) and the files it names. No code from the repo is vendored or run.",
+  "files": 917,
+  "vetting": "research/06-skill-vetting.md, addendum 2026-10-23 (toml-test)",
+  "sha256": "384ca4ca203a869ee65229875536a5c615f597f79a331bf55f1cff40c737445b",
+  "sha256_recipe": "SHA-256 over the files named in files-toml-1.0.0, sorted by path, each as '<path>\\0<sha256 hex of its bytes>\\n'. Test T12 recomputes it."
+}

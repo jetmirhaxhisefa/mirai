@@ -1,0 +1,4 @@
+r = { name = "api", path = ".", tags = ["a", "b"] }
+e = {}
+n = { inner = { deep = 1 } }
+list = [ { x = 1 }, { x = 2 } ]

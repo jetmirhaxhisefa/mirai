@@ -1,0 +1,11 @@
+# An agent manifest (registry, D-37)
+kind = "agent"
+name = "mirai-developer"
+role = "developer"
+default_tier = "standard"
+
+[may_write]
+paths = ["src/**", "tests/**"]
+
+[tools]
+allowed = ["Read", "Edit", "Write", "mcp__mirai__run_tests"]

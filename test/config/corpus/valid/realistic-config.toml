@@ -1,0 +1,39 @@
+# .mirai/config.toml, the shape from design/07 (unit 03b validates it)
+schema_version = 1
+preset = "supervised"
+
+[git]
+integration_branch = "mirai/pilot"
+branch_pattern = "feature/{ticket}-{slug}"
+trailer = "Mirai-Ticket"
+
+[testing]
+tdd = "auto"
+tests = "required"
+
+[[testing.levels]]
+name = "unit"
+adapter = "phpunit"
+command = ["php", "artisan", "test", "--testsuite=Unit"]
+budget_minutes = 5
+
+[[testing.levels]]
+name = "e2e"
+adapter = "playwright"
+required_for = ["critical-journeys"]
+budget_minutes = 15
+
+[checks]
+lint = ["npm", "run", "lint"]
+types = ["npx", "tsc", "--noEmit"]
+
+[[repos]]
+name = "platform"
+path = "."
+
+[resources]
+grafana = { name = "Grafana", url = "https://grafana.example.test/d/abc" }
+
+[retention]
+days = 90
+auto = false

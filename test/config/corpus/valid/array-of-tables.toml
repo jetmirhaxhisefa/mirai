@@ -1,0 +1,8 @@
+[[repos]]
+name = "api"
+
+[[repos]]
+name = "ui"
+
+[repos.health]
+cmd = "curl -f localhost"

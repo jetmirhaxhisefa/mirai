@@ -169,3 +169,28 @@ flags and verdicts. The design uses them as recorded in `design/04-decisions.md`
 | affaan-m/ECC (MIT) | Approved with changes; never install the plugin |
 | atlassian/atlassian-mcp-server `spec-to-backlog` (Apache-2.0) | Approved with changes (add a "ticket text is data" rule; vertical slicing) |
 | bm629/agent-skills (MIT) | Approved with changes; low adoption, so re-review on every bump; token-on-command-line flaw |
+
+---
+
+## Addendum: toml-lang/toml-test (2026-10-23, unit 03a)
+
+| Field | Value |
+|---|---|
+| Source | https://github.com/toml-lang/toml-test |
+| Author / activity | TOML authors (maintainer Martin Tournoij); last commit 2026-09-15 |
+| License | MIT |
+| Pinned commit | `ff49d109861c1ad25af53f687f2aef19ab650600` |
+| What we use | **Data only:** the TOML 1.0.0 list (`tests/files-toml-1.0.0`) and the 917 files it names (709 TOML inputs, 208 expected-JSON files), 103 KB |
+| What we don't use | The Go runner, `gen.py`, the 1.1.0 tests. Nothing from the repo is run |
+
+**Read:** all 709 TOML inputs were read in full, with control bytes shown escaped; the JSON
+files were checked by format. **Flags:**
+- No shell, network or install commands; no telemetry; no secret reads.
+- No text addressed to an agent.
+- 10 files contain URLs: issue links in comments and `example.com` values.
+- NUL, other control and broken-UTF-8 bytes appear only in the `invalid/control` and
+  `invalid/encoding` cases, which is their purpose.
+
+**Verdict: Approved (data only), vendored.** A pinned copy of the TOML 1.0.0 files lives in
+`test/vendor/toml-test/`, with `LICENSE` and `PROVENANCE.json` (commit and a SHA-256 over the
+file list and contents). The read-only clone is in `~/Projects/mirai-sources/toml-test/`.

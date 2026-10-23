@@ -1,0 +1,9 @@
+checks = ["lint", "types", "build",]
+nested = [[1, 2], ["a"]]
+mixed = [1, "two", 3.5, true]
+empty = []
+lines = [
+  "one", # first
+  # between
+  "two",
+]

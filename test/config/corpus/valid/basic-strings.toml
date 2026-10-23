@@ -1,0 +1,3 @@
+s = "tab\tquote\" back\\ e\u00e9 smile\U0001F600"
+empty = ""
+escapes = "\b\f\n\r"

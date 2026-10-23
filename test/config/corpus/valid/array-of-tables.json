@@ -1,0 +1,13 @@
+{
+  "repos": [
+    {
+      "name": "api"
+    },
+    {
+      "name": "ui",
+      "health": {
+        "cmd": "curl -f localhost"
+      }
+    }
+  ]
+}

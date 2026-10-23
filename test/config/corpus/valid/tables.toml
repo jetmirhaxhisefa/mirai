@@ -1,0 +1,5 @@
+[git]
+integration_branch = "main"
+
+[gate.risk]
+high = ["src/auth"]

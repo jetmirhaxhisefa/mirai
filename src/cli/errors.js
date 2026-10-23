@@ -18,6 +18,23 @@ export class UsageError extends MiraiError {
   }
 }
 
+// A config or definition file is missing, unreadable or invalid.
+// - `message` is one line: `<source>:<line>:<column>: <reason>` (position when there is one);
+// - `reason` is the problem without the position; `hint` is printed on its own line;
+// - `line` and `column` are 1-based; `path` is the key path (`git.branch`) when known.
+export class ConfigError extends MiraiError {
+  constructor(message, { source, line, column, reason, hint, path } = {}) {
+    super(message, EXIT.CONFIG);
+    this.name = 'ConfigError';
+    this.source = source;
+    this.line = line;
+    this.column = column;
+    this.reason = reason ?? message;
+    this.hint = hint;
+    this.path = path;
+  }
+}
+
 // Anything thrown (even `throw null` or a string) becomes an Error, so the
 // error path itself can never crash.
 export function toError(thrown) {

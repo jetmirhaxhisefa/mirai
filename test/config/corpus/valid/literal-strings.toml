@@ -1,0 +1,2 @@
+p = 'C:\path\no-escapes'
+q = 'say "hi"'
