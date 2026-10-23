@@ -41,6 +41,21 @@ export class ConfigError extends MiraiError {
   }
 }
 
+// A status move that isn't allowed, or that the mover may not make (unit 04). Exit code 4,
+// "refused by a gate or safety rule". `code` is stable: not-allowed, derived, human-only,
+// missing, replan-limit, mismatch, unknown-state.
+export class StatusError extends MiraiError {
+  constructor(message, { machine, item, from, to, code } = {}) {
+    super(message, EXIT.BLOCKED);
+    this.name = 'StatusError';
+    this.machine = machine;
+    this.item = item;
+    this.from = from;
+    this.to = to;
+    this.code = code;
+  }
+}
+
 // Anything thrown (even `throw null` or a string) becomes an Error, so the
 // error path itself can never crash.
 export function toError(thrown) {
