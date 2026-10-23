@@ -11,5 +11,5 @@ review.
 | 02 | [Sample app](units/02-sample-app/) | A | 2026-10-23 | 9 / 9 checks | Private repo `mirai-sample-app` (`5df7a1d`): Laravel 13 + React 18 + MySQL + Playwright, seeded traps, canary `.env` |
 
 **Next:** unit 03, the config model.
-**Open:** proposals P1–P11 for later units (`units/02-sample-app/review.md`) wait for your OK before they go into `design/07`.
+**Added:** proposals P1–P11 from the unit 02 review are in `design/07` (units 13, 14, 16, 17, 18, 30, 39, 47, 52, 57 and Later).
 **Done:** the external clones moved to `~/Projects/mirai-sources/` (read-only) on 2026-10-23.

@@ -36,7 +36,7 @@ should-fix and nit is applied, and `test-results.md` shows the final run on fres
 | — | `chown -R` on the bind mount | Tech Lead | Kept: it's limited to `storage` and `bootstrap/cache`, which is what the app writes |
 | — | `mysql:8.4` / `nginx:1.27-alpine` float on patch versions | Architect | Deferred to unit 14, which freezes the compose file and can pin digests |
 
-## Proposed changes for later units (need your OK before they go into `07`)
+## Proposed changes for later units (approved 2026-10-23 and added to `07`)
 
 | # | Unit | Proposal | From |
 |---|---|---|---|
