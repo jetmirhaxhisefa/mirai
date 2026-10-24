@@ -126,7 +126,9 @@ function walk(value, node, path, problems, resolve, regex) {
   if (node.enum !== undefined && !node.enum.includes(value)) return add('enum', `${where} must be one of: ${node.enum.join(', ')}`);
   if (node.type !== undefined) {
     const t = typeOf(value);
-    const ok = node.type === t || (node.type === 'integer' && t === 'number' && Number.isInteger(value)) || (node.type === 'number' && t === 'number');
+    // NaN and the infinities are never numbers here (an object passed in could hold them).
+    const finite = t !== 'number' || Number.isFinite(value);
+    const ok = finite && (node.type === t || (node.type === 'integer' && t === 'number' && Number.isInteger(value)));
     if (!ok) return add('type', `${where} must be ${['array', 'object', 'integer'].includes(node.type) ? 'an' : 'a'} ${node.type}`);
   }
   switch (typeOf(value)) {

@@ -16,6 +16,11 @@ const TOKEN_SHAPES = new RegExp('(?<![A-Za-z0-9])(?:' + [
 // Query or fragment parameter names that carry secrets (matched as substrings, any case).
 export const SECRET_PARAM = /token|secret|signature|^sig$|^key$|api[-_]?key|access[-_]?key|private[-_]?key|passw|^pwd$|credential|^auth$|authorization|session/i;
 
+// Every token shape in a text, for redaction (unit 09b).
+export function tokenShapes() {
+  return new RegExp(TOKEN_SHAPES.source, 'g');
+}
+
 export function hasTokenShape(value) {
   return TOKEN_SHAPES.test(value);
 }
