@@ -5,7 +5,7 @@ import { StoreError } from '../cli/errors.js';
 // The read-only git calls the store needs (unit 05a): never a shell, a fixed environment, no
 // fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 22
 // (D-54). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp`, (unit 06) `ls-tree`
-// / `cat-file` and (unit 07b) `ls-files` are used, with replace refs off, so `refs/replace` can't change which commits
+// / `cat-file`, (unit 07b) `ls-files` and (unit 10) `symbolic-ref` and `check-ignore` are used, with replace refs off, so `refs/replace` can't change which commits
 // count as the roots or which keys are committed.
 
 const TIMEOUT_MS = 10_000;
@@ -127,3 +127,25 @@ export function lsFiles(root, paths, env) {
   if (!r.ok) return null;
   return [...new Set(r.out.toString('utf8').split('\0').filter(Boolean))];
 }
+
+// The branch a symbolic ref points at (`refs/remotes/origin/HEAD` -> "main"; `HEAD` -> the
+// current branch), or null when it isn't a symbolic ref (a detached HEAD, no origin/HEAD).
+export function symbolicBranch(root, ref, env) {
+  const r = git(root, ['symbolic-ref', '--quiet', ref], env);
+  // The exact prefix, not --short: a short name can be ambiguous (a tag or a remote with a
+  // slash in its name).
+  const prefix = ref === 'HEAD' ? 'refs/heads/' : ref.replace(/HEAD$/, '');
+  if (!r.ok || !r.out.startsWith(prefix) || r.out.length === prefix.length) return null;
+  return r.out.slice(prefix.length);
+}
+
+// The paths git would ignore, of `paths` (relative to `root`), given every ignore rule: the
+// repo's .gitignore files, .git/info/exclude and the user's global excludes (unit 10).
+export function ignoredPaths(root, paths, env) {
+  if (paths.length === 0) return [];
+  const r = git(root, ['check-ignore', '--stdin', '-z'], env, { input: `${paths.join('\0')}\0` });
+  if (r.ok) return r.out.split('\0').filter(Boolean);
+  if (r.status === 1) return [];
+  throw new StoreError('git check-ignore failed', { code: 'git-failed' });
+}
+

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, basename, isAbsolute, join, sep } from 'node:path';
 
 import { ConfigError, StoreError } from '../cli/errors.js';
@@ -227,17 +227,23 @@ export function createStore({ cwd, env, now = () => new Date() }) {
     if (err.code === 'EEXIST') throw new StoreError(`a store already exists for ${id.repoId}`, { path: p.repoHome, code: 'exists' });
     throw err;
   }
-  ensurePrivateDir(p.dir);
-  ensurePrivateDir(join(p.dir, 'locks'));
-  ensurePrivateDir(join(p.dir, 'tickets'));
-  atomicWrite(join(p.dir, 'seq'), '0\n');
-  atomicWrite(join(p.dir, 'journal.jsonl'), '');
-  atomicWrite(join(p.dir, 'branches.json'), EMPTY_REGISTRY); // written now, so a missing one means lost
-  // The integration branch is recorded here: it's the trust anchor for signing keys (unit 06),
-  // so it must never come from the work tree's config, which any branch can edit.
-  const meta = { schema_version: STORE_SCHEMA_VERSION, repo_id: id.repoId, roots: id.roots, remote: id.remote, integration_branch: id.branch, checkout: id.checkout, created_at: now().toISOString() };
-  atomicWrite(p.metaFile, `${JSON.stringify(meta, null, 2)}\n`);
-  return openStore({ cwd, env, identity: id });
+  // A store half made is removed again (unit 10), so a failed install leaves none behind.
+  try {
+    ensurePrivateDir(p.dir);
+    ensurePrivateDir(join(p.dir, 'locks'));
+    ensurePrivateDir(join(p.dir, 'tickets'));
+    atomicWrite(join(p.dir, 'seq'), '0\n');
+    atomicWrite(join(p.dir, 'journal.jsonl'), '');
+    atomicWrite(join(p.dir, 'branches.json'), EMPTY_REGISTRY); // written now, so a missing one means lost
+    // The integration branch is recorded here: it's the trust anchor for signing keys (unit 06),
+    // so it must never come from the work tree's config, which any branch can edit.
+    const meta = { schema_version: STORE_SCHEMA_VERSION, repo_id: id.repoId, roots: id.roots, remote: id.remote, integration_branch: id.branch, checkout: id.checkout, created_at: now().toISOString() };
+    atomicWrite(p.metaFile, `${JSON.stringify(meta, null, 2)}\n`);
+    return openStore({ cwd, env, identity: id });
+  } catch (err) {
+    rmSync(p.repoHome, { recursive: true, force: true });
+    throw err;
+  }
 }
 
 const writeMeta = (file, meta) => atomicWrite(file, `${JSON.stringify(meta, null, 2)}\n`);
