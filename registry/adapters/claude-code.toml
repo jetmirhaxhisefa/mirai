@@ -1,0 +1,25 @@
+# The Claude Code adapter's profile (unit 11; D-37, R-M16). research/08 §2 and §5.2.
+kind = "adapter"
+schema_version = 1
+name = "claude-code"
+
+# Claude Code reads AGENTS.md only when there's no CLAUDE.md, so MIRAI's block in CLAUDE.md
+# imports it.
+[instructions]
+file = "CLAUDE.md"
+import = "@AGENTS.md"
+
+# Your interactive sessions read these folders in the work tree.
+[interactive]
+skills = ".claude/skills"
+agents = ".claude/agents"
+
+# A headless run's plugin folder (unit 19), built from the same bundle in the trust root.
+[headless]
+skills = "skills"
+agents = "agents"
+
+# Owned by this adapter once their units exist: the settings (unit 13), the MCP config (unit 15).
+[later]
+settings = ".claude/settings.json"
+mcp = ".mcp.json"

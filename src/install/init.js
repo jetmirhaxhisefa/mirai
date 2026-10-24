@@ -9,8 +9,8 @@ import { PROJECT_CONFIG, readConfigFile, checkConfig } from '../config/load.js';
 import { BRANCH } from '../config/config-schema.js';
 import { topLevel, isShallow, refExists, remotes, symbolicBranch, ignoredPaths } from '../store/git.js';
 import { createStore, openStore } from '../store/home.js';
-import { LOCK_FILE, lockText, sha256, filesUnder, replaceFile } from './lock.js';
-import { AGENTS_FILE, AGENTS_TEMPLATE, LOCAL_FILE, readAgents, renderAgents } from './render.js';
+import { LOCK_FILE, checkLock, frameworkDigest, lockText, newer, readLock, sha256, filesUnder } from './lock.js';
+import { LOCAL_FILE, applyPlan, renderPlan, undoAll } from './render.js';
 
 // `mirai init` (unit 10; D-02, D-03, D-37). Copies MIRAI into a project, writes the lock, renders
 // MIRAI's block in AGENTS.md, and creates the store in the MIRAI home. It refuses before
@@ -52,17 +52,25 @@ code, and what it must never do here. -->
 `;
 
 // Installs MIRAI into the repo around `cwd`. `branch`: the integration branch (else the one an
-// existing config names, else the remote's default branch). Returns what it did, for the
-// command to print.
-export function init({ cwd, env, branch: wanted, now = () => new Date() }) {
-  const root = checkRepo(cwd, env);
+// existing config names, else the remote's default branch). `refresh`: an installed repo gets
+// the running MIRAI's framework copy, and everything rendered again (unit 11); refused when a
+// framework file was changed. `packageRoot`: the MIRAI to install (this one; tests pass
+// another). Returns what it did, for the command to print.
+export function init({ cwd, env, branch: wanted, refresh = false, now = () => new Date(), packageRoot = PACKAGE_ROOT }) {
+  const root = checkRepo(cwd, env, { refresh });
+  const oldLock = refresh ? readLock(root) : null;
   const configPath = join(root, PROJECT_CONFIG);
   const kept = existsSync(configPath) ? readFileSync(configPath) : null;
+  if (refresh && kept === null) throw new InitError(`${CONFIG_FILE} is missing`, { code: 'no-config', hint: 'restore it from git, then run mirai init --refresh again' });
   const keptConfig = kept === null ? null : loadProjectConfig(root, configPath);
   const { branch, from: branchFrom } = integrationBranch(root, env, wanted, keptConfig);
-  const existing = readAgents(root);
-  const pkg = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8'));
-  const source = existsSync(join(PACKAGE_ROOT, '.git')) ? 'local' : `v${pkg.version}`;
+  const pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
+  // A refresh never goes back to an older MIRAI: documents written for newer templates would
+  // stop passing lint.
+  if (oldLock && newer(oldLock.miraiVersion, pkg.version)) {
+    throw new InitError(`the installed MIRAI (${oldLock.miraiVersion}) is newer than this one (${pkg.version})`, { code: 'downgrade', hint: `run mirai init --refresh with MIRAI ${oldLock.miraiVersion} or later` });
+  }
+  const source = existsSync(join(packageRoot, '.git')) ? 'local' : `v${pkg.version}`;
 
   const undo = []; // what to undo, newest last
   const stage = join(root, '.mirai', `.init-${process.pid}-${randomBytes(4).toString('hex')}`);
@@ -76,7 +84,7 @@ export function init({ cwd, env, branch: wanted, now = () => new Date() }) {
 
     // 1. The framework copy and MIRAI's git rules, staged.
     const files = [];
-    for (const part of FRAMEWORK_PARTS) copyTree(join(PACKAGE_ROOT, part), join(stage, 'framework', part));
+    for (const part of FRAMEWORK_PARTS) copyTree(join(packageRoot, part), join(stage, 'framework', part));
     for (const rel of filesUnder(stage, 'framework')) {
       files.push({ path: `.mirai/${rel}`, mark: 'framework', sha256: sha256(readFileSync(join(stage, rel))) });
     }
@@ -104,22 +112,25 @@ export function init({ cwd, env, branch: wanted, now = () => new Date() }) {
     if (!existsSync(localPath)) writeNew(join(stage, 'agents-local.md'), local);
     files.push({ path: LOCAL_FILE, mark: 'project' });
 
-    // 4. AGENTS.md with MIRAI's block, from the staged framework copy (as `mirai render` does
-    // from the installed one).
-    const template = readFileSync(join(stage, AGENTS_TEMPLATE.slice('.mirai/'.length)));
-    const agents = renderAgents({ template, local, config, configBytes, existing });
-    files.push(agents.entry);
+    // 4. The rendered files (AGENTS.md, CLAUDE.md, .claude/), planned from the staged framework
+    // copy, as `mirai render` does from the installed one.
+    const plan = renderPlan({ root, registryDir: join(stage, 'framework', 'registry'), config, configBytes, local, lock: oldLock });
+    files.push(...plan.entries);
 
     // 5. The lock, staged last.
-    writeNew(join(stage, 'mirai.lock'), lockText({ miraiVersion: pkg.version, source, files }));
+    writeNew(join(stage, 'mirai.lock'), lockText({ miraiVersion: pkg.version, source, bundles: plan.bundles, files }));
 
-    // Into place: the framework, the git rules, the config, the context stub, AGENTS.md; then a
-    // check that git sees them all; then the store, and the lock last, so an install either has
-    // it or didn't happen.
+    // Into place: the framework, the git rules, the config, the context stub, the rendered
+    // files; then a check that git sees them all; then the store, and the lock last, so an
+    // install either has it or didn't happen.
     const wrote = [FRAMEWORK_DIR];
+    if (refresh) swapAside(join(root, FRAMEWORK_DIR), join(stage, 'old-framework'), undo);
     move(join(stage, 'framework'), join(root, FRAMEWORK_DIR), undo);
-    for (const path of Object.keys(GIT_RULES)) {
-      if (existsSync(join(root, path))) continue;
+    for (const [path, text] of Object.entries(GIT_RULES)) {
+      if (existsSync(join(root, path))) {
+        if (readFileSync(join(root, path), 'utf8') === text) continue;
+        swapAside(join(root, path), join(stage, `old${path.slice('.mirai/'.length)}`), undo);
+      }
       move(join(stage, path.slice('.mirai/'.length)), join(root, path), undo);
       wrote.push(path);
     }
@@ -132,10 +143,8 @@ export function init({ cwd, env, branch: wanted, now = () => new Date() }) {
       }
       move(join(stage, 'agents-local.md'), localPath, undo);
     }
-    const agentsPath = join(root, AGENTS_FILE);
-    undo.push(existing === null ? () => rmSync(agentsPath, { force: true }) : () => replaceFile(agentsPath, existing.bytes, existing.mode));
-    replaceFile(agentsPath, agents.text, existing?.mode);
-    wrote.push(AGENTS_FILE, LOCK_FILE);
+    applyPlan(root, plan, undo);
+    wrote.push(...plan.files.filter((f) => f.changed).map((f) => f.path), ...plan.removes.map((r) => `${r.path} (removed)`), LOCK_FILE);
 
     const ignored = ignoredPaths(root, [...files.map((f) => f.path), LOCK_FILE], env);
     if (ignored.length) {
@@ -149,25 +158,29 @@ export function init({ cwd, env, branch: wanted, now = () => new Date() }) {
       const made = store.repoHome;
       undo.push(() => rmSync(made, { recursive: true, force: true }));
     }
+    if (refresh) swapAside(join(root, LOCK_FILE), join(stage, 'old.lock'), undo);
     move(join(stage, 'mirai.lock'), join(root, LOCK_FILE), undo);
     rmSync(stage, { recursive: true, force: true });
+    const edited = plan.files.filter((f) => f.edited).map((f) => `${f.path}: MIRAI's part had been edited by hand; it is rendered again`);
     return {
-      root, branch, branchFrom, version: pkg.version, source, store: store.repoHome, files: files.length, wrote,
-      warnings: agents.warning ? [agents.warning] : [],
+      root, branch, branchFrom, version: pkg.version, previous: oldLock?.miraiVersion, sameCopy: oldLock ? oldLock.frameworkSha256 === frameworkDigest(files) : undefined, source, store: store.repoHome, files: files.length, wrote,
+      warnings: [...plan.warnings, ...edited],
     };
   } catch (err) {
     // Every step is undone, even when one of them fails; the first error is the one reported.
-    const failed = [];
-    for (const step of undo.reverse()) {
-      try {
-        step();
-      } catch (undoErr) {
-        failed.push(undoErr.path ?? undoErr.message);
-      }
-    }
-    if (failed.length) err.message = `${err.message} (undoing the install failed for ${failed.join(', ')}; remove what's left by hand)`;
+    undoAll(undo, err);
     throw err;
   }
+}
+
+// Moves an existing file or folder out of the way (into the stage), so a failure can put it
+// back.
+function swapAside(path, aside, undo) {
+  renameSync(path, aside);
+  undo.push(() => {
+    rmSync(path, { recursive: true, force: true });
+    renameSync(aside, path);
+  });
 }
 
 function loadProjectConfig(root, path) {
@@ -180,7 +193,7 @@ function tomlString(value) {
 }
 
 // The repo's top folder, after the checks that must pass before anything is written.
-function checkRepo(cwd, env) {
+function checkRepo(cwd, env, { refresh = false } = {}) {
   const top = topLevel(cwd, env);
   if (!top) throw new InitError('this folder is not inside a git repository', { code: 'not-git', hint: 'run mirai init in the repo' });
   const root = realpathSync(top);
@@ -195,7 +208,18 @@ function checkRepo(cwd, env) {
     }
     if (info.isSymbolicLink()) throw new InitError(`${rel} is a symbolic link`, { code: 'symlink', hint: 'MIRAI writes only real files and folders' });
   }
-  if (existsSync(join(root, LOCK_FILE))) throw new InitError('MIRAI is already installed here', { code: 'installed', hint: 'to apply a changed config or agents-local.md, run: mirai render; changing the version is mirai update, which comes later' });
+  if (refresh) {
+    if (!existsSync(join(root, LOCK_FILE))) throw new InitError('MIRAI is not installed here, so there is nothing to refresh', { code: 'not-installed', hint: 'run: mirai init' });
+    // The copy is replaced as a whole, so it must be MIRAI's as listed: an edit would be lost.
+    const lock = readLock(root);
+    const check = checkLock(root);
+    const edits = [...check.changed, ...check.missing].filter((p) => lock.files.get(p)?.mark === 'framework').concat(check.added);
+    if (edits.length) {
+      throw new InitError(`the framework copy was changed (${edits.slice(0, 3).join(', ')}${edits.length > 3 ? ', …' : ''}), and a refresh would lose that`, { code: 'framework-changed', hint: 'restore those files from git (git checkout -- .mirai), or move your change into .mirai/custom/ once unit 37 exists' });
+    }
+    return root;
+  }
+  if (existsSync(join(root, LOCK_FILE))) throw new InitError('MIRAI is already installed here', { code: 'installed', hint: 'to apply a changed config or agents-local.md, run: mirai render; to get this MIRAI\'s framework copy, run: mirai init --refresh' });
   if (existsSync(join(root, FRAMEWORK_DIR))) throw new InitError(`${FRAMEWORK_DIR} exists without a lock`, { code: 'stray-framework', hint: 'remove it, or restore its mirai.lock' });
   for (const [path, text] of Object.entries(GIT_RULES)) {
     if (existsSync(join(root, path)) && readFileSync(join(root, path), 'utf8') !== text) {

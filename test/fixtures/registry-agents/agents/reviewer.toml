@@ -1,0 +1,12 @@
+# A fixture agent for the adapter tests (unit 11); the real ones come in units 21 and 24.
+kind = "agent"
+schema_version = 1
+name = "mirai-fixture-reviewer"
+role = "reviewer"
+description = "Reviews one ticket's change for the adapter tests."
+default_tier = "standard"
+read_only = true
+prompt = "prompts/reviewer.md"
+
+[tools]
+allowed = ["Read", "Grep", "Glob"]

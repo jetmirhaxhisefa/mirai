@@ -249,7 +249,7 @@ function registry(overrides = {}) {
   writeFileSync(join(dir, 'templates', 'prd-checklist.md'), '# Checklist\n');
   writeFileSync(join(dir, 'agents', 'developer.toml'), overrides.agent ?? [
     'kind = "agent"', 'schema_version = 1', 'name = "mirai-developer"', 'role = "developer"',
-    'default_tier = "standard"', 'read_only = false', 'prompt = "prompts/developer.md"',
+    'description = "Plans and builds one ticket."', 'default_tier = "standard"', 'read_only = false', 'prompt = "prompts/developer.md"',
     '[may_write]', 'paths = ["src/**", "tests/**"]', '[tools]', 'allowed = ["Read", "Edit", "mcp__mirai__run_tests"]', '',
   ].join('\n'));
   writeFileSync(join(dir, 'document-types', 'prd.toml'), overrides.doc ?? [
@@ -279,7 +279,7 @@ test('T11: the registry loads valid definitions and refuses bad ones', () => {
   assert.equal(reg.documentTypes.prd.states.initial, 'draft');
   assert.ok(Object.isFrozen(reg.agents['mirai-developer']));
 
-  const agent = (extra) => ['kind = "agent"', 'schema_version = 1', 'name = "mirai-developer"', 'role = "developer"', 'default_tier = "standard"', ...(extra.some((e) => e.startsWith('read_only')) ? [] : ['read_only = false']), ...extra, ''].join('\n');
+  const agent = (extra) => ['kind = "agent"', 'schema_version = 1', 'name = "mirai-developer"', 'role = "developer"', 'description = "Plans and builds one ticket."', 'default_tier = "standard"', ...(extra.some((e) => e.startsWith('read_only')) ? [] : ['read_only = false']), ...extra, ''].join('\n');
   assert.match(registryProblems(registry({ agent: ['kind = "agent"', 'schema_version = 1', 'name = "mirai-x"', 'role = "x"', 'default_tier = "light"', 'prompt = "prompts/developer.md"', ''].join('\n') })), /read_only is required/);
   assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/developer.md"', '[may_write]', 'paths = ["../outside/**"]']) })), /may_write\.paths\[0\] is not valid/);
   assert.match(registryProblems(registry({ agent: agent(['prompt = "../outside.md"']) })), /prompt must stay inside the registry folder/);

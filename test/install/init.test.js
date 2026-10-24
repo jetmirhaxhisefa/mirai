@@ -86,7 +86,7 @@ test('T1: a fresh install writes the framework copy, its git rules, config, cont
   assert.equal(statSync(join(root, '.mirai/config.toml')).mode & 0o777, 0o644);
   // Nothing staged is left behind, and git sees every new file (none ignored).
   assert.deepEqual(readdirSync(join(root, '.mirai')).filter((n) => n.startsWith('.init-')), []);
-  assert.deepEqual(git(root, 'status', '--porcelain').split('\n').sort(), ['?? .mirai/', '?? AGENTS.md']);
+  assert.deepEqual(git(root, 'status', '--porcelain').split('\n').sort(), ['?? .claude/', '?? .mirai/', '?? AGENTS.md', '?? CLAUDE.md']);
 });
 
 test('T2: the lock lists every file with its mark; checkLock reports what changed', () => {
@@ -232,7 +232,7 @@ test('T5: refusals, each with nothing written in the repo or the MIRAI home', ()
   chmodSync(join(readOnly.root, 'AGENTS.md'), 0o444);
   refused(readOnly, { branch: 'main' }, 'not-writable');
   const latin1 = repo({ files: { 'AGENTS.md': Buffer.from([0x23, 0x20, 0xe9, 0x0a]) } });
-  refused(latin1, { branch: 'main' }, 'agents-encoding');
+  refused(latin1, { branch: 'main' }, 'not-utf8');
   refused(repo({ files: { '.mirai/.gitignore': 'secret\n' } }), { branch: 'main' }, 'git-rules');
 
   const installed = repo();
@@ -309,8 +309,7 @@ test('T7: a failure partway undoes everything; an existing store is reused, but 
   const again = repo();
   init({ cwd: again.root, env: again.env, branch: 'main' });
   const store = openStore({ cwd: again.root, env: again.env }).repoHome;
-  rmSync(join(again.root, '.mirai'), { recursive: true });
-  rmSync(join(again.root, 'AGENTS.md'));
+  for (const p of ['.mirai', '.claude', 'AGENTS.md', 'CLAUDE.md']) rmSync(join(again.root, p), { recursive: true });
   git(again.root, 'branch', 'release');
   assert.throws(() => init({ cwd: again.root, env: again.env, branch: 'release' }), (err) => /set up for main/.test(err.message));
   assert.ok(!existsSync(join(again.root, '.mirai')) && existsSync(store));
@@ -337,14 +336,15 @@ test('T7b: mirai init through the CLI', async () => {
 });
 
 test('T9: mirai render renders the block again from the installed copy and your files, and updates the lock', async () => {
+  const agentsOf = (r) => r.files.filter((f) => f.path === 'AGENTS.md');
   const { root, env } = repo({ files: { 'AGENTS.md': '# Ours\n' } });
   init({ cwd: root, env, branch: 'main' });
-  assert.deepEqual(render({ cwd: root, env }).files, [{ path: 'AGENTS.md', changed: false, edited: false }]);
+  assert.deepEqual(agentsOf(render({ cwd: root, env })), [{ path: 'AGENTS.md', changed: false, edited: false }]);
   const lockBefore = readFileSync(join(root, LOCK_FILE), 'utf8');
   // Your instructions and the docs root change; render puts them in, and only the block changes.
   writeFileSync(join(root, '.mirai/context/agents-local.md'), 'Use pnpm, never npm.\n');
   writeFileSync(join(root, '.mirai/config.toml'), 'schema_version = 1\n\n[git]\nintegration_branch = "main"\n\n[docs]\nroot = "documentation"\n');
-  assert.deepEqual(render({ cwd: root, env }).files, [{ path: 'AGENTS.md', changed: true, edited: false }]);
+  assert.deepEqual(agentsOf(render({ cwd: root, env })), [{ path: 'AGENTS.md', changed: true, edited: false }]);
   const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8');
   assert.match(blockOf(agents), /Use pnpm, never npm\.$/);
   assert.match(blockOf(agents), /Documents live in `documentation\/`/);
@@ -356,7 +356,7 @@ test('T9: mirai render renders the block again from the installed copy and your 
   assert.deepEqual(checkLock(root), { changed: [], missing: [], added: [] });
   // A block edited by hand is rendered again, and said so.
   writeFileSync(join(root, 'AGENTS.md'), agents.replace('## MIRAI', '## MIRAI, mine now'));
-  assert.deepEqual(render({ cwd: root, env }).files, [{ path: 'AGENTS.md', changed: true, edited: true }]);
+  assert.deepEqual(agentsOf(render({ cwd: root, env })), [{ path: 'AGENTS.md', changed: true, edited: true }]);
   assert.equal(readFileSync(join(root, 'AGENTS.md'), 'utf8'), agents);
   // The template must be the framework's own.
   writeFileSync(join(root, '.mirai/framework/registry/templates/agents-block.md'), '## Mine\n');
@@ -372,5 +372,5 @@ test('T9: mirai render renders the block again from the installed copy and your 
   let out = '';
   const io = { stdout: { write: (s) => (out += s) }, stderr: { write: () => {} }, env: fresh.env, cwd: fresh.root };
   assert.equal(await main(['render'], io, COMMANDS), EXIT.OK);
-  assert.equal(out, 'AGENTS.md: rendered again\nReview and commit the change, with .mirai/mirai.lock.\n');
+  assert.match(out, /^AGENTS\.md: rendered again\nCLAUDE\.md: unchanged\n(?:.*: unchanged\n)+Review and commit the change, with \.mirai\/mirai\.lock\.\n$/);
 });

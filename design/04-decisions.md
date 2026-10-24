@@ -1336,7 +1336,9 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - **tool adapters:** a profile file per tool (bmad-loop `data/profiles/*.toml`);
   - **connectors:** the D-36 contract;
   - **document types:** template + checklist + lint rules + state machine;
-  - **agents:** role, `may write` scope, allowed tools, default model tier (D-14).
+  - **agents:** role, `may write` scope, allowed tools, default model tier (D-14). Allowed tools
+    use **Claude Code's tool names** (`Read`, `Grep`, `Edit`, `Bash`, `mcp__<server>__<tool>`);
+    the Codex and Cursor renderers translate or drop them (decided 2026-10-24, unit 11).
 - **The lock marks every file with one of three marks** (R2-M12, R3-M13, AR3-13):
   - **`framework`:** copied from MIRAI, 3-way merged on `update`, contributable;
   - **`rendered`:** generated from framework + config + custom (the `.claude/` files, the

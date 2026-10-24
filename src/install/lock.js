@@ -29,6 +29,9 @@ const validate = compileSchema({
     source: { type: 'string', maxLength: 64, pattern: `^(?:local|v${VERSION})$` },
     // One hash for the whole framework copy, over its entries (frameworkDigest).
     framework_sha256: HASH,
+    // Each tool's launch bundle (unit 11): its shared hash, which unit 12's snapshot and unit
+    // 19's launch check compare against. A new tool adds its key.
+    bundles: { type: 'object', additionalProperties: false, properties: { 'claude-code': HASH } },
     files: { type: 'array', maxItems: 20000, items: { $ref: '#/$defs/file' } },
   },
   $defs: {
@@ -58,7 +61,7 @@ export class LockError extends MiraiError {
   }
 }
 
-export const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+export const sha256 = (bytes, encoding) => createHash('sha256').update(bytes, encoding).digest('hex');
 
 const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 
@@ -70,9 +73,9 @@ export function frameworkDigest(files) {
 }
 
 // The lock's text: entries sorted by path, so the same install always gives the same bytes.
-export function lockText({ miraiVersion, source, files }) {
+export function lockText({ miraiVersion, source, bundles, files }) {
   const sorted = [...files].sort(byPath);
-  const lock = { schema_version: LOCK_SCHEMA_VERSION, mirai_version: miraiVersion, source, framework_sha256: frameworkDigest(sorted), files: sorted };
+  const lock = { schema_version: LOCK_SCHEMA_VERSION, mirai_version: miraiVersion, source, framework_sha256: frameworkDigest(sorted), ...(bundles && Object.keys(bundles).length ? { bundles } : {}), files: sorted };
   const problems = validate(JSON.parse(JSON.stringify(lock)));
   if (problems.length) throw new LockError(`the lock MIRAI built is not valid (${problems[0].path})`, { code: 'lock-invalid' });
   checkEntries(sorted, 'the lock MIRAI built');
@@ -113,21 +116,29 @@ export function readLock(root) {
     throw new LockError(`${LOCK_FILE} was written by a newer MIRAI (lock schema ${version}; this one reads ${LOCK_SCHEMA_VERSION})`, { code: 'lock-newer', hint: 'run the MIRAI version the lock names, or update this one' });
   }
   const problems = validate(value);
-  if (problems.length) throw new LockError(`${LOCK_FILE} is not valid (${problems[0].path} ${problems[0].code})`, { code: 'lock-invalid' });
+  if (problems.length) {
+    // Fields are only ever added within a schema version, so a lock this MIRAI can't read but
+    // a newer one wrote is the newer one's (unit 11).
+    if (typeof value?.mirai_version === 'string' && newer(value.mirai_version, RUNNING_VERSION)) {
+      throw new LockError(`${LOCK_FILE} was written by a newer MIRAI (${value.mirai_version}; this is ${RUNNING_VERSION})`, { code: 'lock-newer', hint: 'run the MIRAI version the lock names, or update this one' });
+    }
+    throw new LockError(`${LOCK_FILE} is not valid (${problems[0].path} ${problems[0].code})`, { code: 'lock-invalid' });
+  }
   checkEntries(value.files, LOCK_FILE);
   if (frameworkDigest(value.files) !== value.framework_sha256) {
     throw new LockError(`${LOCK_FILE}: its framework_sha256 doesn't match its framework entries`, { code: 'lock-invalid' });
   }
-  return { miraiVersion: value.mirai_version, source: value.source, frameworkSha256: value.framework_sha256, files: new Map(value.files.map((f) => [f.path, f])) };
+  return { miraiVersion: value.mirai_version, source: value.source, frameworkSha256: value.framework_sha256, bundles: { ...(value.bundles ?? {}) }, files: new Map(value.files.map((f) => [f.path, f])) };
 }
 
-// Puts new entries into the lock (by path; an existing entry is replaced) and writes it in one
-// step. Used by `mirai render` for the rendered files; unit 11 adds its own.
-export function updateLock(root, entries) {
+// Puts new entries into the lock (by path; an existing entry is replaced), takes out the
+// `remove` paths, and writes it in one step. Used by `mirai render` for the rendered files.
+export function updateLock(root, entries, { remove = [], bundles = {} } = {}) {
   const lock = readLock(root);
   if (!lock) throw new LockError('MIRAI is not installed here (no lock)', { code: 'no-lock', hint: 'run: mirai init' });
+  for (const path of remove) lock.files.delete(path);
   for (const e of entries) lock.files.set(e.path, e);
-  const text = lockText({ miraiVersion: lock.miraiVersion, source: lock.source, files: [...lock.files.values()] });
+  const text = lockText({ miraiVersion: lock.miraiVersion, source: lock.source, bundles: { ...lock.bundles, ...bundles }, files: [...lock.files.values()] });
   replaceFile(join(root, LOCK_FILE), text);
   return text;
 }
@@ -164,6 +175,7 @@ export function noLinks(root, rel) {
       info = lstatSync(p);
     } catch (err) {
       if (err.code === 'ENOENT') return;
+      if (err.code === 'ENOTDIR') throw new LockError(`${relative(root, dirname(p)).split(sep).join('/')} is not a folder`, { code: 'not-folder' });
       throw err;
     }
     if (info.isSymbolicLink()) throw new LockError(`${relative(root, p).split(sep).join('/')} is a symbolic link`, { code: 'lock-symlink', hint: 'MIRAI\'s files are real files and folders' });
@@ -193,7 +205,7 @@ export function checkLock(root) {
       if (err.code === 'ENOENT') { out.missing.push(f.path); continue; }
       throw err;
     }
-    const hash = f.block ? blockHash(bytes.toString('utf8')) : sha256(bytes);
+    const hash = f.block ? blockHash(bytes.toString('utf8'), f.path) : f.mark === 'rendered' ? renderedHash(bytes) : sha256(bytes);
     if (hash !== f.sha256) out.changed.push(f.path);
   }
   for (const path of filesUnder(root, '.mirai/framework')) {
@@ -203,9 +215,22 @@ export function checkLock(root) {
 }
 
 // The hash of a file's MIRAI block, or null when it has none.
-export function blockHash(text) {
-  const block = blockOf(text);
+export function blockHash(text, file) {
+  const block = blockOf(text, { file });
   return block === null ? null : sha256(block);
+}
+
+// The hash of a whole rendered file, with CRLF read as LF: git may convert line endings in a
+// teammate's checkout (core.autocrlf), and that isn't an edit (unit 11). MIRAI writes LF.
+export const renderedHash = (bytes) => sha256(Buffer.from(bytes).toString('latin1').replace(/\r\n/g, '\n'), 'latin1');
+
+// The version of the running MIRAI, and whether `a` is a newer version than `b`.
+export const RUNNING_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+export function newer(a, b) {
+  const parts = (v) => v.split(/[.-]/).slice(0, 3).map((n) => Number.parseInt(n, 10) || 0);
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
 }
 
 // Every regular file and symbolic link under `rel`, as paths relative to `root`.

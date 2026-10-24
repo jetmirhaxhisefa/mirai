@@ -10,7 +10,10 @@ MIRAI's own definitions (D-37), shipped with it:
 - **`schemas/`:** the JSON Schemas for agents' structured output and the gate result (unit 09a).
 - **`examples/`:** a filled example of each type. These are the examples the unit tests and
   agents follow.
-- **`agents/`:** agent definitions, from the agent units on.
+- **`agents/`:** agent definitions, from the agent units on (Kai in unit 21, Rex in unit 24).
+- **`skills/`:** skills, one folder each with its `SKILL.md` (unit 11): `mirai-docs` so far.
+- **`adapters/`:** one profile per tool, which says where it reads instructions, skills and
+  agents (unit 11): `claude-code`.
 
 The types so far: `story` and `bug` (unit 08a), and `plan` (unit 08b). Plans live in the store,
 so they're linted through `lintText`, not `mirai lint`.
