@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "bin": {
-    "mirai": "bin/mirai.js"
+    "mirai": "bin/launch.js"
   },
   "files": [
     "bin",

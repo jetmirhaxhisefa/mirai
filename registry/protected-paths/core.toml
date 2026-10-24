@@ -16,6 +16,14 @@ name = "mirai"
 class = "protected"
 paths = [".mirai/**"]
 
+# MIRAI's own code (unit 12b): the launcher refuses a changed copy, but it still runs if you
+# bypass the launcher (an old alias, `node .mirai/framework/bin/mirai.js …`, an npm script). This
+# also makes unit 13 deny agents writes to it.
+[[rules]]
+name = "mirai-runtime"
+class = "auto-run"
+paths = [".mirai/framework/**", ".mirai/mirai.lock"]
+
 # What reaches an AI tool's context.
 [[rules]]
 name = "instruction-files"

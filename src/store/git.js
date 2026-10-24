@@ -200,3 +200,48 @@ export function mergeBase(root, a, b, env) {
 export function isAncestor(root, a, b, env) {
   return git(root, ['merge-base', '--is-ancestor', a, b], env).ok;
 }
+
+// The bytes at `rev:path` in one git call, or null (a missing ref or path, not a blob, or larger
+// than `maxBytes`). For the launcher (unit 12b), which runs on every command.
+export function blobAt(root, rev, path, env, { maxBytes = 4 * 1024 * 1024 } = {}) {
+  let r;
+  try {
+    r = git(root, ['cat-file', '--batch'], env, { raw: true, input: Buffer.from(`${rev}:${path}\n`), maxBuffer: maxBytes + 1024 });
+  } catch (err) {
+    if (err.code === 'git-output-too-large') return null;
+    throw err;
+  }
+  if (!r.ok) return null;
+  const nl = r.out.indexOf(0x0a);
+  const m = /^[0-9a-f]+ (\w+) (\d+)$/.exec(r.out.subarray(0, nl).toString('latin1'));
+  if (!m || m[1] !== 'blob' || Number(m[2]) > maxBytes) return null;
+  return Buffer.from(r.out.subarray(nl + 1, nl + 1 + Number(m[2])));
+}
+
+// A ref's commit id and the bytes at `ref:path`, in one git call: { commit, bytes } (each null
+// when missing). For the launcher, which runs on every command (unit 12b).
+export function commitAndBlob(root, ref, path, env, { maxBytes = 4 * 1024 * 1024 } = {}) {
+  let r;
+  try {
+    r = git(root, ['cat-file', '--batch'], env, { raw: true, input: Buffer.from(`${ref}^{commit}\n${ref}:${path}\n`), maxBuffer: 2 * maxBytes + 4096 });
+  } catch (err) {
+    if (err.code === 'git-output-too-large') return { commit: null, bytes: null };
+    throw err;
+  }
+  if (!r.ok) return { commit: null, bytes: null };
+  const out = r.out;
+  const read = (at) => {
+    const nl = out.indexOf(0x0a, at);
+    if (nl === -1) return null;
+    const m = /^([0-9a-f]+) (\w+) (\d+)$/.exec(out.subarray(at, nl).toString('latin1'));
+    if (!m) return { id: null, type: null, body: null, next: nl + 1 };
+    const size = Number(m[3]);
+    return { id: m[1], type: m[2], body: out.subarray(nl + 1, nl + 1 + size), next: nl + 1 + size + 1 };
+  };
+  const first = read(0);
+  const second = first ? read(first.next) : null;
+  return {
+    commit: first?.type === 'commit' ? first.id : null,
+    bytes: second?.type === 'blob' && second.body.length <= maxBytes ? Buffer.from(second.body) : null,
+  };
+}

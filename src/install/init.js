@@ -1,6 +1,5 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 
 import { MiraiError } from '../cli/errors.js';
@@ -18,11 +17,9 @@ import { LOCAL_FILE, applyPlan, renderPlan, undoAll } from './render.js';
 // undoes what it did when a later step fails. It writes nothing under .git/, never commits and
 // never uses the network.
 
-// MIRAI's own package root, and what of it is the framework: its runtime and registry, so hooks
-// and CI can run the copy without npx (D-03, D-15). A vendored licence added later must be
-// listed here too.
-export const PACKAGE_ROOT = fileURLToPath(new URL('../../', import.meta.url));
-export const FRAMEWORK_PARTS = Object.freeze(['bin', 'src', 'registry', 'package.json', 'LICENSE']);
+import { PACKAGE_ROOT, FRAMEWORK_PARTS } from './parts.js';
+
+export { PACKAGE_ROOT, FRAMEWORK_PARTS };
 const FRAMEWORK_DIR = '.mirai/framework';
 const CONFIG_FILE = PROJECT_CONFIG.split('\\').join('/');
 

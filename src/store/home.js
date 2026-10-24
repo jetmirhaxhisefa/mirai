@@ -144,6 +144,10 @@ function checkOutside(path, checkout) {
   }
 }
 
+// A store's own record (store.json) in `repoHome`, checked; for the launcher (unit 12b), which
+// finds the store from its cache instead of the repo identity's git calls.
+export const readStoreMeta = (repoHome) => readMeta(join(repoHome, 'store.json'));
+
 function readMeta(file) {
   const text = readPrivateFile(file, { maxBytes: 64 * 1024 });
   let meta;

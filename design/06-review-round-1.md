@@ -463,7 +463,7 @@ you can make.
 | Theme | Sources | Fix |
 |---|---|---|
 | Parser risk | AR-18, TL-18 | JSON for every machine-written file. TOML/YAML subset with a written grammar and test corpus, rejected loudly outside it. The Mermaid "parses" check becomes "fenced + diagram keyword + balanced brackets", because a real parse needs a dependency. |
-| How hooks and CI call MIRAI | AR-19 | `node <trust-root>/bin/mirai.mjs`; `npx` only for `init`/`update`. |
+| How hooks and CI call MIRAI | AR-19 | `node <trust-root>/bin/mirai.mjs`; `npx` only for `init`/`update`. (Since unit 12b: `.../tree/.mirai/framework/bin/mirai.js`, and the `mirai` on PATH is the launcher.) |
 | Run-log line identity and order | AR-20 | `{schema_version, run_id, seq, ts, item, by}` on every line; ordering rule; compaction rule. |
 | State machine gaps | AR-21, TL-22 | Missing moves for `dropped`; release and work-item machines in the status unit; a lighter batch approval for context files. |
 | Records are mutable | AR-22 | One immutable file per record: `<ticket>/<kind>-r<n>-<patchid>.json`. |

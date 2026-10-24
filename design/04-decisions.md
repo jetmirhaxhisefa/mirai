@@ -74,7 +74,11 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
 - **Decision:** the installer (Q8), distributed as `npx github:<owner>/mirai#vX.Y.Z` (a git tag, no
   npm needed). The repo lives on your personal GitHub account (section G). An npm name can come
   later.
-  - Hooks and CI call the trust-root copy (`node <trust-root>/bin/mirai.mjs`, D-15). `npx` is used
+  - **The `mirai` on your PATH is the launcher** (`bin/launch.js`, unit 12b): it runs the repo's
+    pinned copy, only when that copy is the integration branch's or the launcher's own; `init`
+    and `update` run the launcher's own code. Hooks, CI and the broker never go through it: they
+    call the trust-root copy directly (`node <trust-root>/tree/.mirai/framework/bin/mirai.js`,
+    D-15). `npx` is used
     only for `init` and `update`.
   - `update` shows a diff and migrations and applies them only on yes.
   - It uses BMAD's `retired.toml`/`migration-N.toml` pattern.

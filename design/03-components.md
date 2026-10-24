@@ -310,6 +310,8 @@ Confluence). `repo` is forced when no tool is connected.
   claude-home/                     # CLAUDE_CONFIG_DIR fallback for headless runs, if `--restricted` doesn't fit
   tmp/                             # MIRAI's own temp folder (never the per-user temp dir)
 
+~/Library/Application Support/mirai/launcher.json   # the launcher's cache: checkout -> repo id (unit 12b);
+                                                 # a hint, always checked against store.json; denied to agents
 ~/Library/Application Support/mirai/global/      # shared by all projects (D-57); denied to agents
   usage.jsonl                      # global usage ledger: limit share per run, with repo id and plan
   run.lock                         # one MIRAI run at a time across all projects

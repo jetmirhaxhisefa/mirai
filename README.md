@@ -44,6 +44,29 @@ This page is a summary for reading. The real source is the `design/` folder. Whe
   is in `~/Library/Application Support/mirai/<repo-id>/`. The signing key is in
   `~/.config/mirai/`. Agents can read neither.
 
+### The `mirai` command on your PATH (unit 12b)
+
+The `mirai` you type is the launcher, `bin/launch.js`. In a repo it runs that repo's pinned
+MIRAI, and only when the repo's copy is exactly one committed on the integration branch. It then
+runs a sealed copy built from git, never the files in the work tree, which an agent working in
+the same checkout could change. `mirai which` says which copy runs, and why. `init` (and later
+`update`) always runs the launcher's own MIRAI. On a new machine, or a teammate's fresh clone,
+`mirai init --join` sets up only that machine's store.
+
+Point it at a clean release folder, not at a folder where MIRAI is being developed: whatever
+that folder holds is what the launcher trusts as its own, and what `init --refresh` copies into
+your projects.
+
+```
+git clone https://github.com/<you>/mirai ~/Projects/mirai-release
+echo "alias mirai='node ~/Projects/mirai-release/bin/launch.js'" >> ~/.zshrc
+# after each approved, pushed unit:
+git -C ~/Projects/mirai-release pull
+```
+
+Once a release is tagged, `npm install -g github:<you>/mirai#vX.Y.Z` installs the same launcher.
+Hooks, CI and MCP servers never use it: they call the trust root's copy by its full path.
+
 ## 2. The infrastructure: what talks to what
 
 ![The MIRAI infrastructure](design/diagrams/architecture.svg)

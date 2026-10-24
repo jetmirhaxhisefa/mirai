@@ -155,13 +155,23 @@ function withLock(path, fn) {
       break;
     } catch (err) {
       if (err.code !== 'EEXIST') throw err;
-      const pid = Number.parseInt(readFileSync(path, 'utf8'), 10);
-      let alive = false;
+      let pid = NaN;
+      let age = 0;
       try {
-        process.kill(pid, 0);
-        alive = true;
-      } catch (e) {
-        alive = e.code === 'EPERM';
+        pid = Number.parseInt(readFileSync(path, 'utf8'), 10);
+        age = Date.now() - lstatSync(path).mtimeMs;
+      } catch {
+        continue; // released meanwhile
+      }
+      // A lock with no pid yet is one being taken this instant: it counts as held (for 10 s).
+      let alive = !Number.isInteger(pid) && age < 10_000;
+      if (Number.isInteger(pid)) {
+        try {
+          process.kill(pid, 0);
+          alive = true;
+        } catch (e) {
+          alive = e.code === 'EPERM';
+        }
       }
       if (!alive) { rmSync(path, { force: true }); continue; }
       if (Date.now() > deadline) throw new TrustError('another MIRAI is building the trust root', { code: 'trust-busy', hint: 'try again when it\'s done' });
