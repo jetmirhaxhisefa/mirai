@@ -69,7 +69,7 @@ it in the store. mirai lint flags any line left word for word from this template
 
 ## Declared changes
 
-<!-- done when: every protected path the ticket touches (a path or glob in the repo) and every new dependency it needs (<ecosystem>:<name>, such as npm:left-pad), each with why; or one row "none" -->
+<!-- done when: every protected path the ticket touches (one exact file path each, no patterns) and every new dependency it needs (<ecosystem>:<name>, such as npm:left-pad), each with why; or one row "none" -->
 | Kind | Item | Why |
 |---|---|---|
 | none | | |

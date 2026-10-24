@@ -105,6 +105,11 @@ export function readLock(root) {
     if (err.code === 'ENOENT') return null;
     throw err;
   }
+  return parseLock(text);
+}
+
+// A lock's text, checked as readLock checks the file (unit 12 reads a committed one).
+export function parseLock(text) {
   let value;
   try {
     value = parseJsonStrict(text);

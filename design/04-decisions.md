@@ -462,10 +462,12 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   1. **Trust root.** At run start the orchestrator snapshots the framework, config, custom files,
      generated tool files and the compose inputs it will use (D-48) *from the base commit*. It
      hashes them into a read-only folder **outside the project**,
-     `~/Library/Application Support/mirai/<repo-id>/bundle/<base-sha>/` (D-47), and re-hashes it
+     `~/Library/Application Support/mirai/<repo-id>/trust/<base-sha>/` (D-47; named `trust/` with unit 12, since "bundle" is unit 11's launch bundle), and re-hashes it
      before every launch (D-12). Every launch, hook and gate uses that snapshot.
-     - **The base is always the integration branch** (or the epic's `feature/<epic>` cut from
-       it), **never a stacked parent's branch** (R2-M6). A stacked child takes its trust root and
+     - **The base is always the integration branch**, also for the tickets of a `release:
+       together` epic, whose `feature/<epic>` holds code not yet approved into it (decided
+       2026-10-24, unit 12), and **never a stacked parent's branch** (R2-M6). A change is still
+       measured from where its branch left its own base. A stacked child takes its trust root and
        lock from the integration branch, not from agent-written code.
   2. **Protected paths.** A diff that touches any of these is forced to `high` risk and fails the
      floor guard; in autonomous mode the ticket parks:
@@ -1036,10 +1038,10 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
      `~/Library/Application Support/mirai/<repo-id>/`:
      - `store/`: tokens, ledger, counters, verdicts, status, work files. Read and write denied
        to agents;
-     - `bundle/<sha>/` (the trust root): skills, agents, prompts, `strict.json`, `mcp.json`,
-       hooks. Readable by agents; write-denied by the sandbox `denyWrite`, an `Edit` deny, and
-       made read-only with the macOS user-immutable flag (`chflags uchg`, UNVERIFIED, G26) after
-       rendering;
+     - `trust/<sha>/` (the trust root): skills, agents, prompts, `strict.json`, `mcp.json`,
+       hooks. Readable by agents; write-denied by the sandbox `denyWrite` and an `Edit` deny,
+       with read-only modes, and hashed again before every launch. No immutable flag (unit 12):
+       its owner can clear it, so it stops nothing that runs as you;
      - `input/<launch>/`: the per-launch read-only input folder (D-12);
      - `scratch/<run>/`: agent-writable, never trusted;
      - `tmp/`: MIRAI's own temp folder. Host code never uses the per-user temp dir, which the
@@ -1645,7 +1647,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
       `heartbeat.json`, `ledger.json`, `run.lock`, `runs/`, `parked/`, `tickets/<ticket>/`
       (status and work files under retention), `metrics/`, `baseline/`, `reports/`, `cache/`,
       `branches.json` (the local index of registered branches, D-15), `config.user.toml`;
-    - **`bundle/<base-sha>/`** (the trust root; readable, write-denied, immutable flag): skills,
+    - **`trust/<base-sha>/`** (the trust root; readable, write-denied): skills,
       agents, prompts, `strict.json` per role, `mcp.json`, hook scripts;
     - **`hooks/`** (the git hooks; `core.hooksPath`, hash-checked);
     - **`input/<launch>/`** (read-only, one launch only, deleted after) and **`scratch/<run>/`**

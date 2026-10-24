@@ -1,0 +1,15 @@
+# The go pack (unit 12). Switch it on with [gate] packs = ["go"].
+kind = "protected-paths"
+schema_version = 1
+name = "go"
+scope = "pack"
+
+[[rules]]
+name = "go-checks"
+class = "protected"
+paths = [".golangci.yml", ".golangci.yaml", ".golangci.toml"]
+
+[[rules]]
+name = "go-dependencies"
+class = "protected"
+paths = ["go.mod", "go.sum", "go.work", "go.work.sum"]

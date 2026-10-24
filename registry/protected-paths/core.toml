@@ -1,0 +1,56 @@
+# MIRAI's core protected paths (unit 12; D-15, D-54, R3-C4, TL3-12): true on every stack, always
+# on. Stack-specific rules are packs in this folder (node, php, python, …), which a project
+# switches on in [gate] packs. A project adds its own rules in [gate] protected; it can't remove
+# these.
+# `protected`: a change touching it is forced to high risk. `auto-run`: it runs by itself when
+# you open or install the branch; high risk too, it always parks, and the run report warns you.
+# Patterns: see src/util/glob.js (no "/" = any depth; "x/**" = the folder x and all inside it;
+# case is ignored).
+kind = "protected-paths"
+schema_version = 1
+name = "core"
+scope = "core"
+
+[[rules]]
+name = "mirai"
+class = "protected"
+paths = [".mirai/**"]
+
+# What reaches an AI tool's context.
+[[rules]]
+name = "instruction-files"
+class = "protected"
+paths = ["CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "GEMINI.md", ".cursorrules", ".windsurfrules", ".github/copilot-instructions.md"]
+
+[[rules]]
+name = "tool-folders"
+class = "protected"
+paths = ["**/.agents/**", "**/.codex/**", "**/.cursor/**"]
+
+[[rules]]
+name = "ci"
+class = "protected"
+paths = [".github/workflows/**", ".github/actions/**", ".gitlab-ci.yml", ".gitlab/**", ".circleci/**", "azure-pipelines.yml", "bitbucket-pipelines.yml", "Jenkinsfile"]
+
+[[rules]]
+name = "hides-code-from-review"
+class = "protected"
+paths = [".gitattributes", ".gitignore", ".gitmodules", ".lfsconfig", ".github/CODEOWNERS", "/CODEOWNERS", "docs/CODEOWNERS", ".editorconfig"]
+
+[[rules]]
+name = "containers-and-secrets"
+class = "protected"
+paths = ["*compose*.yml", "*compose*.yaml", "Dockerfile*", "*.dockerfile", ".dockerignore", ".env*"]
+
+[[rules]]
+name = "git-hooks"
+class = "protected"
+paths = [".githooks/**", "lefthook.yml", "lefthook.yaml", "lefthook-local.yml", ".lefthook.yml", ".lefthook-local.yml", ".lefthook/**", ".pre-commit-config.yaml"]
+
+[[rules]]
+name = "auto-run"
+class = "auto-run"
+paths = [
+  "**/.claude/**", "**/.vscode/**", "**/.idea/**", "*.code-workspace", ".envrc", "mise.toml", ".mise.toml",
+  "**/.devcontainer/**", ".devcontainer.json", "**/.husky/**", ".mcp.json",
+]

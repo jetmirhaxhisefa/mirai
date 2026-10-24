@@ -195,7 +195,7 @@ export const CHECKS = Object.freeze({
         continue;
       }
       if (r.cells.item === '' || r.cells.why === '') add({ code: 'plan-table', ...where, reason: 'a declared change needs its Item and its Why' });
-      else if (kind === 'protected-path' && !REPO_PATH.test(r.cells.item)) add({ code: 'plan-table', ...where, reason: 'a protected path is a path or glob inside the repo', hint: 'no leading /, no drive letter, no ..' });
+      else if (kind === 'protected-path' && (!REPO_PATH.test(r.cells.item) || /[*?[\]{}]/.test(r.cells.item))) add({ code: 'plan-table', ...where, reason: 'a protected path is one exact file path inside the repo (no patterns: a plan names each file, unit 12)', hint: 'no *, ?, [ ] or { }, no leading /, no drive letter, no ..' });
       else if (kind === 'dependency' && !DEPENDENCY.test(r.cells.item)) add({ code: 'plan-table', ...where, reason: 'a dependency is written <ecosystem>:<name>', hint: 'for example npm:left-pad or composer:guzzlehttp/guzzle' });
       if (kind === 'dependency') dependency = true;
     }

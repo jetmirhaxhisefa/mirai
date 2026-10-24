@@ -1,0 +1,25 @@
+# The php pack (unit 12): PHP projects (Composer). Switch it on with [gate] packs = ["php"].
+kind = "protected-paths"
+schema_version = 1
+name = "php"
+scope = "pack"
+
+[[rules]]
+name = "php-checks"
+class = "protected"
+paths = [
+  "phpunit.xml", "phpunit.xml.dist", "phpunit.dist.xml", "Pest.php", "phpstan.neon", "phpstan.neon.dist", "phpstan.dist.neon", "phpstan-baseline.neon",
+  "psalm.xml", "psalm.xml.dist", "psalm-baseline.xml", ".php-cs-fixer.php", ".php-cs-fixer.dist.php", "pint.json", "rector.php",
+  "phpcs.xml", "phpcs.xml.dist", ".phpcs.xml", ".phpcs.xml.dist",
+]
+
+[[rules]]
+name = "php-dependencies"
+class = "protected"
+paths = ["composer.json", "composer.lock"]
+
+# Composer runs these on install and update (D-54).
+[[scripts]]
+file = "composer.json"
+field = "scripts"
+keys = ["pre-install-cmd", "post-install-cmd", "pre-update-cmd", "post-update-cmd", "pre-autoload-dump", "post-autoload-dump", "post-root-package-install", "post-create-project-cmd", "pre-package-install", "post-package-install", "pre-package-update", "post-package-update", "pre-dependencies-solving", "post-dependencies-solving"]

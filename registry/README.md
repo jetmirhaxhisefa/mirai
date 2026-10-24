@@ -12,6 +12,11 @@ MIRAI's own definitions (D-37), shipped with it:
   agents follow.
 - **`agents/`:** agent definitions, from the agent units on (Kai in unit 21, Rex in unit 24).
 - **`skills/`:** skills, one folder each with its `SKILL.md` (unit 11): `mirai-docs` so far.
+- **`protected-paths/`:** the protected-path rules (unit 12): which changed files force high
+  risk, and which run by themselves (`auto-run`). `core.toml` holds what's true on every stack
+  and is always on; the others are ecosystem packs (`node`, `php`, `python`, `rust`, `go`,
+  `ruby`, `task-runners`), which a project switches on in `[gate] packs`. A new stack is a new
+  pack file. A project adds its own rules in `[gate] protected`.
 - **`adapters/`:** one profile per tool, which says where it reads instructions, skills and
   agents (unit 11): `claude-code`.
 

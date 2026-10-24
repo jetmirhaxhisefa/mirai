@@ -102,7 +102,7 @@ test('T8: a new dependency makes the ticket high risk; declared changes have a f
   const two = replace(PLAN, '| none | | |', '| dependency | npm:a | b |\n| dependency | npm:c | d |');
   assert.deepEqual(only(two), ['plan-risk']); // once, however many
   assert.deepEqual(codes(replace(PLAN, '| none | | |', '| protected-path | `docker-compose.yml` | a new volume |')), []);
-  for (const bad of ['| dependency | | why |', '| protected-path | stuff | |', '| protected-path | /etc/x | w |', '| protected-path | ../x | w |', '| dependency | left-pad | w |', '| library | a | b |']) {
+  for (const bad of ['| dependency | | why |', '| protected-path | stuff | |', '| protected-path | /etc/x | w |', '| protected-path | ../x | w |', '| protected-path | .github/** | w |', '| protected-path | src/*.yml | w |', '| dependency | left-pad | w |', '| library | a | b |']) {
     assert.ok(only(replace(PLAN, '| none | | |', bad).replace('risk: normal', 'risk: high')).includes('plan-table'), bad);
   }
   assert.deepEqual(only(replace(PLAN, '| none | | |', '| none | | |\n| dependency | npm:a | b |')), ['plan-risk', 'plan-table']);

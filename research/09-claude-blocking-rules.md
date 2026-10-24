@@ -128,8 +128,9 @@ a file an agent or a test container could have written without checking it first
 1. **MIRAI's control files are outside the project, split by trust** (`04` D-47). In
    `~/Library/Application Support/mirai/<repo-id>/`:
    - `store/` (state, status, counters, verdicts, work files) is denied to agents, read and write;
-   - `bundle/<sha>/` (the trust root: skills, prompts, `strict.json` per role, `mcp.json`, hooks) is
-     readable but write-denied (sandbox `denyWrite`, `Edit` deny, `chflags uchg`);
+   - `trust/<sha>/` (the trust root: skills, prompts, `strict.json` per role, `mcp.json`, hooks;
+     named `trust/` and without an immutable flag since unit 12) is readable but write-denied
+     (sandbox `denyWrite`, `Edit` deny), with read-only modes and a re-hash before every launch;
    - `input/<launch>/` is a read-only folder for one launch; `scratch/<run>/` is agent-writable and
      never trusted.
 
@@ -151,7 +152,7 @@ a file an agent or a test container could have written without checking it first
 4. **The sandbox is on, with no escape.** `allowUnsandboxedCommands: false`, no
    `excludedCommands`, `allowUnixSockets` empty.
    - "Outside the project" is written with the sandbox: `denyRead` on your home folder, and
-     `allowRead` only for the project, the toolchain caches, `bundle/` and the launch's
+     `allowRead` only for the project, the toolchain caches, `trust/` and the launch's
      `input/`.
    - Explicit `denyRead`/`denyWrite` on `store/`, `~/.config/mirai` and every real `.env*`.
    - `denyWrite` on `.git/**`, `.mirai/keys/**` and `.mirai/records/**`, and on the whole project
@@ -161,7 +162,7 @@ a file an agent or a test container could have written without checking it first
      uploads through package registries.
 5. **Deny rules** name the paths explicitly: `store/`, `~/.config/mirai`, `~/.ssh`, `~/.aws`,
    `~/.config/gh`, `~/.npmrc`, `~/.netrc`, `~/.docker`, `~/.kube`, `.env*` except `.env.test`, `Edit`
-   of `bundle/`, `.git/**`, `.mirai/keys/**`, `.mirai/records/**`.
+   of `trust/`, `.git/**`, `.mirai/keys/**`, `.mirai/records/**`.
    - Denied commands: `git push`, `git commit`, `git config`, `gh`, `docker`, `claude`, `mirai`,
      `env`, `printenv`.
    - Denied tools in headless runs: `WebFetch`, `WebSearch`, Task/Agent.
@@ -264,8 +265,8 @@ launch that relies on it:
 - **G19, DNS from the sandbox and from internal compose networks:** listed in `design/05` §G.
 - **G25, real `.env` reads:** whether exact-path sandbox `denyRead` entries for each real `.env*`
   block reads through Bash (`cat`, `python3 -c`, `cp`), and whether globs work there.
-- **G26, immutable bundle:** whether `chflags uchg` on the trust-root bundle stops a write by the
-  unsandboxed Edit tool, and whether the launcher can clear and set it reliably.
+- **G26, immutable bundle:** closed with unit 12 (2026-10-24): no immutable flag, since its owner
+  can clear it; the sandbox `denyWrite` and the re-hash before every launch are the guard.
 - **G20, `allowWrite` inside `denyWrite`:** which wins when an allowed path sits inside a denied
   one (§1 states precedence only for reads).
 - **G22, user memory and skills:** whether `--restricted`, a source list without `user`, or

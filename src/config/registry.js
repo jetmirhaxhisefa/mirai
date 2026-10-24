@@ -6,6 +6,7 @@ import { readConfigFile } from './load.js';
 import { validate } from './schema.js';
 import { deepFreeze } from '../util/freeze.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
+import { globProblem } from '../util/glob.js';
 
 // The registry core (unit 03b, D-37): agents and document types as checked data. Long text
 // (prompts, templates, checklists) lives in .md files next to the definitions, referenced by a
@@ -96,6 +97,60 @@ const ADAPTER = {
       if (reserved(value[a]?.[b])) report(key, `${key} can't be AGENTS.md or a path under .mirai/ or .git/`, undefined, 'reserved');
     }
   },
+};
+
+// Protected-path rules (unit 12, D-15): which changed paths force high risk (`protected`) or
+// also park in both presets because they run by themselves (`auto-run`). Patterns follow
+// src/util/glob.js; a `!` pattern isn't allowed here, so a rule can only add paths.
+export const PATH_CLASSES = Object.freeze(['protected', 'auto-run']);
+export const PATH_PATTERN = {
+  type: 'string',
+  pattern: /^(?!!)(?!.*(^|\/)\.\.(\/|$))[^\s]{1,200}$/,
+  patternHint: 'a path pattern such as ".github/workflows/**", without "!", ".." or spaces',
+  check(value, path, report) {
+    const problem = typeof value === 'string' ? globProblem(value) : null;
+    if (problem) report(path, `${path} ${problem}`, undefined, 'pattern');
+  },
+};
+const GLOB = PATH_PATTERN;
+const PROTECTED_PATHS = {
+  type: 'table',
+  fields: {
+    kind: { type: 'enum', values: ['protected-paths'] },
+    schema_version: { type: 'integer', min: 1, max: 1 },
+    name: { type: 'string', pattern: NAME, patternHint: 'for example "core" or "node"' },
+    // `core`: always on. `pack`: an ecosystem's rules, on when a project lists it in [gate] packs.
+    scope: { type: 'enum', values: ['core', 'pack'] },
+    rules: {
+      type: 'array',
+      minItems: 1,
+      uniqueBy: 'name',
+      items: {
+        type: 'table',
+        fields: {
+          name: { type: 'string', pattern: NAME, patternHint: 'for example "ci"' },
+          class: { type: 'enum', values: PATH_CLASSES },
+          paths: { type: 'array', minItems: 1, items: GLOB },
+        },
+        required: ['name', 'class', 'paths'],
+      },
+    },
+    // Install scripts a package manager runs by itself: a change to `field`'s `keys` in a file
+    // named `file` (any depth) is auto-run. The same check for every ecosystem, as data.
+    scripts: {
+      type: 'array',
+      items: {
+        type: 'table',
+        fields: {
+          file: { type: 'string', pattern: /^[A-Za-z0-9._-]{1,64}\.json$/, patternHint: 'a JSON file name such as "package.json"' },
+          field: { type: 'string', pattern: /^[A-Za-z0-9_-]{1,64}$/, patternHint: 'a top-level key such as "scripts"' },
+          keys: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z0-9:_-]{1,64}$/, patternHint: 'a script name' } },
+        },
+        required: ['file', 'field', 'keys'],
+      },
+    },
+  },
+  required: ['kind', 'schema_version', 'name', 'scope', 'rules'],
 };
 
 // The frontmatter fields every document type shares (03 "Templates"); a type's own fields
@@ -307,15 +362,16 @@ const KINDS = [
   { folder: 'agents', kind: 'agent', bucket: 'agents', schema: AGENT, refs: ['prompt'] },
   { folder: 'document-types', kind: 'document-type', bucket: 'documentTypes', schema: DOCUMENT_TYPE, refs: ['template', 'checklist'] },
   { folder: 'adapters', kind: 'adapter', bucket: 'adapters', schema: ADAPTER, refs: [] },
+  { folder: 'protected-paths', kind: 'protected-paths', bucket: 'protectedPaths', schema: PROTECTED_PATHS, refs: [] },
 ];
 
 // Loads and checks every definition under `dir`. Returns frozen `{ dir, agents, documentTypes,
-// adapters, skills }` keyed by name, plus `agentFiles` and `adapterFiles` (each definition's
+// adapters, protectedPaths, skills }` keyed by name, plus `agentFiles` and `adapterFiles` (each definition's
 // file, relative to `dir`), or throws one ConfigError listing every problem. `dir` lets the
 // lint read a type's template (unit 08a).
 export function loadRegistry(dir) {
   const problems = [];
-  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
+  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
   for (const { folder, kind, bucket: key, schema, refs } of KINDS) {
     let files = [];
     const sub = join(dir, folder);

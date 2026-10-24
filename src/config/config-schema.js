@@ -1,4 +1,5 @@
 import { GATE_STAGES, NEVER_AUTO_STAGES, JUDGEMENT_STEPS, STEPS } from './defaults.js';
+import { globProblem } from '../util/glob.js';
 import { linkHasCredential, remoteHasCredential } from './credentials.js';
 
 // The config schema (unit 03b; the key list in design/07, "Config keys (unit 03b)").
@@ -31,6 +32,19 @@ function relativePath(value, path, report) {
 const relPath = { type: 'string', check: relativePath };
 const argv = { type: 'array', items: { type: 'string', pattern: /\S/, patternHint: 'no empty arguments' }, minItems: 1 };
 const globs = { type: 'array', items: { type: 'string', pattern: /\S/, patternHint: 'no empty patterns' } };
+// Patterns that can only add paths (unit 12): no "!" exclusions, no "..".
+const addedGlobs = {
+  type: 'array',
+  items: {
+    type: 'string',
+    pattern: /^(?!!)(?!.*(^|\/)\.\.(\/|$))\S{1,200}$/,
+    patternHint: 'a path pattern without "!", ".." or spaces',
+    check(value, path, report) {
+      const problem = typeof value === 'string' ? globProblem(value) : null;
+      if (problem) report(path, `${path} ${problem}`, undefined, 'pattern');
+    },
+  },
+};
 
 const NO_CREDENTIAL_HINT = 'keep links and names only; log in through the tool itself';
 
@@ -141,6 +155,8 @@ export const CONFIG_SCHEMA = {
         tests: { type: 'enum', values: ['required', 'optional'] },
         levels: { type: 'array', items: level, uniqueBy: 'name' },
         e2e_budget_minutes: { type: 'integer', min: 1 },
+        // Where the E2E tests live (unit 12, D-44): only the QA agent may change them.
+        e2e_paths: addedGlobs,
       },
     },
     checks: { type: 'table', map: namedCheck, keyPattern: NAME, keyHint: NAME_HINT },
@@ -158,6 +174,11 @@ export const CONFIG_SCHEMA = {
           },
         },
         risk: { type: 'table', fields: { high: globs } },
+        // More protected paths for this project (unit 12); the built-in ones can't be removed.
+        protected: addedGlobs,
+        // The ecosystem packs of protected paths this project uses (unit 12), such as
+        // ["php", "node"]; the core is always on.
+        packs: { type: 'array', items: { type: 'string', pattern: NAME, patternHint: 'a pack name such as "node"' } },
       },
     },
     gates: {

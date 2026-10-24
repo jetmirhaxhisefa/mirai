@@ -5,7 +5,7 @@ import { StoreError } from '../cli/errors.js';
 // The read-only git calls the store needs (unit 05a): never a shell, a fixed environment, no
 // fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 22
 // (D-54). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp`, (unit 06) `ls-tree`
-// / `cat-file`, (unit 07b) `ls-files` and (unit 10) `symbolic-ref` and `check-ignore` are used, with replace refs off, so `refs/replace` can't change which commits
+// / `cat-file`, (unit 07b) `ls-files` and (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff --name-only` with pinned options and `merge-base` are used, with replace refs off, so `refs/replace` can't change which commits
 // count as the roots or which keys are committed.
 
 const TIMEOUT_MS = 10_000;
@@ -26,6 +26,7 @@ function git(cwd, args, env, { timeout = TIMEOUT_MS, raw = false, input, maxBuff
     return { ok: true, out: raw ? out : out.trim() };
   } catch (err) {
     if (err.code === 'ENOENT') throw new StoreError('git is not installed or not on PATH', { code: 'no-git' });
+    if (err.code === 'ENOBUFS') throw new StoreError(`git ${args[0]} wrote more than MIRAI reads at once`, { code: 'git-output-too-large' });
     if (err.signal) throw new StoreError(`git ${args[0]} took longer than ${timeout / 1000} s`, { code: 'git-timeout' });
     return { ok: false, status: err.status, out: String(err.stdout ?? '').trim() };
   }
@@ -74,8 +75,9 @@ export function remotes(root, env) {
 
 // The entries of a tree path on a ref: [{ mode, type, sha, path }]. Null when the ref or path
 // is missing. Used to read committed public keys from the integration branch (unit 06).
-export function lsTree(root, ref, path, env) {
-  const r = git(root, ['ls-tree', '-z', `${ref}^{tree}`, '--', path], env);
+export function lsTree(root, ref, path, env, { recursive = false } = {}) {
+  // Literal pathspecs: a path is a path, never a pattern (`:(glob)…`), wherever it came from.
+  const r = git(root, ['--literal-pathspecs', 'ls-tree', '-z', ...(recursive ? ['-r'] : []), `${ref}^{tree}`, '--', path], env, { maxBuffer: 16 * MAX_OUTPUT });
   if (!r.ok) return null;
   return r.out.split('\0').filter(Boolean).map((line) => {
     const tab = line.indexOf('\t');
@@ -92,13 +94,13 @@ export function treeId(root, ref, path, env) {
 
 // Several blobs' exact bytes in one git call (cat-file --batch): a Map from id to a Buffer, or
 // to null when the blob is missing or larger than `maxBytes`.
-export function catBlobs(root, shas, env, { maxBytes = 16 * 1024 } = {}) {
+export function catBlobs(root, shas, env, { maxBytes = 16 * 1024, maxTotal = MAX_OUTPUT } = {}) {
   const found = new Map();
   if (shas.length === 0) return found;
   for (const sha of shas) {
     if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) throw new StoreError('not a blob id', { code: 'git-output' });
   }
-  const r = git(root, ['cat-file', '--batch'], env, { raw: true, input: Buffer.from(`${shas.join('\n')}\n`) });
+  const r = git(root, ['cat-file', '--batch'], env, { raw: true, input: Buffer.from(`${shas.join('\n')}\n`), maxBuffer: maxTotal + shas.length * 128 });
   if (!r.ok) throw new StoreError('git cat-file failed', { code: 'git-output' });
   const out = r.out;
   let at = 0;
@@ -149,3 +151,52 @@ export function ignoredPaths(root, paths, env) {
   throw new StoreError('git check-ignore failed', { code: 'git-failed' });
 }
 
+// Diffs as data (unit 12): no external diff driver, no textconv, no rename detection (a rename
+// counts as both paths), whatever the repo's config says.
+const DIFF_PINS = ['-c', 'diff.external=', '-c', 'core.quotePath=false', '-c', 'core.attributesFile=/dev/null', 'diff', '--name-only', '-z', '--no-renames', '--no-ext-diff', '--no-textconv', '--no-color', '--ignore-submodules=none'];
+
+// The paths that differ between two commits, or between a commit and the work tree (`to`
+// omitted), sorted. With the work tree, untracked files git doesn't ignore count too.
+export function changedNames(root, from, to, env) {
+  // Raw output: trimming would eat a leading space of the first path.
+  const r = git(root, [...DIFF_PINS, from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) throw new StoreError(`git diff ${from}${to ? `..${to}` : ''} failed`, { code: 'git-failed' });
+  const names = new Set(nulList(r.out));
+  if (!to) {
+    const u = git(root, ['-c', 'core.attributesFile=/dev/null', 'ls-files', '-z', '--others', '--exclude-standard'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+    if (!u.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+    for (const n of nulList(u.out)) names.add(n);
+  }
+  return [...names].sort();
+}
+
+const nulList = (bytes) => bytes.toString('utf8').split('\0').filter(Boolean);
+
+// The work tree's files that git ignores (unit 12): ignored folders come as one entry ending in
+// "/", not their contents.
+export function ignoredNames(root, env) {
+  const r = git(root, ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+  // git lists a folder whose contents are all ignored both as "x/" and file by file: keep the
+  // files then, and the folder only when its contents aren't listed.
+  const all = nulList(r.out);
+  return all.filter((n) => !n.endsWith('/') || !all.some((m) => m !== n && m.startsWith(n)));
+}
+
+// The commit a ref points at, or null.
+export function commitOf(root, ref, env) {
+  const r = git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], env);
+  return r.ok && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(r.out) ? r.out : null;
+}
+
+// The best common ancestor of two commits, or null (unit 12: a change is measured from where its
+// branch left the base, so later commits on the base don't count as the branch's).
+export function mergeBase(root, a, b, env) {
+  const r = git(root, ['merge-base', a, b], env);
+  return r.ok && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(r.out) ? r.out : null;
+}
+
+// Whether commit `a` is an ancestor of (or equal to) commit `b`.
+export function isAncestor(root, a, b, env) {
+  return git(root, ['merge-base', '--is-ancestor', a, b], env).ok;
+}

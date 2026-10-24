@@ -196,7 +196,7 @@ readable through Bash despite unit 13's `denyRead`.
 | G23 | Host git ignores `.git/config` keys beyond `hooksPath`/`fsmonitor` when MIRAI pins them (filters, `core.sshCommand`, credential helper, `gpg.program`, `include.path`, `remote.*.pushurl`), and how `GIT_CONFIG_NOSYSTEM`/`GIT_CONFIG_GLOBAL` behave; extends G15 (R3-C4) | 14 |
 | G24 | `claude` and `mirai` invoked from sandboxed Bash are refused by the deny rules in every form (path-qualified, `sh -c`, env-prefixed) (R3-M5, R3-C3) | 13 (attack in 18) |
 | G25 | Exact-path sandbox `denyRead` entries for each real `.env*` file stop reads from sandboxed Bash (`cat`, `cp`, `python -c`, `grep -r`) (TL3-14) | 13 (attack in 18) |
-| G26 | `chflags uchg` on the trust-root bundle stops writes by your own user's processes without breaking MIRAI's own updates (R3-C1 hardening) | 12 |
+| G26 | ~~`chflags uchg` on the trust-root bundle stops writes by your own user's processes without breaking MIRAI's own updates (R3-C1 hardening)~~ **Closed with unit 12 (2026-10-24):** not used. The flag's owner can clear it, so it stops nothing that runs as you; the sandbox `denyWrite` (unit 13) and the re-hash before every launch are the guard | 12 |
 | G27 | An anonymous volume or tmpfs over `<mount>/.git` and over each real `.env*` file hides them inside test containers on Docker Desktop (R3-C4) | 14 |
 | G28 | A GitHub required check can be pinned to the `mirai-verify` workflow, so a same-named check from a PR can't satisfy it (TL3-13) | 54 |
 | G29 | Playwright MCP in interactive sessions can be restricted to the app's origin (TL3-20) | 50 |

@@ -1,0 +1,15 @@
+# The ruby pack (unit 12). Switch it on with [gate] packs = ["ruby"].
+kind = "protected-paths"
+schema_version = 1
+name = "ruby"
+scope = "pack"
+
+[[rules]]
+name = "ruby-checks"
+class = "protected"
+paths = [".rubocop.yml", ".rubocop_todo.yml", ".rspec", ".standard.yml"]
+
+[[rules]]
+name = "ruby-dependencies"
+class = "protected"
+paths = ["Gemfile", "Gemfile.lock", "*.gemspec"]

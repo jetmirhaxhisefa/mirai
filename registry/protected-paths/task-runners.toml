@@ -1,0 +1,12 @@
+# The task-runners pack (unit 12): for projects whose named checks run through a task runner.
+# Not on by default, since in some stacks (C, for example) these are ordinary code. Switch it on
+# with [gate] packs = ["task-runners"].
+kind = "protected-paths"
+schema_version = 1
+name = "task-runners"
+scope = "pack"
+
+[[rules]]
+name = "task-runner-files"
+class = "protected"
+paths = ["Makefile", "*.mk", "justfile", "Justfile", ".justfile", "Taskfile.yml", "Taskfile.yaml"]

@@ -1,0 +1,33 @@
+# The node pack (unit 12): JavaScript and TypeScript projects. Switch it on with
+# [gate] packs = ["node"].
+kind = "protected-paths"
+schema_version = 1
+name = "node"
+scope = "pack"
+
+[[rules]]
+name = "node-checks"
+class = "protected"
+paths = [
+  ".eslintrc", ".eslintrc.*", "eslint.config.*", ".eslintignore", ".prettierrc", ".prettierrc.*", "prettier.config.*", ".prettierignore",
+  ".stylelintrc", ".stylelintrc.*", "stylelint.config.*", ".stylelintignore", "biome.json", "biome.jsonc",
+  "tsconfig.json", "tsconfig.*.json", "jsconfig.json", "vitest.config.*", "vitest.workspace.*", "vite.config.*",
+  "jest.config.*", "jest.setup.*", "playwright.config.*", "cypress.config.*", "babel.config.*", ".babelrc", ".babelrc.*", ".swcrc",
+  ".mocharc", ".mocharc.*", "karma.conf.*", ".nycrc", ".nycrc.*", ".c8rc", ".c8rc.*",
+]
+
+[[rules]]
+name = "node-dependencies"
+class = "protected"
+paths = ["package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".yarnrc", "bun.lock", "bun.lockb"]
+
+# Run by the package manager on install (D-54).
+[[rules]]
+name = "node-install-hooks"
+class = "auto-run"
+paths = [".npmrc", ".yarnrc.yml", ".pnpmfile.cjs", ".pnpmfile.js", ".yarn/releases/**", ".yarn/plugins/**", "binding.gyp"]
+
+[[scripts]]
+file = "package.json"
+field = "scripts"
+keys = ["preinstall", "install", "postinstall", "preuninstall", "uninstall", "postuninstall", "prepublish", "preprepare", "prepare", "postprepare", "prepack", "postpack", "prepublishOnly", "publish", "postpublish", "dependencies"]

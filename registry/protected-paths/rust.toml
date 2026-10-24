@@ -1,0 +1,21 @@
+# The rust pack (unit 12). Switch it on with [gate] packs = ["rust"].
+kind = "protected-paths"
+schema_version = 1
+name = "rust"
+scope = "pack"
+
+[[rules]]
+name = "rust-checks"
+class = "protected"
+paths = ["rustfmt.toml", ".rustfmt.toml", "clippy.toml", ".clippy.toml", "rust-toolchain", "rust-toolchain.toml"]
+
+[[rules]]
+name = "rust-dependencies"
+class = "protected"
+paths = ["Cargo.toml", "Cargo.lock"]
+
+# Run by cargo, and by rust-analyzer when the project is opened.
+[[rules]]
+name = "rust-build-hooks"
+class = "auto-run"
+paths = ["build.rs", "**/.cargo/**"]

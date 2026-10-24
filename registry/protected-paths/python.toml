@@ -1,0 +1,21 @@
+# The python pack (unit 12). Switch it on with [gate] packs = ["python"].
+kind = "protected-paths"
+schema_version = 1
+name = "python"
+scope = "pack"
+
+[[rules]]
+name = "python-checks"
+class = "protected"
+paths = ["pytest.ini", "conftest.py", "setup.cfg", "tox.ini", "noxfile.py", ".coveragerc", "mypy.ini", ".mypy.ini", ".flake8", "ruff.toml", ".ruff.toml", ".pylintrc", "pylintrc"]
+
+[[rules]]
+name = "python-dependencies"
+class = "protected"
+paths = ["requirements*.txt", "constraints*.txt", "pyproject.toml", "poetry.lock", "uv.lock", "Pipfile", "Pipfile.lock"]
+
+# Runs on install.
+[[rules]]
+name = "python-install-hooks"
+class = "auto-run"
+paths = ["setup.py"]
