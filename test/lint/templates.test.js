@@ -40,8 +40,8 @@ function lintDocs(files, repos = ['.', 'api']) {
 }
 const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: text }, repos).map((p) => `${p.line}:${p.column} ${p.code}`);
 
-test('T1: MIRAI\'s registry: story and bug, templates that match their types, and known checks', () => {
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['bug', 'story']);
+test('T1: MIRAI\'s registry: story, bug and plan, templates that match their types, and known checks', () => {
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['bug', 'plan', 'story']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);

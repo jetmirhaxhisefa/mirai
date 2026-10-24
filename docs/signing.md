@@ -28,6 +28,17 @@ apart from anything else that writes a file (decision D-17).
 - `mirai drop <ticket>`: the same confirmation, then a signed move to `dropped`.
 - Both run only in a real terminal; a piped or agent-run command is refused.
 
+## Plan approvals (unit 08b; recorded by the plan gate, unit 21)
+
+Approving a plan signs `approvalHash` over:
+- its frozen block (Intent, Boundaries, Edge cases);
+- its Declared changes rows;
+- the fields `ticket`, `acs`, `risk`, `tdd`, `tests` and `round`.
+
+The signing context is `mirai/plan-approval/1:<repo-id>`, its own, so a plan approval can't
+pass for a document approval (`mirai/approval/1:<repo-id>`) or a journal line. An edit to any
+signed part needs a new approval. The code map, the tasks and the logs may change.
+
 ## When a key changes
 
 - **Rotate:** `mirai key new --replace`, then `mirai key revoke <old id>`. Commit both files by

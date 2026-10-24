@@ -9,4 +9,5 @@ MIRAI's own definitions (D-37), shipped with it:
   agents follow.
 - **`agents/`:** agent definitions, from the agent units on.
 
-The types so far: `story` and `bug` (unit 08a). `plan` comes in unit 08b.
+The types so far: `story` and `bug` (unit 08a), and `plan` (unit 08b). Plans live in the store,
+so they're linted through `lintText`, not `mirai lint`.

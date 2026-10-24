@@ -28,10 +28,11 @@ const HTML_TAG = /<\/?[A-Za-z][^<>\n]*>/g;
 // Scans `text` (a document body). `firstLine` is the file line of its first line.
 // Returns { headings, lines, fences, links, problems }:
 // - headings: { level, text, line, column };
-// - lines: { line, kind, text } for every line; kind is blank | comment | heading | text |
-//   fence (an opening, body or closing line); `text` has comments, code spans, link
+// - lines: { line, kind, text, visible } for every line; kind is blank | comment | heading |
+//   text | fence (an opening, body or closing line); `text` has comments, code spans, link
 //   destinations and HTML tags blanked with spaces, so columns stay right and IDs in them
-//   don't count;
+//   don't count; `visible` has only comments blanked (for reading table cells, unit 08b);
+//   `hadComment` says a text line held an HTML comment, which can hide what renders;
 // - fences: { info, line, endLine, body: [{ line, text }] };
 // - links: { target, line, column, kind: inline | image | reference | autolink | bare };
 // - problems: { code, line, column, reason, hint }.
@@ -51,7 +52,7 @@ export function scanMarkdown(text, { firstLine = 1 } = {}) {
 
     if (src.length > LIMITS.lineLength) {
       out.problems.push({ code: 'long-line', line, column: 1, reason: `the line is longer than ${LIMITS.lineLength} characters, so it isn't checked`, hint: 'break it into shorter lines' });
-      out.lines.push({ line, kind: fence ? 'fence' : 'text', text: '' });
+      out.lines.push({ line, kind: fence ? 'fence' : 'text', text: '', visible: '' });
       return;
     }
 
@@ -63,7 +64,7 @@ export function scanMarkdown(text, { firstLine = 1 } = {}) {
       } else {
         fence.block.body.push({ line, text: src });
       }
-      out.lines.push({ line, kind: 'fence', text: src });
+      out.lines.push({ line, kind: 'fence', text: src, visible: src });
       paragraph = null;
       return;
     }
@@ -73,7 +74,7 @@ export function scanMarkdown(text, { firstLine = 1 } = {}) {
     const { visible, scan, open, hadComment } = blankInline(src, inComment);
     inComment = open;
     if (/^\s*$/.test(visible)) {
-      out.lines.push({ line, kind: hadComment ? 'comment' : 'blank', text: scan });
+      out.lines.push({ line, kind: hadComment ? 'comment' : 'blank', text: scan, visible });
       paragraph = null;
       return;
     }
@@ -83,7 +84,7 @@ export function scanMarkdown(text, { firstLine = 1 } = {}) {
       const block = { info: opening[3].trim().split(/\s+/)[0].toLowerCase(), line, endLine: null, body: [] };
       out.fences.push(block);
       fence = { char: opening[2][0], length: opening[2].length, indent: opening[1].length, block };
-      out.lines.push({ line, kind: 'fence', text: src });
+      out.lines.push({ line, kind: 'fence', text: src, visible: src });
       paragraph = null;
       return;
     }
@@ -103,7 +104,7 @@ export function scanMarkdown(text, { firstLine = 1 } = {}) {
         out.problems.push({ code: 'empty-heading', line, column: column(src, at), reason: 'a heading has no text' });
       }
       out.headings.push({ level, text: headingText, line, column: column(src, at) });
-      out.lines.push({ line, kind: 'heading', text: collectLinks(scan, src, line, out.links) });
+      out.lines.push({ line, kind: 'heading', text: collectLinks(scan, src, line, out.links), visible, hadComment });
       paragraph = null;
       return;
     }
@@ -114,7 +115,7 @@ export function scanMarkdown(text, { firstLine = 1 } = {}) {
         reason: 'an underlined (setext) heading',
         hint: 'use # headings; for a rule, put a blank line before ---',
       });
-      out.lines.push({ line, kind: 'text', text: scan });
+      out.lines.push({ line, kind: 'text', text: scan, visible, hadComment });
       paragraph = null;
       return;
     }
@@ -128,7 +129,7 @@ export function scanMarkdown(text, { firstLine = 1 } = {}) {
     } else {
       idText = collectLinks(scan, src, line, out.links);
     }
-    out.lines.push({ line, kind: 'text', text: idText });
+    out.lines.push({ line, kind: 'text', text: idText, visible, hadComment });
     if (LIST_ITEM.test(scan)) paragraph = 'list';
     else if (/^ *[|>]/.test(scan) || /^ *</.test(scan)) paragraph = 'other';
     else paragraph ??= 'plain';

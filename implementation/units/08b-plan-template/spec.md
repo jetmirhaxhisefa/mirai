@@ -169,3 +169,92 @@ test/lint/templates.test.js
 - `test-results.md` holds the output.
 - The Tech Lead and Architect reviews are done, and `review.md` is written.
 - You write **"UNIT APPROVED"**. Then: one commit and push, and `PROGRESS.md` updated.
+
+## Changes after testing and review
+
+Listed for your check before "UNIT APPROVED".
+
+**Carried over from 08a (already approved there):**
+1. **The field is `lint_checks`,** not `checks` (08a review). The plan uses
+   `lint_checks = ["plan"]`.
+2. **The checks get one `project` object.** It is now `{ repos, levels }`; `levels` are the
+   config's `testing.levels` names.
+
+**Settled while building:**
+3. **The frozen markers are checked by a generic rule,** driven by a new document-type field
+   `frozen_sections = ["Intent", "Boundaries", "Edge cases"]`, not by the plan check. They must
+   be the first sections, in order. Any later document with a human-owned block can reuse it.
+4. ~~`verifyFrozenApproval`~~ is replaced after review by `approvalHash` and
+   `verifyPlanApproval` (#11 below). Unit 21 records the approval in the journal.
+5. **The plan is a document, not a ticket:** it has no own ACs. `acs` lists the ACs it must
+   prove, of any AC shape.
+6. **Table rules, as read from the visible text:**
+   - **Test list:** a row may name several ACs, separated by commas.
+   - **Characterization:** the symbol comes from the `Symbol` column, matched exactly
+     (changed after review, #12).
+   - **Declared changes:** one `none` row means nothing is declared.
+   - **Missing columns:** a table without its columns is `plan-table`.
+7. **`round` must be at least 1** (`plan-round`). **`id` must be `<ticket>-plan`**, ignoring
+   case (`plan-id`).
+8. **Leftover template text skips prescribed structure:** table header and `|---|` rows, and
+   lines of fewer than three words (such as the `none` row). Otherwise every plan would match
+   its own template's headers.
+9. **`lintText` doesn't follow relative links:** there's no repo around a stored plan.
+10. **New problem codes:** `frozen`, `plan-id`, `plan-round`, `plan-table`, `plan-test`,
+    `plan-level`, `plan-characterization`, `plan-risk`.
+
+**From the reviews (`review.md`), with your decisions (2026-10-24):**
+11. **Your approval signs more than the frozen block.** `approvalHash` covers:
+    - the frozen block;
+    - the Declared changes rows;
+    - the fields `ticket`, `acs`, `risk`, `tdd`, `tests` and `round`.
+
+    It is checked by `verifyPlanApproval(approval, text, keys, { context })`, which also ties
+    the approval to its ticket. So a dependency, a protected path, `tdd: first → after` or a
+    dropped AC added after approval fails. The design approves declared changes with the plan
+    (01 §6, §7 step 8). `frozenBlockHash` stays, for showing the block.
+12. **The Test list gains `Test ID` and `Symbol`**, so units 22–23 can run exactly the planned
+    tests. A test row needs a Test ID (a no-test row has none). A characterization row's Symbol
+    must be one the Code map marks `change`. Another row's Symbol must be in the Code map.
+13. **The signing context is `mirai/plan-approval/1:<repo-id>`,** in `docs/signing.md`. How
+    the journal records the approval is unit 21's decision.
+14. **Every AC needs a row, even with `tests: optional`:** a test, or `no-test: <reason>`.
+
+**Fixes from the reviews:**
+15. **Blocking:** text between the end marker and the next section rendered as part of Edge
+    cases but wasn't hashed. Only blank lines and comments may sit there now.
+16. **Nothing hidden inside the frozen block:** no HTML comment other than the markers, and no
+    invisible character. The template's guidance for the frozen sections moved above the
+    block.
+17. **Markers count only outside fences, indented at most three spaces.** A marker quoted in a
+    log no longer breaks the approval.
+18. **Tables are read as GFM renders them:**
+    - rows without a leading pipe count;
+    - a separator needs dashes;
+    - the table ends at a blank line;
+    - a row hidden by a comment, or a second table in the section, is a problem.
+19. **Declared changes have a fixed format.** Item and Why are required. A protected path is a
+    path or glob inside the repo. A dependency is `<ecosystem>:<name>`, such as `npm:left-pad`.
+20. **Smaller fixes:**
+    - with `tdd: after`, `red` rows are a problem;
+    - `No-test:` is accepted in any case, and a no-test row has no Test ID or Kind;
+    - repeats in `acs` are flagged, and a missing AC is reported at `acs[i]`;
+    - an `add` row in the Code map names its symbols, for the stub step;
+    - leftover text is compared as it shows, so a real `npm test` line isn't flagged and the
+      template's Code map row is;
+    - `lintText` has the size limit, `required` for an empty type, and the "did you mean" hint.
+
+**For later units:**
+- **Unit 21:**
+  - how the journal records a plan approval (a ticket-kind event with the hash, or a `plan`
+    kind with a journal schema bump);
+  - the broker and the floor guard check installs and protected paths against the approved
+    plan;
+  - the `mirai-plan` and `mirai-tdd` skills say the frozen block wins over anything below it.
+- **Unit 23:** maps the Test ID to the level's runner.
+- **Unit 37:** "Code map", "Test list", "Declared changes" and the frozen sections are
+  protected core sections. Overlays may not rename or reorder them, or the plan check must
+  follow the mapping.
+- **Multi-repo:** test levels are flattened across repos for now. A plan's levels could be
+  limited to its ticket's repo.
+

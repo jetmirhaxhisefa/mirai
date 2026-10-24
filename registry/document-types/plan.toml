@@ -1,0 +1,46 @@
+# A plan: how one ticket will be built and proven (design/01 §6–§7). Written by the developer
+# agent, kept in the store (D-29); its status is the ticket's. Its frozen block is yours once
+# you approve it: the plan gate signs its hash (R2-M11).
+kind = "document-type"
+schema_version = 1
+name = "plan"
+template = "templates/plan.md"
+template_version = 1
+checklist = "templates/plan-checklist.md"
+status = "forbidden"
+id_pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,58}-plan"
+required_sections = ["Intent", "Boundaries", "Edge cases", "Code map", "Tasks", "Test list", "Declared changes", "Verification", "Implementation log", "Change log", "Review triage log"]
+optional_sections = ["Design notes"]
+section_order = ["Intent", "Boundaries", "Edge cases", "Code map", "Tasks", "Test list", "Declared changes", "Verification", "Design notes", "Implementation log", "Change log", "Review triage log"]
+frozen_sections = ["Intent", "Boundaries", "Edge cases"]
+may_be_empty = ["Implementation log", "Change log", "Review triage log"]
+lint_checks = ["plan"]
+
+[frontmatter.fields.ticket]
+type = "string"
+pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+required = true
+
+[frontmatter.fields.acs]
+type = "list"
+pattern = "AC-[A-Za-z0-9][A-Za-z0-9._-]{0,63}?\\.[0-9]+"
+required = true
+
+[frontmatter.fields.risk]
+type = "enum"
+values = ["normal", "high"]
+required = true
+
+[frontmatter.fields.tdd]
+type = "enum"
+values = ["auto", "first", "after"]
+required = true
+
+[frontmatter.fields.tests]
+type = "enum"
+values = ["required", "optional"]
+required = true
+
+[frontmatter.fields.round]
+type = "integer"
+required = true

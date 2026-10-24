@@ -3,6 +3,7 @@ import { linkHasCredential, hasTokenShape, SECRET_PARAM } from '../config/creden
 import { SHARED_FIELDS, OWN_ID, escapeRegex } from '../config/registry.js';
 import { headingSlugs } from './markdown.js';
 import { CHECKS } from './checks.js';
+import { frozenBlock, FROZEN_START, FROZEN_END } from './frozen.js';
 
 // The lint rules (unit 07b, D-41, D-35, D-40): frontmatter fields, sections, IDs, links and
 // Mermaid blocks, for one document with a known type. Every rule adds to the same list; none
@@ -37,9 +38,41 @@ export function checkDocument(doc, def, ctx) {
   checkIds(doc, def, add);
   checkLinks(doc, ctx, add);
   checkMermaid(doc, add);
+  if (def.frozen_sections?.length) checkFrozen(doc, def, add);
   if (ctx.template) checkTemplateText(doc, def, ctx.template, add);
   for (const name of def.lint_checks ?? []) CHECKS[name](doc, def, ctx, add);
   return problems;
+}
+
+// ---- The frozen block (unit 08b) ----------------------------------------------------------
+
+// The markers are there once each, in order, and enclose exactly the frozen sections; nothing
+// that renders sits between the end marker and the next section (it would show as part of the
+// last frozen section, unsigned); and inside the block nothing is hidden from the rendered view
+// you approve: no other HTML comment, no invisible character. `doc.text` is the whole file, so
+// lines are file lines.
+const INVISIBLE = /[\u00ad\u061c\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]/u;
+
+function checkFrozen(doc, def, add) {
+  const block = frozenBlock(doc.text ?? '');
+  if (block.problem) {
+    const reason = { missing: 'the frozen block markers are missing', repeated: 'a frozen block marker appears twice', order: 'the frozen block ends before it starts' }[block.problem];
+    add({ code: 'frozen', line: block.line, column: 1, reason, hint: `put ${def.frozen_sections.join(', ')} between ${FROZEN_START} and ${FROZEN_END}` });
+    return;
+  }
+  const h2 = doc.scan.headings.filter((h) => h.level === 2);
+  const inside = h2.filter((h) => h.line > block.start && h.line < block.end).map((h) => h.text);
+  if (inside.join('\n') !== def.frozen_sections.join('\n')) {
+    add({ code: 'frozen', line: block.start, column: 1, reason: `the frozen block must hold exactly: ${def.frozen_sections.join(', ')}`, hint: 'move the agent-owned sections after the end marker' });
+  }
+  const nextSection = h2.find((h) => h.line > block.end)?.line ?? Infinity;
+  const after = doc.scan.lines.find((l) => l.line > block.end && l.line < nextSection && l.kind !== 'blank' && l.kind !== 'comment');
+  if (after) add({ code: 'frozen', line: after.line, column: 1, reason: 'text after the frozen block\'s end marker would show as part of it, unsigned', hint: `put ${FROZEN_END} right before the next ## section` });
+  for (const l of doc.scan.lines) {
+    if (l.line <= block.start || l.line >= block.end) continue;
+    if (l.hadComment || l.kind === 'comment') add({ code: 'frozen', line: l.line, column: 1, reason: 'an HTML comment inside the frozen block hides text from what you approve', hint: 'write it as visible text, or remove it' });
+    else if (INVISIBLE.test(l.visible ?? '')) add({ code: 'frozen', line: l.line, column: 1, reason: 'an invisible character inside the frozen block', hint: 'remove it' });
+  }
 }
 
 // ---- Leftover template text (unit 08a) ----------------------------------------------------
@@ -56,7 +89,7 @@ function checkTemplateText(doc, def, template, add) {
   }
   for (const l of doc.scan.lines) {
     if (l.kind !== 'text') continue;
-    const text = l.text.trim();
+    const text = (l.visible ?? l.text).trim();
     if (template.lines.has(text)) add({ code: 'template-text', line: l.line, column: l2col(l.text), reason: 'this line is still the template\'s text', hint: 'replace it with this document\'s own text' });
   }
 }
@@ -275,6 +308,7 @@ function checkSections(doc, def, add) {
     const end = next ? next.line : lastLine + 1;
     const content = lines.filter((l) => l.line > h.line && l.line < end && (l.kind === 'text' || l.kind === 'fence' || l.kind === 'heading'));
     if (content.length === 0) {
+      if ((def.may_be_empty ?? []).includes(h.text)) return;
       add({ code: 'empty-section', line: h.line, column: h.column, reason: `the section "${h.text}" is empty`, hint: required.includes(h.text) ? undefined : 'write "Not applicable — <reason>" if it doesn\'t apply' });
       return;
     }

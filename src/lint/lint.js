@@ -30,7 +30,8 @@ export class LintPathError extends Error {}
 // problems sorted by file, line and column. Throws a LintPathError for a path outside the
 // repo or one that doesn't exist.
 // `project` holds what the built-in checks need from the project config: `repos` (the repo
-// names, unit 08a). Missing, it's the defaults, never "skip the check".
+// names, unit 08a) and `levels` (the test level names, unit 08b). Missing, it's the defaults,
+// never "skip the check".
 export function lintPaths({ root, paths = [], files = null, registry, docsRoot, project = projectDefaults() }) {
   const realRoot = realpathSync.native(root);
   const ctx = { root: realRoot, registry, docsRoot: docsRoot.toLowerCase(), project, headings: new Map(), templates: new Map() };
@@ -69,7 +70,12 @@ export function lintPaths({ root, paths = [], files = null, registry, docsRoot, 
 }
 
 export function projectDefaults() {
-  return { repos: frameworkDefaults().repos.map((r) => r.name) };
+  return projectOf(frameworkDefaults());
+}
+
+// What the checks need from a checked config.
+export function projectOf(config) {
+  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name) };
 }
 
 const toPosix = (p) => p.split(sep).join('/');
@@ -213,7 +219,7 @@ export function lintFile(file, ctx) {
 
   const scan = scanMarkdown(fm.body, { firstLine: fm.bodyLine });
   for (const p of scan.problems) problem(p);
-  const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine };
+  const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine, text: bytes.toString('utf8') };
   const linkTarget = (path) => resolveLink(dirname(abs), path, ctx);
   const template = inside ? templateOf(type, def, ctx) : null;
   for (const p of checkDocument(doc, def, { linkTarget, file, project: ctx.project, template })) problems.push({ file, ...p });
@@ -227,10 +233,18 @@ function templateOf(type, def, ctx) {
   let template = null;
   try {
     const fm = readFrontmatter(readRegularFile(join(ctx.registry.dir, def.template)));
+    // Lines are compared as they show (code spans kept), so `npm test` in a real plan isn't
+    // the template's `npm test` line unless the whole line matches. Structure the template
+    // prescribes isn't a leftover: table header and |---| rows, and lines of fewer than three
+    // words (such as a "none" row).
     const lines = new Set();
-    for (const l of scanMarkdown(fm?.body ?? '').lines) {
-      if (l.kind === 'text' && l.text.trim().length >= 8) lines.add(l.text.trim());
-    }
+    const scanned = scanMarkdown(fm?.body ?? '').lines;
+    const isRule = (l) => l && /^ *\|?[ :|-]+$/.test(l.visible ?? '') && (l.visible ?? '').includes('-');
+    scanned.forEach((l, i) => {
+      if (l.kind !== 'text' || isRule(l) || isRule(scanned[i + 1])) return;
+      const text = l.visible.trim();
+      if ((text.match(/[\p{L}\p{N}_./:-]{2,}/gu) ?? []).length >= 3) lines.add(text);
+    });
     const fields = new Map();
     for (const [key, value] of Object.entries(fm?.value ?? {})) {
       if (typeof value === 'string' && (key === 'id' || / /.test(value))) fields.set(key, value);
@@ -306,4 +320,49 @@ function bodyOf(text) {
   const lines = text.split('\n');
   const end = lines.findIndex((l, i) => i > 0 && (l === '---' || l === '---\r'));
   return end === -1 ? text : lines.slice(end + 1).join('\n');
+}
+
+// Lints one document's text (unit 08b): a plan in the store, which `mirai lint` can't reach
+// because it's outside the repo. It's treated as a MIRAI document (as inside the docs root): a
+// missing frontmatter or an unknown type is a problem, and leftover template text counts.
+// Relative links aren't followed: there's no repo around the text. Returns the problems.
+export function lintText(text, { source = '<text>', registry, project = projectDefaults() }) {
+  const problems = [];
+  const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
+  if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
+    problem({ code: 'too-large', reason: `the text is larger than ${LIMITS.fileBytes} bytes` });
+    return problems;
+  }
+  let fm;
+  try {
+    fm = readFrontmatter(text, { source, positions: true });
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    problem({ code: `frontmatter-${err.code}`, line: err.line ?? 1, column: err.column ?? 1, reason: err.reason, hint: err.hint });
+    return problems;
+  }
+  if (fm === null) {
+    problem({ code: 'no-frontmatter', reason: 'a MIRAI document needs frontmatter' });
+    return problems;
+  }
+  const type = fm.value.type;
+  const at = fm.positions.get('type');
+  if (typeof type !== 'string' || type === '') {
+    problem({ code: 'required', line: at?.line ?? 1, column: at?.valueColumn ?? 1, reason: 'the frontmatter needs a "type"' });
+    return problems;
+  }
+  const def = Object.hasOwn(registry.documentTypes, type) ? registry.documentTypes[type] : null;
+  if (!def) {
+    const near = closest(type, Object.keys(registry.documentTypes));
+    problem({ code: 'unknown-type', line: at.line, column: at.valueColumn ?? at.column, reason: `"${type}" is not a document type MIRAI knows`, hint: near ? `did you mean "${near}"?` : undefined });
+    return problems;
+  }
+  const scan = scanMarkdown(fm.body, { firstLine: fm.bodyLine });
+  for (const p of scan.problems) problem(p);
+  const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine, text: text.startsWith('\uFEFF') ? text.slice(1) : text };
+  const ctx = { registry, templates: new Map() };
+  const template = templateOf(type, def, ctx);
+  const linkTarget = () => ({ slugs: null });
+  for (const p of checkDocument(doc, def, { linkTarget, file: source, project, template })) problems.push({ file: source, ...p });
+  return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

@@ -9,7 +9,7 @@ import { readConfigFile, checkConfig, PROJECT_CONFIG } from '../../config/load.j
 import { loadRegistry } from '../../config/registry.js';
 import { frameworkDefaults } from '../../config/defaults.js';
 import { topLevel, lsFiles } from '../../store/git.js';
-import { lintPaths, LintPathError } from '../../lint/lint.js';
+import { lintPaths, LintPathError, projectOf } from '../../lint/lint.js';
 
 // mirai lint [<path>...] [--json] (unit 07b). Checks the shape of MIRAI documents and writes
 // nothing. Exit 0 when clean (warnings allowed), 1 with problems, 2 on a usage error, 3 on a
@@ -90,5 +90,5 @@ function projectSettings(root) {
     const file = readConfigFile(join(root, PROJECT_CONFIG), { trust: 'project', source: PROJECT_CONFIG, within: root });
     config = checkConfig([{ kind: 'project', file }]).config;
   }
-  return { docsRoot: config.docs.root, project: { repos: config.repos.map((r) => r.name) } };
+  return { docsRoot: config.docs.root, project: projectOf(config) };
 }

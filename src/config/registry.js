@@ -48,7 +48,7 @@ export const SHARED_FIELDS = Object.freeze(['id', 'type', 'template', 'status', 
 export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date', 'list', 'enum']);
 // Checks written in code that a type switches on by name, `lint_checks = ["ticket"]` (unit 08a;
 // src/lint/checks.js). Unit 37's overlays may add lint checks, never remove them.
-export const BUILT_IN_CHECKS = Object.freeze(['ticket']);
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
@@ -121,6 +121,10 @@ const DOCUMENT_TYPE = {
     required_sections: { type: 'array', items: sectionName, minItems: 1 },
     optional_sections: sectionList,
     section_order: sectionList,
+    // Sections that may stay empty, such as a plan's logs, filled later (unit 08b).
+    may_be_empty: sectionList,
+    // Sections inside the frozen block, in order, between the frozen markers (unit 08b).
+    frozen_sections: sectionList,
     status: { type: 'enum', values: ['required', 'forbidden'] },
     versioned: { type: 'boolean' },
     id_pattern: regex,
@@ -184,6 +188,17 @@ function checkDocumentType(def, path, report) {
     for (const name of seen) {
       if (!listed.has(name)) report('section_order', 'section_order leaves out a listed section', 'name every required and optional section once', 'range');
     }
+  }
+
+  for (const key of ['may_be_empty', 'frozen_sections']) {
+    (Array.isArray(def[key]) ? def[key] : []).forEach((name, i) => {
+      if (!seen.has(name)) report(`${key}[${i}]`, `${key}[${i}] is not one of the listed sections`, undefined, 'unknown-section');
+    });
+  }
+  if (Array.isArray(def.frozen_sections) && def.frozen_sections.length > 0) {
+    // The frozen sections are one run at the start of the order.
+    const order = Array.isArray(def.section_order) ? def.section_order : all;
+    if (def.frozen_sections.some((name, i) => order[i] !== name)) report('frozen_sections', 'frozen_sections must be the first sections, in order', undefined, 'range');
   }
 
   for (const key of Object.keys(def.frontmatter?.fields ?? {})) {
