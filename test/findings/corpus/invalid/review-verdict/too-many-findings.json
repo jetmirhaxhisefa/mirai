@@ -1,0 +1,1318 @@
+{
+  "verdict": "changes",
+  "findings": [
+    {
+      "id": "F0",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F1",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F2",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F3",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F4",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F5",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F6",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F7",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F8",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F9",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F10",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F11",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F12",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F13",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F14",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F15",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F16",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F17",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F18",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F19",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F20",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F21",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F22",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F23",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F24",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F25",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F26",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F27",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F28",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F29",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F30",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F31",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F32",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F33",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F34",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F35",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F36",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F37",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F38",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F39",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F40",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F41",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F42",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F43",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F44",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F45",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F46",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F47",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F48",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F49",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F50",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F51",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F52",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F53",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F54",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F55",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F56",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F57",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F58",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F59",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F60",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F61",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F62",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F63",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F64",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F65",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F66",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F67",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F68",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F69",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F70",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F71",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F72",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F73",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F74",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F75",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F76",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F77",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F78",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F79",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F80",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F81",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F82",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F83",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F84",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F85",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F86",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F87",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F88",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F89",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F90",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F91",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F92",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F93",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F94",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F95",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F96",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F97",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F98",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F99",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F100",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    }
+  ]
+}

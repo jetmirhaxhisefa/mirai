@@ -1,0 +1,13 @@
+{
+  "replies": [
+    {
+      "id": "F1",
+      "outcome": "fixed"
+    },
+    {
+      "id": "F1",
+      "outcome": "disputed",
+      "reason": "The slug is already refreshed in the observer."
+    }
+  ]
+}

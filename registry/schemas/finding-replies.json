@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirai/finding-replies/1",
+  "title": "Finding replies",
+  "description": "The developer's answer to each blocking finding (unit 09a, loop rule L3): fixed, or disputed with one sentence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "replies"
+  ],
+  "properties": {
+    "replies": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "outcome"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "description": "A short id, unique in this output."
+          },
+          "outcome": {
+            "enum": [
+              "fixed",
+              "disputed"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*$",
+            "description": "For disputed only: one sentence."
+          }
+        }
+      }
+    }
+  }
+}

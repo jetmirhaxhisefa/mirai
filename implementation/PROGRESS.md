@@ -1,3 +1,4 @@
+
 # Implementation progress
 
 One line per unit, added when you approve it. The build order is
@@ -19,7 +20,8 @@ review.
 | 07b | [Lint framework + `mirai lint`](units/07b-lint/) | A | 2026-10-24 | 126 / 126 | Markdown scanner (linear, opaque fences/comments/code), rules for frontmatter fields, template version, sections (strict at ##, ordered), IDs (definition form, dependent parents), links (no escapes, no credentials) and Mermaid; registry document-type fields; `[docs] root` (every .md there is a document; outside, known type + `template:`); git's file list; `--json` with `schema_version`. Your decisions: walk via git, ID definition form, gate default follows `docs.root` |
 | 08a | [Story and bug templates](units/08a-ticket-templates/) | A | 2026-10-24 | 133 / 133 | First real types in MIRAI's registry: story and bug (design fields, no status), templates that lint clean where they live, filled examples, checklists; own ACs `AC-<id>.n` via `{id}`, required and in their section (foreign or misplaced ACs flagged); `lint_checks = ["ticket"]` (repo in `[[repos]]`, after, file name = id); leftover template text in the docs root is an error. Unit 08 split into 08a/08b |
 | 08b | [Plan template](units/08b-plan-template/) | A | 2026-10-24 | 140 / 140 | The plan type (template, checklist, example), linted through `lintText` (plans live in the store); frozen block with fence-aware markers, nothing hidden inside or rendered after it; your approval signs `approvalHash` (frozen block + declared changes + ticket/acs/risk/tdd/tests/round) under `mirai/plan-approval/1`; the plan check: a row with level and Test ID per AC, characterization only for a changed Symbol, kinds follow tdd, a dependency means high risk, fixed declared-changes format |
+| 09a | [Findings schema and verdicts](units/09a-findings-schema/) | A | 2026-10-24 | 145 / 145 | Five JSON Schema files (review verdict, finding replies, finding check, QA verdict in the dogfood shape, gate result with baseline and failure signatures), MIRAI's own validator and a strict JSON parser (agent output never trusted); fingerprints (file + symbol + basis), failure signatures that keep results, triage for L1/L2 (no citation, no symbol, unresolved basis, repro-not-run, pre-existing, frozen, unconfirmed). Unit 09 split into 09a/09b |
 
-**Next:** unit 09, report templates and the findings schema (review findings with `basis.ref`, fingerprints, QA and run reports, the MR description, verdicts as structured output).
+**Next:** unit 09b, the report templates: QA report, run report and the MR description (no findings by construction, every value escaped).
 **Added:** proposals P1–P11 from the unit 02 review are in `design/07` (units 13, 14, 16, 17, 18, 30, 39, 47, 52, 57 and Later).
 **Done:** the external clones moved to `~/Projects/mirai-sources/` (read-only) on 2026-10-23.

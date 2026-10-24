@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirai/qa-verdict/1",
+  "title": "QA verdict",
+  "description": "The QA agent's final structured output (unit 09a): a verdict, the result and evidence per AC, and the issues found, in the dogfood report's categories (R-M17).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "verdict",
+    "acs",
+    "issues"
+  ],
+  "properties": {
+    "verdict": {
+      "enum": [
+        "pass",
+        "fail",
+        "blocked"
+      ],
+      "description": "blocked: the app couldn't be reached or tested; no round is used."
+    },
+    "blocked_reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*$",
+      "description": "For blocked only: why testing couldn't happen."
+    },
+    "acs": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ac",
+          "result",
+          "evidence"
+        ],
+        "properties": {
+          "ac": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^AC-[A-Za-z0-9][A-Za-z0-9._-]{0,63}?\\.[0-9]+$"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "not-run"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "test",
+                    "screenshot",
+                    "output"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+                  "description": "For a test: its id, as run_tests named it; otherwise the store reference run_tests returned."
+                }
+              }
+            }
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "category",
+          "severity",
+          "description",
+          "steps",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "description": "A short id, unique in this output."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*$"
+          },
+          "category": {
+            "enum": [
+              "visual",
+              "functional",
+              "ux",
+              "content",
+              "performance",
+              "console",
+              "accessibility"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "ac": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^AC-[A-Za-z0-9][A-Za-z0-9._-]{0,63}?\\.[0-9]+$"
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*$",
+            "description": "What is wrong, what was expected, what happened."
+          },
+          "steps": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*$"
+            },
+            "description": "The repro steps, one per item."
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "test",
+                    "screenshot",
+                    "output"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+                  "description": "For a test: its id, as run_tests named it; otherwise the store reference run_tests returned."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

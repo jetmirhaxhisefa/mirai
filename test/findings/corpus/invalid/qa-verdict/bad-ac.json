@@ -1,0 +1,26 @@
+{
+  "verdict": "pass",
+  "acs": [
+    {
+      "ac": "FR-2",
+      "result": "pass",
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "tests/Feature/TeamRenameTest.php::test_members_stay"
+        }
+      ]
+    },
+    {
+      "ac": "AC-PMT-31.2",
+      "result": "pass",
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "ref": "tickets/PMT-31/qa/r1/redirect.png"
+        }
+      ]
+    }
+  ],
+  "issues": []
+}

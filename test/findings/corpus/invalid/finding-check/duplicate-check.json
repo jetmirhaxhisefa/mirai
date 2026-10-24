@@ -1,0 +1,13 @@
+{
+  "checks": [
+    {
+      "id": "F1",
+      "verdict": "high"
+    },
+    {
+      "id": "F1",
+      "verdict": "maybe-false",
+      "note": "The cited line only reads the slug."
+    }
+  ]
+}

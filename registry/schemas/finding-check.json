@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirai/finding-check/1",
+  "title": "Finding check",
+  "description": "On high-risk tickets, a separate check of each blocking finding at its cited location (unit 09a, design/01 §9): high, medium or low confirms it; false and maybe-false don't (M5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "checks"
+  ],
+  "properties": {
+    "checks": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "verdict"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "description": "A short id, unique in this output."
+          },
+          "verdict": {
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "false",
+              "maybe-false"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2069\\ufeff]*$"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "verdict": "blocked",
+  "blocked_reason": "The app didn't answer on localhost:8080.",
+  "acs": [
+    {
+      "ac": "AC-PMT-31.1",
+      "result": "not-run",
+      "evidence": []
+    }
+  ],
+  "issues": []
+}

@@ -1,0 +1,11 @@
+{
+  "verdict": "pass",
+  "findings": [
+    {
+      "id": "F2",
+      "severity": "nit",
+      "category": "style",
+      "claim": "A long method; consider splitting it."
+    }
+  ]
+}

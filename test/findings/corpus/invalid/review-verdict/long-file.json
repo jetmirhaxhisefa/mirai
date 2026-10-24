@@ -1,0 +1,24 @@
+{
+  "verdict": "changes",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/x",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    },
+    {
+      "id": "F2",
+      "severity": "nit",
+      "category": "style",
+      "claim": "A long method; consider splitting it."
+    }
+  ]
+}

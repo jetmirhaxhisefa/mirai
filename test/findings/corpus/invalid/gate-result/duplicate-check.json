@@ -1,0 +1,36 @@
+{
+  "ticket": "PMT-31",
+  "round": 1,
+  "code_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "base_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "trust_root_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "framework_version": "0.1.0",
+  "baseline": {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ref": "baseline/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.json"
+  },
+  "checks": [
+    {
+      "name": "lint",
+      "result": "pass",
+      "minutes": 0.4
+    },
+    {
+      "name": "lint",
+      "result": "pass",
+      "minutes": 2,
+      "output_ref": "tickets/PMT-31/gate/r1/unit.txt"
+    }
+  ],
+  "known_failures": [
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  ],
+  "failures": [
+    {
+      "check": "unit",
+      "test": "LegacyTest::test_flaky_clock",
+      "signature": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "known": true
+    }
+  ]
+}

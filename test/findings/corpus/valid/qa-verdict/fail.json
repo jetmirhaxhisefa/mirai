@@ -1,0 +1,46 @@
+{
+  "verdict": "fail",
+  "acs": [
+    {
+      "ac": "AC-PMT-31.1",
+      "result": "pass",
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "tests/Feature/TeamRenameTest.php::test_members_stay"
+        }
+      ]
+    },
+    {
+      "ac": "AC-PMT-31.2",
+      "result": "fail",
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "ref": "tickets/PMT-31/qa/r1/redirect.png"
+        }
+      ]
+    }
+  ],
+  "issues": [
+    {
+      "id": "I1",
+      "title": "The old slug gives a 404",
+      "category": "functional",
+      "severity": "high",
+      "ac": "AC-PMT-31.2",
+      "url": "http://localhost:8080/teams/platform",
+      "description": "Opening the old slug after a rename shows a 404 instead of redirecting.",
+      "steps": [
+        "Rename the team Platform to Platform Core",
+        "Open /teams/platform"
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "ref": "tickets/PMT-31/qa/r1/404.png"
+        }
+      ]
+    }
+  ]
+}

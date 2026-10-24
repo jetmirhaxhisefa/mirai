@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirai/gate-result/1",
+  "title": "Gate result",
+  "description": "What the orchestrator records after the named checks (unit 09a, R3-C2, D-16; signed as a record in unit 25). Not agent output, but checked the same way.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ticket",
+    "round",
+    "code_hash",
+    "base_sha",
+    "trust_root_hash",
+    "framework_version",
+    "baseline",
+    "checks",
+    "known_failures",
+    "failures"
+  ],
+  "properties": {
+    "ticket": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "code_hash": {
+      "type": "string",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "base_sha": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "trust_root_hash": {
+      "type": "string",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "framework_version": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha",
+        "ref"
+      ],
+      "properties": {
+        "sha": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "ref": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^(?!/)(?!(?:.*/)?\\.{1,2}(?:/|$))[A-Za-z0-9._/-]{1,256}$"
+        }
+      },
+      "description": "The test baseline compared against: the integration-branch commit and its store file."
+    },
+    "checks": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "result"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "skip"
+            ]
+          },
+          "minutes": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1440
+          },
+          "output_ref": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^(?!/)(?!(?:.*/)?\\.{1,2}(?:/|$))[A-Za-z0-9._/-]{1,256}$"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "known_failures": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "description": "The baseline's known failure signatures."
+    },
+    "failures": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "check",
+          "test",
+          "signature",
+          "known"
+        ],
+        "properties": {
+          "check": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+          },
+          "test": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "known": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

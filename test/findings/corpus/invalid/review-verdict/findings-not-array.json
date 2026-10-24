@@ -1,0 +1,18 @@
+{
+  "verdict": "changes",
+  "findings": {
+    "F1": {
+      "id": "F1",
+      "severity": "blocking",
+      "category": "correctness",
+      "file": "app/Actions/RenameTeam.php",
+      "line": 42,
+      "symbol": "RenameTeam::handle",
+      "basis": {
+        "kind": "ac",
+        "ref": "AC-PMT-31.1"
+      },
+      "claim": "The members are looked up by the old slug after a rename."
+    }
+  }
+}
