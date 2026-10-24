@@ -38,7 +38,7 @@ export function createLintCommand({ registryDir = REGISTRY_DIR } = {}) {
       if (!top && args.positionals.length === 0) {
         throw new UsageError('not inside a git repo, so name the files or folders to lint', 'for example: mirai lint docs/');
       }
-      const docsRoot = docsRootOf(root);
+      const { docsRoot, project } = projectSettings(root);
       const registry = loadRegistry(registryDir);
       // In a git repo, the files are git's list: tracked and new ones, without what
       // .gitignore excludes.
@@ -46,7 +46,7 @@ export function createLintCommand({ registryDir = REGISTRY_DIR } = {}) {
       if (top && files === null) throw new MiraiError("git couldn't list the repo's files", EXIT.FAILURE);
       let result;
       try {
-        result = lintPaths({ root, paths: args.positionals.map((p) => resolve(io.cwd, p)), files, registry, docsRoot });
+        result = lintPaths({ root, paths: args.positionals.map((p) => resolve(io.cwd, p)), files, registry, docsRoot, project });
       } catch (err) {
         if (err instanceof LintPathError) throw new UsageError(clean(err.message), 'lint files or folders inside the repo');
         throw err;
@@ -81,10 +81,14 @@ function gitTop(io) {
   }
 }
 
-// `[docs] root` from the project config, or the default before `mirai init`. Only the project
-// layer is read: the docs root is team policy, which personal files can't change.
-function docsRootOf(root) {
-  if (!existsSync(join(root, PROJECT_CONFIG))) return frameworkDefaults().docs.root;
-  const file = readConfigFile(join(root, PROJECT_CONFIG), { trust: 'project', source: PROJECT_CONFIG, within: root });
-  return checkConfig([{ kind: 'project', file }]).config.docs.root;
+// `[docs] root` and the repo names from the project config, or the defaults before
+// `mirai init`. Only the project layer is read: both are team policy, which personal files
+// can't change.
+function projectSettings(root) {
+  let config = frameworkDefaults();
+  if (existsSync(join(root, PROJECT_CONFIG))) {
+    const file = readConfigFile(join(root, PROJECT_CONFIG), { trust: 'project', source: PROJECT_CONFIG, within: root });
+    config = checkConfig([{ kind: 'project', file }]).config;
+  }
+  return { docsRoot: config.docs.root, project: { repos: config.repos.map((r) => r.name) } };
 }

@@ -46,10 +46,24 @@ const AGENT = {
 // can't reuse these names (unit 07b).
 export const SHARED_FIELDS = Object.freeze(['id', 'type', 'template', 'status', 'version', 'derived_from', 'upstream', 'downstream', 'owner', 'updated']);
 export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date', 'list', 'enum']);
+// Checks written in code that a type switches on by name, `lint_checks = ["ticket"]` (unit 08a;
+// src/lint/checks.js). Unit 37's overlays may add lint checks, never remove them.
+export const BUILT_IN_CHECKS = Object.freeze(['ticket']);
+// In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
+// `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
+export const OWN_ID = '{id}';
+const SAMPLE_ID = 'PMT-12';
+// Escapes the characters that mean something in a pattern (only those: with the u flag,
+// escaping anything else is an error).
+export const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // A pattern in a definition must compile (with the u flag), and must not match the empty
 // string. The lint anchors it, so it can't match half a word.
 function compiles(value, path, report) {
+  if (value.includes(OWN_ID)) return report(path, `${path} can't use {id}`, '{id} is only for the patterns in [[ids]]', 'pattern');
+  return compilesWith(value, path, report);
+}
+function compilesWith(value, path, report) {
   let re;
   try {
     re = new RegExp(`^(?:${value})$`, 'u');
@@ -60,6 +74,8 @@ function compiles(value, path, report) {
   return undefined;
 }
 const regex = { type: 'string', pattern: /\S/, check: compiles };
+// An ID pattern may use {id}; it's checked with a sample id in its place.
+const idRegex = { type: 'string', pattern: /\S/, check: (value, path, report) => compilesWith(value.split(OWN_ID).join(escapeRegex(SAMPLE_ID)), path, report) };
 const sectionName = { type: 'string', pattern: /^\S(?:.*\S)?$/, patternHint: 'a heading text, without leading or trailing spaces' };
 const sectionList = { type: 'array', items: sectionName };
 
@@ -83,9 +99,12 @@ const ID_KIND = {
   type: 'table',
   fields: {
     prefix: { type: 'string', pattern: /^[A-Z][A-Z0-9]{0,15}$/, patternHint: 'capital letters and digits, for example "FR"' },
-    pattern: regex,
+    pattern: idRegex,
     defined_by: { type: 'enum', values: ['heading', 'bullet', 'table'] },
     parent: { type: 'string' },
+    required: { type: 'boolean' },
+    // Definitions count only in this section (a ticket's own ACs in "Acceptance criteria").
+    section: sectionName,
   },
   required: ['prefix', 'pattern', 'defined_by'],
 };
@@ -110,6 +129,13 @@ const DOCUMENT_TYPE = {
       fields: { fields: { type: 'table', map: FIELD, keyPattern: /^[a-z][a-z0-9_]*$/, keyHint: 'a frontmatter key: a–z, 0–9 and _' } },
     },
     ids: { type: 'array', items: ID_KIND, uniqueBy: 'prefix' },
+    lint_checks: {
+      type: 'array',
+      items: { type: 'enum', values: BUILT_IN_CHECKS },
+      check(value, path, report) {
+        if (new Set(value).size !== value.length) report(path, `${path} names a check twice`, undefined, 'duplicate');
+      },
+    },
     states: {
       type: 'table',
       fields: {
@@ -167,10 +193,13 @@ function checkDocumentType(def, path, report) {
   const kinds = Array.isArray(def.ids) ? def.ids : [];
   const prefixes = new Set(kinds.map((k) => k?.prefix));
   kinds.forEach((kind, i) => {
+    if (typeof kind?.section === 'string' && !seen.has(kind.section)) {
+      report(`ids[${i}].section`, `ids[${i}].section is not one of the listed sections`, undefined, 'unknown-section');
+    }
     if (typeof kind?.pattern !== 'string') return;
     let groups = 0;
     try {
-      groups = new RegExp(`(?:${kind.pattern})|`, 'u').exec('').length - 1;
+      groups = new RegExp(`(?:${kind.pattern.split(OWN_ID).join(escapeRegex(SAMPLE_ID))})|`, 'u').exec('').length - 1;
     } catch {
       return; // reported by the pattern check
     }
@@ -208,11 +237,12 @@ const KINDS = [
   { folder: 'document-types', kind: 'document-type', schema: DOCUMENT_TYPE, refs: ['template', 'checklist'] },
 ];
 
-// Loads and checks every definition under `dir`. Returns frozen `{ agents, documentTypes }`
-// keyed by name, or throws one ConfigError listing every problem.
+// Loads and checks every definition under `dir`. Returns frozen `{ dir, agents, documentTypes }`
+// keyed by name, or throws one ConfigError listing every problem. `dir` lets the lint read a
+// type's template (unit 08a).
 export function loadRegistry(dir) {
   const problems = [];
-  const out = { agents: {}, documentTypes: {} };
+  const out = { dir, agents: {}, documentTypes: {} };
   for (const { folder, kind, schema, refs } of KINDS) {
     let files = [];
     const sub = join(dir, folder);

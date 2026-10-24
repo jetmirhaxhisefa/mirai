@@ -1,0 +1,73 @@
+# A story: one vertical slice of work (design/01 §5, D-09). Its status lives in the store (D-06).
+kind = "document-type"
+schema_version = 1
+name = "story"
+template = "templates/story.md"
+template_version = 1
+checklist = "templates/story-checklist.md"
+status = "forbidden"
+id_pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+required_sections = ["Description", "Acceptance criteria"]
+optional_sections = ["Boundaries", "References", "Notes"]
+lint_checks = ["ticket"]
+
+[frontmatter.fields.repo]
+type = "string"
+required = true
+
+[frontmatter.fields.risk]
+type = "enum"
+values = ["normal", "high"]
+required = true
+
+[frontmatter.fields.size]
+type = "enum"
+values = ["S", "M", "L"]
+required = true
+
+[frontmatter.fields.verify]
+type = "string"
+required = true
+
+[frontmatter.fields.covers_fr]
+type = "list"
+pattern = "N?FR-[0-9]+"
+
+[frontmatter.fields.covers_ac]
+type = "list"
+pattern = "AC-N?FR-[0-9]+\\.[0-9]+"
+
+[frontmatter.fields.governed_by]
+type = "list"
+pattern = "ADR-[0-9]+"
+
+[frontmatter.fields.after]
+type = "list"
+pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+
+[frontmatter.fields.epic]
+type = "string"
+pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+
+[frontmatter.fields.files_likely]
+type = "list"
+pattern = "(?![A-Za-z]:)(?!/)(?! )(?!.*(?:^|/)\\.\\.(?:/|$))(?!.* $)[^\\\\\\u0000-\\u001f]+"
+
+[frontmatter.fields.e2e]
+type = "boolean"
+
+[frontmatter.fields.tdd]
+type = "enum"
+values = ["auto", "first", "after"]
+
+[frontmatter.fields.tests]
+type = "enum"
+values = ["required", "optional"]
+
+# The ticket's own acceptance criteria, AC-<ticket>.n (R-M10), on every track.
+[[ids]]
+prefix = "AC"
+pattern = "AC-{id}\\.[0-9]+"
+defined_by = "bullet"
+required = true
+section = "Acceptance criteria"

@@ -6,6 +6,7 @@ import { closest } from '../util/closest.js';
 import { readFrontmatter } from './frontmatter.js';
 import { scanMarkdown, headingSlugs } from './markdown.js';
 import { checkDocument } from './rules.js';
+import { frameworkDefaults } from '../config/defaults.js';
 
 // Linting files (unit 07b).
 // - Inside the docs root (`[docs] root`, default docs/mirai) every Markdown file is a MIRAI
@@ -28,9 +29,11 @@ export class LintPathError extends Error {}
 // repo's file list from git, relative) is used. Returns { files, skipped, problems }, the
 // problems sorted by file, line and column. Throws a LintPathError for a path outside the
 // repo or one that doesn't exist.
-export function lintPaths({ root, paths = [], files = null, registry, docsRoot }) {
+// `project` holds what the built-in checks need from the project config: `repos` (the repo
+// names, unit 08a). Missing, it's the defaults, never "skip the check".
+export function lintPaths({ root, paths = [], files = null, registry, docsRoot, project = projectDefaults() }) {
   const realRoot = realpathSync.native(root);
-  const ctx = { root: realRoot, registry, docsRoot: docsRoot.toLowerCase(), headings: new Map() };
+  const ctx = { root: realRoot, registry, docsRoot: docsRoot.toLowerCase(), project, headings: new Map(), templates: new Map() };
   const result = { files: 0, skipped: 0, problems: [] };
   const seen = new Set();
   const visit = (rel, kind) => {
@@ -63,6 +66,10 @@ export function lintPaths({ root, paths = [], files = null, registry, docsRoot }
   }
   result.problems.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line || a.column - b.column));
   return result;
+}
+
+export function projectDefaults() {
+  return { repos: frameworkDefaults().repos.map((r) => r.name) };
 }
 
 const toPosix = (p) => p.split(sep).join('/');
@@ -208,8 +215,32 @@ export function lintFile(file, ctx) {
   for (const p of scan.problems) problem(p);
   const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine };
   const linkTarget = (path) => resolveLink(dirname(abs), path, ctx);
-  for (const p of checkDocument(doc, def, { linkTarget })) problems.push({ file, ...p });
+  const template = inside ? templateOf(type, def, ctx) : null;
+  for (const p of checkDocument(doc, def, { linkTarget, file, project: ctx.project, template })) problems.push({ file, ...p });
   return { linted: true, problems };
+}
+
+// A type's template text, for the leftover check: its body's text lines, and its `id` plus any
+// string field whose example is a sentence (has a space). Null when the template can't be read.
+function templateOf(type, def, ctx) {
+  if (ctx.templates.has(type)) return ctx.templates.get(type);
+  let template = null;
+  try {
+    const fm = readFrontmatter(readRegularFile(join(ctx.registry.dir, def.template)));
+    const lines = new Set();
+    for (const l of scanMarkdown(fm?.body ?? '').lines) {
+      if (l.kind === 'text' && l.text.trim().length >= 8) lines.add(l.text.trim());
+    }
+    const fields = new Map();
+    for (const [key, value] of Object.entries(fm?.value ?? {})) {
+      if (typeof value === 'string' && (key === 'id' || / /.test(value))) fields.set(key, value);
+    }
+    template = { lines, fields };
+  } catch {
+    template = null;
+  }
+  ctx.templates.set(type, template);
+  return template;
 }
 
 // Whether a frontmatter that didn't read has a top-level `type:` line naming a known type.

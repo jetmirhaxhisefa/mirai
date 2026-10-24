@@ -1,7 +1,8 @@
 import { closest } from '../util/closest.js';
 import { linkHasCredential, hasTokenShape, SECRET_PARAM } from '../config/credentials.js';
-import { SHARED_FIELDS } from '../config/registry.js';
+import { SHARED_FIELDS, OWN_ID, escapeRegex } from '../config/registry.js';
 import { headingSlugs } from './markdown.js';
+import { CHECKS } from './checks.js';
 
 // The lint rules (unit 07b, D-41, D-35, D-40): frontmatter fields, sections, IDs, links and
 // Mermaid blocks, for one document with a known type. Every rule adds to the same list; none
@@ -26,7 +27,8 @@ const BRACKET_DIAGRAMS = new Set(['graph', 'flowchart', 'classDiagram', 'C4Conte
 const fullMatch = (pattern) => new RegExp(`^(?:${pattern})$`, 'u');
 
 // `doc`: { value, positions, scan, bodyLine }; `def`: the document type; `ctx`: { linkTarget }
-// for links to other files (see lint.js).
+// for links to other files, and `repos` (the config's repo names) for the built-in checks
+// (see lint.js).
 export function checkDocument(doc, def, ctx) {
   const problems = [];
   const add = (p) => problems.push({ severity: 'error', ...p });
@@ -35,7 +37,28 @@ export function checkDocument(doc, def, ctx) {
   checkIds(doc, def, add);
   checkLinks(doc, ctx, add);
   checkMermaid(doc, add);
+  if (ctx.template) checkTemplateText(doc, def, ctx.template, add);
+  for (const name of def.lint_checks ?? []) CHECKS[name](doc, def, ctx, add);
   return problems;
+}
+
+// ---- Leftover template text (unit 08a) ----------------------------------------------------
+
+// Inside the docs root, a line of the body, the `id`, or a sentence-like string field that is
+// word for word the type's template is a leftover: the template wasn't filled in. `template`
+// is { lines: Set, fields: Map } from lint.js.
+function checkTemplateText(doc, def, template, add) {
+  for (const [key, text] of template.fields) {
+    if (doc.value[key] === text) {
+      const p = doc.positions.get(key);
+      add({ code: 'template-text', line: p?.line ?? 1, column: p?.valueColumn ?? p?.column ?? 1, reason: `"${key}" is still the template's example`, hint: 'write this document\'s own value' });
+    }
+  }
+  for (const l of doc.scan.lines) {
+    if (l.kind !== 'text') continue;
+    const text = l.text.trim();
+    if (template.lines.has(text)) add({ code: 'template-text', line: l.line, column: l2col(l.text), reason: 'this line is still the template\'s text', hint: 'replace it with this document\'s own text' });
+  }
 }
 
 // ---- Frontmatter --------------------------------------------------------------------------
@@ -289,12 +312,42 @@ function longestIncreasing(ranks) {
   return out;
 }
 
+// The ## section each line belongs to.
+function sectionOfLine(scan) {
+  const out = new Map();
+  let current = null;
+  const h2 = new Map(scan.headings.filter((h) => h.level <= 2).map((h) => [h.line, h]));
+  for (const l of scan.lines) {
+    const h = h2.get(l.line);
+    if (h) current = h.level === 2 ? h.text : null;
+    out.set(l.line, current);
+  }
+  return out;
+}
+
+// An id is repeated in a message unless it looks like a credential.
+const shownId = (id) => (hasTokenShape(id) ? '<id>' : id);
+
 const l2col = (text) => [...text.slice(0, text.search(/\S/))].length + 1;
 
 // ---- IDs (D-35) ---------------------------------------------------------------------------
 
+// The ticket-key shape {id} stands for when a definition names another document's id.
+const ANY_ID = '[A-Za-z0-9][A-Za-z0-9._-]{0,63}?';
+
 function checkIds(doc, def, add) {
+  // `{id}` is this document's own id. Without a usable id (missing, or not the type's shape,
+  // which the frontmatter rules report), an {id} kind matches nothing and isn't required.
+  const id = doc.value.id;
+  const usable = typeof id === 'string' && id !== '' && fullMatch(def.id_pattern ?? DEFAULT_ID).test(id);
+  const own = usable ? escapeRegex(id) : '(?!)';
+  const sections = sectionOfLine(doc.scan);
   const kinds = (def.ids ?? []).map((k) => ({
+    ...k,
+    ownId: k.pattern.includes(OWN_ID),
+    foreign: k.pattern.includes(OWN_ID) ? new RegExp(`^(?:\\*\\*)?(${k.pattern.split(OWN_ID).join(ANY_ID)})(?:\\*\\*)?(?::|[ \\t]+—[ \\t])`, 'u') : null,
+    pattern: k.pattern.split(OWN_ID).join(own),
+  })).map((k) => ({
     ...k,
     search: new RegExp(`(?<![\\p{L}\\p{N}_.-])(?:${k.pattern})(?![\\p{L}\\p{N}_]|[.-][\\p{L}\\p{N}])`, 'gu'),
     // A definition is the ID in its definition form: "FR-1: …" or "FR-1 — …" at the start of
@@ -319,9 +372,21 @@ function checkIds(doc, def, add) {
         : k.defined_by === 'bullet' ? (l.kind === 'text' ? /^ *(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?:\*\*)?/.exec(l.text) : null)
           : (l.kind === 'text' ? /^ *\|[ \t]*(?:\*\*)?/.exec(l.text) : null);
       if (!lead) continue;
-      const m = k.start.exec(l.text.slice(lead[0].length));
-      if (!m) continue;
+      const rest = l.text.slice(lead[0].length);
+      const m = k.start.exec(rest);
       const column = colOf(l.text, lead[0].length);
+      if (!m) {
+        // A definition under another id (a stale copy, a typo) would silently not count: a
+        // document never defines another document's IDs.
+        const other = k.foreign?.exec(rest);
+        if (other && usable) add({ code: 'foreign-id', line: l.line, column, reason: `${shownId(other[1])} is defined here, but this document's ${k.prefix} IDs are ${k.prefix}-${shownId(id)}.n`, hint: 'use this document\'s own id in the AC' });
+        continue;
+      }
+      // Defined outside its section: a problem, but still a definition, so its mentions
+      // aren't reported a second time as unknown.
+      if (k.section && sections.get(l.line) !== k.section) {
+        add({ code: 'misplaced-id', line: l.line, column, reason: `${m[1]} is defined outside "${k.section}"`, hint: `define ${k.prefix} IDs in the "${k.section}" section` });
+      }
       const seen = defined.get(k.prefix);
       if (seen.has(m[1])) {
         const first = seen.get(m[1]);
@@ -334,6 +399,18 @@ function checkIds(doc, def, add) {
 
   for (const { kind, id, line, column } of mentions) {
     if (!defined.get(kind.prefix).has(id)) add({ code: 'unknown-id', line, column, reason: `${id} is mentioned but not defined in this document` });
+  }
+  // A required kind needs at least one definition (a ticket's own ACs, unit 08a).
+  for (const kind of kinds) {
+    if (kind.required && defined.get(kind.prefix).size === 0 && (usable || !kind.ownId)) {
+      const title = doc.scan.headings.find((h) => h.level === 1);
+      const example = kind.ownId ? `${kind.prefix}-${shownId(id)}.1` : `${kind.prefix}-1`;
+      add({
+        code: 'missing-id', line: title?.line ?? doc.bodyLine, column: 1,
+        reason: `the document defines no ${kind.prefix} IDs`,
+        hint: kind.defined_by === 'heading' ? `add a heading such as ### ${example}: …` : kind.defined_by === 'bullet' ? `add a list item such as - ${example}: …` : `add a table row whose first cell is ${example}`,
+      });
+    }
   }
   // A dependent ID (AC-FR-2.1) needs its parent (FR-2), captured by its pattern.
   for (const kind of kinds) {
