@@ -7,7 +7,7 @@ import { linkHasCredential, remoteHasCredential } from './credentials.js';
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.*', 'models.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
-    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*'],
+    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*'],
 });
@@ -167,6 +167,20 @@ export const CONFIG_SCHEMA = {
         for (const stage of NEVER_AUTO_STAGES) {
           if (value[stage] === 'auto') report(`${path}.${stage}`, `${path}.${stage} can never be automatic`, 'this decision always needs you (D-34)', 'never-auto');
         }
+      },
+    },
+    // Where the repo's MIRAI documents live (<docs_root>, design/03; unit 07b).
+    docs: {
+      type: 'table',
+      fields: {
+        root: {
+          type: 'string',
+          // One spelling only, so the docs-root rules can't be switched off by writing the
+          // same folder another way (./docs, docs//mirai, docs/./mirai, a trailing /).
+          pattern: /^(?!\.{1,2}(?:\/|$))(?!.*\/\.{1,2}(?:\/|$))[^/\\\s][^/\\]*(?:\/[^/\\\s][^/\\]*)*$/,
+          patternHint: 'a folder inside the repo, written like docs/mirai: no leading ./ or /, no .., no empty parts',
+          check: relativePath,
+        },
       },
     },
     retention: { type: 'table', fields: { days: { type: 'integer', min: 1, max: 3650 }, auto: { type: 'boolean' } } },

@@ -1,0 +1,54 @@
+# A sample document type for the lint tests (unit 07b). Unit 08 adds the real ones.
+kind = "document-type"
+schema_version = 1
+name = "sample"
+template = "templates/sample.md"
+template_version = 2
+checklist = "templates/sample-checklist.md"
+required_sections = ["Summary", "Requirements"]
+optional_sections = ["Risks"]
+section_order = ["Summary", "Requirements", "Risks"]
+versioned = true
+id_pattern = "sample-[a-z0-9-]+"
+
+[states]
+names = ["draft", "in-review", "approved"]
+initial = "draft"
+transitions = [{ from = "draft", to = "in-review" }, { from = "in-review", to = "approved", human_only = true }]
+
+[frontmatter.fields.priority]
+type = "enum"
+values = ["low", "normal", "high"]
+
+[frontmatter.fields.reviewers]
+type = "list"
+pattern = "[a-z]+"
+
+[frontmatter.fields.due]
+type = "date"
+
+[frontmatter.fields.points]
+type = "integer"
+
+[frontmatter.fields.internal]
+type = "boolean"
+
+[frontmatter.fields.area]
+type = "string"
+required = true
+
+[[ids]]
+prefix = "FR"
+pattern = "FR-[0-9]+"
+defined_by = "heading"
+
+[[ids]]
+prefix = "AC"
+pattern = "AC-(FR-[0-9]+)\\.[0-9]+"
+defined_by = "bullet"
+parent = "FR"
+
+[[ids]]
+prefix = "R"
+pattern = "R-[0-9]+"
+defined_by = "table"

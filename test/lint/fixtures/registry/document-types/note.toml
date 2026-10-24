@@ -1,0 +1,8 @@
+# A ticket-like type for the lint tests: its status lives in the store, so it has none.
+kind = "document-type"
+schema_version = 1
+name = "note"
+template = "templates/note.md"
+checklist = "templates/note-checklist.md"
+required_sections = ["Description"]
+status = "forbidden"

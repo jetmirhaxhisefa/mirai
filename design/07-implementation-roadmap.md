@@ -169,6 +169,7 @@ note measures the same thing on real pilot work. So the first usage reading is u
   its own `pre-push` (TL2-19).
 - **Retention (Q9):** `retention.days` (default 90), `retention.auto` (default off).
 - **Runs:** `run.stop_by`.
+- **Documents (unit 07b):** `docs.root`, the repo's `<docs_root>` (default `docs/mirai`). Every `.md` in it is linted as a MIRAI document.
 - **Global, not per project (D-57):** `~/.config/mirai/config.toml` holds `[subscription] plan`
   and `[usage] night_max`, `week_max`, `reserve`. Unit 03 loads it as its own layer. These are
   personal: they're rejected in any project file, so a shared repo never holds one developer's

@@ -110,6 +110,10 @@ export function checkConfig(layers) {
     throw new ConfigError(`${n} problem${n === 1 ? '' : 's'} in config`, { errors: unique });
   }
 
+  // The gate leaves the docs root out of the code paths by default (design/04): the default follows
+  // `docs.root` unless a file sets `gate.code_paths` itself (unit 07b).
+  if (!meta.has('gate.code_paths')) config.gate.code_paths = ['**', `!${config.docs.root}/**`, '!.mirai/**'];
+
   const presetGates = PRESETS[config.preset];
   config.gates = { ...presetGates, ...(config.gates ?? {}) };
   for (const stage of Object.keys(presetGates)) {

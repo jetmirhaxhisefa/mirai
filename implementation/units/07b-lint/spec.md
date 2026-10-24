@@ -219,7 +219,7 @@ test/lint/fixtures/                 # a sample registry and a sample doc set
 - The Tech Lead and Architect reviews are done, and `review.md` is written.
 - You write **"UNIT APPROVED"**. Then: one commit and push, and `PROGRESS.md` updated.
 
-## Notes from 07a's review (to settle with you before building 07b)
+## Notes from 07a's review (settled 2026-10-24: you agreed to point 1's proposal)
 
 1. **Reader errors in files that aren't MIRAI documents.** A README that starts with `---` as a
    horizontal rule gives `unclosed`, and a Docusaurus page with a nested `last_update:` gives
@@ -235,3 +235,135 @@ test/lint/fixtures/                 # a sample registry and a sample doc set
 4. **Point at values:** frontmatter rules use the key's `valueColumn` (07a) for a bad enum, date
    or `template`.
 5. **Dates are quoted strings** (`updated: "2026-10-24"`); the rule checks it's a real date.
+
+## Details settled while building (for your check)
+
+These fill in the approved spec. None changes a rule above.
+
+1. **Where MIRAI's documents live:** `<docs_root>` from the design (03 §layout), as a new
+   project config key `[docs] root`, default `"docs/mirai"`. It's the folder the gate already
+   leaves out of `code_paths`.
+2. **Inside `<docs_root>`,** every `.md` file is a MIRAI document. Each of these is a problem:
+   - no frontmatter;
+   - a reader error;
+   - no `type`;
+   - a type the registry doesn't know;
+   - a symbolic link.
+3. **Outside it,** only files whose frontmatter names a known type are linted. A reader error
+   there is a warning, and every other file is skipped.
+4. **With no paths,** `mirai lint` walks the repo from its top folder. It skips `.git`,
+   `node_modules` and `.mirai`, never follows symbolic links, and leaves out files over 1 MB.
+   Named paths must be inside the repo, or it's a usage error (exit 2).
+5. **`mirai lint` works before `mirai init`.** With no `.mirai/config.toml`, it uses the
+   defaults. A broken config is exit 3.
+6. **Registry details:**
+   - **`status = "forbidden"`** types (tickets) have no `states`. `"required"`, the default,
+     needs them, as before.
+   - **`id_pattern`** (a regex) sets a type's document-id shape.
+   - **A dependent ID kind** names `parent = "FR"`. Its pattern's one capture group is the
+     parent ID: `AC-(FR-[0-9]+)\.[0-9]+`.
+   - **No `subsections` yet:** no type needs them, and TOML keys can't hold section names with
+     spaces. Unit 37's overlays can add them.
+7. **Links:**
+   - `http`, `https` and `mailto` are allowed, with the credential check;
+   - every other scheme is a problem (`file:`, `javascript:`, …);
+   - anchors in other `.md` files are checked by scanning that file;
+   - GitHub's slug rule is approximated: inline marks are stripped, then the text is
+     lower-cased, punctuation removed and spaces made into `-`, with `-1`, `-2` for repeats.
+8. **The CLI takes its registry from MIRAI's own `registry/`.** Tests build the command with a
+   fixture registry in code, not through an environment variable or a flag, so nothing can
+   point a real run at another registry.
+
+
+## Changes after testing and review
+
+Both reviews requested changes (`review.md`). Each change to the text above is listed here for
+your check before "UNIT APPROVED".
+
+**Your decisions (asked during the review, 2026-10-24):**
+1. **The walk uses git's file list:** `git ls-files --cached --others --exclude-standard`.
+   - It covers tracked files plus new ones, minus what `.gitignore` excludes. This replaces
+     "Details" #4.
+   - Outside a git repo, the paths must be named.
+   - A named folder is filtered through the same list.
+2. **Outside the docs root, a file is linted only when its type is known and it has
+   `template:`.** This replaces "Details" #3.
+   - A broken frontmatter there is a warning only when a top-level `type:` line names a known
+     type.
+   - Anything else is skipped silently.
+3. **An ID is defined only in its definition form,** and every other occurrence is a mention:
+   - **heading or list item:** the ID, then `:` or ` — ` (`### FR-1: Sign in`,
+     `- AC-FR-1.1: …`);
+   - **table:** the ID is the whole first cell.
+4. **Per-section subsections move to unit 37** (approved text: "unless the type lists allowed
+   subsections"). When they come, they'll be an array of tables.
+5. **Only `http`, `https` and `mailto` links** are allowed.
+6. **The gate's default `code_paths` follows `docs.root`.** It is
+   `["**", "!<docs.root>/**", "!.mirai/**"]` unless a file sets `gate.code_paths`.
+7. **Two ID kinds with the same prefix** (a story's own AC beside a PRD's `AC-FR-n.m`) are
+   designed in unit 08, with the story type.
+
+**Fixes:**
+8. **The docs root can't be escaped** by:
+   - a symbolic link (a file, a folder, or the root itself, whether named or walked);
+   - letter case (`DOCS/MIRAI/x.md`, `.MD`, `.markdown`);
+   - a FIFO or other special file.
+
+   "Inside" is decided on the path's place in the repo, case-insensitively, with links
+   resolved one part at a time.
+9. **`docs.root` has one spelling.** `./docs`, `docs//mirai`, `docs/./mirai`, a trailing `/`
+   and `.` are refused.
+10. **Every scanner pattern is linear,** and lines over 10,000 characters are a problem
+    (`long-line`) and aren't scanned. One line of 160k `[` used to take 22 s.
+11. **Code spans and comments are read in one pass,** so `` `<!--` `` in a code span no longer
+    hides the rest of the document.
+12. **Links:**
+    - **Credentials:** they're checked in relative links' queries and anchors too, and anchors
+      are echoed only when they look like a slug. Bare `https://…` URLs get the credential
+      check.
+    - **Outside the repo:** whether a target is outside is decided before whether it exists,
+      so links can't probe the file system.
+    - **Not links:** `[TODO]: text` is prose, not a reference definition. Link destinations
+      and HTML tags don't count as ID mentions.
+    - **Queries:** `[a](?x=1)` is fine.
+13. **Mermaid:**
+    - brackets are counted only in flowchart, graph, class and C4 diagrams, and on the keyword
+      line too;
+    - `>` opens a shape only outside other brackets (`A[one<br>two]`);
+    - sequence arrows (`-)`) and notes are left alone.
+14. **"Not applicable — reason" may wrap** over several lines.
+15. **Unreadable folders and files** are a problem inside the docs root and a warning outside.
+    They no longer stop the run.
+16. **`--json` is escaped,** like the text output, and has `schema_version: 1`.
+17. **Smaller fixes:**
+    - a closing fence must keep its indentation;
+    - setext isn't reported after a list or an HTML block;
+    - text before the `#` title is a problem;
+    - years 0000–0099 are checked correctly;
+    - an ID followed by `-x` or `.5` isn't a mention of it;
+    - problems in a body-less file point inside the file;
+    - linked files over 1 MB don't have their anchors checked;
+    - up to 100,000 paths.
+
+**The problem codes** are now part of `--json` (units 26, 44, 54):
+- **files:** `no-frontmatter`, `unknown-type`, `required`, `symlink`, `not-a-file`,
+  `too-large`, `unreadable`, `frontmatter-<07a code>`;
+- **scanner:** `long-line`, `empty-heading`, `setext`, `unclosed-fence`, `unclosed-comment`;
+- **fields:** `type`, `pattern`, `enum`, `date`, `unknown-field`, `template`, `template-older`
+  (a warning), `template-newer`, `status-forbidden`;
+- **sections:** `title`, `unknown-section`, `duplicate-section`, `missing-section`,
+  `section-order`, `empty-section`, `not-applicable`;
+- **IDs:** `duplicate-id`, `unknown-id`, `missing-parent`;
+- **links:** `link`, `link-credential`, `link-scheme`, `link-absolute`, `link-outside`,
+  `missing-file`, `missing-anchor`;
+- **Mermaid:** `mermaid`.
+
+**Notes for later units:**
+- **Unit 37:** project overlays will add patterns, which run on every line. Allow only a
+  restricted regex subset (no nested quantifiers, backreferences or lookarounds) with a length
+  cap.
+- **Unit 43 (`mirai trace`):** it needs the IDs a document defines and mentions. Export them
+  from `checkIds`.
+- **Units 08, 09:** plans, findings and reports live in the store, not the repo. They need a
+  text-level entry point (`lintText`).
+- **Possible later additions:** a PRD `variant_of`, `defined_by` lists, and integer min/max.

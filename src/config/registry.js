@@ -42,6 +42,54 @@ const AGENT = {
   },
 };
 
+// The frontmatter fields every document type shares (03 "Templates"); a type's own fields
+// can't reuse these names (unit 07b).
+export const SHARED_FIELDS = Object.freeze(['id', 'type', 'template', 'status', 'version', 'derived_from', 'upstream', 'downstream', 'owner', 'updated']);
+export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date', 'list', 'enum']);
+
+// A pattern in a definition must compile (with the u flag), and must not match the empty
+// string. The lint anchors it, so it can't match half a word.
+function compiles(value, path, report) {
+  let re;
+  try {
+    re = new RegExp(`^(?:${value})$`, 'u');
+  } catch {
+    return report(path, `${path} is not a valid regular expression`, undefined, 'pattern');
+  }
+  if (re.test('')) report(path, `${path} matches an empty string`, undefined, 'pattern');
+  return undefined;
+}
+const regex = { type: 'string', pattern: /\S/, check: compiles };
+const sectionName = { type: 'string', pattern: /^\S(?:.*\S)?$/, patternHint: 'a heading text, without leading or trailing spaces' };
+const sectionList = { type: 'array', items: sectionName };
+
+const FIELD = {
+  type: 'table',
+  fields: {
+    type: { type: 'enum', values: FIELD_TYPES },
+    values: { type: 'array', items: { type: 'string', pattern: /\S/ }, minItems: 1 },
+    pattern: regex,
+    required: { type: 'boolean' },
+  },
+  required: ['type'],
+  check(field, path, report) {
+    if (field.type === 'enum' && field.values === undefined) report(`${path}.values`, `${path}.values is required for an enum`, undefined, 'required');
+    if (field.values !== undefined && field.type !== 'enum' && field.type !== 'list') report(`${path}.values`, `${path}.values is only for enum and list fields`, undefined, 'invalid');
+    if (field.pattern !== undefined && field.type !== 'string' && field.type !== 'list') report(`${path}.pattern`, `${path}.pattern is only for string and list fields`, undefined, 'invalid');
+  },
+};
+
+const ID_KIND = {
+  type: 'table',
+  fields: {
+    prefix: { type: 'string', pattern: /^[A-Z][A-Z0-9]{0,15}$/, patternHint: 'capital letters and digits, for example "FR"' },
+    pattern: regex,
+    defined_by: { type: 'enum', values: ['heading', 'bullet', 'table'] },
+    parent: { type: 'string' },
+  },
+  required: ['prefix', 'pattern', 'defined_by'],
+};
+
 const DOCUMENT_TYPE = {
   type: 'table',
   fields: {
@@ -49,8 +97,19 @@ const DOCUMENT_TYPE = {
     schema_version: { type: 'integer', min: 1, max: 1 },
     name: { type: 'string', pattern: NAME, patternHint: 'for example "prd"' },
     template: mdPath,
+    template_version: { type: 'integer', min: 1 },
     checklist: mdPath,
-    required_sections: { type: 'array', items: { type: 'string', pattern: /\S/ }, minItems: 1 },
+    required_sections: { type: 'array', items: sectionName, minItems: 1 },
+    optional_sections: sectionList,
+    section_order: sectionList,
+    status: { type: 'enum', values: ['required', 'forbidden'] },
+    versioned: { type: 'boolean' },
+    id_pattern: regex,
+    frontmatter: {
+      type: 'table',
+      fields: { fields: { type: 'table', map: FIELD, keyPattern: /^[a-z][a-z0-9_]*$/, keyHint: 'a frontmatter key: a–z, 0–9 and _' } },
+    },
+    ids: { type: 'array', items: ID_KIND, uniqueBy: 'prefix' },
     states: {
       type: 'table',
       fields: {
@@ -69,8 +128,60 @@ const DOCUMENT_TYPE = {
       check: checkStateMachine,
     },
   },
-  required: ['kind', 'schema_version', 'name', 'template', 'checklist', 'required_sections', 'states'],
+  required: ['kind', 'schema_version', 'name', 'template', 'checklist', 'required_sections'],
+  check: checkDocumentType,
 };
+
+// Rules across keys (unit 07b): states go with status, sections are named once and ordered
+// completely, a type's own fields don't reuse shared names, and a dependent ID kind names an
+// existing parent and captures its ID.
+function checkDocumentType(def, path, report) {
+  const status = def.status ?? 'required';
+  if (status === 'required' && def.states === undefined) report('states', 'states is required', 'add [states], or status = "forbidden" for tickets (status lives in the store)', 'required');
+  if (status === 'forbidden' && def.states !== undefined) report('states', 'states is only for types with status = "required"', undefined, 'invalid');
+
+  const required = Array.isArray(def.required_sections) ? def.required_sections : [];
+  const optional = Array.isArray(def.optional_sections) ? def.optional_sections : [];
+  const all = [...required, ...optional];
+  const seen = new Set();
+  all.forEach((name, i) => {
+    const where = i < required.length ? `required_sections[${i}]` : `optional_sections[${i - required.length}]`;
+    if (seen.has(name)) report(where, `${where} repeats a section name`, undefined, 'duplicate');
+    seen.add(name);
+  });
+  if (Array.isArray(def.section_order)) {
+    def.section_order.forEach((name, i) => {
+      if (!seen.has(name)) report(`section_order[${i}]`, `section_order[${i}] is not one of the listed sections`, 'use a name from required_sections or optional_sections', 'unknown-section');
+    });
+    const listed = new Set(def.section_order);
+    if (listed.size !== def.section_order.length) report('section_order', 'section_order names a section twice', undefined, 'duplicate');
+    for (const name of seen) {
+      if (!listed.has(name)) report('section_order', 'section_order leaves out a listed section', 'name every required and optional section once', 'range');
+    }
+  }
+
+  for (const key of Object.keys(def.frontmatter?.fields ?? {})) {
+    if (SHARED_FIELDS.includes(key)) report(`frontmatter.fields.${key}`, `frontmatter.fields.${key} is a shared field`, `the shared fields are: ${SHARED_FIELDS.join(', ')}`, 'duplicate');
+  }
+
+  const kinds = Array.isArray(def.ids) ? def.ids : [];
+  const prefixes = new Set(kinds.map((k) => k?.prefix));
+  kinds.forEach((kind, i) => {
+    if (typeof kind?.pattern !== 'string') return;
+    let groups = 0;
+    try {
+      groups = new RegExp(`(?:${kind.pattern})|`, 'u').exec('').length - 1;
+    } catch {
+      return; // reported by the pattern check
+    }
+    if (kind.parent === undefined) {
+      if (groups > 0) report(`ids[${i}].pattern`, `ids[${i}].pattern has a capture group but no parent`, 'use (?:…) for grouping', 'pattern');
+    } else {
+      if (kind.parent === kind.prefix || !prefixes.has(kind.parent)) report(`ids[${i}].parent`, `ids[${i}].parent is not another ID kind's prefix`, undefined, 'unknown-id');
+      if (groups !== 1) report(`ids[${i}].pattern`, `ids[${i}].pattern needs exactly one capture group: the parent ID`, 'for example "AC-(FR-[0-9]+)\\.[0-9]+"', 'pattern');
+    }
+  });
+}
 
 function checkStateMachine(states, path, report) {
   if (!Array.isArray(states.names) || !Array.isArray(states.transitions)) return;

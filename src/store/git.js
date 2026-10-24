@@ -4,22 +4,22 @@ import { StoreError } from '../cli/errors.js';
 
 // The read-only git calls the store needs (unit 05a): never a shell, a fixed environment, no
 // fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 22
-// (D-54). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp` and (unit 06) `ls-tree`
-// / `cat-file` are used, with replace refs off, so `refs/replace` can't change which commits
+// (D-54). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp`, (unit 06) `ls-tree`
+// / `cat-file` and (unit 07b) `ls-files` are used, with replace refs off, so `refs/replace` can't change which commits
 // count as the roots or which keys are committed.
 
 const TIMEOUT_MS = 10_000;
 const MAX_OUTPUT = 1024 * 1024;
 
 // `raw: true` returns the output as bytes, untouched; `input` is written to git's stdin.
-function git(cwd, args, env, { timeout = TIMEOUT_MS, raw = false, input } = {}) {
+function git(cwd, args, env, { timeout = TIMEOUT_MS, raw = false, input, maxBuffer = MAX_OUTPUT } = {}) {
   try {
     const out = execFileSync('git', ['--no-replace-objects', '-c', 'core.fsmonitor=false', ...args], {
       cwd,
       env: { PATH: env.PATH ?? '/usr/bin:/bin', HOME: env.HOME ?? '/nonexistent', GIT_CONFIG_NOSYSTEM: '1' },
       encoding: raw ? 'buffer' : 'utf8',
       timeout,
-      maxBuffer: MAX_OUTPUT,
+      maxBuffer,
       ...(input !== undefined ? { input } : {}),
       stdio: [input !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
@@ -118,4 +118,12 @@ export function catBlobs(root, shas, env, { maxBytes = 16 * 1024 } = {}) {
     found.set(sha, m[2] === 'blob' && size <= maxBytes ? Buffer.from(body) : null);
   }
   return found;
+}
+
+// The files git knows under `paths` (repo-relative; '.' for all): tracked ones plus new ones
+// that .gitignore doesn't exclude (unit 07b). Relative paths with "/", or null when git fails.
+export function lsFiles(root, paths, env) {
+  const r = git(root, ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...paths], env, { raw: true, timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
+  if (!r.ok) return null;
+  return [...new Set(r.out.toString('utf8').split('\0').filter(Boolean))];
 }
