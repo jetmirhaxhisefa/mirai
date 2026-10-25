@@ -223,6 +223,22 @@ version. It covers rounds 1–3:
 
 ## 8. UNVERIFIED facts the design relies on (to test before the unit that needs them)
 
+**Settled by unit 13a (2026-10-25, Claude Code 2.1.310):** G1, G5, G9, G10, G13, G16, G17, G18,
+G20, G22, G24 and G25, in `research/10-claude-code-facts.md`. What changes §7:
+- the login keychain is reachable from sandboxed Bash unless `~/Library/Keychains` is read-denied
+  (G18);
+- `Agent(mirai-*)` doesn't match (exact names only);
+- `/private/tmp/claude-<uid>` (your interactive sessions' scratchpads) is writable unless
+  write-denied;
+- under a home deny, git needs a MIRAI-owned `GIT_CONFIG_GLOBAL`;
+- command denies (§7.5) are speed bumps, since `sh -c` gets past them; the guards are the
+  token's absence from Bash, the empty network and the file denies;
+- the fallback launch form loads the work tree's instruction files, so MIRAI refuses to launch
+  without `--restricted` (your decision, 2026-10-25);
+- a sandboxed command starting an unsandboxed one is now a blocker like G18 (none found).
+
+The rest of this list stays open for its unit; G19 (DNS) is unit 14's.
+
 From round 1 (§2, §5, §6), still open:
 - deny rules behave the same in `-p` as interactively;
 - the exit code and JSON shape when a usage limit is hit in `-p`;

@@ -37,3 +37,41 @@ export function createPrompter(io) {
     },
   };
 }
+
+// Reads one secret line without echoing it (unit 13a: the login token). On a real terminal the
+// input is switched to raw mode, so nothing typed or pasted is shown (text pasted before the
+// prompt appears is echoed by the terminal itself, before MIRAI runs). Ctrl-C or Ctrl-D stops
+// with nothing written. Backspace works; the line ends at Enter. Raw mode is switched off before
+// this returns or throws, and the stream is paused, not destroyed.
+export function readHidden(io, question, { max = ANSWER_MAX } = {}) {
+  io.stdout.write(question);
+  const { stdin } = io;
+  const raw = typeof stdin.setRawMode === 'function';
+  if (raw) stdin.setRawMode(true);
+  return new Promise((resolve, reject) => {
+    let line = '';
+    const finish = (err, value) => {
+      stdin.removeListener('data', onData);
+      stdin.removeListener('end', onEnd);
+      if (raw) stdin.setRawMode(false);
+      stdin.pause();
+      io.stdout.write('\n');
+      if (err) reject(err);
+      else resolve(value);
+    };
+    const onData = (chunk) => {
+      for (const ch of String(chunk)) {
+        if (ch === '\r' || ch === '\n') return finish(null, line);
+        if (ch === '\u0003' || ch === '\u0004') return finish(new MiraiError('stopped; nothing was written', EXIT.INTERRUPTED));
+        if (ch === '\u007f' || ch === '\b') line = line.slice(0, -1);
+        else line += ch;
+        if (line.length > max) return finish(new MiraiError(`the answer is longer than ${max} characters; nothing was written`, EXIT.USAGE));
+      }
+      return undefined;
+    };
+    const onEnd = () => (line === '' ? finish(new MiraiError('no answer (the input closed); nothing was written', EXIT.INTERRUPTED)) : finish(null, line));
+    stdin.on('data', onData);
+    stdin.on('end', onEnd);
+    stdin.resume();
+  });
+}
