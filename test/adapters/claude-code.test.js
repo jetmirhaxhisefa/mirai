@@ -132,14 +132,23 @@ test('T3: init renders CLAUDE.md, the skills and the agents, all rendered in the
 
 test('T4: your CLAUDE.md, skills and agents stay yours; links and unlisted MIRAI names are refused', () => {
   const mine = '# Ours\n\n@AGENTS.md\n\nUse pnpm.\n';
-  const r = repo({ 'CLAUDE.md': mine, '.claude/skills/ours/SKILL.md': '---\nname: ours\ndescription: "x"\n---\n', '.claude/agents/helper.md': '# helper\n', '.claude/settings.json': '{}\n' });
+  const r = repo({ 'CLAUDE.md': mine, '.claude/skills/ours/SKILL.md': '---\nname: ours\ndescription: "x"\n---\n', '.claude/agents/helper.md': '# helper\n', '.claude/settings.json': '{"theme":"dark","permissions":{"allow":["Bash(npm test)"],"deny":["Read(./secrets/**)"]}}\n' });
   const out = install(r);
   assert.equal(read(r.root, 'CLAUDE.md'), `${BLOCK_BEGIN}\n@AGENTS.md\n${BLOCK_END}\n\n${mine}`);
   assert.ok(out.warnings.some((w) => /CLAUDE\.md already has its own @AGENTS\.md line/.test(w)));
   assert.equal(read(r.root, '.claude/skills/ours/SKILL.md'), '---\nname: ours\ndescription: "x"\n---\n');
   assert.equal(read(r.root, '.claude/agents/helper.md'), '# helper\n');
-  assert.equal(read(r.root, '.claude/settings.json'), '{}\n');
-  assert.ok(![...readLock(r.root).files.keys()].some((p) => /ours|helper|settings/.test(p)));
+  // Unit 13c merges MIRAI's denies into your settings; everything of yours stays.
+  const settings = JSON.parse(read(r.root, '.claude/settings.json'));
+  assert.equal(settings.theme, 'dark');
+  assert.deepEqual(settings.permissions.allow, ['Bash(npm test)']);
+  assert.equal(settings.permissions.deny[0], 'Read(./secrets/**)');
+  assert.ok(settings.permissions.deny.includes('Read(~/.config/mirai/**)'));
+  assert.ok(![...readLock(r.root).files.keys()].some((p) => /ours|helper/.test(p)));
+  // The lock lists MIRAI's entries in it, not the whole file.
+  const entry = readLock(r.root).files.get('.claude/settings.json');
+  assert.equal(entry.block, 'mirai-settings');
+  assert.ok(!entry.entries.includes('Read(./secrets/**)'));
 
   // A MIRAI-named file the lock doesn't list: refused, nothing written.
   const taken = repo({ '.claude/agents/mirai-mine.md': '# mine\n' });
@@ -403,3 +412,45 @@ function snapshotOf(dir) {
 
 // A lock's text from its parsed form (recomputing framework_sha256).
 const lockTextOf = (lock) => lockTextFor({ miraiVersion: lock.mirai_version, source: lock.source, bundles: lock.bundles, files: lock.files });
+
+test('T11 (unit 13c): MIRAI\'s hard denies are merged into .claude/settings.json; yours stay; removing one of MIRAI\'s is noticed and put back', () => {
+  const r = repo({ '.claude/settings.json': '{\n  "permissions": {\n    "deny": ["Bash(rm -rf *)"]\n  },\n  "model": "sonnet"\n}\n' });
+  install(r);
+  const settings = () => JSON.parse(read(r.root, '.claude/settings.json'));
+  const s = settings();
+  assert.equal(s.model, 'sonnet');
+  assert.equal(s.permissions.deny[0], 'Bash(rm -rf *)');
+  for (const e of ['Read(~/.config/mirai/**)', 'Edit(~/.config/mirai/**)', 'Read(~/Library/Application Support/mirai/**)', 'Edit(/.git/**)', 'Edit(**/.git/**)',
+    'Edit(/.mirai/keys/**)', 'Edit(/.mirai/records/**)', 'Bash(mirai approve *)', 'Bash(mirai token)', 'Agent(mirai-fixture-reviewer)']) {
+    assert.ok(s.permissions.deny.includes(e), e);
+  }
+  // Rendering again changes nothing.
+  assert.ok(render({ cwd: r.root, env: r.env }).files.every((f) => !f.changed));
+  // Your own edits elsewhere in the file aren't a change to MIRAI's part.
+  writeFileSync(join(r.root, '.claude/settings.json'), JSON.stringify({ ...settings(), theme: 'dark' }, null, 2));
+  assert.deepEqual(checkLock(r.root).changed, []);
+  // Removing one of MIRAI's denies is noticed, and render puts it back (keeping your edit).
+  const edited = settings();
+  edited.permissions.deny = edited.permissions.deny.filter((e) => e !== 'Read(~/.config/mirai/**)');
+  writeFileSync(join(r.root, '.claude/settings.json'), JSON.stringify(edited, null, 2));
+  assert.deepEqual(checkLock(r.root).changed, ['.claude/settings.json']);
+  const out = render({ cwd: r.root, env: r.env });
+  assert.deepEqual(out.files.find((f) => f.path === '.claude/settings.json'), { path: '.claude/settings.json', changed: true, edited: true });
+  assert.ok(settings().permissions.deny.includes('Read(~/.config/mirai/**)'));
+  assert.equal(settings().theme, 'dark');
+  // A settings file that isn't a JSON object is refused, not overwritten.
+  writeFileSync(join(r.root, '.claude/settings.json'), '{ not json');
+  assert.throws(() => render({ cwd: r.root, env: r.env }), (err) => err.code === 'bad-settings');
+  assert.equal(read(r.root, '.claude/settings.json'), '{ not json');
+  // A deny that isn't a list is refused, not dropped; a leading byte-order mark is fine.
+  writeFileSync(join(r.root, '.claude/settings.json'), '{"permissions":{"deny":"Bash(rm *)"}}');
+  assert.throws(() => render({ cwd: r.root, env: r.env }), (err) => err.code === 'bad-settings' && /isn't a list/.test(err.message));
+  writeFileSync(join(r.root, '.claude/settings.json'), '\uFEFF{"permissions":{"deny":["Bash(rm *)"]}}');
+  render({ cwd: r.root, env: r.env });
+  assert.equal(settings().permissions.deny[0], 'Bash(rm *)');
+  assert.ok(settings().permissions.deny.includes('Edit(**/.mirai/keys/**)'));
+  // No settings file yet: MIRAI makes one with only its denies.
+  const fresh = repo();
+  install(fresh);
+  assert.deepEqual(Object.keys(JSON.parse(read(fresh.root, '.claude/settings.json'))), ['permissions']);
+});

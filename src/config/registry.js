@@ -381,11 +381,51 @@ function checkStateMachine(states, path, report) {
   });
 }
 
+// Secret shapes (unit 13c): what the hook refuses in content an agent writes. Each is a regex
+// with a fixed prefix; it must compile, and stays short with no back-references, so data can't
+// make the hook slow or loose.
+const SECRETS = {
+  type: 'table',
+  fields: {
+    kind: { type: 'enum', values: ['secrets'] },
+    schema_version: { type: 'integer', min: 1, max: 1 },
+    name: { type: 'string', pattern: NAME, patternHint: 'for example "core"' },
+    patterns: {
+      type: 'array',
+      minItems: 1,
+      uniqueBy: 'name',
+      items: {
+        type: 'table',
+        fields: {
+          name: { type: 'string', pattern: NAME, patternHint: 'for example "github-token"' },
+          regex: {
+            type: 'string',
+            pattern: /^[^\n]{4,200}$/,
+            patternHint: 'one line of at most 200 characters',
+            check(value, path, report) {
+              if (typeof value !== 'string') return;
+              if (/\\[1-9]|\\k</.test(value)) report(path, `${path} can't use back-references`, undefined, 'pattern');
+              try {
+                new RegExp(value, 'u');
+              } catch {
+                report(path, `${path} isn't a valid regular expression`, undefined, 'pattern');
+              }
+            },
+          },
+        },
+        required: ['name', 'regex'],
+      },
+    },
+  },
+  required: ['kind', 'schema_version', 'name', 'patterns'],
+};
+
 const KINDS = [
   { folder: 'agents', kind: 'agent', bucket: 'agents', schema: AGENT, refs: ['prompt'] },
   { folder: 'document-types', kind: 'document-type', bucket: 'documentTypes', schema: DOCUMENT_TYPE, refs: ['template', 'checklist'] },
   { folder: 'adapters', kind: 'adapter', bucket: 'adapters', schema: ADAPTER, refs: [] },
   { folder: 'protected-paths', kind: 'protected-paths', bucket: 'protectedPaths', schema: PROTECTED_PATHS, refs: [] },
+  { folder: 'secrets', kind: 'secrets', bucket: 'secrets', schema: SECRETS, refs: [] },
 ];
 
 // Loads and checks every definition under `dir`. Returns frozen `{ dir, agents, documentTypes,
@@ -394,7 +434,7 @@ const KINDS = [
 // lint read a type's template (unit 08a).
 export function loadRegistry(dir) {
   const problems = [];
-  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
+  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, secrets: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
   for (const { folder, kind, bucket: key, schema, refs } of KINDS) {
     let files = [];
     const sub = join(dir, folder);

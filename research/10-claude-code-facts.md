@@ -83,6 +83,26 @@ safe value and refuses a settings file that loosens one.
   `cc-plugin-telemetry`, `cc-plugin-plugin-authoring`, path `builtin`); under `--restricted` a
   project `AGENTS.md` still doesn't reach the agent (one run).
 
+**From unit 13c's probes** (same versions):
+- **Hard links: a gap in 13b, closed in 13c.** Sandboxed Bash can't *create* a hard link to a
+  read-denied file (`ln .env x` is refused). But when a second name for a secret file already
+  exists, both the Read tool and sandboxed Bash read it: the sandbox and the permission rules
+  match paths, and a hard link is another path to the same data. 13c refuses a launch while a
+  real `.env*` file, the token or the signing key has a second name, and the hook refuses a file
+  tool call on any file with a protected file's device and inode.
+- **Hooks from `--settings` run under `--restricted`,** and a hook's refusal (exit 2) holds.
+- **The Read tool needs no permission inside the project** under `--restricted` and `dontAsk`
+  (it read with Read absent from the allow list). So for reads a hook can only add refusals.
+- **The write tools do need it:** with Write absent from the allow list it's refused; a hook's
+  "allow" lets it through; a hook that crashes leaves it refused. So MIRAI makes the hook the
+  gate for writes, and a broken hook fails closed.
+- **What a hook must not do** (13c review): say "allow" for reads (an allow is a grant, and may
+  skip Claude Code's own outside-the-project check), or judge a path Claude Code reads
+  differently (`~`, spaces). MIRAI's hook stays silent on reads it lets through, and refuses any
+  path that isn't plain and absolute.
+- **A hook call costs about 200 ms** on this Mac (Node's own start is about 120 ms; the
+  trust-root hash check about 30 ms).
+
 **Also seen:** the sandbox sets proxy variables, `GIT_CONFIG_PARAMETERS`, `GIT_SSH_COMMAND`,
 `SRT_SSH_PROXY_COMMAND` and `SANDBOX_RUNTIME` for Bash; `CLAUDECODE`, `CLAUDE_PID` and other
 session variables are visible to Bash. G2 (the usage-limit exit code) wasn't hit. G19 (DNS) wasn't

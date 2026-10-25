@@ -40,7 +40,10 @@ const validate = compileSchema({
       properties: {
         path: { type: 'string', maxLength: 512, pattern: PATH },
         mark: { enum: ['framework', 'rendered', 'project'] },
-        block: { enum: ['mirai'] },
+        // `mirai`: a marked text block (AGENTS.md, CLAUDE.md). `mirai-settings`: MIRAI's entries in
+        // a JSON settings file (unit 13c), listed in `entries`; the rest of the file is yours.
+        block: { enum: ['mirai', 'mirai-settings'] },
+        entries: { type: 'array', maxItems: 500, items: { type: 'string', minLength: 1, maxLength: 400 } },
         sha256: HASH,
         // For a rendered file: what it was rendered from, with each input's hash then.
         from: {
@@ -90,6 +93,7 @@ function checkEntries(files, what) {
     if (f.mark !== 'project' && !f.sha256) throw new LockError(`${what}: ${f.path} is ${f.mark}, so it needs its hash`, { code: 'lock-invalid' });
     if (f.mark === 'project' && (f.sha256 || f.block || f.from)) throw new LockError(`${what}: ${f.path} is yours, so it has no hash`, { code: 'lock-invalid' });
     if (f.mark !== 'rendered' && (f.block || f.from)) throw new LockError(`${what}: only a rendered file has a block or inputs (${f.path})`, { code: 'lock-invalid' });
+    if ((f.block === 'mirai-settings') !== Array.isArray(f.entries)) throw new LockError(`${what}: ${f.path} lists settings entries only with block mirai-settings`, { code: 'lock-invalid' });
   }
 }
 
@@ -210,13 +214,29 @@ export function checkLock(root) {
       if (err.code === 'ENOENT') { out.missing.push(f.path); continue; }
       throw err;
     }
-    const hash = f.block ? blockHash(bytes.toString('utf8'), f.path) : f.mark === 'rendered' ? renderedHash(bytes) : sha256(bytes);
+    const hash = f.block === 'mirai-settings' ? settingsHash(bytes.toString('utf8'), f.entries)
+      : f.block ? blockHash(bytes.toString('utf8'), f.path) : f.mark === 'rendered' ? renderedHash(bytes) : sha256(bytes);
     if (hash !== f.sha256) out.changed.push(f.path);
   }
   for (const path of filesUnder(root, '.mirai/framework')) {
     if (!lock.files.has(path)) out.added.push(path);
   }
   return out;
+}
+
+// MIRAI's entries in a JSON settings file (unit 13c): the hash of those of `entries` that are in
+// its permissions.deny, in order. It equals entriesHash(entries) while every one is there, so
+// removing one of MIRAI's denies is noticed and your own changes to the file aren't.
+export const entriesHash = (entries) => sha256(JSON.stringify(entries));
+export function settingsHash(text, entries) {
+  let deny = [];
+  try {
+    const value = JSON.parse(text);
+    if (Array.isArray(value?.permissions?.deny)) deny = value.permissions.deny;
+  } catch {
+    return null;
+  }
+  return entriesHash(entries.filter((e) => deny.includes(e)));
 }
 
 // The hash of a file's MIRAI block, or null when it has none.

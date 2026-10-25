@@ -41,8 +41,8 @@ builtin_plugins = ["cc-plugin-agents-md", "cc-plugin-plugin-authoring", "cc-plug
 builtin_skills = ["batch", "claude-api", "code-review", "dataviz", "debug", "deep-research", "design", "design-sync", "doctor", "fewer-permission-prompts", "loop", "plugin-authoring", "run", "run-skill-generator", "schedule", "simplify", "update-config", "verify", "workflow-authoring"]
 builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-setup"]
 
-# Owned by this adapter once their units exist: the interactive settings (unit 13c), the MCP
-# config (unit 15).
+# Files this adapter writes or will write: your interactive sessions' settings, where MIRAI
+# merges its hard denies (unit 13c), and the MCP config (unit 15).
 [later]
 settings = ".claude/settings.json"
 mcp = ".mcp.json"

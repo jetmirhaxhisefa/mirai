@@ -7,15 +7,16 @@ import { PROJECT_CONFIG, readConfigFile, checkConfig } from '../config/load.js';
 import { loadRegistry } from '../config/registry.js';
 import { topLevel } from '../store/git.js';
 import { buildBundle } from '../adapters/bundle.js';
-import { ADAPTER, instructionBlock, interactivePath, isManaged, isMiraiName, renderAgent } from '../adapters/claude-code.js';
-import { LOCK_FILE, checkLock, filesUnder, readLock, renderedHash, updateLock, replaceFile, noLinks, sha256 } from './lock.js';
+import { ADAPTER, instructionBlock, interactiveDenies, interactivePath, isManaged, isMiraiName, renderAgent } from '../adapters/claude-code.js';
+import { LOCK_FILE, checkLock, entriesHash, filesUnder, readLock, renderedHash, settingsHash, updateLock, replaceFile, noLinks, sha256 } from './lock.js';
 import { AGENTS_WARN_BYTES, BlockError, blockOf, localInstructions, renderBlock, withBlock } from './agents-block.js';
 
 // The rendered files (units 10 and 11; D-37): made from the framework copy plus your own files,
 // and listed in the lock as `rendered`, with the hash of what MIRAI owns and of each input:
 // - AGENTS.md's MIRAI block (unit 10);
 // - CLAUDE.md's MIRAI block, which imports AGENTS.md, and the launch bundle's skills and agents
-//   under .claude/ (unit 11).
+//   under .claude/ (unit 11);
+// - MIRAI's hard denies in .claude/settings.json, merged into yours (unit 13c).
 // `init` renders them first; `mirai render` renders them again from the installed framework
 // copy, after you changed `.mirai/config.toml` or `.mirai/context/agents-local.md`.
 
@@ -129,6 +130,44 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
     }
     const entry = { path: file, mark: 'rendered', block: 'mirai', sha256: sha256(blockOf(text, { file })), from: [inRegistry(registry.adapterFiles[ADAPTER])] };
     add(file, text, entry, claudeNow, claudeNow && blockOf(claudeNow.text, { file }) !== null ? sha256(blockOf(claudeNow.text, { file })) : null);
+  }
+
+  // Your interactive sessions' settings (unit 13c): MIRAI's hard denies merged into the file, the
+  // rest of it left as it is. Denies MIRAI added before and no longer ships are taken out; yours
+  // are never touched. The lock lists MIRAI's entries, not the whole file's hash.
+  const settingsPath = profile.later?.settings;
+  if (settingsPath) {
+    noLinks(root, settingsPath);
+    const abs = join(root, settingsPath);
+    let existing = null;
+    let value = {};
+    if (existsSync(abs)) {
+      if (!lstatSync(abs).isFile()) throw new BlockError(`${settingsPath} is not a file`, { code: 'not-file' });
+      const bytes = readFileSync(abs);
+      try {
+        value = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''));
+      } catch {
+        throw new BlockError(`${settingsPath} isn't valid JSON, so MIRAI can't add its rules to it`, { code: 'bad-settings', hint: 'fix it, then run: mirai render' });
+      }
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new BlockError(`${settingsPath} isn't a JSON object`, { code: 'bad-settings', hint: 'fix it, then run: mirai render' });
+      if (value.permissions !== undefined && (value.permissions === null || typeof value.permissions !== 'object' || Array.isArray(value.permissions))) {
+        throw new BlockError(`${settingsPath}: permissions isn't an object`, { code: 'bad-settings', hint: 'fix it, then run: mirai render' });
+      }
+      if (value.permissions?.deny !== undefined && !Array.isArray(value.permissions.deny)) {
+        throw new BlockError(`${settingsPath}: permissions.deny isn't a list`, { code: 'bad-settings', hint: 'fix it, then run: mirai render' });
+      }
+      existing = { bytes };
+    }
+    const entries = interactiveDenies(registry);
+    const before = listed(settingsPath)?.entries ?? [];
+    const kept = Array.isArray(value.permissions?.deny) ? value.permissions.deny.filter((e) => !before.includes(e) || entries.includes(e)) : [];
+    const deny = [...kept, ...entries.filter((e) => !kept.includes(e))];
+    const next = { ...value, permissions: { ...(value.permissions ?? {}), deny } };
+    const text = `${JSON.stringify(next, null, 2)}\n`;
+    const same = existing !== null && JSON.stringify(value) === JSON.stringify(next);
+    const from = sortByPath([inRegistry(registry.adapterFiles[ADAPTER]), ...Object.values(registry.agentFiles).map(inRegistry)]);
+    const editedHash = existing && before.length ? settingsHash(existing.bytes.toString('utf8'), before) : null;
+    add(settingsPath, text, { path: settingsPath, mark: 'rendered', block: 'mirai-settings', sha256: entriesHash(entries), entries, from }, existing, editedHash, same);
   }
 
   // The launch bundle's skills and agents, under .claude/.

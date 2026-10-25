@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, linkSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -19,7 +19,16 @@ import { EXIT } from '../../src/cli/exit-codes.js';
 
 const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args], { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
 const temps = [];
+// Every launch a test makes is removed afterwards, even when an assertion fails half-way: a
+// launch's scratch folder lives in /private/tmp, outside the temp folders removed below.
+const launches = [];
+const launch = (opts) => {
+  const plan = prepareLaunch(opts);
+  launches.push(plan);
+  return plan;
+};
 after(() => {
+  for (const p of launches) removeLaunch(p.launchDir, p.scratchDir);
   for (const d of temps) {
     makeWritable(d);
     rmSync(d, { recursive: true, force: true });
@@ -75,7 +84,8 @@ const FACTS = {
   checkout: '/Users/dev/Projects/app', home: '/Users/dev', miraiHome: '/Users/dev/Library/Application Support/mirai',
   repoHome: '/Users/dev/Library/Application Support/mirai/app-0123456789ab', trustDir: '/Users/dev/Library/Application Support/mirai/app-0123456789ab/trust/abc',
   launchDir: '/Users/dev/Library/Application Support/mirai/app-0123456789ab/launches/L1', scratchDir: '/private/tmp/mirai-0a1b2c3d', envFiles: ['.env', 'sub/.env', '.env.test'], tracked: ['.env.test'],
-  hooksPath: null, userDirs: ['/private/var/folders/xy/abc/T', '/private/var/folders/xy/abc/C'], uid: 501,
+  hooksPaths: [], userDirs: ['/private/var/folders/xy/abc/T', '/private/var/folders/xy/abc/C'], uid: 501,
+  hookCommand: '"/usr/local/bin/node" "/x/hook.js" "/x/policy.json" abc',
 };
 const within = (p, dir) => p === dir || p.startsWith(`${dir}/`);
 const template = (config = { compose: { env_file: '.env.test' } }, mode = 'read-write') => strictTemplate({ registry: loadRegistry(REPO), config, mode });
@@ -147,7 +157,7 @@ test('T2b: a readable env file must be a committed .env* file that isn\'t person
 
 test('T3: writes: no allowWrite inside a denyWrite; read-only agents never write the checkout; nobody writes .git at any depth, .mirai, auto-run or hook paths, the store, trust or Claude\'s shared temp', () => {
   const registry = loadRegistry(REPO);
-  const rw = renderStrict(strictTemplate({ registry, config: { gate: { packs: ['node'] } }, mode: 'read-write' }), { ...FACTS, hooksPath: '.githooks' });
+  const rw = renderStrict(strictTemplate({ registry, config: { gate: { packs: ['node'] } }, mode: 'read-write' }), { ...FACTS, hooksPaths: ['/Users/dev/Projects/app/.githooks'] });
   const ro = renderStrict(strictTemplate({ registry, config: {}, mode: 'read-only' }), FACTS);
   const co = FACTS.checkout;
   for (const s of [rw, ro]) {
@@ -223,7 +233,7 @@ test('T5, T6: the launch: production layout, a private folder, read-only input, 
     PATH: `node_modules/.bin:.::${r.root}/bin:${process.env.PATH}` };
   assert.throws(() => prepareLaunch({ trust, template: t, checkout: r.root, env }), /no Claude login token/);
   writeToken(env, TOKEN);
-  const plan = prepareLaunch({ trust, template: t, checkout: r.root, env });
+  const plan = launch({ trust, template: t, checkout: r.root, env });
   const mode = (p) => statSync(p).mode & 0o777;
   assert.deepEqual(Object.keys(plan.env).sort(), ['CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR', 'CLAUDE_CODE_TMPDIR', 'CLAUDE_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'HOME', 'LANG', 'PATH', 'TMPDIR']);
   for (const d of plan.env.PATH.split(':')) assert.ok(d.startsWith('/') && !d.startsWith(plan.cwd), `PATH keeps ${d}`);
@@ -257,20 +267,51 @@ test('T5, T6: the launch: production layout, a private folder, read-only input, 
   assert.equal(plan.templateSha256, trust.manifest.files.find((f) => f.path === 'strict/read-write.json').sha256);
   assert.match(plan.canonicalSha256, /^[0-9a-f]{64}$/);
   assert.equal(plan.expectedInit.cwd, plan.cwd);
+  // The hook (unit 13c): the write tools are allowed only by the hook, which runs from the trust
+  // root with the launch's read-only policy, checked by its hash.
+  assert.deepEqual(settings.permissions.allow, ['Bash', 'Glob', 'Grep', 'Read']);
+  const hook = settings.hooks.PreToolUse[0];
+  assert.equal(hook.matcher, 'Read|Glob|Grep|Edit|Write|MultiEdit|NotebookEdit');
+  const policyFile = join(plan.launchDir, 'input', 'hook-policy.json');
+  assert.equal(mode(policyFile), 0o400);
+  const policyText = readFileSync(policyFile, 'utf8');
+  const trustReal = realpathSync(trust.dir);
+  assert.equal(hook.hooks[0].command, `/usr/bin/env -i "HOME=${realpathSync(r.env.HOME)}" "PATH=/usr/bin:/bin" "${realpathSync(process.execPath)}" "${join(trustReal, 'tree', '.mirai', 'framework', 'bin', 'hook.js')}" "${policyFile}" ${execFileSync('shasum', ['-a', '256'], { input: policyText }).toString().split(' ')[0]}`);
+  const policy = JSON.parse(policyText);
+  assert.deepEqual(policy.trust, { dir: trustReal, manifestSha256: trust.manifestSha256 });
+  assert.ok(policy.protectedInodes.some(([, , p]) => p === join(plan.cwd, '.env')));
+  assert.ok(!policyText.includes(TOKEN));
+  assert.ok(policy.secrets.length >= 5);
   // Two launches never share a folder; a launch that fails leaves nothing behind.
-  const second = prepareLaunch({ trust, template: t, checkout: r.root, env });
+  const second = launch({ trust, template: t, checkout: r.root, env });
   assert.notEqual(second.launchDir, plan.launchDir);
   assert.notEqual(second.scratchDir, plan.scratchDir);
   removeLaunch(second.launchDir, second.scratchDir);
-  const launches = join(dirname(plan.launchDir));
-  const before = readdirSync(launches).length;
+  const launchesDir = dirname(plan.launchDir);
+  const before = readdirSync(launchesDir).length;
   const scratches = () => readdirSync('/private/tmp').filter((n) => /^mirai-[0-9a-f]{8}$/.test(n)).length;
   const scratchBefore = scratches();
   assert.throws(() => prepareLaunch({ trust, template: { ...t, mode: 'admin' }, checkout: r.root, env }), /mode/);
-  assert.equal(readdirSync(launches).length, before);
+  assert.equal(readdirSync(launchesDir).length, before);
   assert.equal(scratches(), scratchBefore, 'a failed launch left its scratch folder');
   removeLaunch(plan.launchDir, plan.scratchDir);
   assert.ok(!existsSync(plan.launchDir) && !existsSync(plan.scratchDir));
+  // A hard link to a real .env file (unit 13c): the launch is refused, and leaves nothing.
+  linkSync(join(r.root, '.env'), join(r.root, 'notes.txt'));
+  const now = readdirSync(launchesDir).length;
+  assert.throws(() => prepareLaunch({ trust, template: t, checkout: r.root, env }), /second name on disk.*\.env/);
+  assert.equal(readdirSync(launchesDir).length, now);
+  rmSync(join(r.root, 'notes.txt'));
+  // A .env that is a symbolic link: its target is readable under its own name, so refused too.
+  mkdirSync(join(r.root, 'config'), { recursive: true });
+  writeFileSync(join(r.root, 'config', 'app.secrets'), 'X=real\n');
+  symlinkSync('config/app.secrets', join(r.root, '.env.prod'));
+  assert.throws(() => prepareLaunch({ trust, template: t, checkout: r.root, env }), /is a symbolic link.*\.env\.prod/);
+  rmSync(join(r.root, '.env.prod'));
+  // A trust root without its verified manifest hash is refused.
+  assert.throws(() => prepareLaunch({ trust: { ...trust, manifestSha256: undefined }, template: t, checkout: r.root, env }), /verified trust root/);
+  const again = launch({ trust, template: t, checkout: r.root, env });
+  removeLaunch(again.launchDir, again.scratchDir);
 });
 
 test('T7: checkInit passes what was asked for and names every difference; the version is required', () => {

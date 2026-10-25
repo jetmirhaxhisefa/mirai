@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 
 // The throwaway fixture for unit 13a's probes. Everything a probe may read lives here, under
@@ -73,6 +73,7 @@ export function buildFixture(workdir, { home = process.env.HOME } = {}) {
     keychain: canary('keychain'), gitCredential: canary('git-credential'),
     envVar: canary('env-var'), outsideDir: canary('outside-dir'), agentsMd: canary('agents-md'),
     nestedEnv: canary('nested-env'), claudeTmp: canary('claude-tmp'), userTmp: canary('user-tmp'),
+    configCanary: canary('config-mirai'), storeCanary: canary('mirai-store'),
   };
   const m = {
     readme: `MARKER-readme-${randomBytes(6).toString('hex')}`,
@@ -135,13 +136,32 @@ export function buildFixture(workdir, { home = process.env.HOME } = {}) {
   put(repoHome, 'store/state.json', `{"secret":"${c.store}"}\n`);
   put(repoHome, 'trust/abc/readme.txt', `${m.trust}\n`);
   put(miraiHome, 'launcher.json', '{}\n');
+  // A home folder for the interactive-settings probes (unit 13c): canaries where your signing key
+  // and MIRAI's store live, never your real ones.
+  const fakeHome = join(root, 'fake-home');
+  put(fakeHome, '.config/mirai/canary.txt', `${c.configCanary}\n`);
+  put(fakeHome, 'Library/Application Support/mirai/canary.txt', `${c.storeCanary}\n`);
   mkdirSync(join(root, 'settings'), { recursive: true });
   mkdirSync(join(root, 'run-tmp'), { recursive: true });
   writeFileSync(join(root, 'gitconfig'), '[user]\n\tname = Probe\n');
   mkdirSync(join(root, 'out'), { recursive: true });
 
+  // A test hook for unit 13c's probes: `deny` writes a marker (proof it ran) and refuses; `allow`
+  // allows; `crash` fails as a broken hook would.
+  writeFileSync(join(root, 'hook-probe.mjs'), [
+    "import { writeFileSync } from 'node:fs';",
+    'const [mode, marker] = process.argv.slice(2);',
+    "let input = ''; process.stdin.on('data', (d) => (input += d)); process.stdin.on('end', () => {",
+    "  writeFileSync(marker, input);",
+    "  if (mode === 'crash') throw new Error('broken hook');",
+    "  if (mode === 'deny') { process.stderr.write('refused by the probe hook'); process.exit(2); }",
+    "  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'probe hook' } }));",
+    '});',
+  ].join('\n'));
   const launchdLabel = `mirai-probe-${randomBytes(6).toString('hex')}`;
-  return { root, project: p, outside: o, remote, claudeHome, userA, userB, miraiHome, repoHome, launchdLabel, canaries: c, markers: m };
+  // The "~" probe's file name in your home folder (removed by its check).
+  const tildeName = `.mirai-probes-tilde-${randomBytes(6).toString('hex')}.txt`;
+  return { root, project: p, outside: o, remote, claudeHome, userA, userB, miraiHome, repoHome, fakeHome, launchdLabel, tildeName, canaries: c, markers: m };
 }
 
 // Puts the project back as built, after each probe: tracked files restored, untracked files a
@@ -154,6 +174,28 @@ export function resetProject(ctx) {
   rmSync(join(ctx.outside, 'dir', 'new.txt'), { force: true });
 }
 
+// A real trust root in the fixture's MIRAI home (unit 13c: the hook runs from it and checks its
+// hashes): MIRAI's framework copy under tree/, the readme canary, and a manifest, read-only, the
+// way unit 12's snapshot lays it out. Returns the manifest's hash.
+export function buildTrustRoot(ctx, packageRoot, parts) {
+  const dir = join(ctx.repoHome, 'trust', 'abc');
+  for (const part of parts) cpSync(join(packageRoot, part), join(dir, 'tree', '.mirai', 'framework', part), { recursive: true });
+  const files = [];
+  const walk = (rel) => {
+    for (const e of readdirSync(join(dir, rel), { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const p = rel === '.' ? e.name : `${rel}/${e.name}`;
+      if (e.isDirectory()) walk(p);
+      else if (p !== 'manifest.json') files.push({ path: p, sha256: createHash('sha256').update(readFileSync(join(dir, p))).digest('hex') });
+    }
+  };
+  walk('.');
+  const text = `${JSON.stringify({ schema_version: 1, format: 2, base_sha: 'fixture', branch: 'main', files }, null, 2)}\n`;
+  writeFileSync(join(dir, 'manifest.json'), text);
+  for (const f of files) chmodSync(join(dir, f.path), 0o444);
+  chmodSync(join(dir, 'manifest.json'), 0o444);
+  return createHash('sha256').update(text).digest('hex');
+}
+
 // True when the bare remote received anything.
 export function remoteHasRefs(ctx) {
   return git(ctx.remote, ['for-each-ref']) !== '';
@@ -162,7 +204,7 @@ export function remoteHasRefs(ctx) {
 // Removes the fixture (the reports in out/ are kept when `keepOut`).
 export function removeFixture(ctx, { keepOut = true } = {}) {
   spawnSync('chmod', ['-R', 'u+rwX', join(ctx.root, 'mirai-home')]);
-  for (const name of ['project', 'outside', 'remote.git', 'claude-home', 'user-a', 'user-b', 'mirai-home', 'settings', 'run-tmp', 'gitconfig', 'launch']) {
+  for (const name of ['project', 'outside', 'remote.git', 'claude-home', 'user-a', 'user-b', 'mirai-home', 'settings', 'run-tmp', 'gitconfig', 'launch', 'hook-probe.mjs', 'hook-ran', 'fake-home']) {
     const path = join(ctx.root, name);
     if (existsSync(path)) rmSync(path, { recursive: true, force: true });
   }

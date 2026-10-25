@@ -56,6 +56,16 @@ export function tokenSetAt(env) {
   }
 }
 
+// The token from a given token file (the hook, unit 13c, gets the path from its policy): the
+// same checks as readToken.
+export function readTokenAt(path) {
+  const text = readPrivateFile(path, { maxBytes: 1024, optional: true });
+  if (text === null) return null;
+  const token = text.replace(/\n$/, '');
+  if (!TOKEN_SHAPE.test(token)) throw new StoreError(`${path}: doesn't hold a token`, { path, code: 'bad-token', hint: 'set it again: mirai token set' });
+  return token;
+}
+
 // Removes the token; false when there was none. An exposed file (too open, or a link) is
 // exactly when you want this to work, so only a folder in its place is refused; a link is
 // removed, never followed.
@@ -72,3 +82,38 @@ export function clearToken(env) {
   unlinkSync(path);
   return true;
 }
+
+const WINDOW = 16;
+
+// Every form of the token a leak would use (unit 13a's harness, moved here for the hook, 13c): the
+// token and its URL encoding; base64 and base64url at all three offsets, so a token inside a
+// longer encoded string is caught too; hex in either case; and any 16-character piece of it.
+export function tokenForms(token) {
+  const forms = new Set([token, encodeURIComponent(token)]);
+  const hex = Buffer.from(token).toString('hex');
+  forms.add(hex);
+  forms.add(hex.toUpperCase());
+  for (let pad = 0; pad < 3; pad++) {
+    const b64 = Buffer.concat([Buffer.alloc(pad, 0x20), Buffer.from(token)]).toString('base64');
+    // Drop the characters that depend on what's around the token.
+    const middle = b64.slice(pad === 0 ? 0 : 4, -4);
+    forms.add(middle);
+    forms.add(middle.replace(/\+/g, '-').replace(/\//g, '_'));
+  }
+  const pieces = [];
+  for (let i = 0; i + WINDOW <= token.length; i++) pieces.push(token.slice(i, i + WINDOW));
+  return { whole: [...forms].sort((a, b) => b.length - a.length), pieces };
+}
+
+// The text with every form of the token replaced by <token>.
+export function redactToken(text, token) {
+  if (!token) return text;
+  const { whole, pieces } = tokenForms(token);
+  let s = text;
+  for (const f of whole) s = s.split(f).join('<token>');
+  for (const p of pieces) s = s.split(p).join('<token>');
+  return s;
+}
+
+// True when any form of the token is in the text.
+export const containsToken = (text, token) => Boolean(token) && redactToken(text, token) !== text;

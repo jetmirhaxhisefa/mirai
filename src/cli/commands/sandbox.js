@@ -32,6 +32,7 @@ export default {
     const template = trustedStrict(trust, name);
     const launchDir = join(store.repoHome, 'launches', 'EXAMPLE');
     const facts = launchFacts({ trust, checkout: store.checkout, env: io.env, launchDir, scratchDir: '/private/tmp/mirai-EXAMPLE0', template });
+    facts.hookCommand = `"<node>" "${join(trust.dir, 'tree', '.mirai', 'framework', 'bin', 'hook.js')}" "${join(launchDir, 'input', 'hook-policy.json')}" <policy sha256>`;
     const settings = renderStrict(template, facts);
     const { refused } = readableEnv(template, facts.tracked);
     const flags = launchArgs({ template, settingsFile: join(launchDir, 'input', 'settings.json'), agentsJson: template.agent ? '<the agent from the trust root>' : null });

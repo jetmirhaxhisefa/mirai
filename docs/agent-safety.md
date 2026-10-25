@@ -83,6 +83,53 @@ branch. Neither the branch the agent works on nor your own Claude settings can l
     brings some of its own). One that isn't means `--restricted` stopped keeping things out;
   - a Claude Code version other than the one the safety tests passed on.
 
+### The second layer: MIRAI's hook
+
+The sandbox covers every command an agent runs. Claude Code's own file tools (Read, Edit,
+Write, Grep, Glob) run outside it, and Claude Code's rules for them match file **names**. So
+MIRAI adds a second check, a **hook**: a small MIRAI program Claude Code runs before every file
+tool call. It looks at the file on disk, not just the name it's given, and refuses:
+- **any path that isn't a plain absolute path** (one starting with `~`, a space, or using `..`),
+  rather than guessing how Claude Code reads it;
+- **anything outside the project,** after following symlinks and ignoring letter case (as
+  macOS does), and any write through a symlink that points nowhere;
+- **`.git` and `.env*` files, at any depth;**
+- **writes to `.mirai`, to the files that run by themselves, and to your git hooks folder;**
+- **any file that is the same file on disk as a protected one** (a *hard link*: a second name
+  for the same data);
+- **writes that contain your login token** (in any encoding) **or a known secret format**, such
+  as a private key, a GitHub, GitLab, AWS, Slack, Stripe or npm token. Only formats with a
+  fixed prefix, so ordinary code doesn't trip it. A key pasted as a test fixture is refused too;
+  the agent is told to use a placeholder or make the key when the tests run. This checks what
+  the **file tools** write; something written by a shell command isn't scanned here, and the
+  push check (unit 26) is the backstop for both.
+
+For **writes**, the hook is the gate: the agent's write tools work only when the hook allows
+the call, so a hook that fails to run means no write. For **reads**, Claude Code needs no
+permission inside the project, so the hook only refuses (when a read is fine it says nothing,
+leaving Claude Code's own checks in place); if it ever failed to run, the first layer (the
+sandbox, `--restricted` and the deny rules) still stands. On every call the hook checks that the
+run's policy and the rest of MIRAI's trust root are unchanged. It can't vouch for its own code,
+since it is that code: what keeps agents from changing it is the sandbox's write deny on the
+trust root. A call costs about 0.2 seconds.
+
+**What the hook can't close:** it checks a file, then Claude Code uses it a moment later. An
+agent running a command in the background could swap the file for a symlink in between. Claude
+Code's own symlink check has the same gap. The sandbox still covers everything the agent's
+commands do; this gap is about the file tools only.
+
+**Hard links, specifically.** An agent can't create one (the sandbox refuses), but if a
+second name for a secret file already exists in the project, both the sandbox and the file
+tools would read the secret through it. So a launch is refused while a real `.env*` file, your
+token or your signing key has a second name, or is itself a symbolic link (its target would be
+readable under the target's own name). The message tells you what to do.
+
+**MIRAI protects names and file identity, not content.** A copy of a secret made before the
+run under another name (`prod.env`, `config/app.env`, a `*.pem` key, an `auth.json`) is a new
+file MIRAI doesn't know is secret. So is a `.env` that was ever committed: it stays readable in
+git's history. Keep secrets out of the project folder except the `.env*` files, and never commit
+them. Secret files for a given technology come as pack data later (unit 17).
+
 ### Seeing it yourself: `mirai sandbox show`
 
 The rules are generated from MIRAI's trust root, your project config and this machine's paths,
@@ -112,6 +159,26 @@ It prints:
 may write is MIRAI's trust-root snapshot, if there isn't one yet: the same cached copy every
 launch builds, kept outside the project.
 
+## Your own Claude Code sessions in a MIRAI project
+
+Your interactive sessions don't run in the strict bundle: you're there, approving what they
+do. MIRAI still adds a few hard rules to the project's `.claude/settings.json`. They stop
+Claude's file tools outright, whatever a conversation asks; a shell command (`cat` of a file,
+for example) isn't covered by them and still asks you first, and the command rules below are
+speed bumps:
+- never read or change `~/.config/mirai` (your signing key and the token) or MIRAI's store;
+- never write into `.git` or the committed keys and records under `.mirai/`;
+- never run the commands only you may run (`mirai approve`, `drop`, `key`, `token`);
+- never start MIRAI's agents as subagents: they always go through MIRAI, which logs them and
+  keeps them in their limits.
+
+MIRAI **merges** these into your `.claude/settings.json`: your own settings and rules stay as
+they are, and `mirai render` adds MIRAI's back if one goes missing. The lock records only
+MIRAI's entries, so your own changes to the file are never flagged. The file is rewritten as
+plain JSON with 2-space indents the first time. It's shared with your team, so put rules that
+are only yours in `.claude/settings.local.json`, which Claude Code reads too (keep it out of
+git).
+
 ## How this was tested
 
 Every limit above rests on a fact that was tested, not assumed (unit 13a,
@@ -127,6 +194,9 @@ What the tests found, on Claude Code 2.1.310 and macOS 26.7:
   `~/Library/Keychains` closes it, and that was tested twice.
 - No way was found for a sandboxed command to start a program outside the sandbox (`open`,
   `osascript`, `launchctl` were all tried).
+- **A hard link to a secret file** (a second name for the same data) would let both the sandbox
+  and the file tools read it. Agents can't create one, and MIRAI refuses to launch while one
+  exists (unit 13c).
 - The rendered bundle itself passes the same tests (unit 13b).
 
 The tests are re-run after every Claude Code update (unit 18), because each fact holds for the
@@ -217,7 +287,5 @@ So if your token leaks:
 
 ## Coming next
 
-- **Unit 13c:** a second layer of checks on every file the agent reads or writes, and the
-  settings for your own interactive Claude Code sessions in a MIRAI project.
 - **Unit 18:** the red-team suite, re-run after every update.
 - **Unit 19:** the first real agent runs.

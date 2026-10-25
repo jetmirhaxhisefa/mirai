@@ -2,8 +2,6 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync,
 import { dirname, join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 
-import { MiraiError } from '../cli/errors.js';
-import { EXIT } from '../cli/exit-codes.js';
 import { checkConfig, readConfigFile } from '../config/load.js';
 import { loadRegistry } from '../config/registry.js';
 import { catBlobs, commitOf, isAncestor, lsTree, remotes } from '../store/git.js';
@@ -16,6 +14,9 @@ import { ADAPTER, renderAgent, writePluginDir } from '../adapters/claude-code.js
 import { filesUnder, parseLock, sha256 } from '../install/lock.js';
 import { strictTemplates, templateText } from '../launch/strict.js';
 import { INSTRUCTION_FILES, importClosure } from './imports.js';
+import { TrustError, verifyTrustRoot } from './verify.js';
+
+export { TrustError, verifyTrustRoot };
 
 // The trust root (unit 12; D-15, D-47, R2-C1). At run start, MIRAI's files are read from the
 // integration branch's commit (git objects, never the work tree), checked against that commit's
@@ -49,15 +50,6 @@ const PARTS = Object.freeze(['.mirai/framework', '.mirai/mirai.lock', '.mirai/co
 // here): instruction files at any depth, the tool's own instruction files and rules, project
 // skills, and everything they @-import.
 const INSTRUCTION_PATHS = Object.freeze(['.claude/CLAUDE.md', '.claude/rules/**', '.claude/skills/**', '.agents/skills/**']);
-
-export class TrustError extends MiraiError {
-  constructor(message, { code, hint, exitCode = EXIT.BLOCKED } = {}) {
-    super(message, exitCode);
-    this.name = 'TrustError';
-    this.code = code;
-    this.hint = hint;
-  }
-}
 
 // The integration branch's commit: the local branch, which must match its remote-tracking branch
 // when there is one (no fetch: MIRAI's own commands never use the network). A branch that exists
@@ -268,48 +260,6 @@ function loadTreeConfig(treeRoot) {
   const path = join(treeRoot, '.mirai/config.toml');
   if (!existsSync(path)) throw new TrustError('the integration branch has no .mirai/config.toml', { code: 'no-base-config' });
   return checkConfig([{ kind: 'project', file: readConfigFile(path, { trust: 'project', source: '.mirai/config.toml', within: treeRoot }) }]).config;
-}
-
-// Hashes a trust root again: the manifest against the store's record, and every file against
-// the manifest, with nothing added or missing. Returns the trust object, or throws
-// `trust-tampered` naming what differs.
-export function verifyTrustRoot({ dir, manifestSha256 }) {
-  let text;
-  try {
-    text = readFileSync(join(dir, MANIFEST), 'utf8');
-  } catch {
-    throw new TrustError(`the trust root ${dir} has no manifest`, { code: 'trust-tampered', hint: 'run: mirai trust snapshot (after removing the folder)' });
-  }
-  if (sha256(text) !== manifestSha256) throw new TrustError('the trust root\'s manifest changed since it was made', { code: 'trust-tampered', hint: 'stop the run; see what wrote to the MIRAI home' });
-  const manifest = parseJsonStrict(text);
-  const listed = new Map(manifest.files.map((f) => [f.path, f.sha256]));
-  const problems = [];
-  const onDisk = new Set();
-  const folders = new Set(['.']);
-  for (const p of listed.keys()) for (let d = dirname(p); d !== '.'; d = dirname(d)) folders.add(d);
-  const walkDirs = (rel) => {
-    for (const e of readdirSync(join(dir, rel), { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const p = rel === '.' ? e.name : `${rel}/${e.name}`;
-      if (!folders.has(p)) problems.push(`${p}/ was added`);
-      else walkDirs(p);
-    }
-  };
-  walkDirs('.');
-  for (const p of filesUnder(dir, '.').map((x) => x.slice(2))) {
-    if (p === MANIFEST) continue;
-    onDisk.add(p);
-    const info = lstatSync(join(dir, p));
-    if (!info.isFile()) problems.push(`${p} is not a file`);
-    else if (!listed.has(p)) problems.push(`${p} was added`);
-    else if (sha256(readFileSync(join(dir, p))) !== listed.get(p)) problems.push(`${p} changed`);
-    else if (info.mode & 0o222) problems.push(`${p} was made writable`);
-  }
-  for (const p of listed.keys()) if (!onDisk.has(p)) problems.push(`${p} is missing`);
-  if (problems.length) {
-    throw new TrustError(`the trust root was changed (${problems.slice(0, 3).join('; ')}${problems.length > 3 ? '; …' : ''})`, { code: 'trust-tampered', hint: 'stop the run; see what wrote to the MIRAI home' });
-  }
-  return { dir, baseSha: manifest.base_sha, branch: manifest.branch, manifest, manifestSha256 };
 }
 
 // The trust root for the integration branch's current commit, hashed again; null when there is

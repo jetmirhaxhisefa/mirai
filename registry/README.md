@@ -17,6 +17,9 @@ MIRAI's own definitions (D-37), shipped with it:
   and is always on; the others are ecosystem packs (`node`, `php`, `python`, `rust`, `go`,
   `ruby`, `task-runners`), which a project switches on in `[gate] packs`. A new stack is a new
   pack file. A project adds its own rules in `[gate] protected`.
+- **`secrets/`:** secret shapes the agents' hook refuses in what they write (unit 13c):
+  `core.toml`, true on every stack, with fixed prefixes only (private keys, GitHub, AWS, Slack,
+  Stripe, npm tokens…). Packs can add their own later.
 - **`adapters/`:** one profile per tool, which says where it reads instructions, skills and
   agents (unit 11): `claude-code`.
 

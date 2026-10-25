@@ -64,6 +64,26 @@ export function isManaged(profile, path) {
 
 export const isMiraiName = (name) => name.toLowerCase().startsWith('mirai-');
 
+// The hard denies MIRAI adds to your interactive sessions' `.claude/settings.json` (unit 13c).
+// Your sessions run as you, without the strict bundle; these keep them away from what only you
+// may touch, whatever a conversation asks:
+// - your signing key and the login token (~/.config/mirai), and MIRAI's store;
+// - writes to .git and to the committed keys and records;
+// - the commands only you may run (speed bumps: the real-terminal rule is the guard);
+// - starting MIRAI's agents as subagents, by exact name (13a: a wildcard doesn't match).
+// Paths starting with "/" are the project's (relative to the settings file's project).
+export function interactiveDenies(registry) {
+  const mine = ['~/.config/mirai/**', '~/Library/Application Support/mirai/**'];
+  const human = ['approve', 'drop', 'key', 'token'];
+  return [
+    ...mine.flatMap((p) => [`Read(${p})`, `Edit(${p})`]),
+    // Each project path twice: "/x" (the project's own, a form not probed yet) and "**/x".
+    'Edit(/.git/**)', 'Edit(**/.git/**)', 'Edit(/.mirai/keys/**)', 'Edit(**/.mirai/keys/**)', 'Edit(/.mirai/records/**)', 'Edit(**/.mirai/records/**)',
+    ...human.flatMap((c) => [`Bash(mirai ${c})`, `Bash(mirai ${c} *)`]),
+    ...Object.keys(registry.agents).sort().map((name) => `Agent(${name})`),
+  ];
+}
+
 // The body of MIRAI's block in the instruction file.
 export const instructionBlock = (profile) => profile.instructions.import;
 

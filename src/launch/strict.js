@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { userInfo } from 'node:os';
 import { dirname, isAbsolute, join, posix } from 'node:path';
@@ -12,6 +12,7 @@ import { ensurePrivateDir } from '../store/files.js';
 import { protectionRules } from '../trust/protected.js';
 import { readToken } from '../sign/token.js';
 import { expand } from '../util/glob.js';
+import { HOOKED_TOOLS, hookPolicy, policyText, WRITE_TOOLS } from './hook.js';
 
 // The strict bundle (unit 13b; D7, D-30, D-47; research/10). What every agent run gets: one
 // settings file, one set of launch flags, one environment, built from the trust root, so neither
@@ -95,6 +96,8 @@ export function strictTemplate({ registry, config, agent, mode }) {
     write_denied: [...new Set(writeDenied)].sort(),
     readable_env: [...new Set(readable)].sort(),
     builtin: { version: profile.builtin_version, plugins: [...profile.builtin_plugins], skills: [...profile.builtin_skills], agents: [...profile.builtin_agents] },
+    // The secret shapes the hook refuses in what an agent writes (unit 13c).
+    secrets: Object.values(registry.secrets ?? {}).flatMap((d) => d.patterns.map((p) => ({ name: p.name, regex: p.regex }))),
   };
 }
 
@@ -111,7 +114,7 @@ export function strictTemplates({ registry, config }) {
 // A path MIRAI writes into a rule must be absolute and plain: no glob characters, no newline,
 // no backslash (a checkout path with a "*" would turn into a pattern).
 function plain(path, what) {
-  if (typeof path !== 'string' || !isAbsolute(path) || /[*?[\]{}\\\n\r]/.test(path)) throw new StrictError(`${what} (${JSON.stringify(path)}) can't be used in a sandbox rule`, { code: 'bad-path', hint: 'move it to a path without *, ?, [, ], {, } or \\' });
+  if (typeof path !== 'string' || !isAbsolute(path) || /[*?[\]{}\\\n\r"`$]/.test(path)) throw new StrictError(`${what} (${JSON.stringify(path)}) can't be used in a sandbox rule`, { code: 'bad-path', hint: 'move it to a path without *, ?, [, ], {, } or \\' });
   return path.replace(/\/+$/, '') || '/';
 }
 
@@ -167,11 +170,14 @@ export function readableEnv(template, tracked) {
 
 // The settings file for one launch. `facts`: { checkout, home, homes (other spellings of your
 // home folder), miraiHome, repoHome, trustDir, launchDir, scratchDir, envFiles (checkout-relative), tracked
-// (the readable_env candidates committed at the base), hooksPath (core.hooksPath, or null),
-// userDirs (your temp and cache folders), uid }.
+// (the readable_env candidates committed at the base), hooksPaths (core.hooksPath as set and as resolved),
+// userDirs (your temp and cache folders), uid, hookCommand (unit 13c) }.
+// With the hook, the write tools aren't allowed by the rules: the hook allows each call it
+// checks, so a hook that fails to run refuses (13c's probe). Reads need no permission inside the
+// project, so for them the hook only adds refusals.
 export function renderStrict(template, facts) {
   if (template?.schema !== STRICT_SCHEMA) throw new StrictError('the strict template isn\'t one this MIRAI reads', { code: 'bad-template' });
-  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin'];
+  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets'];
   const extra = Object.keys(template).filter((k) => !known.includes(k));
   if (extra.length) throw new StrictError(`the strict template has fields MIRAI doesn't know (${extra.join(', ')})`, { code: 'bad-template' });
   if (!MODES.includes(template.mode)) throw new StrictError('the strict template\'s mode is neither read-write nor read-only', { code: 'bad-template' });
@@ -197,7 +203,7 @@ export function renderStrict(template, facts) {
   const readableSet = new Set(readable.map((p) => p.toLowerCase()));
   const realEnv = facts.envFiles.filter((p) => !readableSet.has(posix.normalize(p).toLowerCase())).map((p) => plain(join(co, p), 'an env file'));
   const writeDenied = template.write_denied.flatMap((p) => anchored(co, p));
-  const hooks = facts.hooksPath ? [plain(isAbsolute(facts.hooksPath) ? facts.hooksPath : join(co, facts.hooksPath), 'core.hooksPath')] : [];
+  const hooks = (facts.hooksPaths ?? []).map((p) => plain(p, 'core.hooksPath'));
   const readOnly = template.mode === 'read-only';
   const gitDirs = [join(co, '.git'), `${co}/**/.git`];
 
@@ -223,8 +229,10 @@ export function renderStrict(template, facts) {
       `${trustDir}/**`, `${repoHome}/store/**`, `${configDir}/**`, join(mhome, 'launcher.json')].map((p) => rule('Edit', p)),
   ];
 
+  if (typeof facts.hookCommand !== 'string' || facts.hookCommand === '') throw new StrictError('the settings need the hook command', { code: 'no-hook' });
   return {
-    permissions: { allow: [...template.tools], deny: [...new Set(deny)] },
+    permissions: { allow: template.tools.filter((t) => !WRITE_TOOLS.includes(t)), deny: [...new Set(deny)] },
+    hooks: { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
     sandbox: {
       enabled: true,
       failIfUnavailable: true,
@@ -312,7 +320,8 @@ const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const CANONICAL = Object.freeze({
   checkout: '/Users/agent/project', home: '/Users/agent', miraiHome: '/Users/agent/Library/Application Support/mirai', repoHome: '/Users/agent/Library/Application Support/mirai/project-000000000000',
   trustDir: '/Users/agent/Library/Application Support/mirai/project-000000000000/trust/0', launchDir: '/Users/agent/Library/Application Support/mirai/project-000000000000/launches/0', scratchDir: '/private/tmp/mirai-00000000',
-  envFiles: ['.env'], tracked: [], hooksPath: null, userDirs: ['/private/var/folders/0/T', '/private/var/folders/0/C'], uid: 501,
+  envFiles: ['.env'], tracked: [], hooksPaths: [], userDirs: ['/private/var/folders/0/T', '/private/var/folders/0/C'], uid: 501,
+  hookCommand: '"/usr/local/bin/node" "/Users/agent/Library/Application Support/mirai/project-000000000000/trust/0/tree/.mirai/framework/bin/hook.js" "/Users/agent/Library/Application Support/mirai/project-000000000000/launches/0/input/hook-policy.json" 0',
 });
 export const canonicalSha256 = (template) => sha256(JSON.stringify(renderStrict(template, CANONICAL)));
 
@@ -335,6 +344,39 @@ function userDirs() {
   return out;
 }
 
+// The files whose content agents must never reach, under any name: every real .env* file and
+// MIRAI's personal files (the token, the signing key). One list for the launch's checks and the
+// hook's inode check.
+export function protectedFiles(template, facts) {
+  const { readable } = readableEnv(template, facts.tracked ?? []);
+  const readableSet = new Set(readable.map((p) => p.toLowerCase()));
+  const configDir = join(facts.home, '.config', 'mirai');
+  return [
+    ...facts.envFiles.filter((p) => !readableSet.has(posix.normalize(p).toLowerCase())).map((p) => join(facts.checkout, p)),
+    join(configDir, 'claude-token'), join(configDir, 'signing.ed25519'),
+  ];
+}
+
+// Protected files that have another name: { hardLinked, symlinked }. A hard link is a second name
+// for the same data, and a protected name that is a symbolic link leaves its target readable under
+// the target's own name. The sandbox and the permission rules both match paths (unit 13c's probes),
+// so a launch refuses while either exists; agents can't make a hard link (the sandbox refuses
+// `ln`).
+export function secondNames(paths) {
+  const out = { hardLinked: [], symlinked: [] };
+  for (const p of paths) {
+    let info;
+    try {
+      info = lstatSync(p);
+    } catch {
+      continue;
+    }
+    if (info.isSymbolicLink()) out.symlinked.push(p);
+    else if (info.isFile() && info.nlink > 1) out.hardLinked.push(p);
+  }
+  return out;
+}
+
 // The facts renderStrict needs for this checkout and launch, read from this machine.
 export function launchFacts({ trust, checkout, env, launchDir, scratchDir, miraiHomeDir, template }) {
   if (!env.HOME || !isAbsolute(env.HOME)) throw new StrictError('HOME is not set to an absolute path', { code: 'no-home' });
@@ -343,10 +385,53 @@ export function launchFacts({ trust, checkout, env, launchDir, scratchDir, mirai
   const homes = [env.HOME, userInfo().homedir].filter((h) => h && isAbsolute(h));
   const tracked = template.readable_env.filter((p) => (lsTree(co, trust.baseSha, p, env) ?? []).some((e) => e.type === 'blob'));
   const mhome = miraiHomeDir ?? miraiHome(env);
-  return {
+  // core.hooksPath, as configured and as it really is (a symlinked hooks folder counts by both).
+  const hooksPaths = [];
+  const hp = configValue(co, 'core.hooksPath', env);
+  if (hp) {
+    const abs = isAbsolute(hp) ? hp : join(co, hp);
+    hooksPaths.push(abs);
+    try {
+      hooksPaths.push(realpathSync(abs));
+    } catch {
+      // not there yet
+    }
+  }
+  const facts = {
     checkout: co, home, homes, miraiHome: existsSync(mhome) ? realpathSync(mhome) : mhome, repoHome: realpathSync(dirname(dirname(trust.dir))), trustDir: realpathSync(trust.dir),
-    launchDir, scratchDir, envFiles: envFiles(co, env), tracked, hooksPath: configValue(co, 'core.hooksPath', env), userDirs: userDirs(), uid: process.getuid(),
+    launchDir, scratchDir, envFiles: envFiles(co, env), tracked, hooksPaths: [...new Set(hooksPaths)], userDirs: userDirs(), uid: process.getuid(),
   };
+  const { hardLinked, symlinked } = secondNames(protectedFiles(template, facts));
+  if (hardLinked.length) {
+    throw new StrictError(`a protected file has a second name on disk (a hard link): ${hardLinked.join(', ')}`, {
+      code: 'hard-link', hint: 'find the other name (ls -i, then find . -inum <number>) and remove it; agents could read the secret through it',
+    });
+  }
+  if (symlinked.length) {
+    throw new StrictError(`a protected file is a symbolic link, so its target is readable under its own name: ${symlinked.join(', ')}`, {
+      code: 'symlinked-secret', hint: 'make it a real file, or move the target inside a denied place',
+    });
+  }
+  return facts;
+}
+
+// The hook's policy for one launch, from the same facts as the settings.
+export function launchPolicy(template, facts, trust) {
+  const co = facts.checkout;
+  const { readable } = readableEnv(template, facts.tracked ?? []);
+  const configDir = join(facts.home, '.config', 'mirai');
+  return hookPolicy({
+    checkout: co,
+    readRoots: [co, facts.trustDir, join(facts.launchDir, 'input'), facts.scratchDir],
+    writeRoots: template.mode === 'read-only' ? [facts.scratchDir] : [co, facts.scratchDir],
+    writeDenied: [...template.write_denied],
+    hooksPaths: facts.hooksPaths ?? [],
+    readableEnv: readable.map((p) => join(co, p)),
+    protectedFiles: protectedFiles(template, facts),
+    trust: { dir: facts.trustDir, manifestSha256: trust.manifestSha256 },
+    tokenFile: join(configDir, 'claude-token'),
+    secrets: template.secrets,
+  });
 }
 
 // Everything unit 19 needs to start one agent run, without starting it: the launch folder
@@ -358,6 +443,7 @@ export function launchFacts({ trust, checkout, env, launchDir, scratchDir, mirai
 // fails half-way leaves nothing behind. The token is on `plan.fds[3]`, which isn't enumerable,
 // so logging the plan can't print it.
 export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, id = null, miraiHomeDir = null }) {
+  if (typeof trust?.manifestSha256 !== 'string') throw new StrictError('the launch needs a verified trust root (its manifest hash)', { code: 'no-trust' });
   const token = readToken(env);
   if (!token) throw new StrictError('there is no Claude login token for agent runs', { code: 'no-token', exitCode: EXIT.NEEDS_HUMAN, hint: 'in your terminal: claude setup-token, then mirai token set' });
   const repoHome = dirname(dirname(trust.dir));
@@ -372,6 +458,17 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
     for (const sub of ['input', 'claude-config']) ensurePrivateDir(join(launchDir, sub));
     scratchDir = makeScratch();
     const facts = launchFacts({ trust, checkout, env, launchDir: realpathSync(launchDir), scratchDir, miraiHomeDir, template });
+    // The hook's policy first, read-only in input/; the settings carry its hash (unit 13c).
+    const hookScript = join(facts.trustDir, 'tree', '.mirai', 'framework', 'bin', 'hook.js');
+    if (!existsSync(hookScript)) throw new StrictError('the trust root has no hook (a framework copy from before unit 13c)', { code: 'no-hook', hint: 'run: mirai init --refresh, and commit it' });
+    const policy = launchPolicy(template, facts, trust);
+    const policyFile = join(facts.launchDir, 'input', 'hook-policy.json');
+    const policyBody = policyText(policy);
+    writeReadOnly(policyFile, policyBody);
+    const node = plain(realpathSync(process.execPath), 'node');
+    if ([facts.checkout, facts.launchDir, facts.scratchDir, facts.miraiHome].some((d) => within(node, d))) throw new StrictError(`node (${node}) is inside a folder agents can write`, { code: 'bad-node' });
+    // The hook runs with an empty environment: nothing from yours (NODE_OPTIONS, …) or Claude Code's.
+    facts.hookCommand = `/usr/bin/env -i "HOME=${facts.home}" "PATH=/usr/bin:/bin" "${node}" "${hookScript}" "${policyFile}" ${sha256(policyBody)}`;
     const settings = renderStrict(template, facts);
     const loose = looseKeys(settings);
     if (loose.length) throw new StrictError(`the rendered settings are loose (${loose.join(', ')})`, { code: 'loose' });

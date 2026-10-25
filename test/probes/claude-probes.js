@@ -7,9 +7,10 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { buildFixture, removeFixture, resetProject } from './fixture.js';
+import { buildFixture, buildTrustRoot, removeFixture, resetProject } from './fixture.js';
+import { FRAMEWORK_PARTS, PACKAGE_ROOT } from '../../src/install/parts.js';
 import { bundleProbes, guardProbe, hostCommand, hostReach, ORDER, probeList, TOOLS } from './probes.js';
-import { readToken } from '../../src/sign/token.js';
+import { containsToken, readToken, redactToken } from '../../src/sign/token.js';
 import { loadRegistry } from '../../src/config/registry.js';
 import { commitOf } from '../../src/store/git.js';
 import { prepareLaunch, removeLaunch, strictTemplate } from '../../src/launch/strict.js';
@@ -134,7 +135,7 @@ export function promptFor(action) {
     case 'Bash': return `Run this exact command with the Bash tool, once:\n\n${action.command}\n\nThen reply with the single word DONE.`;
     case 'Read': return `Read the file ${action.path} with the Read tool.${action.then ? ` Then: ${action.then}` : ' Then reply with the single word DONE.'}`;
     case 'Edit': return `Read the file ${action.path} with the Read tool, then use the Edit tool on that same path to replace "${action.from ?? 'original'}" with "${action.to ?? 'changed'}". Then reply with the single word DONE.`;
-    case 'Write': return `Use the Write tool to create the new file ${action.path} with the content "probe". Then reply with the single word DONE.`;
+    case 'Write': return `Use the Write tool to create the new file ${action.path} with exactly this content: ${JSON.stringify(action.content ?? 'probe')}. Then reply with the single word DONE.`;
     case 'Grep': return `Use the Grep tool to search for the pattern ${action.pattern} in the path ${action.path}. Then reply with the single word DONE.`;
     case 'Agent': return `Use the Agent tool to start the subagent named ${action.agent} with the prompt "go". Then reply with what it answered.`;
     case 'none': return action.ask;
@@ -156,6 +157,8 @@ export function formArgs(form, ctx) {
     case 'safe': return ['--safe-mode', '--strict-mcp-config'];
     case 'agents': return ['--strict-mcp-config', '--agents', JSON.stringify({ 'mirai-probe': { description: 'A probe subagent.', prompt: 'Reply with the single word probe-agent-ran.' } })];
     case 'plain': return ['--strict-mcp-config'];
+    // Your own interactive sessions (unit 13c): project settings only, no --restricted, no sandbox.
+    case 'interactive': return ['--setting-sources', 'project', '--strict-mcp-config', '--agents', JSON.stringify({ 'mirai-probe': { description: 'A probe subagent.', prompt: 'Reply with the single word probe-agent-ran.' } })];
     default: throw new Error(`unknown form ${form}`);
   }
 }
@@ -165,7 +168,7 @@ export function formArgs(form, ctx) {
 // launch folder, the settings, the flags and the environment are exactly what production makes.
 // Each probe gets its own launch; the rendered settings are guard-checked before the run.
 function bundleLaunch(probe, ctx, { model }) {
-  const trust = { dir: join(ctx.repoHome, 'trust', 'abc'), baseSha: ctx.baseSha, manifest: { files: [] } };
+  const trust = { dir: join(ctx.repoHome, 'trust', 'abc'), baseSha: ctx.baseSha, manifest: { files: [] }, manifestSha256: ctx.trustManifestSha256 };
   const plan = prepareLaunch({ trust, template: ctx.template, checkout: ctx.project, env: process.env, miraiHomeDir: ctx.miraiHome });
   ctx.launches.push(plan);
   const settings = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8'));
@@ -183,7 +186,7 @@ export function launchFor(probe, ctx, { token, model, settingsFile, home = proce
     '--model', model, '--permission-mode', 'dontAsk', '--settings', settingsFile, '--append-system-prompt', SYSTEM, ...formArgs(probe.form, ctx)];
   const env = {};
   for (const name of ENV_ALLOW) if (process.env[name] !== undefined) env[name] = process.env[name];
-  env.HOME = home;
+  env.HOME = probe.fakeHome ? ctx.fakeHome : home;
   if (probe.tokenVia === 'fd') env.CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR = '3';
   else env.CLAUDE_CODE_OAUTH_TOKEN = token;
   env.CLAUDE_CONFIG_DIR = probe.configDir ? ctx[probe.configDir] : ctx.claudeHome;
@@ -213,40 +216,15 @@ export function parseStream(stdout) {
   return out;
 }
 
-const WINDOW = 16;
-
-// Every form of the token a leak would use, replaced before anything is stored: the token and
-// any 16-character piece of it; anything shaped like a setup token; base64 and base64url at all
-// three offsets (so a token inside a longer encoded string is caught too); hex in either case;
-// URL encoding. Also ssh-agent lines (fingerprints and key comments, often email addresses).
+// Every form of the token, replaced before anything is stored (src/sign/token.js); also anything
+// shaped like a setup token, and ssh-agent lines (fingerprints and key comments, often email
+// addresses).
 export function redact(text, token) {
   const s = redactToken(String(text), token).replace(/sk-ant-oat\d{2}-[A-Za-z0-9_-]+/g, '<token>');
   return s.replace(/^\d+ SHA256:\S+.*$/gm, '<ssh key>').replace(/SHA256:[A-Za-z0-9+/]{20,}/g, 'SHA256:<fingerprint>');
 }
 
-function redactToken(text, token) {
-  let s = text;
-  if (token) {
-    const forms = new Set([token, encodeURIComponent(token)]);
-    for (const hex of [Buffer.from(token).toString('hex')]) {
-      forms.add(hex);
-      forms.add(hex.toUpperCase());
-    }
-    for (let pad = 0; pad < 3; pad++) {
-      const b64 = Buffer.concat([Buffer.alloc(pad, 0x20), Buffer.from(token)]).toString('base64');
-      // Drop the characters that depend on what's around the token.
-      const middle = b64.slice(pad === 0 ? 0 : 4, -4);
-      forms.add(middle);
-      forms.add(middle.replace(/\+/g, '-').replace(/\//g, '_'));
-    }
-    for (const f of [...forms].sort((a, b) => b.length - a.length)) s = s.split(f).join('<token>');
-    for (let i = 0; i + WINDOW <= token.length; i++) s = s.split(token.slice(i, i + WINDOW)).join('<token>');
-  }
-  return s;
-}
-
-// True when any form of the token is in the text.
-export const containsToken = (text, token) => Boolean(token) && redactToken(text, token) !== text;
+export { containsToken };
 
 function runClaude(claude, { args, env, cwd, fdToken }) {
   return new Promise((done) => {
@@ -286,7 +264,21 @@ export async function runProbe(probe, ctx, { claude, token, model }) {
   const settingsFile = join(ctx.root, 'settings', `${probe.id}.json`);
   if (probe.form !== 'bundle') writeFileSync(settingsFile, `${JSON.stringify(probe.settings, null, 2)}\n`);
   probe.before?.();
-  const launch = launchFor(probe, ctx, { token, model, settingsFile });
+  let launch;
+  try {
+    launch = launchFor(probe, ctx, { token, model, settingsFile });
+  } catch (err) {
+    // A launch MIRAI refuses (unit 13c: a hard link to a protected file) is the probe's result.
+    const expected = probe.expectLaunchRefused?.test(err.message) === true;
+    return {
+      id: probe.id, fact: probe.fact, form: probe.form, title: probe.title, outcome: expected ? 'pass' : 'FAIL',
+      note: redact(`launch refused: ${err.message}`, token), exit: null, asked: null, denials: [], init: null, result: null, toolUses: [], toolText: '', stderr: '',
+    };
+  }
+  if (probe.expectLaunchRefused) {
+    return { id: probe.id, fact: probe.fact, form: probe.form, title: probe.title, outcome: 'FAIL', note: 'the launch wasn\'t refused', exit: null, asked: null, denials: [], init: null, result: null, toolUses: [], toolText: '', stderr: '' };
+  }
+  probe.afterLaunch?.();
   const raw = await runClaude(claude, launch);
   const parsed = parseStream(raw.stdout);
   const toolText = parsed.toolResults.join('\n');
@@ -384,6 +376,7 @@ export async function runProbes({ workdir, only = null, model = 'haiku', claude,
     if (bundle) {
       ctx.template = strictTemplate({ registry: loadRegistry(REGISTRY), config: { compose: { env_file: '.env.test' } }, mode: 'read-write' });
       ctx.baseSha = commitOf(ctx.project, 'HEAD', process.env);
+      ctx.trustManifestSha256 = buildTrustRoot(ctx, PACKAGE_ROOT, FRAMEWORK_PARTS);
       ctx.launches = [];
       probes = [...probes.filter((p) => p.bundle), ...bundleProbes(ctx)].map((p) => ({ ...p, form: 'bundle', settings: {} }));
       report.conditions += '; --bundle: the strict bundle\'s settings, flags and environment';
