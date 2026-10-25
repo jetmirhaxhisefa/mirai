@@ -14,6 +14,7 @@ import { parseJsonStrict } from '../findings/schema.js';
 import { buildBundle } from '../adapters/bundle.js';
 import { ADAPTER, renderAgent, writePluginDir } from '../adapters/claude-code.js';
 import { filesUnder, parseLock, sha256 } from '../install/lock.js';
+import { strictTemplates, templateText } from '../launch/strict.js';
 import { INSTRUCTION_FILES, importClosure } from './imports.js';
 
 // The trust root (unit 12; D-15, D-47, R2-C1). At run start, MIRAI's files are read from the
@@ -28,14 +29,17 @@ import { INSTRUCTION_FILES, importClosure } from './imports.js';
 //   tree/           MIRAI's files and the instruction files from the base commit, byte for byte;
 //                   each listed with its git blob id, so it can be checked against the commit
 //   plugins/<tool>/ the headless plugin folder, rendered from tree/ (never the committed .claude/)
+//   strict/<name>.json  the strict bundle's templates (unit 13b): one per agent and one per
+//                   access mode, rendered from tree/'s registry and config; a framework copy
+//                   from before unit 13b has none
 
 export const TRUST_FOLDER = 'trust';
 export const KEEP_SNAPSHOTS = 10;
 export const LIMITS = Object.freeze({ fileBytes: 2 * 1024 * 1024, totalBytes: 64 * 1024 * 1024, files: 5000 });
 const MANIFEST = 'manifest.json';
-// What a snapshot holds changes as units add to it (13: strict.json, 14: compose inputs); a
+// What a snapshot holds changes as units add to it (13b: strict/, 14: compose inputs); a
 // snapshot of an older format is built again, not reused.
-export const SNAPSHOT_FORMAT = 1;
+export const SNAPSHOT_FORMAT = 2;
 const TMP_MAX_AGE_MS = 60 * 60 * 1000;
 const RECORD = 'trust.json';
 // MIRAI's files read from the base commit (folders are read whole). The signing keys aren't
@@ -125,6 +129,10 @@ function build(store, { env, now, keep }) {
       }
       writePluginDir(bundle, profile, join(tmp, 'plugins', name));
       bundles[name] = bundle.sharedHash;
+    }
+    if (registry.adapters[ADAPTER]?.strict) {
+      mkdirSync(join(tmp, 'strict'));
+      for (const [name, template] of strictTemplates({ registry, config })) writeFileSync(join(tmp, 'strict', `${name}.json`), templateText(template), { flag: 'wx', mode: 0o600 });
     }
     const blobOf = new Map([...tree.keys()].map((p) => [`tree/${p}`, tree.blobs.get(p)]));
     const files = filesUnder(tmp, '.').map((p) => p.slice(2)).map((path) => ({ path, sha256: sha256(readFileSync(join(tmp, path))), ...(blobOf.has(path) ? { blob: blobOf.get(path) } : {}) }));
@@ -326,6 +334,17 @@ export function trustedFile(trust, path) {
   const bytes = readFileSync(join(trust.dir, 'tree', path));
   if (sha256(bytes) !== listed.sha256) throw new TrustError(`the trust root was changed (tree/${path} changed)`, { code: 'trust-tampered', hint: 'stop the run; see what wrote to the MIRAI home' });
   return bytes;
+}
+
+// A strict template (unit 13b), hashed against the manifest on the read, like trustedFile.
+export function trustedStrict(trust, name) {
+  if (!/^[a-z0-9][a-z0-9._-]{0,127}$/.test(name)) throw new TrustError(`${name} isn't a strict template name`, { code: 'not-trusted' });
+  const path = `strict/${name}.json`;
+  const listed = trust.manifest.files.find((f) => f.path === path);
+  if (!listed) throw new TrustError(`the trust root has no strict template for ${name}`, { code: 'not-trusted', hint: 'a framework copy from before unit 13b has none: mirai init --refresh, then commit' });
+  const bytes = readFileSync(join(trust.dir, path));
+  if (sha256(bytes) !== listed.sha256) throw new TrustError(`the trust root was changed (${path} changed)`, { code: 'trust-tampered', hint: 'stop the run; see what wrote to the MIRAI home' });
+  return parseJsonStrict(bytes.toString('utf8'));
 }
 
 // The config and registry as gates read them: the whole trust root is hashed again first,

@@ -5,7 +5,7 @@ import { StoreError } from '../cli/errors.js';
 // The read-only git calls the store needs (unit 05a): never a shell, a fixed environment, no
 // fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 22
 // (D-54). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp`, (unit 06) `ls-tree`
-// / `cat-file`, (unit 07b) `ls-files` and (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff --name-only` with pinned options and `merge-base` are used, with replace refs off, so `refs/replace` can't change which commits
+// / `cat-file`, (unit 07b) `ls-files` and (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff --name-only` with pinned options and `merge-base`, (unit 13b) `ls-files` for `.env*` files are used, with replace refs off, so `refs/replace` can't change which commits
 // count as the roots or which keys are committed.
 
 const TIMEOUT_MS = 10_000;
@@ -57,6 +57,12 @@ export function rootCommits(root, ref, env) {
 
 export function refExists(root, ref, env) {
   return git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], env).ok;
+}
+
+// One config value as git reads it in this checkout (repo config included), or null.
+export function configValue(root, key, env) {
+  const r = git(root, ['config', '--get', key], env);
+  return r.ok && r.out !== '' ? r.out : null;
 }
 
 // The remotes with a URL: a Map from name to its (first) URL.
@@ -128,6 +134,21 @@ export function lsFiles(root, paths, env) {
   const r = git(root, ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...paths], env, { raw: true, timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
   if (!r.ok) return null;
   return [...new Set(r.out.toString('utf8').split('\0').filter(Boolean))];
+}
+
+// The checkout's `.env*` files at any depth, whatever their case: tracked, untracked and ignored
+// (unit 13b: each real one is denied to agents by exact path, besides the `.env*` glob deny).
+// Only those names are output, though git still walks ignored folders to apply the pathspec.
+// Files inside nested repos and submodules aren't listed: the glob denies cover them.
+export function envFiles(root, env) {
+  const spec = ':(glob,icase)**/.env*';
+  const out = new Set();
+  for (const args of [['--cached', '--others', '--exclude-standard'], ['--others', '--ignored', '--exclude-standard']]) {
+    const r = git(root, ['ls-files', '-z', ...args, '--', spec], env, { raw: true, timeout: 60_000, maxBuffer: 16 * MAX_OUTPUT });
+    if (!r.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+    for (const n of r.out.toString('utf8').split('\0').filter(Boolean)) out.add(n);
+  }
+  return [...out].sort();
 }
 
 // The branch a symbolic ref points at (`refs/remotes/origin/HEAD` -> "main"; `HEAD` -> the

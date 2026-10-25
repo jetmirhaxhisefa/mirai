@@ -69,6 +69,20 @@ safe value and refuses a settings file that loosens one.
 | **Native agent starts** (unit 11's note) | `Agent(<exact name>)` in `permissions.deny` blocks it (from `--settings`). **`Agent(mirai-*)` does not**: the subagent runs | agent-* | List each `mirai-*` agent by exact name from the registry, or a hook that fails closed |
 | **`--safe-mode`** | Keeps user and project customizations out, like `--restricted` | g22-safe, g13-safe | Recorded only |
 
+**From unit 13b's bundle probes** (same versions):
+- under a home read deny, a writable folder must also be readable: Claude Code keeps command
+  output in its temp folder, and `node` reads its own at start;
+- **Bash's `TMPDIR` inside the sandbox is `<CLAUDE_CODE_TMPDIR>/claude-<uid>` only when
+  `CLAUDE_CODE_TMPDIR` is short** (about 30 bytes, for Unix sockets); otherwise it falls back to
+  `/tmp/claude-<uid>`, the folder your interactive sessions share, whatever `TMPDIR` says (seen
+  in a bundle probe, explained by the binary's own warning text). So each launch's scratch is a
+  short private folder, `/private/tmp/mirai-<8 hex>`;
+- a deny inside an allow inside a deny holds (`.env.test` re-allowed inside a `.env*` glob deny,
+  inside an allowed checkout, inside the denied home);
+- Claude Code always loads three **built-in plugins** (`cc-plugin-agents-md`,
+  `cc-plugin-telemetry`, `cc-plugin-plugin-authoring`, path `builtin`); under `--restricted` a
+  project `AGENTS.md` still doesn't reach the agent (one run).
+
 **Also seen:** the sandbox sets proxy variables, `GIT_CONFIG_PARAMETERS`, `GIT_SSH_COMMAND`,
 `SRT_SSH_PROXY_COMMAND` and `SANDBOX_RUNTIME` for Bash; `CLAUDECODE`, `CLAUDE_PID` and other
 session variables are visible to Bash. G2 (the usage-limit exit code) wasn't hit. G19 (DNS) wasn't

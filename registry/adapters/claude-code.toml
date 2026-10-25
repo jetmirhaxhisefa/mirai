@@ -19,7 +19,30 @@ agents = ".claude/agents"
 skills = "skills"
 agents = "agents"
 
-# Owned by this adapter once their units exist: the settings (unit 13), the MCP config (unit 15).
+# The strict bundle every agent run gets (unit 13b; research/10). The sandbox's safe values, the
+# path rules and the minimum deny lists are in src/launch/strict.js; these lists add to them.
+[strict]
+# The tools of an access mode, for `mirai sandbox show --mode` (an agent lists its own).
+read_write_tools = ["Bash", "Read", "Edit", "Write", "Glob", "Grep"]
+read_only_tools = ["Read", "Glob", "Grep"]
+# Speed bumps, not guards (research/10, G24: `sh -c` gets past a command rule). The guards are
+# the token's absence from Bash, the empty network and the file denies.
+deny_commands = ["git push", "git commit", "git config", "gh", "docker", "claude", "mirai", "env", "printenv"]
+# No web, and no native subagents: MIRAI starts every agent itself (D-12).
+deny_tools = ["WebFetch", "WebSearch", "Task", "Agent"]
+# Kept out of Bash's environment with credentials.envVars deny (G9).
+deny_env = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]
+# What Claude Code itself brings into every run, even under --restricted, as seen on the version
+# named here (unit 13b's bundle probes). checkInit refuses anything else in a run's init event:
+# a skill, agent or plugin beyond these means --restricted stopped keeping things out. Unit 18
+# updates these per Claude Code version.
+builtin_version = "2.1.310"
+builtin_plugins = ["cc-plugin-agents-md", "cc-plugin-plugin-authoring", "cc-plugin-telemetry"]
+builtin_skills = ["batch", "claude-api", "code-review", "dataviz", "debug", "deep-research", "design", "design-sync", "doctor", "fewer-permission-prompts", "loop", "plugin-authoring", "run", "run-skill-generator", "schedule", "simplify", "update-config", "verify", "workflow-authoring"]
+builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-setup"]
+
+# Owned by this adapter once their units exist: the interactive settings (unit 13c), the MCP
+# config (unit 15).
 [later]
 settings = ".claude/settings.json"
 mcp = ".mcp.json"

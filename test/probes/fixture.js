@@ -16,7 +16,8 @@ import { dirname, join, resolve } from 'node:path';
 //   claude-home/      the scrubbed CLAUDE_CONFIG_DIR (empty)
 //   user-a/           a CLAUDE_CONFIG_DIR with a canary CLAUDE.md and a canary skill
 //   user-b/           a CLAUDE_CONFIG_DIR whose settings inject a fake ANTHROPIC_API_KEY
-//   mirai-home/       store/ (denied) and trust/ (readable) canaries
+//   mirai-home/       shaped like the real one: <repo-id>/store/ (denied), <repo-id>/trust/abc/
+//                     (readable), <repo-id>/launches/ (made by prepareLaunch, unit 13b)
 //   settings/         one settings file per probe, written by the harness
 //   out/              the reports
 
@@ -70,7 +71,8 @@ export function buildFixture(workdir, { home = process.env.HOME } = {}) {
     root: canary('root-claude'), imported: canary('imported'), nested: canary('nested-claude'),
     skill: canary('project-skill'), userMemory: canary('user-memory'), userSkill: canary('user-skill'),
     keychain: canary('keychain'), gitCredential: canary('git-credential'),
-    envVar: canary('env-var'), outsideDir: canary('outside-dir'),
+    envVar: canary('env-var'), outsideDir: canary('outside-dir'), agentsMd: canary('agents-md'),
+    nestedEnv: canary('nested-env'), claudeTmp: canary('claude-tmp'), userTmp: canary('user-tmp'),
   };
   const m = {
     readme: `MARKER-readme-${randomBytes(6).toString('hex')}`,
@@ -100,6 +102,7 @@ export function buildFixture(workdir, { home = process.env.HOME } = {}) {
   put(p, 'sub/CLAUDE.md', `# Sub folder\n\nThe sub folder's word is ${c.nested}.\n`);
   put(p, 'CLAUDE.md', `# Probe project\n\nThe project's word is ${c.root}.\n\n@docs/imported.md\n`);
   put(p, 'docs/imported.md', `The imported word is ${c.imported}.\n`);
+  put(p, 'AGENTS.md', `# Agents\n\nThe agents file's word is ${c.agentsMd}.\n`);
   put(p, '.claude/skills/probe-skill/SKILL.md', `---\nname: probe-skill\ndescription: A probe skill whose word is ${c.skill}.\n---\n\nSay ${c.skill}.\n`);
   put(p, 'notes/private.txt', `${c.private}\n`);
   put(p, 'notes/locked.txt', 'original\n');
@@ -107,6 +110,7 @@ export function buildFixture(workdir, { home = process.env.HOME } = {}) {
   symlinkSync('../outside/outside.txt', join(p, 'link-out'));
   symlinkSync('../outside/edit-target.txt', join(p, 'link-edit'));
   symlinkSync('../outside/dir', join(p, 'link-dir'));
+  symlinkSync('.env', join(p, 'link-env'));
   put(p, '.gitignore', '.env\n.env.local\nsub/.env\n');
   git(p, ['init', '-q', '-b', 'main']);
   git(p, ['add', '-A']);
@@ -114,6 +118,10 @@ export function buildFixture(workdir, { home = process.env.HOME } = {}) {
   const remote = join(root, 'remote.git');
   git(root, ['init', '-q', '--bare', remote]);
   git(p, ['remote', 'add', 'origin', remote]);
+  // The project uses its own hooks folder, and holds an untracked nested repo with its own .env.
+  git(p, ['config', 'core.hooksPath', '.githooks']);
+  put(p, 'nested/.env', `NESTED_KEY=${c.nestedEnv}\n`);
+  git(join(p, 'nested'), ['init', '-q', '-b', 'main']);
 
   const claudeHome = join(root, 'claude-home');
   mkdirSync(claudeHome, { recursive: true, mode: 0o700 });
@@ -123,15 +131,17 @@ export function buildFixture(workdir, { home = process.env.HOME } = {}) {
   const userB = join(root, 'user-b');
   put(userB, 'settings.json', `${JSON.stringify({ env: { ANTHROPIC_API_KEY: `sk-ant-api03-${'x'.repeat(40)}-fakekey` } }, null, 2)}\n`);
   const miraiHome = join(root, 'mirai-home');
-  put(miraiHome, 'store/state.json', `{"secret":"${c.store}"}\n`);
-  put(miraiHome, 'trust/abc/readme.txt', `${m.trust}\n`);
+  const repoHome = join(miraiHome, 'project-000000000000');
+  put(repoHome, 'store/state.json', `{"secret":"${c.store}"}\n`);
+  put(repoHome, 'trust/abc/readme.txt', `${m.trust}\n`);
+  put(miraiHome, 'launcher.json', '{}\n');
   mkdirSync(join(root, 'settings'), { recursive: true });
   mkdirSync(join(root, 'run-tmp'), { recursive: true });
   writeFileSync(join(root, 'gitconfig'), '[user]\n\tname = Probe\n');
   mkdirSync(join(root, 'out'), { recursive: true });
 
   const launchdLabel = `mirai-probe-${randomBytes(6).toString('hex')}`;
-  return { root, project: p, outside: o, remote, claudeHome, userA, userB, miraiHome, launchdLabel, canaries: c, markers: m };
+  return { root, project: p, outside: o, remote, claudeHome, userA, userB, miraiHome, repoHome, launchdLabel, canaries: c, markers: m };
 }
 
 // Puts the project back as built, after each probe: tracked files restored, untracked files a
@@ -151,7 +161,8 @@ export function remoteHasRefs(ctx) {
 
 // Removes the fixture (the reports in out/ are kept when `keepOut`).
 export function removeFixture(ctx, { keepOut = true } = {}) {
-  for (const name of ['project', 'outside', 'remote.git', 'claude-home', 'user-a', 'user-b', 'mirai-home', 'settings', 'run-tmp', 'gitconfig']) {
+  spawnSync('chmod', ['-R', 'u+rwX', join(ctx.root, 'mirai-home')]);
+  for (const name of ['project', 'outside', 'remote.git', 'claude-home', 'user-a', 'user-b', 'mirai-home', 'settings', 'run-tmp', 'gitconfig', 'launch']) {
     const path = join(ctx.root, name);
     if (existsSync(path)) rmSync(path, { recursive: true, force: true });
   }

@@ -27,7 +27,7 @@ export function globProblem(pattern) {
 }
 
 // `{a,b}` expanded into separate patterns (at most 256).
-function expand(pattern) {
+export function expand(pattern) {
   const m = /\{([^{}]*)\}/.exec(pattern);
   if (!m) return [pattern];
   const out = [];

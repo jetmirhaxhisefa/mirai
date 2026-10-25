@@ -26,6 +26,8 @@ const AGENT_DESCRIPTION = description(950);
 // Tool names as Claude Code spells them (Read, Grep, Edit, Bash, mcp__<server>__<tool>): the
 // shared vocabulary of agent definitions; other tools' renderers translate them (unit 11).
 const WRITE_TOOLS = Object.freeze(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash']);
+const NAME_LIST = { type: 'array', items: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9._-]{0,80}$/, patternHint: 'a name such as "dataviz"' } };
+const TOOL_LIST = { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9_-]*$/, patternHint: 'a tool name such as "Read"' } };
 const RELATIVE = { type: 'string', pattern: /^(?!\/)(?!.*(^|\/)\.{1,2}(\/|$))[A-Za-z0-9._@/-]+$/, patternHint: 'a relative path inside the repo, without "." or ".." parts' };
 
 const AGENT = {
@@ -87,6 +89,27 @@ const ADAPTER = {
     interactive: { type: 'table', fields: { skills: RELATIVE, agents: RELATIVE }, required: ['skills', 'agents'] },
     headless: { type: 'table', fields: { skills: RELATIVE, agents: RELATIVE }, required: ['skills', 'agents'] },
     later: { type: 'table', fields: { settings: RELATIVE, mcp: RELATIVE } },
+    // The strict bundle's rules as data (unit 13b; research/10). The safe sandbox values and the
+    // path rules are code (src/launch/strict.js), so data can add denies but never loosen them.
+    strict: {
+      type: 'table',
+      fields: {
+        read_write_tools: TOOL_LIST,
+        read_only_tools: TOOL_LIST,
+        deny_commands: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[a-z][a-z0-9 ._-]{0,40}$/, patternHint: 'a command and its first words, such as "git push"' } },
+        deny_tools: TOOL_LIST,
+        deny_env: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Z_][A-Z0-9_]{0,63}$/, patternHint: 'an environment variable name' } },
+        builtin_version: { type: 'string', pattern: /^\d+\.\d+\.\d+$/, patternHint: 'a Claude Code version such as "2.1.310"' },
+        builtin_plugins: NAME_LIST,
+        builtin_skills: NAME_LIST,
+        builtin_agents: NAME_LIST,
+      },
+      required: ['read_write_tools', 'read_only_tools', 'deny_commands', 'deny_tools', 'deny_env', 'builtin_version', 'builtin_plugins', 'builtin_skills', 'builtin_agents'],
+      check(value, path, report) {
+        const writing = (value.read_only_tools ?? []).filter((t) => WRITE_TOOLS.includes(t));
+        if (writing.length) report(`${path}.read_only_tools`, `read_only_tools can't include ${writing.join(', ')}`, undefined, 'read-only');
+      },
+    },
   },
   required: ['kind', 'schema_version', 'name', 'instructions', 'interactive', 'headless'],
   check(value, path, report) {

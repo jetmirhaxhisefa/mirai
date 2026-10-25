@@ -8,7 +8,7 @@ import { linkHasCredential, remoteHasCredential } from './credentials.js';
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.*', 'models.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
-    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*'],
+    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*'],
 });
@@ -161,6 +161,10 @@ export const CONFIG_SCHEMA = {
     },
     checks: { type: 'table', map: namedCheck, keyPattern: NAME, keyHint: NAME_HINT },
     compose: { type: 'table', fields: { files: { type: 'array', items: relPath }, env_file: relPath } },
+    // What agents may read that the strict bundle would deny (unit 13b): `.env*` files that hold
+    // no real secret, such as a committed `.env.example`. Every other `.env*` file is denied to
+    // agents; [compose] env_file (the tests' dummy file) is always readable.
+    sandbox: { type: 'table', fields: { readable_env: { type: 'array', items: relPath } } },
     repos: { type: 'array', items: repo, minItems: 1, uniqueBy: 'name' },
     workspace: { type: 'table', fields: { e2e: { type: 'enum', values: ['local', 'deployed', 'none'] } } },
     resources: { type: 'table', map: resource, keyPattern: NAME, keyHint: NAME_HINT },

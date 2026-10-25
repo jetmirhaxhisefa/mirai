@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { accessSync, constants, existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { buildFixture, removeFixture, resetProject } from './fixture.js';
-import { guardProbe, hostCommand, hostReach, ORDER, probeList, TOOLS } from './probes.js';
+import { bundleProbes, guardProbe, hostCommand, hostReach, ORDER, probeList, TOOLS } from './probes.js';
 import { readToken } from '../../src/sign/token.js';
+import { loadRegistry } from '../../src/config/registry.js';
+import { commitOf } from '../../src/store/git.js';
+import { prepareLaunch, removeLaunch, strictTemplate } from '../../src/launch/strict.js';
 
 // Unit 13a's probe harness. You start it by hand; `npm test` never runs it (it isn't a
 // *.test.js file). Each probe is one short `claude -p` run against a throwaway fixture, with an
@@ -18,7 +21,11 @@ import { readToken } from '../../src/sign/token.js';
 // the fixture is removed).
 //
 //   node test/probes/claude-probes.js --yes [--workdir <dir>] [--only id,id] [--model haiku]
-//                                     [--claude <path>] [--keep] [--dry-run]
+//                                     [--claude <path>] [--keep] [--dry-run] [--bundle]
+//
+// --bundle (unit 13b): the guard probes run with the strict bundle's own settings, flags and
+// environment (renderStrict, launchArgs, launchEnv, the token on fd 3) for the fixture, instead
+// of each probe's hand-written settings, plus the bundle's own probes.
 //
 // The work folder must be missing or empty, not your home folder, not inside a git work tree,
 // and not under a temp folder: the sandbox lets Bash write anywhere in its temp folders, so an
@@ -33,6 +40,7 @@ import { readToken } from '../../src/sign/token.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAUNCHER = resolve(HERE, '..', '..', 'bin', 'launch.js');
 const MCP_SERVER = join(HERE, 'mcp-echo.js');
+const REGISTRY = resolve(HERE, '..', '..', 'registry');
 const TIMEOUT_MS = 240_000;
 // Four turns: an Edit probe needs a Read, the Edit and the reply (the spec said 3).
 const MAX_TURNS = '4';
@@ -152,9 +160,25 @@ export function formArgs(form, ctx) {
   }
 }
 
+// The bundle's launch for the fixture, through the real prepareLaunch (unit 13b review): the
+// fixture's MIRAI home is shaped like the real one (<repo-id>/store, trust/abc, launches/), so the
+// launch folder, the settings, the flags and the environment are exactly what production makes.
+// Each probe gets its own launch; the rendered settings are guard-checked before the run.
+function bundleLaunch(probe, ctx, { model }) {
+  const trust = { dir: join(ctx.repoHome, 'trust', 'abc'), baseSha: ctx.baseSha, manifest: { files: [] } };
+  const plan = prepareLaunch({ trust, template: ctx.template, checkout: ctx.project, env: process.env, miraiHomeDir: ctx.miraiHome });
+  ctx.launches.push(plan);
+  const settings = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8'));
+  // The launch's own scratch folder (/private/tmp/mirai-<8 hex>) is made by prepareLaunch, outside the fixture.
+  guardProbe({ ...probe, settings, allowPaths: [...(probe.allowPaths ?? []), plan.scratchDir] }, ctx);
+  const args = ['-p', promptFor(probe.action), '--max-turns', MAX_TURNS, '--model', model, '--append-system-prompt', SYSTEM, ...plan.args];
+  return { args, env: { ...plan.env, ...(probe.env ?? {}) }, cwd: plan.cwd, fdToken: plan.fds[3], settings };
+}
+
 // The command line, environment and stdin of one probe. The token goes in the environment, or,
 // with tokenVia 'fd', on file descriptor 3 (CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR).
 export function launchFor(probe, ctx, { token, model, settingsFile, home = process.env.HOME }) {
+  if (probe.form === 'bundle') return bundleLaunch(probe, ctx, { model });
   const args = ['-p', promptFor(probe.action), '--output-format', 'stream-json', '--verbose', '--max-turns', MAX_TURNS,
     '--model', model, '--permission-mode', 'dontAsk', '--settings', settingsFile, '--append-system-prompt', SYSTEM, ...formArgs(probe.form, ctx)];
   const env = {};
@@ -260,7 +284,8 @@ export function madeTheCall(action, toolUses) {
 // every field is redacted first and cut to size after.
 export async function runProbe(probe, ctx, { claude, token, model }) {
   const settingsFile = join(ctx.root, 'settings', `${probe.id}.json`);
-  writeFileSync(settingsFile, `${JSON.stringify(probe.settings, null, 2)}\n`);
+  if (probe.form !== 'bundle') writeFileSync(settingsFile, `${JSON.stringify(probe.settings, null, 2)}\n`);
+  probe.before?.();
   const launch = launchFor(probe, ctx, { token, model, settingsFile });
   const raw = await runClaude(claude, launch);
   const parsed = parseStream(raw.stdout);
@@ -327,7 +352,7 @@ function markdown(report) {
 }
 
 // Runs the probes. Returns the report; writes it to <workdir>/out.
-export async function runProbes({ workdir, only = null, model = 'haiku', claude, token, useHostCanaries = true, keep = false, dryRun = false, log = () => {} }) {
+export async function runProbes({ workdir, only = null, model = 'haiku', claude, token, useHostCanaries = true, keep = false, dryRun = false, bundle = false, log = () => {} }) {
   if (useHostCanaries && !dryRun) sweepStale();
   const ctx = buildFixture(workdir);
   ctx.host = { ...hostFacts(), claude, launcher: LAUNCHER };
@@ -342,6 +367,7 @@ export async function runProbes({ workdir, only = null, model = 'haiku', claude,
     cleaned = true;
     if (useHostCanaries && !dryRun) hostCanaries(ctx, false);
     cleanupOutside(ctx);
+    for (const plan of ctx.launches ?? []) removeLaunch(plan.launchDir, plan.scratchDir);
     const text = redact(JSON.stringify(report, null, 2), token);
     writeFileSync(join(ctx.root, 'out', 'results.json'), `${text}\n`);
     writeFileSync(join(ctx.root, 'out', 'results.md'), `${redact(markdown(report), token)}\n`);
@@ -355,6 +381,13 @@ export async function runProbes({ workdir, only = null, model = 'haiku', claude,
   process.once('SIGTERM', onSignal);
   try {
     let probes = probeList(ctx);
+    if (bundle) {
+      ctx.template = strictTemplate({ registry: loadRegistry(REGISTRY), config: { compose: { env_file: '.env.test' } }, mode: 'read-write' });
+      ctx.baseSha = commitOf(ctx.project, 'HEAD', process.env);
+      ctx.launches = [];
+      probes = [...probes.filter((p) => p.bundle), ...bundleProbes(ctx)].map((p) => ({ ...p, form: 'bundle', settings: {} }));
+      report.conditions += '; --bundle: the strict bundle\'s settings, flags and environment';
+    }
     for (const p of probes) guardProbe(p, ctx);
     probes.sort((a, b) => rank(a.fact) - rank(b.fact));
     if (only) probes = probes.filter((p) => only.includes(p.id));
@@ -398,7 +431,7 @@ async function cli() {
   const { values } = parseArgs({
     options: {
       yes: { type: 'boolean' }, workdir: { type: 'string' }, only: { type: 'string' }, model: { type: 'string' },
-      claude: { type: 'string' }, keep: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, 'no-host-canaries': { type: 'boolean' },
+      claude: { type: 'string' }, keep: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, 'no-host-canaries': { type: 'boolean' }, bundle: { type: 'boolean' },
     },
   });
   const dryRun = values['dry-run'] === true;
@@ -419,7 +452,7 @@ async function cli() {
   const workdir = values.workdir ? resolve(values.workdir) : mkdtempSync(join(process.env.HOME, '.mirai-probes-'));
   const report = await runProbes({
     workdir, claude, token: token ?? '', model: values.model ?? 'haiku', only: values.only?.split(',') ?? null,
-    keep: values.keep === true, dryRun, useHostCanaries: values['no-host-canaries'] !== true,
+    keep: values.keep === true, dryRun, useHostCanaries: values['no-host-canaries'] !== true, bundle: values.bundle === true,
     log: (line) => process.stdout.write(`${redact(line, token)}\n`),
   });
   process.stdout.write(`\nreports: ${join(workdir, 'out')}\n`);
