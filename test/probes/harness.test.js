@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,11 @@ import { containsToken, madeTheCall, redact, runProbes } from './claude-probes.j
 import { buildFixture, checkWorkdir, removeFixture } from './fixture.js';
 import { g18Check, guardProbe, probeList, strict } from './probes.js';
 import { tmp } from '../store/helpers.js';
+import { DIFF_FLAGS, pinArgs, pinEnv } from '../../src/store/git-pins.js';
+import { buildComposeFixture } from './compose-fixture.js';
+import { dockerProbes, gitProbes, guardDockerProbe, section, writeCompose } from './compose-probes.js';
+import { runDockerProbes } from './docker-probes.js';
+import { classify, runGitProbes } from './git-probes.js';
 
 // Unit 13a: the probe harness, checked with a fake `claude` (no subscription used). The real
 // runs are by hand: node test/probes/claude-probes.js --yes.
@@ -185,4 +190,143 @@ test('T13b: npm test never runs the real harness', () => {
   assert.equal(pkg.scripts.test, 'node --test "test/**/*.test.js"');
   // The only file here npm test picks up is this one.
   assert.deepEqual(readdirSync(HERE_DIR).filter((f) => f.endsWith('.test.js')), ['harness.test.js']);
+});
+
+// ---- Unit 14a: the Docker and git harnesses (no Docker used; git runs on a throwaway fixture) ----
+
+// A fake docker: it logs each call (its arguments and its environment's names) as a JSON line,
+// answers config with a resolved file named after -p, "runs" the masks probe by printing the
+// project's real .env (so a failed mask shows up as a FAIL), and lists one leftover container
+// for the harness's final sweep.
+function fakeDocker(project) {
+  const dir = tmp('fake-docker');
+  const log = join(dir, 'calls.log');
+  const path = join(dir, 'docker');
+  writeFileSync(path, `#!${process.execPath}
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, env: Object.keys(process.env).sort(), DOCKER_CONFIG: process.env.DOCKER_CONFIG }) + '\\n');
+const p = args.includes('-p') ? args[args.indexOf('-p') + 1] : null;
+if (args[0] === 'version') { console.log(JSON.stringify({ Client: { Version: '0.0-fake' }, Server: { Version: '0.0-fake' } })); process.exit(0); }
+if (args.includes('config')) { console.log(JSON.stringify({ name: p, services: { app: { image: 'nginx:1.27-alpine' } } })); process.exit(0); }
+if (args.includes('exec')) { try { console.log(fs.readFileSync(process.env.FAKE_ENV_FILE ?? ${JSON.stringify(join(project ?? '/nonexistent', '.env'))}, 'utf8')); } catch {} process.exit(0); }
+if (args[0] === 'ps' && args.some((a) => a.startsWith('label=mirai.probe='))) { console.log('deadbeef'); process.exit(0); }
+if (args[0] === 'compose' && args.includes('version')) { console.log('0.0-fake'); process.exit(0); }
+process.exit(0);
+`);
+  chmodSync(path, 0o755);
+  return { path, log, calls: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []) };
+}
+
+test('14a T1: the Docker harness: Desktop-style client, allowlisted env, named projects, labels, down -v around runs, canary = FAIL, reports, sweep, cleanup', async () => {
+  const workdir = join(tmp('docker-probes'), 'w');
+  const fake = fakeDocker(join(workdir, 'project'));
+  const report = await runDockerProbes({
+    workdir, docker: fake.path, realHome: '/nonexistent-home',
+    probes: (ctx) => dockerProbes(ctx).filter((p) => ['g12-override', 'g27-mask-volume', 'docker-own-config'].includes(p.id))
+      .concat([{ id: 'throws', fact: 'x', kind: 'config', compose: { services: { app: { image: 'nginx:1.27-alpine' } } }, check: () => { throw new Error('boom'); } }]),
+  });
+  const by = Object.fromEntries(report.results.map((r) => [r.id, r]));
+  assert.equal(by['g12-override'].outcome, 'pass');
+  assert.equal(by['g27-mask-volume'].outcome, 'FAIL', 'the fake printed the real .env canary');
+  assert.equal(by.throws.outcome, 'FAIL');
+  assert.match(by.throws.note, /check failed: boom/);
+  const calls = fake.calls();
+  const allowed = ['DOCKER_CONFIG', 'DOCKER_HOST', 'HOME', 'PATH'];
+  for (const c of calls) {
+    assert.deepEqual(c.env.filter((k) => !['__CF_USER_TEXT_ENCODING'].includes(k)), allowed, `env for ${c.args.join(' ')}`);
+    assert.match(c.DOCKER_CONFIG, /docker-config$/);
+  }
+  const projects = calls.filter((c) => c.args[0] === 'compose' && c.args.includes('-p')).map((c) => c.args[c.args.indexOf('-p') + 1]);
+  assert.ok(projects.length > 0 && projects.every((p) => new RegExp(`^mirai-probe-${report.runId}-\\d+$`).test(p)));
+  const maskProject = calls.find((c) => c.args.includes('exec')).args[2];
+  const downs = calls.filter((c) => c.args.includes('down') && c.args.includes(maskProject));
+  assert.ok(downs.length >= 2 && downs.every((c) => c.args.includes('-v')), 'down -v before and after');
+  assert.ok(calls.some((c) => c.args[0] === 'rm' && c.args.includes('deadbeef')), 'leftover containers removed');
+  assert.ok(calls.every((c) => !c.args.includes('build') && !c.args.includes('pull')));
+  assert.ok(calls.filter((c) => c.args.includes('up')).every((c) => c.args.includes('--pull') && c.args.includes('never') && c.args.includes('--no-build')));
+  assert.equal(existsSync(join(workdir, 'project')), false, 'fixture removed');
+  assert.ok(existsSync(join(workdir, 'out', 'docker-results.md')) && existsSync(join(workdir, 'out', 'docker-results.json')));
+});
+
+test('14a T1b: compose files carry the probe label; the frozen-file and show checks read resolved JSON', () => {
+  const root = tmp('compose-write');
+  const ctx = { root, project: join(root, 'project'), trust: join(root, 'trust'), canaries: {} };
+  mkdirSync(join(root, 'compose'));
+  const file = writeCompose(ctx, { id: 'p', compose: { services: { a: { image: 'nginx:1.27-alpine', labels: { k: 'v' } } } } }, 'run1');
+  const written = JSON.parse(readFileSync(file, 'utf8'));
+  assert.deepEqual(written.services.a.labels, { k: 'v', 'mirai.probe': 'run1' });
+  assert.equal(section('#a\nx\ny\n#b\nz\n#end\n', 'a'), 'x\ny');
+  assert.equal(section('#proxy\n#end\n', 'proxy'), '', 'an empty section stays empty');
+});
+
+test('14a T2: the git harness runs MIRAI\'s commands unpinned and pinned, and sees a key fire', async () => {
+  const workdir = join(tmp('git-probes'), 'w');
+  const report = await runGitProbes({ workdir, only: ['g15-fsmonitor', 'g23-pager'] });
+  const by = Object.fromEntries(report.results.map((r) => [r.id, r]));
+  assert.equal(by['g15-fsmonitor'].control.fired, true, 'the control saw the marker');
+  assert.equal(by['g15-fsmonitor'].pinned.fired, false);
+  assert.equal(by['g15-fsmonitor'].outcome, 'pass');
+  assert.equal(by['g23-pager'].kind, 'inert');
+  assert.ok(by['g15-fsmonitor'].control.marks.every((m) => !m.includes(workdir)), 'paths in marks are shortened');
+  assert.equal(existsSync(join(workdir, 'git')), false, 'fixture removed');
+  assert.ok(existsSync(join(workdir, 'out', 'git-results.md')));
+  assert.deepEqual([classify(true, false), classify(true, true), classify(false, false), classify(false, true)], ['neutralised', 'not pinnable', 'inert', 'fires only pinned']);
+});
+
+test('14a T3: canaries only: Docker probes stay in the fixture, use local images, never the socket; git remotes are local', () => {
+  const root = join(tmp('guard14'), 'w');
+  const ctx = buildComposeFixture(root);
+  try {
+    for (const p of dockerProbes(ctx)) guardDockerProbe(p, ctx);
+    // A probe whose script never ran (no output) doesn't pass (14a review).
+    const mask = dockerProbes(ctx).find((p) => p.id === 'g27-mask-volume');
+    assert.equal(mask.check({ started: true, out: '', hostChanged: [] }).pass, false);
+    assert.equal(mask.check({ started: true, out: '#mounts\n#end\n', hostChanged: [] }).pass, true);
+    const base = { id: 'x', kind: 'up', compose: { services: { a: { image: 'nginx:1.27-alpine' } } } };
+    const withSvc = (s, extra = {}) => ({ ...base, ...extra, compose: { services: { a: { image: 'nginx:1.27-alpine', ...s } } } });
+    assert.throws(() => guardDockerProbe(withSvc({ volumes: ['/Users:/u'] }), ctx), /outside the fixture/);
+    assert.throws(() => guardDockerProbe(withSvc({ volumes: [`${ctx.root}/../x:/u`] }), ctx), /outside the fixture/);
+    assert.throws(() => guardDockerProbe(withSvc({ volumes: ['/var/run/docker.sock:/s'] }), ctx), /Docker socket/);
+    assert.throws(() => guardDockerProbe(withSvc({ image: 'alpine:latest' }), ctx), /local images/);
+    assert.throws(() => guardDockerProbe(withSvc({ privileged: true }), ctx), /only in a config probe/);
+    assert.throws(() => guardDockerProbe({ ...base, compose: { services: { a: { image: 'nginx:1.27-alpine' } }, volumes: { v: { driver_opts: { device: '/etc' } } } } }, ctx), /outside the fixture/);
+    guardDockerProbe(withSvc({ privileged: true }, { kind: 'config' }), ctx);
+    assert.throws(() => guardDockerProbe(withSvc({ volumes: ['~/.ssh:/s'] }), ctx), /outside the fixture/);
+    assert.throws(() => guardDockerProbe({ ...base, kind: 'config', compose: { include: [{ path: '/etc/x.yml' }], services: { a: { image: 'nginx:1.27-alpine' } } } }, ctx), /outside the fixture/);
+    assert.throws(() => guardDockerProbe(withSvc({ extends: { file: '/etc/x.yml', service: 'b' } }, { kind: 'config' }), ctx), /outside the fixture/);
+    assert.throws(() => guardDockerProbe(withSvc({ devices: [{ source: '/dev/disk0', target: '/d' }] }, { kind: 'config' }), ctx), /outside the fixture/);
+    assert.throws(() => guardDockerProbe({ id: 'c', kind: 'cli', cli: ['run', '-v', '/Users:/u', 'nginx:1.27-alpine'] }, ctx), /isn't allowed/);
+    assert.throws(() => guardDockerProbe({ id: 'c', kind: 'cli', cli: ['run', 'alpine:latest'] }, ctx), /isn't allowed/);
+    for (const p of gitProbes({ authPort: 1, server: { port: 2 } })) {
+      const url = p.push({ dir: join(ctx.root, 'git', p.id), payload: join(ctx.root, 'payload') });
+      assert.ok(url.startsWith(`file://${ctx.root}/`) || url.startsWith('http://127.0.0.1:') || url.startsWith('ssh://127.0.0.1:1/') || url.startsWith(`ext::${ctx.root}/`) || url === 'origin', `${p.id}: ${url}`);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('14a T4: the pin set holds the probed pins, and no value comes from the repo', () => {
+  const dir = '/m/pins';
+  const args = pinArgs(dir);
+  const pins = Object.fromEntries(args.filter((a, i) => i % 2 === 1).map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]));
+  assert.ok(args.filter((a, i) => i % 2 === 0).every((a) => a === '-c'));
+  assert.equal(pins['core.hooksPath'], '/m/pins/hooks');
+  assert.equal(pins['core.fsmonitor'], 'false');
+  for (const k of ['credential.helper', 'diff.external', 'http.proxy', 'core.askPass', 'core.excludesFile']) assert.equal(pins[k], '', k);
+  assert.equal(pins['protocol.ext.allow'], 'never');
+  assert.equal(pins['commit.gpgSign'], 'false');
+  for (const k of ['gpg.program', 'gpg.openpgp.program', 'gpg.ssh.program', 'gpg.x509.program']) assert.equal(pins[k], '/usr/bin/false', k);
+  for (const [k, v] of [['merge.verifySignatures', 'false'], ['log.showSignature', 'false'], ['diff.ignoreSubmodules', 'all'], ['status.showUntrackedFiles', 'all'], ['color.ui', 'never'], ['diff.noprefix', 'false']]) assert.equal(pins[k], v, k);
+  for (const v of Object.values(pins)) assert.ok(['', 'false', 'never', 'always', 'all', 'no', 'cat', '/usr/bin/false', '/dev/null'].includes(v) || v.startsWith(`${dir}/`), v);
+  const env = pinEnv(dir, { top: '/repo' });
+  assert.equal(env.GIT_CONFIG_NOSYSTEM, '1');
+  assert.equal(env.GIT_CONFIG_GLOBAL, '/m/pins/gitconfig');
+  assert.equal(env.GIT_DIR, '/repo/.git');
+  assert.equal(env.GIT_WORK_TREE, '/repo');
+  assert.equal(env.GIT_SSH_COMMAND, '/usr/bin/false');
+  assert.equal(env.GIT_ALLOW_PROTOCOL, 'file:https');
+  assert.equal(pinEnv(dir).GIT_DIR, undefined);
+  assert.deepEqual(DIFF_FLAGS, ['--no-ext-diff', '--no-textconv', '--no-color']);
 });

@@ -783,6 +783,23 @@ export function bundleProbes(ctx) {
         return { pass: Object.values(works).every(Boolean), note: Object.entries(works).map(([k, v]) => `${k} ${v ? 'yes' : 'no'}`).join(', ') + (works.git ? '' : `; git: ${sec('git').trim().slice(0, 120)}`) };
       },
     },
+    // ---- G19 (unit 14a): name lookups from the sandbox. A sandbox that resolves names can leak
+    // data in the queries themselves, with no network allowed. Each lookup twice. ----
+    ...[
+      ['nslookup', 'nslookup example.com 2>&1 | tail -4', (t) => /^Address(?: \d+)?:\s*(?!127\.)\d+\.\d+\.\d+\.\d+\s*$/m.test(t.replace(/^.*#53.*$/gm, ''))],
+      ['dscacheutil', 'dscacheutil -q host -a name example.com 2>&1 | head -6', (t) => /ip(v6)?_address:\s*\S+/.test(t)],
+      ['python', 'python3 -c "import socket; print(socket.getaddrinfo(\'example.com\', 443)[0][4][0])" 2>&1 | tail -1', (t) => /^\s*(\d+\.\d+\.\d+\.\d+|[0-9a-f]*:[0-9a-f:]+)\s*$/m.test(t)],
+    ].flatMap(([name, command, resolved]) => [1, 2].map((n) => ({
+      id: `g19-dns-${name}-${n}`, fact: 'G19', form: 'bundle', bundleOnly: true, title: `a name lookup from sandboxed Bash (${name}, run ${n})`,
+      settings: null, action: { tool: 'Bash', command: `echo "#lookup"; ${command}; echo "#end"` },
+      check: (r) => {
+        const out = section(r.toolText, 'lookup') ?? '';
+        const hit = resolved(out);
+        // Only a run that reached its end counts (14a review: no output must not pass).
+        if (!/#end/.test(r.toolText)) return { pass: false, inconclusive: true, note: 'the lookup didn\'t run to its end' };
+        return { pass: !hit, note: `example.com resolved: ${hit ? 'yes' : 'no'}; ${out.trim().replace(/\n/g, ' | ').slice(0, 200)}` };
+      },
+    }))),
   ];
 }
 

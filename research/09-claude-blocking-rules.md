@@ -237,7 +237,27 @@ G20, G22, G24 and G25, in `research/10-claude-code-facts.md`. What changes §7:
   without `--restricted` (your decision, 2026-10-25);
 - a sandboxed command starting an unsandboxed one is now a blocker like G18 (none found).
 
-The rest of this list stays open for its unit; G19 (DNS) is unit 14's.
+**Settled by unit 14a (2026-10-25, Docker Desktop 29.6.2, Compose 5.3.1, git 2.39.5):** the
+compose override and env items, the git hooks and fsmonitor item, G19, G23 and G27, in
+`research/11-docker-git-facts.md`. What changes §7:
+- every compose call needs `-f`, `-p`, `--project-directory` and `--env-file`, with no
+  `COMPOSE_*` in its environment (`COMPOSE_PROFILES` and a project `.env` steer it otherwise);
+- `include`, `extends`, `env_file` and `provider` are refused in the raw files, before Compose
+  runs: resolving fetches remote includes and hides what it merged;
+- masks over files don't hold on this Mac: another spelling of the name (`.ENV`) reaches the
+  real file through Docker Desktop's case-insensitive shared folder, and a write through it
+  changed the real `.env`. So test containers get a copy of the tree, made for each run without
+  `.git` and real `.env*`, and never the work tree itself (14b; a change to D-49's mechanism);
+- a timeout must force-remove the containers, which outlive the Compose client;
+- MIRAI calls Docker Desktop's own client by absolute path, with its own `DOCKER_CONFIG` and
+  `DOCKER_HOST`;
+- the pins can't stop filters, merge drivers, includes, `insteadOf`, URL-scoped `http` keys,
+  a `.git` file or `commondir`, nested repos, alternates or `info/exclude`. So 14b allowlists the
+  repo's own config keys, checks the repo's shape (no gitfile, `commondir` or nested `.git`), and
+  D-54's hash covers `config`, `config.worktree`, `info/`, `objects/info/`, `commondir` and the
+  refs.
+
+The rest of this list stays open for its unit.
 
 From round 1 (§2, §5, §6), still open:
 - deny rules behave the same in `-p` as interactively;

@@ -202,6 +202,29 @@ What the tests found, on Claude Code 2.1.310 and macOS 26.7:
 The tests are re-run after every Claude Code update (unit 18), because each fact holds for the
 version it was seen on.
 
+### Tests run in containers (units 14a–14c)
+
+Agents never run `docker` or the project's tests themselves. They ask MIRAI's `run_tests` tool
+(unit 14c), which runs them in the project's own containers. Unit 14a tested what that relies on,
+with Docker and git probes (`research/11-docker-git-facts.md`):
+- **No way out of the containers:** test containers on an internal network can't look up or
+  reach the internet or your Mac; only the project's own services answer. Sandboxed commands
+  can't look up names either.
+- **Tests get a copy, not your project folder:** on a Mac, hiding a file inside a container
+  doesn't work. Writing the name in another case (`.ENV` for `.env`) reaches the real file, and
+  can even change it. So the test runner (unit 14b) gives the containers a fresh copy of the
+  project for each run, without `.git` and without your real `.env` files. Tests can write to
+  that copy, never to your project.
+- **Nothing from the branch steers Docker:** the branch can't change which compose files load,
+  or their values. MIRAI names every file, the project name and a trusted env file on each call,
+  and clears Docker's own variables.
+- **git on your Mac:** MIRAI's git calls switch off the hooks, ssh, credential helpers, signing
+  programs, proxies and other config a hostile `.git/config` could set. Some config can't be
+  switched off that way: filters, merge drivers, includes, URL rewrites, and a `.git` that points
+  somewhere else. For those, MIRAI refuses any repo config it doesn't know, refuses repos nested
+  inside the project, and checks `.git` against a recorded hash before and after every run (unit
+  14b).
+
 ## The login token
 
 Agent runs don't use your normal Claude login. They use a separate **login token**.

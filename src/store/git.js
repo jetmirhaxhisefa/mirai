@@ -3,8 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { StoreError } from '../cli/errors.js';
 
 // The read-only git calls the store needs (unit 05a): never a shell, a fixed environment, no
-// fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 22
-// (D-54). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp`, (unit 06) `ls-tree`
+// fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 14b
+// (D-54; the pins are src/store/git-pins.js, probed in unit 14a). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp`, (unit 06) `ls-tree`
 // / `cat-file`, (unit 07b) `ls-files` and (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff --name-only` with pinned options and `merge-base`, (unit 13b) `ls-files` for `.env*` files are used, with replace refs off, so `refs/replace` can't change which commits
 // count as the roots or which keys are committed.
 
