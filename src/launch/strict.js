@@ -9,6 +9,7 @@ import { EXIT } from '../cli/exit-codes.js';
 import { configValue, envFiles, lsTree } from '../store/git.js';
 import { miraiHome } from '../store/home.js';
 import { ensurePrivateDir } from '../store/files.js';
+import { repoGuard } from '../store/repo-state.js';
 import { protectionRules } from '../trust/protected.js';
 import { readToken } from '../sign/token.js';
 import { expand } from '../util/glob.js';
@@ -454,10 +455,14 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
   const launchDir = join(launches, launchId);
   ensurePrivateDir(launchDir);
   let scratchDir = null;
+  let guard = null;
   try {
     for (const sub of ['input', 'claude-config']) ensurePrivateDir(join(launchDir, sub));
     scratchDir = makeScratch();
     const facts = launchFacts({ trust, checkout, env, launchDir: realpathSync(launchDir), scratchDir, miraiHomeDir, template });
+    // D-54's integrity hash, from here until finishLaunch: every git call on the checkout checks
+    // it first (unit 14b).
+    guard = repoGuard(facts.checkout);
     // The hook's policy first, read-only in input/; the settings carry its hash (unit 13c).
     const hookScript = join(facts.trustDir, 'tree', '.mirai', 'framework', 'bin', 'hook.js');
     if (!existsSync(hookScript)) throw new StrictError('the trust root has no hook (a framework copy from before unit 13c)', { code: 'no-hook', hint: 'run: mirai init --refresh, and commit it' });
@@ -492,10 +497,24 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
       expectedInit: expectedInit(template, { cwd: facts.checkout }),
     };
     Object.defineProperty(plan, 'fds', { value: Object.freeze({ 3: token }), enumerable: false });
+    Object.defineProperty(plan, 'guard', { value: guard, enumerable: false });
     return plan;
   } catch (err) {
+    guard?.release();
     removeLaunch(launchDir, scratchDir);
     throw err;
+  }
+}
+
+// After the agent's process group is gone: checks that `.git` is as it was before the launch
+// (D-54; throws `repo-changed`, naming what changed), then ends the guard and removes the launch
+// folders either way.
+export function finishLaunch(plan) {
+  try {
+    plan.guard?.check();
+  } finally {
+    plan.guard?.release();
+    removeLaunch(plan.launchDir, plan.scratchDir);
   }
 }
 

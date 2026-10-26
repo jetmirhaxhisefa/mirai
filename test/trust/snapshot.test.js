@@ -265,7 +265,7 @@ test('T11: mirai trust and mirai protected through the CLI', async () => {
   assert.equal(await main(['trust', 'check'], io, COMMANDS), EXIT.BLOCKED);
   assert.match(err, /run: mirai trust snapshot/);
   assert.equal(await main(['trust', 'snapshot'], io, COMMANDS), EXIT.OK, err);
-  assert.match(out, /^trust root for main at [0-9a-f]{12}\n {2}folder: .*\/trust\/[0-9a-f]{40}\n {2}files: \d+, manifest [0-9a-f]{12}\n$/);
+  assert.match(out, /^trust root for main at [0-9a-f]{12}\n {2}folder: .*\/trust\/[0-9a-f]{40}\n {2}files: \d+, manifest [0-9a-f]{12}\n {2}git: \/usr\/bin\/git, pinned; repo config checked\n {2}your global excludes: .+\n$/);
   out = '';
   assert.equal(await main(['trust', 'check'], io, COMMANDS), EXIT.OK, err);
   assert.match(out, /: unchanged \(\d+ files\)/);

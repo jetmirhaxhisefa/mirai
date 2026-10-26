@@ -202,28 +202,126 @@ What the tests found, on Claude Code 2.1.310 and macOS 26.7:
 The tests are re-run after every Claude Code update (unit 18), because each fact holds for the
 version it was seen on.
 
-### Tests run in containers (units 14a–14c)
+### Tests run in containers (units 14a–14d)
 
 Agents never run `docker` or the project's tests themselves. They ask MIRAI's `run_tests` tool
-(unit 14c), which runs them in the project's own containers. Unit 14a tested what that relies on,
+(unit 14d), which runs them in the project's own containers. Unit 14a tested what that relies on,
 with Docker and git probes (`research/11-docker-git-facts.md`):
 - **No way out of the containers:** test containers on an internal network can't look up or
   reach the internet or your Mac; only the project's own services answer. Sandboxed commands
   can't look up names either.
 - **Tests get a copy, not your project folder:** on a Mac, hiding a file inside a container
   doesn't work. Writing the name in another case (`.ENV` for `.env`) reaches the real file, and
-  can even change it. So the test runner (unit 14b) gives the containers a fresh copy of the
+  can even change it. So the test runner (unit 14c) gives the containers a fresh copy of the
   project for each run, without `.git` and without your real `.env` files. Tests can write to
   that copy, never to your project.
 - **Nothing from the branch steers Docker:** the branch can't change which compose files load,
   or their values. MIRAI names every file, the project name and a trusted env file on each call,
   and clears Docker's own variables.
-- **git on your Mac:** MIRAI's git calls switch off the hooks, ssh, credential helpers, signing
-  programs, proxies and other config a hostile `.git/config` could set. Some config can't be
-  switched off that way: filters, merge drivers, includes, URL rewrites, and a `.git` that points
-  somewhere else. For those, MIRAI refuses any repo config it doesn't know, refuses repos nested
-  inside the project, and checks `.git` against a recorded hash before and after every run (unit
-  14b).
+- **git on your Mac:** see "MIRAI's own git" below (unit 14b).
+
+## MIRAI's own git
+
+MIRAI runs git on your Mac for almost every command: `status`, `lint`, `trust`, `protected`,
+and later the commits. Those calls run outside every sandbox, with your user's rights. A repo's
+own config can make git run programs: a filter on every file it reads, a diff driver, a hook.
+So whatever is in `.git/config` would run under MIRAI too. Since unit 14b, three things stop that.
+
+**1. Every call is pinned.** MIRAI runs `/usr/bin/git` only, never a shell. It runs it:
+- with the repo named outright (`GIT_DIR` and `GIT_WORK_TREE`), so `core.worktree` can't move
+  it. MIRAI finds the project's top folder itself, without asking git;
+- without your global `~/.gitconfig` and without the system one;
+- with an empty `HOME` (`/var/empty`, which macOS keeps empty and only root can write; where
+  it doesn't exist, as on some Linux systems, git simply has no home folder to read);
+- with hooks off (`core.hooksPath=/dev/null`);
+- with ssh, credential helpers, askpass, proxies, pagers, editors and signing programs switched
+  off;
+- with only `file` and `https` transports;
+- with diffs that never run a diff driver or a text converter.
+
+Nothing from your shell's environment reaches these calls. Your own `git` is untouched: this is
+only how MIRAI calls it.
+
+**2. The repo's config is checked before git runs.** MIRAI reads `.git/config` (and
+`config.worktree`, if that's on) without following includes, and sorts every key:
+- **Known keys are fine:**
+  - the usual `core` settings, remotes, branches, `user`, `pull`, `gc` and `alias`;
+  - keys MIRAI overrides anyway: `core.hooksPath` (husky), `core.fsmonitor`, `credential.*`,
+    `gpg.*`, `color.*` and others.
+- **Keys that run programs or send git elsewhere are always refused:**
+  - `include` and `includeIf`;
+  - trailer commands and `gpg.ssh.defaultKeyCommand`;
+  - filters, merge and diff drivers;
+  - `url.*` rewrites and per-URL `http.*` settings;
+  - `core.worktree` and a bare repo;
+  - promisor and partial-clone settings;
+  - `submodule.*`, and the remote's upload and receive programs.
+
+  You'll see:
+  ```
+  mirai: MIRAI won't run git on this repo: .git/config sets filter.x.clean, which runs a program on your files (a filter)
+  ```
+  A credential inside a key (a token in a `url.<base>.insteadOf` URL) is shown as `<redacted>`.
+  Your own git runs that key too. If you didn't add it, remove it with the `git config --unset-all`
+  command the message names.
+- **Any other key is refused until you allow it.** This covers a `difftool`, an IDE's own
+  section and so on. If you trust the key, allow it on your machine in
+  `~/.config/mirai/config.toml`:
+  ```toml
+  [git]
+  allow_repo_config = ["difftool.*", "gitlens.someKey"]
+  ```
+  An entry is an exact key or a whole section (`name.*`). Keys from the always-refused list
+  can't be allowed, and neither can sections too wide to judge (`core.*`, `remote.*`,
+  `trailer.*`). What a key may do is judged against the git commands MIRAI runs today; a later
+  unit that adds a git command checks these lists again. This
+  setting belongs to you, not the project: a branch can't allow anything for itself.
+
+MIRAI also checks the repo's shape:
+- `.git` must be a real folder. A worktree, a submodule checkout or a `.git` file or link
+  pointing at another repo is refused;
+- `.git/config.worktree` is checked like `.git/config` whenever it exists;
+- the folders inside `.git` that git reads from (`objects`, `refs`, `info`, `hooks`) must not
+  be links;
+- there must be no `commondir`, object alternates or grafts;
+- `.git/info` and `.git/hooks` must hold no links;
+- there must be no repo nested inside the project. A committed nested repo or submodule, or an
+  untracked repo folder that isn't ignored, is refused: adding files would run that repo's own
+  config. A repo inside an ignored folder (`vendor/`) is fine;
+- **Git LFS repos are refused for now**, with a message saying what was found. LFS gets its
+  filter from your global config, which MIRAI's git doesn't read, so every LFS file would look
+  changed.
+
+**3. `.git` is fingerprinted during runs.** For each agent launch, MIRAI records a hash of:
+- `.git/config` and `config.worktree`, `info/` and `objects/info/`;
+- the hooks folder;
+- `commondir` and `shallow`;
+- `HEAD`, the local branches (by the commit each points at), replace refs, worktrees, modules,
+  and remotes defined by file.
+
+The hash is checked again before every git call MIRAI makes during the launch, and when the
+launch ends. A change stops the run and names what changed (`config`, `hooks`, `refs`…).
+- **Routine git activity doesn't count:** packing refs, `git gc`, new tags and remote-tracking
+  branches (your editor's background fetch) change nothing in the hash.
+- **A commit or branch switch of yours in that checkout does count:** during a run, the
+  checkout is MIRAI's.
+- **Not live yet:** the launch code holds the fingerprint (`prepareLaunch` / `finishLaunch`), but
+  MIRAI's launcher, which calls them, comes with units 15 and 19. Until then the checks in 1 and
+  2 run on every command, and the fingerprint is tested but not yet in use.
+
+**Your global excludes file still applies.** MIRAI reads the path of your global excludes
+(`core.excludesFile`, or `~/.config/git/ignore`) and passes it in, so files only it ignores
+(`.DS_Store`, IDE folders) stay ignored. An excludes file inside the project isn't used.
+`mirai trust check` shows which git MIRAI uses and which excludes file it honours.
+
+**How it was tested.** `test/probes/git-probes.js --mirai` runs every git call MIRAI makes
+against 38 hostile repos from unit 14a, each with one key planted whose program only writes a
+marker file:
+- 19 were refused before git ran on the repo;
+- in the other 19, git ran and nothing fired.
+
+On a clone of the sample app with a planted filter, MIRAI's old git calls ran the filter 458
+times in one call. The new ones refused the repo, and nothing ran.
 
 ## The login token
 
@@ -305,10 +403,16 @@ So if your token leaks:
   pack data later.
 - **What's readable outside your home folder:** system folders stay readable so tools work.
   The places known to hold data are denied (see "Reads"); unit 18 lists the rest.
+- **MIRAI's git:** the repo check and the hash catch a hostile `.git` between two checks, not the
+  moment it's written. Something other than an agent (your IDE, another tool) can still change
+  `.git` between your commands; the next MIRAI command or check refuses it. The key lists were
+  probed on git 2.39.5 (Apple); a git update needs the probes again (unit 18).
 - **Your merge is the final gate.** MIRAI reviews and tests every change, but you decide what
   reaches your integration branch.
 
 ## Coming next
 
+- **Units 14c and 14d:** the test runner (a fresh copy of the project per run) and the
+  `run_tests` tool.
 - **Unit 18:** the red-team suite, re-run after every update.
 - **Unit 19:** the first real agent runs.

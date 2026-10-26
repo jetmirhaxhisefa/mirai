@@ -13,7 +13,7 @@ import { DIFF_FLAGS, pinArgs, pinEnv } from '../../src/store/git-pins.js';
 import { buildComposeFixture } from './compose-fixture.js';
 import { dockerProbes, gitProbes, guardDockerProbe, section, writeCompose } from './compose-probes.js';
 import { runDockerProbes } from './docker-probes.js';
-import { classify, runGitProbes } from './git-probes.js';
+import { classify, MIRAI_STEPS, runGitProbes } from './git-probes.js';
 
 // Unit 13a: the probe harness, checked with a fake `claude` (no subscription used). The real
 // runs are by hand: node test/probes/claude-probes.js --yes.
@@ -308,25 +308,47 @@ test('14a T3: canaries only: Docker probes stay in the fixture, use local images
 });
 
 test('14a T4: the pin set holds the probed pins, and no value comes from the repo', () => {
-  const dir = '/m/pins';
-  const args = pinArgs(dir);
+  const args = pinArgs();
   const pins = Object.fromEntries(args.filter((a, i) => i % 2 === 1).map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]));
   assert.ok(args.filter((a, i) => i % 2 === 0).every((a) => a === '-c'));
-  assert.equal(pins['core.hooksPath'], '/m/pins/hooks');
+  assert.equal(pins['core.hooksPath'], '/dev/null');
   assert.equal(pins['core.fsmonitor'], 'false');
   for (const k of ['credential.helper', 'diff.external', 'http.proxy', 'core.askPass', 'core.excludesFile']) assert.equal(pins[k], '', k);
   assert.equal(pins['protocol.ext.allow'], 'never');
   assert.equal(pins['commit.gpgSign'], 'false');
   for (const k of ['gpg.program', 'gpg.openpgp.program', 'gpg.ssh.program', 'gpg.x509.program']) assert.equal(pins[k], '/usr/bin/false', k);
   for (const [k, v] of [['merge.verifySignatures', 'false'], ['log.showSignature', 'false'], ['diff.ignoreSubmodules', 'all'], ['status.showUntrackedFiles', 'all'], ['color.ui', 'never'], ['diff.noprefix', 'false']]) assert.equal(pins[k], v, k);
-  for (const v of Object.values(pins)) assert.ok(['', 'false', 'never', 'always', 'all', 'no', 'cat', '/usr/bin/false', '/dev/null'].includes(v) || v.startsWith(`${dir}/`), v);
-  const env = pinEnv(dir, { top: '/repo' });
+  for (const v of Object.values(pins)) assert.ok(['', 'false', 'never', 'always', 'all', 'no', 'cat', '/usr/bin/false', '/dev/null'].includes(v), v);
+  assert.equal(pinArgs({ excludesFile: '/u/ignore' }).at(pinArgs().indexOf('core.excludesFile=')), 'core.excludesFile=/u/ignore');
+  const env = pinEnv({ top: '/repo' });
   assert.equal(env.GIT_CONFIG_NOSYSTEM, '1');
-  assert.equal(env.GIT_CONFIG_GLOBAL, '/m/pins/gitconfig');
+  assert.equal(env.GIT_CONFIG_GLOBAL, '/dev/null');
+  assert.equal(env.HOME, '/var/empty');
   assert.equal(env.GIT_DIR, '/repo/.git');
   assert.equal(env.GIT_WORK_TREE, '/repo');
   assert.equal(env.GIT_SSH_COMMAND, '/usr/bin/false');
   assert.equal(env.GIT_ALLOW_PROTOCOL, 'file:https');
-  assert.equal(pinEnv(dir).GIT_DIR, undefined);
+  assert.equal(pinEnv().GIT_DIR, undefined);
   assert.deepEqual(DIFF_FLAGS, ['--no-ext-diff', '--no-textconv', '--no-color']);
+});
+
+test('14b T13: the --mirai harness runs every git.js export on the fixture, sees a refusal, a clean run and a marker', async () => {
+  const workdir = join(tmp('git-mirai'), 'w');
+  const real = gitProbes({ authPort: 1, server: { port: 2, reset() {}, hits: 0 } });
+  const pick = (id) => real.find((p) => p.id === id);
+  // A probe that "fires" whatever MIRAI does: the harness must report it.
+  const fires = { id: 'x-fires', fact: 'test', title: 'a marker written by the probe itself', push: (d) => `file://${join(d.dir, 'remote.git')}`, plant: (d) => writeFileSync(d.marks, 'fired\n') };
+  const report = await runGitProbes({ workdir, mirai: true, probes: [pick('g15-fsmonitor'), pick('g23-filter'), pick('g23-gitfile'), fires] });
+  const by = Object.fromEntries(report.results.map((r) => [r.id, r]));
+  assert.equal(by['g15-fsmonitor'].control.fired, true);
+  assert.deepEqual([by['g15-fsmonitor'].outcome, by['g15-fsmonitor'].kind], ['pass', 'ran, nothing fired']);
+  assert.deepEqual([by['g23-filter'].outcome, by['g23-filter'].kind], ['pass', 'refused (repo-config)']);
+  assert.match(by['g23-filter'].pinned.refused.message, /filter\.evil\.(clean|smudge)/);
+  assert.deepEqual([by['g23-gitfile'].outcome, by['g23-gitfile'].kind], ['pass', 'refused (git-file)']);
+  assert.equal(by['g23-gitfile'].pinned.refused.step, 'topLevel');
+  assert.equal(by['x-fires'].outcome, 'FAIL');
+  for (const r of report.results) assert.ok(!JSON.stringify(r.pinned).includes(workdir), `${r.id}: a full path in the report`);
+  assert.ok(MIRAI_STEPS.length >= 21);
+  assert.equal(existsSync(join(workdir, 'git')), false, 'fixture removed');
+  assert.ok(existsSync(join(workdir, 'out', 'git-mirai-results.md')));
 });

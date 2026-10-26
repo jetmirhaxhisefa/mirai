@@ -190,11 +190,12 @@ run `down -v`, and only then report the timeout.
 ## Host git: what MIRAI's pins switch off (G15, G23)
 
 The pin set is `src/store/git-pins.js`:
-- **the environment:** `GIT_CONFIG_NOSYSTEM=1`, MIRAI's empty `GIT_CONFIG_GLOBAL` and `HOME`,
+- **the environment:** `GIT_CONFIG_NOSYSTEM=1`, an empty `GIT_CONFIG_GLOBAL` and `HOME` (MIRAI
+  folders in 14a; `/dev/null` and `/var/empty` since 14b, re-probed with the same results),
   `GIT_DIR`/`GIT_WORK_TREE` named outright, `GIT_ALLOW_PROTOCOL=file:https`, and `GIT_SSH_COMMAND`,
   `GIT_ASKPASS` and the editors set to `/usr/bin/false`;
 - **the `-c` pins:**
-  - `core.hooksPath=<empty MIRAI folder>` and `core.fsmonitor=false`;
+  - `core.hooksPath` to an empty place (`/dev/null` since 14b) and `core.fsmonitor=false`;
   - empty `credential.helper`, `http.proxy`, `diff.external`, `core.askPass` and
     `core.excludesFile`;
   - `protocol.ext.allow=never`;
@@ -259,6 +260,25 @@ fetch and rebase.
 - **excludes:** the excludes path recorded in `~/.config/mirai` (patterns only, no code);
 - **identity:** `-c user.*` from MIRAI's config;
 - **LFS:** an LFS repo refused with a clear message, or an opt-in.
+
+**Done in unit 14b** (`implementation/units/14b-pinned-git/`):
+- every call in `src/store/git.js` is pinned, on `/usr/bin/git` only;
+- the top folder is found by walking up to `.git`, never by `rev-parse`;
+- the repo config allowlist is `src/config/git-repo-keys.js`, with a personal opt-in for unknown
+  keys;
+- the shape and nested-repo checks are `src/store/repo-check.js`;
+- the hash and guard are `src/store/repo-state.js`, held by `prepareLaunch`/`finishLaunch` for
+  the launcher (units 15 and 19, which call them);
+- after the review: `config.worktree` is checked whenever it exists (git reads it for a bare
+  `extensions.worktreeConfig` or any non-zero number, and a filter in it ran); links in place
+  of `.git`'s own folders are refused; local branches are hashed by value, so `gc` and
+  `pack-refs` change nothing;
+- your global excludes path is read and pinned;
+- LFS repos are refused.
+
+`git-probes.js --mirai` ran every export of `git.js` against all 38 probes (again after the
+review fixes): 19 refused before git ran, 19 ran with no marker, 0 failed. Commit identity, pushing and worktrees remain unit
+22's.
 
 ## Residual risk this adds to research/09 §7
 

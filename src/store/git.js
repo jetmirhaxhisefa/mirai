@@ -1,22 +1,47 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync, lstatSync, realpathSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { StoreError } from '../cli/errors.js';
+import { EXIT } from '../cli/exit-codes.js';
+import { globalConfigPath, personalRepoConfigAllow } from '../config/load.js';
+import { DIFF_FLAGS, excludesFor, pinArgs, pinEnv } from './git-pins.js';
+import { checkConfig, checkLfs, checkNested, checkShape, configSignature, gitFileError, parseConfigList } from './repo-check.js';
+import { checkGuards } from './repo-state.js';
 
-// The read-only git calls the store needs (unit 05a): never a shell, a fixed environment, no
-// fsmonitor, a time and output limit. Pinned, integrity-checked host git comes with unit 14b
-// (D-54; the pins are src/store/git-pins.js, probed in unit 14a). Only `rev-parse`, `rev-list`, `config --get` / `--get-regexp`, (unit 06) `ls-tree`
-// / `cat-file`, (unit 07b) `ls-files` and (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff --name-only` with pinned options and `merge-base`, (unit 13b) `ls-files` for `.env*` files are used, with replace refs off, so `refs/replace` can't change which commits
-// count as the roots or which keys are committed.
+// The git calls MIRAI makes on your machine. Since unit 14b every one is pinned (D-54;
+// src/store/git-pins.js, probed in unit 14a): `/usr/bin/git` only, never a shell, the repo
+// named outright (GIT_DIR/GIT_WORK_TREE), MIRAI's empty global config, hooks folder and HOME,
+// the `-c` pins, replace refs off, a time and output limit. Before the first call on a checkout
+// (and again when its config changes) the repo check runs (src/store/repo-check.js): keys the
+// pins can't switch off are refused before git ever reads them. While a run's guard is active
+// (src/store/repo-state.js), each call first checks that `.git` hasn't changed.
+//
+// Calls used: `rev-parse`, `rev-list`, `config --file`, (unit 06) `ls-tree` / `cat-file`,
+// (unit 07b) `ls-files`, (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff
+// --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files. A new call needs its
+// own probe (test/probes/git-probes.js --mirai).
 
 const TIMEOUT_MS = 10_000;
 const MAX_OUTPUT = 1024 * 1024;
 
-// `raw: true` returns the output as bytes, untouched; `input` is written to git's stdin.
-function git(cwd, args, env, { timeout = TIMEOUT_MS, raw = false, input, maxBuffer = MAX_OUTPUT } = {}) {
+// The only git binary MIRAI runs (14b, your decision): the one 14a probed. Tests swap it.
+let gitBinary = '/usr/bin/git';
+export function setGitBinaryForTests(path) {
+  const before = gitBinary;
+  gitBinary = path;
+  checked.clear();
+  return before;
+}
+
+// Checkouts whose repo check passed in this process, with what it depended on.
+const checked = new Map();
+
+function exec(cwd, args, env, { timeout = TIMEOUT_MS, raw = false, input, maxBuffer = MAX_OUTPUT } = {}) {
   try {
-    const out = execFileSync('git', ['--no-replace-objects', '-c', 'core.fsmonitor=false', ...args], {
+    const out = execFileSync(gitBinary, args, {
       cwd,
-      env: { PATH: env.PATH ?? '/usr/bin:/bin', HOME: env.HOME ?? '/nonexistent', GIT_CONFIG_NOSYSTEM: '1' },
+      env,
       encoding: raw ? 'buffer' : 'utf8',
       timeout,
       maxBuffer,
@@ -25,17 +50,96 @@ function git(cwd, args, env, { timeout = TIMEOUT_MS, raw = false, input, maxBuff
     });
     return { ok: true, out: raw ? out : out.trim() };
   } catch (err) {
-    if (err.code === 'ENOENT') throw new StoreError('git is not installed or not on PATH', { code: 'no-git' });
-    if (err.code === 'ENOBUFS') throw new StoreError(`git ${args[0]} wrote more than MIRAI reads at once`, { code: 'git-output-too-large' });
-    if (err.signal) throw new StoreError(`git ${args[0]} took longer than ${timeout / 1000} s`, { code: 'git-timeout' });
+    if (err.code === 'ENOENT') {
+      if (!existsSync(gitBinary)) throw new StoreError(`git is not installed at ${gitBinary}`, { code: 'no-git', hint: 'MIRAI runs only that git (on macOS: xcode-select --install)' });
+      throw new StoreError(`${cwd} doesn't exist`, { path: cwd, code: 'no-folder' });
+    }
+    if (err.code === 'ENOBUFS') throw new StoreError(`git ${args.find((a) => !a.startsWith('-') && !a.includes('=')) ?? ''} wrote more than MIRAI reads at once`, { code: 'git-output-too-large' });
+    if (err.signal) throw new StoreError(`git took longer than ${timeout / 1000} s`, { code: 'git-timeout' });
     return { ok: false, status: err.status, out: String(err.stdout ?? '').trim() };
   }
 }
 
-// The checkout's top folder, or null when `cwd` is not inside a git work tree.
-export function topLevel(cwd, env) {
-  const r = git(cwd, ['rev-parse', '--show-toplevel'], env);
-  return r.ok && r.out !== '' ? r.out : null;
+// A pinned call outside any repo (reading one config file): no GIT_DIR, run in `/`.
+function pinnedNoRepo(args, opts) {
+  return exec('/', ['--no-replace-objects', ...pinArgs(), ...args], pinEnv(), opts);
+}
+
+// One pinned call on the checkout `root` (its top folder).
+function pinned(root, args, env, opts) {
+  const { path: excludesFile } = excludesFor(env, root, gitBinary);
+  return exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...args], pinEnv({ top: root }), opts);
+}
+
+// The repo check for `root`: the shape on every call (a few lstats), the config and LFS check
+// when what they read has changed.
+export function checkRepo(root, env) {
+  checkShape(root);
+  const sig = `${configSignature(root)}|${statSignature(globalConfigPath(env.HOME ?? '/nonexistent'))}`;
+  if (checked.get(root) === sig) return;
+  const listConfig = (file) => {
+    const r = pinnedNoRepo(['config', '--file', file, '--list', '--null'], { raw: true });
+    if (!r.ok) throw new StoreError(`${file}: git can't read it`, { path: file, code: 'repo-config', hint: 'check the file with: git config --file <it> --list' });
+    return parseConfigList(r.out);
+  };
+  checkConfig(root, { listConfig, allow: personalRepoConfigAllow(env.HOME) });
+  checkLfs(root, {
+    attributeFiles: () => {
+      const r = pinned(root, ['ls-files', '-z', '--cached', '--', ':(glob)**/.gitattributes'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+      if (!r.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+      return nulList(r.out);
+    },
+  });
+  checked.set(root, sig);
+}
+
+// What `mirai trust` shows about MIRAI's git on a checkout whose repo check passed.
+export function pinnedGitInfo(root, env) {
+  checkRepo(root, env);
+  return { binary: gitBinary, excludes: excludesFor(env, root, gitBinary) };
+}
+
+function statSignature(path) {
+  try {
+    const s = statSync(path);
+    return `${s.ino}:${s.size}:${s.mtimeMs}:${s.ctimeMs}`;
+  } catch {
+    return '-';
+  }
+}
+
+function git(root, args, env, opts) {
+  // The guard first: a change during a run is reported as one (repo-changed).
+  checkGuards(root);
+  checkRepo(root, env);
+  return pinned(root, args, env, opts);
+}
+
+// The checkout's top folder (its real path), or null when `cwd` is not inside one: the first
+// folder up from `cwd` holding `.git`. Found without git, so a `core.worktree` can't move it;
+// a `.git` that is a file (a worktree, a submodule, a link to another repo) is refused.
+export function topLevel(cwd) {
+  let dir;
+  try {
+    dir = realpathSync(cwd);
+  } catch {
+    return null;
+  }
+  for (;;) {
+    let info = null;
+    try {
+      info = lstatSync(join(dir, '.git'));
+    } catch {
+      // not here
+    }
+    if (info?.isDirectory()) return dir;
+    if (info?.isFile()) throw gitFileError(join(dir, '.git'));
+    if (info?.isSymbolicLink()) throw new StoreError(`${join(dir, '.git')} is a symbolic link`, { path: join(dir, '.git'), code: 'git-file', exitCode: EXIT.BLOCKED, hint: 'MIRAI runs in the main checkout of a repo, whose .git is a real folder' });
+    if (info) return null; // something else: not a checkout MIRAI runs in
+    const up = dirname(dir);
+    if (up === dir) return null;
+    dir = up;
+  }
 }
 
 export function isShallow(root, env) {
@@ -59,15 +163,21 @@ export function refExists(root, ref, env) {
   return git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], env).ok;
 }
 
-// One config value as git reads it in this checkout (repo config included), or null.
+// One config value from the repo's own config files (config.worktree first, as git reads it
+// when that file is in use), or null. Read by file, so a pin never hides the repo's value (unit
+// 14b); includes are refused by the repo check anyway.
 export function configValue(root, key, env) {
-  const r = git(root, ['config', '--get', key], env);
-  return r.ok && r.out !== '' ? r.out : null;
+  for (const file of ['config.worktree', 'config']) {
+    if (file === 'config.worktree' && !existsSync(join(root, '.git', file))) continue;
+    const r = git(root, ['config', '--file', join(root, '.git', file), '--get', key], env);
+    if (r.ok && r.out !== '') return r.out;
+  }
+  return null;
 }
 
-// The remotes with a URL: a Map from name to its (first) URL.
+// The remotes with a URL, from the repo's own config file: a Map from name to its (first) URL.
 export function remotes(root, env) {
-  const r = git(root, ['config', '--null', '--get-regexp', '^remote\\..*\\.url$'], env);
+  const r = git(root, ['config', '--file', join(root, '.git', 'config'), '--null', '--get-regexp', '^remote\\..*\\.url$'], env);
   const found = new Map();
   if (!r.ok) return found;
   for (const entry of r.out.split('\0')) {
@@ -130,10 +240,23 @@ export function catBlobs(root, shas, env, { maxBytes = 16 * 1024, maxTotal = MAX
 
 // The files git knows under `paths` (repo-relative; '.' for all): tracked ones plus new ones
 // that .gitignore doesn't exclude (unit 07b). Relative paths with "/", or null when git fails.
+// A nested repo there is refused (unit 14b: `add -A` would run its config).
 export function lsFiles(root, paths, env) {
-  const r = git(root, ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...paths], env, { raw: true, timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
-  if (!r.ok) return null;
-  return [...new Set(r.out.toString('utf8').split('\0').filter(Boolean))];
+  // The index once, with modes (a gitlink is a nested repo), then the new files.
+  const staged = git(root, ['ls-files', '-z', '--stage', '--', ...paths], env, { raw: true, timeout: 60_000, maxBuffer: 256 * 1024 * 1024 });
+  const others = git(root, ['ls-files', '-z', '--others', '--exclude-standard', '--', ...paths], env, { raw: true, timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
+  if (!staged.ok || !others.ok) return null;
+  const untracked = nulList(others.out);
+  checkNested(staged.out, untracked);
+  const cached = nulList(staged.out).map((line) => line.slice(line.indexOf('\t') + 1));
+  return [...new Set([...cached, ...untracked])];
+}
+
+// `ls-files --stage` output for `paths`, for the nested-repo check (a gitlink has mode 160000).
+function stageOf(root, paths, env) {
+  const r = git(root, ['ls-files', '-z', '--stage', '--', ...paths], env, { raw: true, timeout: 60_000, maxBuffer: 256 * 1024 * 1024 });
+  if (!r.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+  return r.out;
 }
 
 // The checkout's `.env*` files at any depth, whatever their case: tracked, untracked and ignored
@@ -173,21 +296,25 @@ export function ignoredPaths(root, paths, env) {
 }
 
 // Diffs as data (unit 12): no external diff driver, no textconv, no rename detection (a rename
-// counts as both paths), whatever the repo's config says.
-const DIFF_PINS = ['-c', 'diff.external=', '-c', 'core.quotePath=false', '-c', 'core.attributesFile=/dev/null', 'diff', '--name-only', '-z', '--no-renames', '--no-ext-diff', '--no-textconv', '--no-color', '--ignore-submodules=none'];
+// counts as both paths), whatever the repo's config says. Submodule changes count; a nested repo
+// in the work tree is refused before the diff looks into it (unit 14b).
+const DIFF_ARGS = ['diff', '--name-only', '-z', '--no-renames', ...DIFF_FLAGS, '--ignore-submodules=none'];
 
 // The paths that differ between two commits, or between a commit and the work tree (`to`
 // omitted), sorted. With the work tree, untracked files git doesn't ignore count too.
 export function changedNames(root, from, to, env) {
+  let untracked = [];
+  if (!to) {
+    const u = git(root, ['ls-files', '-z', '--others', '--exclude-standard'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+    if (!u.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+    untracked = nulList(u.out);
+    checkNested(stageOf(root, ['.'], env), untracked);
+  }
   // Raw output: trimming would eat a leading space of the first path.
-  const r = git(root, [...DIFF_PINS, from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+  const r = git(root, [...DIFF_ARGS, from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
   if (!r.ok) throw new StoreError(`git diff ${from}${to ? `..${to}` : ''} failed`, { code: 'git-failed' });
   const names = new Set(nulList(r.out));
-  if (!to) {
-    const u = git(root, ['-c', 'core.attributesFile=/dev/null', 'ls-files', '-z', '--others', '--exclude-standard'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
-    if (!u.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
-    for (const n of nulList(u.out)) names.add(n);
-  }
+  for (const n of untracked) names.add(n);
   return [...names].sort();
 }
 

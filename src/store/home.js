@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from 'node:fs';
-import { dirname, basename, isAbsolute, join, sep } from 'node:path';
+import { dirname, basename, join, sep } from 'node:path';
 
 import { ConfigError, StoreError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
@@ -8,24 +8,18 @@ import { hasTokenShape } from '../config/credentials.js';
 import { BRANCH } from '../config/config-schema.js';
 import { readConfigFile, PROJECT_CONFIG } from '../config/load.js';
 import { atomicWrite, checkPrivateDir, ensurePrivateDir, readPrivateFile } from './files.js';
+import { miraiHome } from './mirai-home.js';
 import { isShallow, refExists, remotes, rootCommits, topLevel } from './git.js';
 import { appendEvent, checkCounter } from './journal.js';
 import { EMPTY_REGISTRY } from './branches.js';
 
 // The MIRAI home and the store of one repo (unit 05a; D-47). The home is in your user's
-// Application Support, outside every project:
+// Application Support (src/store/mirai-home.js), outside every project:
 //   <home>/<repo-id>/store.json   which repo and checkout this store belongs to
 //   <home>/<repo-id>/store/       the orchestrator store (journal, status files, …)
-// `HOME` comes from the CLI's env, so tests use a temporary one. There is deliberately no
-// MIRAI_HOME override: it would let MIRAI be pointed at a store someone else wrote.
 
 export const STORE_SCHEMA_VERSION = 1;
-export function miraiHome(env) {
-  if (!env.HOME || !isAbsolute(env.HOME)) {
-    throw new StoreError('HOME is not set to an absolute path', { code: 'no-home', hint: 'MIRAI keeps its store under ~/Library/Application Support/mirai' });
-  }
-  return join(env.HOME, 'Library', 'Application Support', 'mirai');
-}
+export { miraiHome };
 
 // git@github.com:o/r.git, ssh://git@github.com/o/r and https://github.com/o/r are all
 // "github.com/o/r". User info (and so any credential) is dropped; the host is lowercased, the

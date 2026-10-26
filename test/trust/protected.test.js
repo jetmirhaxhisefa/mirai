@@ -177,10 +177,13 @@ test('T4: changed paths, from the merge-base and against the work tree; no filte
   writeFileSync(attrs, '* filter=evil\n');
   temps.push(attrs);
   git(r.root, 'config', 'core.attributesFile', attrs);
-  git(r.root, 'config', 'filter.evil.clean', `sh -c 'touch ${mark}; cat'`);
   git(r.root, 'config', 'diff.external', `sh -c 'touch ${mark}'`);
   const changes = changeOf({ root: r.root, env, base: r.base }).changes;
   assert.deepEqual(changes, [' lead.txt', '.gitignore', 'a.txt', 'b.txt', 'new/untracked.txt']);
+  assert.throws(() => execFileSync('test', ['-e', mark]));
+  // The filter's command itself is in the repo's config: refused before git runs (unit 14b).
+  git(r.root, 'config', 'filter.evil.clean', `sh -c 'touch ${mark}; cat'`);
+  assert.throws(() => changeOf({ root: r.root, env, base: r.base }), (err) => err.code === 'repo-config' && /filter\.evil\.clean/.test(err.message));
   assert.throws(() => execFileSync('test', ['-e', mark]));
   // Commits that land on the base after the branch was cut aren't the branch's change.
   const m = repo({ 'README.md': '# x\n' });

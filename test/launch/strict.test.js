@@ -10,7 +10,7 @@ import { init } from '../../src/install/init.js';
 import { openStore } from '../../src/store/home.js';
 import { loadRegistry } from '../../src/config/registry.js';
 import { snapshot, trustedConfig, trustedRegistry, trustedStrict } from '../../src/trust/snapshot.js';
-import { anchored, checkInit, expectedInit, looseKeys, prepareLaunch, readableEnv, removeLaunch, renderStrict, strictTemplate, strictTemplates } from '../../src/launch/strict.js';
+import { anchored, checkInit, expectedInit, finishLaunch, looseKeys, prepareLaunch, readableEnv, removeLaunch, renderStrict, strictTemplate, strictTemplates } from '../../src/launch/strict.js';
 import { writeToken } from '../../src/sign/token.js';
 import { main } from '../../src/cli/main.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
@@ -370,4 +370,19 @@ test('T8: mirai sandbox show prints the resolved settings and flags, starts noth
   assert.match(out, /mode read-only/);
   assert.equal(await main(['sandbox', 'show', '--mode', 'admin'], io), EXIT.USAGE);
   assert.notEqual(await main(['sandbox', 'show', 'mirai-nobody'], io), EXIT.OK);
+});
+
+test('14b T11: a launch guards .git: a hook planted during it is caught by finishLaunch, which cleans up either way', () => {
+  const r = installed();
+  const trust = snapshot({ cwd: r.root, env: r.env });
+  const t = trustedStrict(trust, 'read-write');
+  writeToken(r.env, TOKEN);
+  const clean = prepareLaunch({ trust, template: t, checkout: r.root, env: r.env });
+  assert.ok(clean.guard && !Object.keys(clean).includes('guard'));
+  finishLaunch(clean);
+  assert.ok(!existsSync(clean.launchDir) && !existsSync(clean.scratchDir));
+  const plan = prepareLaunch({ trust, template: t, checkout: r.root, env: r.env });
+  writeFileSync(join(r.root, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\n', { mode: 0o755 });
+  assert.throws(() => finishLaunch(plan), (err) => err.code === 'repo-changed' && /\(hooks\)/.test(err.message));
+  assert.ok(!existsSync(plan.launchDir) && !existsSync(plan.scratchDir));
 });

@@ -8,6 +8,7 @@ import { validate, safePath } from './schema.js';
 import { CONFIG_SCHEMA, LAYER_KEYS } from './config-schema.js';
 import { frameworkDefaults, PRESETS, TIER_FAMILIES, JUDGEMENT_STEPS } from './defaults.js';
 import { findTokenShapes } from './credentials.js';
+import { allowEntryProblem } from './git-repo-keys.js';
 import { deepFreeze } from '../util/freeze.js';
 
 // Loading config (unit 03b). Four layers, later ones win: framework defaults ← project
@@ -185,10 +186,10 @@ function filterLayer(kind, file, problems) {
 
 function layerMessage(kind, path) {
   const shown = safePath(path);
-  if (kind === 'project') return [`${shown} is a personal setting`, `move [${shown.split('.')[0]}] to ~/.config/mirai/config.toml`];
+  if (kind === 'project') return [`${shown} is a personal setting`, shown.startsWith('git.') ? `move ${shown} to [git] in ~/.config/mirai/config.toml` : `move [${shown.split('.')[0]}] to ~/.config/mirai/config.toml`];
   return [
     `${shown} can't be set in a personal file`,
-    kind === 'personal-global' ? 'this file holds only [subscription] and [usage]' : 'this file holds only models.light, models.standard, models.deep and run.stop_by',
+    kind === 'personal-global' ? 'this file holds only [subscription], [usage] and git.allow_repo_config' : 'this file holds only models.light, models.standard, models.deep and run.stop_by',
   ];
 }
 
@@ -255,4 +256,23 @@ function sourcesOf(config, meta) {
   };
   walk(config, '');
   return out;
+}
+
+// `[git] allow_repo_config` from your personal global file alone (unit 14b), for pinned git,
+// which runs before (and without) the rest of the config. Only that key is read and checked
+// here; the whole file is checked wherever the full config is loaded.
+export function personalRepoConfigAllow(home) {
+  if (!home) return [];
+  const source = '~/.config/mirai/config.toml';
+  const file = readConfigFile(globalConfigPath(home), { trust: 'personal', source, optional: true });
+  const list = file?.value?.git?.allow_repo_config;
+  if (list === undefined) return [];
+  const at = file.positions.get('git.allow_repo_config') ?? { line: 1, column: 1 };
+  const fail = (reason) => new ConfigError(`${source}:${at.line}:${at.column}: ${reason}`, { source, line: at.line, column: at.column, path: 'git.allow_repo_config', reason, code: 'repo-config' });
+  if (!Array.isArray(list) || !list.every((e) => typeof e === 'string')) throw fail('git.allow_repo_config must be a list of strings');
+  for (const entry of list) {
+    const problem = allowEntryProblem(entry);
+    if (problem) throw fail(`git.allow_repo_config: ${problem}`);
+  }
+  return list;
 }

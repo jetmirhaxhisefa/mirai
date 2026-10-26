@@ -1,16 +1,17 @@
 import { GATE_STAGES, NEVER_AUTO_STAGES, JUDGEMENT_STEPS, STEPS } from './defaults.js';
 import { globProblem } from '../util/glob.js';
 import { linkHasCredential, remoteHasCredential } from './credentials.js';
+import { allowEntryProblem } from './git-repo-keys.js';
 
 // The config schema (unit 03b; the key list in design/07, "Config keys (unit 03b)").
 
 // What each layer may set, as key paths. Personal settings never live in a shared repo
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
-  project: ['schema_version', 'preset', 'git.*', 'models.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
+  project: ['schema_version', 'preset', 'git.integration_branch', 'git.branch_pattern', 'git.trailer', 'models.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
-  'personal-global': ['schema_version', 'subscription.*', 'usage.*'],
+  'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config'],
 });
 
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -125,6 +126,18 @@ export const CONFIG_SCHEMA = {
           },
         },
         trailer: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9-]*$/, patternHint: 'a single word such as "Mirai-Ticket"' },
+        // Repo config keys you trust on this machine beyond MIRAI's known ones (unit 14b;
+        // src/config/git-repo-keys.js). Personal global file only.
+        allow_repo_config: {
+          type: 'array',
+          items: {
+            type: 'string',
+            check(value, path, report) {
+              const problem = allowEntryProblem(value);
+              if (problem) report(path, `${path}: ${problem}`, 'keys that run code or redirect git can\'t be allowed (docs/agent-safety.md)', 'repo-config');
+            },
+          },
+        },
       },
       required: ['integration_branch'],
       requiredHints: { integration_branch: 'add integration_branch = "main" under [git]' },
