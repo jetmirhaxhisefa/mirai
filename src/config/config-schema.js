@@ -65,6 +65,16 @@ const resource = {
   required: ['url'],
 };
 
+// Where a level or check runs (unit 14c): the compose service, its working folder, a hard time
+// limit, and `exec` into the running service or a `oneoff` container. A test run refuses a level
+// or check without a service: everything runs in the project's containers (D-48).
+const RUN_IN = {
+  service: { type: 'string', pattern: /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/, patternHint: 'a service name from the compose file' },
+  workdir: { type: 'string', pattern: /^\/[^\\\0]*$/, patternHint: 'an absolute path inside the container, such as "/app"' },
+  timeout_minutes: { type: 'integer', min: 1, max: 240 },
+  run: { type: 'enum', values: ['exec', 'oneoff'] },
+};
+
 // What a test level is required for (D-44, D-48).
 export const REQUIRED_FOR = Object.freeze(['all', 'logic', 'endpoint-changes', 'critical-journeys', 'interface-changes']);
 
@@ -78,6 +88,7 @@ const level = {
     purpose: { type: 'string' },
     required_for: { type: 'array', items: { type: 'enum', values: REQUIRED_FOR } },
     budget_minutes: { type: 'integer', min: 1 },
+    ...RUN_IN,
   },
   required: ['name', 'command'],
 };
@@ -87,7 +98,7 @@ const namedCheck = {
   type: 'choice',
   pick: (value) => (Array.isArray(value) ? argv : {
     type: 'table',
-    fields: { command: argv, service: { type: 'string', pattern: NAME }, workdir: relPath, timeout_minutes: { type: 'integer', min: 1, max: 240 } },
+    fields: { command: argv, ...RUN_IN },
     required: ['command'],
   }),
 };
@@ -173,7 +184,17 @@ export const CONFIG_SCHEMA = {
       },
     },
     checks: { type: 'table', map: namedCheck, keyPattern: NAME, keyHint: NAME_HINT },
-    compose: { type: 'table', fields: { files: { type: 'array', items: relPath }, env_file: relPath } },
+    compose: {
+      type: 'table',
+      fields: {
+        files: { type: 'array', items: relPath },
+        env_file: relPath,
+        // Unit 14c: extra service keys from a fixed safe list, and where the run's output folder
+        // is mounted in the level's service.
+        allow: { type: 'array', items: { type: 'enum', values: ['shm_size', 'ulimits', 'mem_limit', 'cpus', 'pids_limit'] } },
+        output: { type: 'string', pattern: /^\/[^\\\0]*[^/]$/, patternHint: 'an absolute path inside the container, such as "/mirai/out"' },
+      },
+    },
     // What agents may read that the strict bundle would deny (unit 13b): `.env*` files that hold
     // no real secret, such as a committed `.env.example`. Every other `.env*` file is denied to
     // agents; [compose] env_file (the tests' dummy file) is always readable.

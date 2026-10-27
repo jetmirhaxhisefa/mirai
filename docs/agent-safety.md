@@ -205,20 +205,129 @@ version it was seen on.
 ### Tests run in containers (units 14a–14d)
 
 Agents never run `docker` or the project's tests themselves. They ask MIRAI's `run_tests` tool
-(unit 14d), which runs them in the project's own containers. Unit 14a tested what that relies on,
-with Docker and git probes (`research/11-docker-git-facts.md`):
-- **No way out of the containers:** test containers on an internal network can't look up or
-  reach the internet or your Mac; only the project's own services answer. Sandboxed commands
-  can't look up names either.
-- **Tests get a copy, not your project folder:** on a Mac, hiding a file inside a container
-  doesn't work. Writing the name in another case (`.ENV` for `.env`) reaches the real file, and
-  can even change it. So the test runner (unit 14c) gives the containers a fresh copy of the
-  project for each run, without `.git` and without your real `.env` files. Tests can write to
-  that copy, never to your project.
-- **Nothing from the branch steers Docker:** the branch can't change which compose files load,
-  or their values. MIRAI names every file, the project name and a trusted env file on each call,
-  and clears Docker's own variables.
-- **git on your Mac:** see "MIRAI's own git" below (unit 14b).
+(unit 14d). Until that exists, you can run the same thing yourself with
+`mirai test <level or check> [--path <file or test id>]` (unit 14c).
+
+**What happens on each run** (one run at a time per project):
+1. **A fresh copy of the project** is made in MIRAI's store. It holds the files git lists: tracked
+   ones, plus new ones that aren't ignored.
+   - **Never copied:**
+     - `.git`;
+     - ignored files (dependencies and build output come from the images);
+     - any `.env*` file, unless the project lists it as a committed dummy file
+       (`[compose] env_file` and `[sandbox] readable_env`). Those are written from the
+       integration branch's version, never from your work tree.
+   - **Nothing is ever followed:**
+     - a path under a link is refused;
+     - a link is copied only when it points further down in its own folder, with no `/` at the
+       start and no `..`;
+     - a file with a second name on disk (a hard link) is refused.
+
+     Docker Desktop follows an absolute link given as a mount source (probed in unit 14c), so
+     the copy never holds one.
+   - **After the run** the copy is removed. Tests can write to the copy, never to your project.
+2. **The compose files come from the integration branch** (the trust root), not from the branch
+   being tested. A branch's own `compose.override.yml`, `COMPOSE_FILE` or `.env` changes nothing.
+3. **A quick text check** refuses compose files that use keys acting on your machine before
+   Compose even reads them: `include`, `extends`, `env_file`, `provider`, `models`, YAML tags,
+   merge keys and explicit (`?`) keys. It's coarse, and fails closed: a false match is refused
+   with its line.
+4. **Compose resolves the files once:**
+   - with Docker Desktop's own client, never the `docker` on your `PATH`;
+   - with MIRAI's own Docker settings, so nothing from your `~/.docker/config.json` is used;
+   - with the dummy env file for every `${VAR}`.
+5. **MIRAI tightens the result:**
+   - it removes what only your daytime stack needs (`ports`, `build`, `restart`,
+     `container_name`, `develop`, `profiles`);
+   - it makes every network internal;
+   - it adds its own labels and an output folder (`/mirai/out`).
+6. **An allowlist checks every key.** Anything it doesn't name is refused, naming the service
+   and the key:
+   - privileged mode, added capabilities, devices;
+   - the host's network, PID or IPC;
+   - the Docker socket;
+   - a mount from outside the copy, or one whose path goes through a link or `..`;
+   - a `.git` mount;
+   - shared or external volumes and networks;
+   - an image that isn't already on your Mac (test runs never build or pull).
+7. **Mounts one service could swap for another get their own copy.** A folder one service
+   mounts from inside another service's writable folder gets a separate copy. In the sample
+   app, nginx's `backend/public` sits inside the app's writable `backend/`. Otherwise the
+   service that starts first could replace that folder with a link before the second one
+   mounts it; unit 14c showed this works on Docker Desktop. The cost: the second service sees
+   that folder as it was when the run began, not what the first one writes there later.
+8. **The checked file is frozen and run as it is:**
+   - the service starts and must turn healthy;
+   - `docker inspect` then checks each container: its mounts are exactly its service's mounts in
+     the frozen file, nothing is privileged, it has no extra capabilities, devices, security
+     options or host namespaces, and every network is the project's own and internal;
+   - the command runs, inside the running service or, with `run = "oneoff"`, once in its own
+     container, which is checked the same way.
+9. **Afterwards** every container, network and volume of the run is removed: forcibly after a
+   timeout, since containers outlive a killed client. MIRAI then checks that nothing is left.
+   **Ctrl-C stops the run but still cleans up**, and a crashed run's leftovers are removed before
+   the next run.
+
+**Every run ends in one of five outcomes,** stored in the run's `result.json`:
+- **pass** and **fail:** the test's own result;
+- **timeout;**
+- **env-fault:** the stack didn't start, or Docker or cleanup failed;
+- **refused:** a check said no.
+
+Only pass and fail are about the code. The last 20 runs' folders are kept in the store.
+
+**What a test sees:**
+- **The network:** nothing outside the project's own services. No internet and no name
+  lookups (unit 14a, re-checked in 14c), and no way to reach your Mac.
+- **The result keeps:**
+  - the exit code;
+  - the last 64 KiB of output, with terminal colour codes removed and the login token and known
+    secret shapes redacted;
+  - a fingerprint of the copied files;
+  - each service's image ID;
+  - the list of files the test wrote to `/mirai/out`.
+
+**What you configure** (`.mirai/config.toml`, on the integration branch):
+```toml
+[compose]
+files = ["docker-compose.yml"]     # your daytime file is fine; MIRAI tightens it
+env_file = ".env.test"             # committed, dummy values only: what ${VAR} gets in test runs
+
+[sandbox]
+readable_env = ["backend/.env.testing"]   # other committed dummy env files the copy keeps
+
+[[testing.levels]]
+name = "unit"
+command = ["your", "test", "command"]
+service = "app"                    # the compose service it runs in
+timeout_minutes = 10               # default 15
+# run = "oneoff"                   # for a service that runs once (a browser-test runner)
+
+[checks]
+lint = { command = ["your", "lint", "command"], service = "app" }
+```
+- **Nothing in MIRAI is tied to a language or framework.** It runs whatever command the
+  project names, in whatever image the project builds.
+- **What a stack needs goes in the project's own files:** the sample app passes `APP_ENV`
+  through its compose file and sets it in `.env.test`; a Django project would use its own
+  setting there.
+- **`[compose] allow`** lets a few resource keys through when a project needs them: `shm_size`,
+  `ulimits`, `mem_limit`, `cpus`, `pids_limit`.
+
+**What MIRAI requires is Docker Compose,** not a language: tests must run in containers, so they
+can't reach the network or your Mac (D-48, D-49). Today that means **Docker Desktop on macOS**
+(its client path, socket and file sharing are what was probed). OrbStack, colima and Linux each
+need their own probes first.
+
+**What this doesn't protect (residual risk):**
+- **The test code is the agent's.** It runs as whatever user the image allows, in Docker
+  Desktop's VM, with every peer service and its data within reach.
+- **The images are the ones you built.** Their Dockerfiles are protected paths, but they're not
+  rebuilt from the integration branch before each run until unit 17.
+- **The output goes back to the agent.** That's the last 64 KiB of output and the files in
+  `/mirai/out`. Redaction catches the login token and known secret shapes, nothing else, so
+  anything a container can read can come back in a test's output. That's why containers get
+  only the copy and dummy env files.
 
 ## MIRAI's own git
 
@@ -412,7 +521,6 @@ So if your token leaks:
 
 ## Coming next
 
-- **Units 14c and 14d:** the test runner (a fresh copy of the project per run) and the
-  `run_tests` tool.
+- **Unit 14d:** the `run_tests` tool, so agents can run tests the same way.
 - **Unit 18:** the red-team suite, re-run after every update.
 - **Unit 19:** the first real agent runs.

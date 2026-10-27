@@ -1709,7 +1709,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
      root, and `COMPOSE_*` variables cleared.
   3. **Resolve once, freeze, run the frozen file** (R3-M6, TL3-6). `docker compose config
      --format json` → validate → write `<mirai-home>/<repo-id>/store/runs/<id>/compose.resolved.json`
-     → `docker compose -p mirai-<repo-id>-test-<run> -f <frozen> up --no-build --pull never`. The
+     → `docker compose -p mirai-<repo-id>-test-<run> -f <frozen> up --no-build --pull never`. (Built in unit 14c as `<store>/tests/<id>/compose.frozen.json`, since `runs/` holds the run logs, with the project `mirai-<repo-id>-t-<id>`.) The
      project name is unique per run, so it can't collide with your daytime stack. All paths are
      absolute trust-root paths.
      - **The validator is an allowlist:** image, command, environment from `.env.test`, volumes =
@@ -1744,6 +1744,9 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     no outside DNS (red-team, D-30).
   - **`.git` and every real `.env*` are masked** in the container mounts (R3-C4, TL3-2). The
     validator refuses a resolved config without the masks.
+    **Since unit 14c** (your decision with its spec): not masked but left out. Test containers
+    mount a fresh copy of the project per run, without `.git` and real `.env*` files, since masks
+    over files leak through another case of the name on macOS (research/11).
   - Setup creates **`.env.test` with fake values**. It's committed (fake values only) and is a
     protected path (AR3-11). The real `.env` is never mounted for agent runs, and setup adds each
     real `.env*` path as an exact sandbox `denyRead` (D-30). A project that needs a real outside service in tests gets a mock or stays a manual

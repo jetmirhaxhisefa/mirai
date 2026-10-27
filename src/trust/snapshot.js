@@ -2,7 +2,8 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync,
 import { dirname, join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 
-import { checkConfig, readConfigFile } from '../config/load.js';
+import { checkConfig, readConfigFile, PROJECT_CONFIG } from '../config/load.js';
+import { parseToml } from '../config/toml.js';
 import { loadRegistry } from '../config/registry.js';
 import { catBlobs, commitOf, isAncestor, lsTree, remotes } from '../store/git.js';
 import { matches } from '../util/glob.js';
@@ -38,9 +39,9 @@ export const TRUST_FOLDER = 'trust';
 export const KEEP_SNAPSHOTS = 10;
 export const LIMITS = Object.freeze({ fileBytes: 2 * 1024 * 1024, totalBytes: 64 * 1024 * 1024, files: 5000 });
 const MANIFEST = 'manifest.json';
-// What a snapshot holds changes as units add to it (13b: strict/, 14: compose inputs); a
-// snapshot of an older format is built again, not reused.
-export const SNAPSHOT_FORMAT = 2;
+// What a snapshot holds changes as units add to it (13b: strict/, 14c: the compose files and
+// their env file); a snapshot of an older format is built again, not reused.
+export const SNAPSHOT_FORMAT = 3;
 const TMP_MAX_AGE_MS = 60 * 60 * 1000;
 const RECORD = 'trust.json';
 // MIRAI's files read from the base commit (folders are read whole). The signing keys aren't
@@ -203,6 +204,16 @@ function readBase(root, base, env) {
     return false;
   };
   entries.push(...all.filter((e) => instruction(e.path) && !entries.some((x) => x.path === e.path) && lenient(e)));
+  // The compose inputs test runs use (unit 14c; D-48): [compose] files and env_file, read like
+  // MIRAI's own files (no links). One the config names but the commit lacks is left out; a test
+  // run then says so.
+  const byPathAll = new Map(all.map((e) => [e.path, e]));
+  for (const path of composeInputs(root, base, env, entries)) {
+    const e = byPathAll.get(path);
+    // A link or folder there is left out (the test run says so), not a reason to refuse the
+    // whole snapshot (14c review).
+    if (e && e.type === 'blob' && e.mode !== '120000' && !entries.some((x) => x.path === path)) entries.push(e);
+  }
   const lockEntry = entries.find((e) => e.path === '.mirai/mirai.lock');
   if (!lockEntry) throw new TrustError(`the integration branch's commit ${base.slice(0, 12)} has no .mirai/mirai.lock`, { code: 'no-base-lock', hint: 'commit the MIRAI install on the integration branch first' });
   const own = entries.filter((e) => !instruction(e.path) || e.path.startsWith('.mirai/'));
@@ -241,6 +252,20 @@ function readBase(root, base, env) {
   }
   tree.skipped = [...new Set(skipped)].sort();
   return tree;
+}
+
+// The compose paths the base commit's own config names, or none when it can't be read (the
+// snapshot's config check reports that).
+function composeInputs(root, base, env, entries) {
+  const cfg = entries.find((e) => e.path === PROJECT_CONFIG);
+  if (!cfg) return [];
+  try {
+    const bytes = catBlobs(root, [cfg.sha], env, { maxBytes: LIMITS.fileBytes }).get(cfg.sha);
+    const { config } = checkConfig([{ kind: 'project', file: { ...parseToml(bytes, { source: PROJECT_CONFIG, positions: true }), source: PROJECT_CONFIG } }]);
+    return [...(config.compose?.files ?? []), ...(config.compose?.env_file ? [config.compose.env_file] : [])];
+  } catch {
+    return [];
+  }
 }
 
 function readBlobs(root, entries, env, base, { lenient = false } = {}) {

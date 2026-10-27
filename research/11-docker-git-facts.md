@@ -280,6 +280,40 @@ fetch and rebase.
 review fixes): 19 refused before git ran, 19 ran with no marker, 0 failed. Commit identity, pushing and worktrees remain unit
 22's.
 
+## Done in unit 14c, and what its runs added
+
+`src/tests/` (`implementation/units/14c-test-executor/`) runs a level or check as above. Its probe
+harness, `test/probes/test-run-probes.js`, ran MIRAI's own `runTest` against Docker Desktop:
+20 scenarios, all passing, nothing left behind. The sample app's four levels and checks also ran
+on a clone of it.
+
+**Facts the runs added:**
+- **Profiles:** `compose config` leaves out services behind a profile unless profiles are
+  enabled. MIRAI resolves with `--profile '*'`, then removes `profiles` when it tightens.
+- **Names:** Compose names every network and volume `<project>_<key>` in the resolved file, so the
+  allowlist accepts exactly that name and refuses any other `name`.
+- **The `/host_mnt` prefix:** Docker Desktop can report a bind's host path in `docker inspect` as
+  `/host_mnt/<Mac path>`, the VM's view. MIRAI's check maps it back.
+- **These work on a frozen file** with `--pull never`:
+  - `up -d --wait` on healthchecks;
+  - `exec -T`;
+  - `run --rm -T --no-deps` after its dependencies;
+  - an image by digest.
+- **`--progress quiet`** keeps Compose's own progress lines out of a test's output.
+- **The network, again:** a test on the internal network couldn't open a TCP connection to
+  `1.1.1.1:443` or resolve `example.com`, and the peer service answered by name. Nor could it
+  reach a server on the Mac's `127.0.0.1` through `host.docker.internal` or
+  `gateway.docker.internal`: the server got no request.
+- **Links as mount sources (found by the review, then probed):**
+  - **a relative link** given as a bind source is refused: Docker Desktop tries to create a
+    folder there and fails with "file exists";
+  - **an absolute link is followed,** as the source or partway along it, and the container read
+    a canary folder outside the project;
+  - **so a running service can redirect another's mount:** it can replace a folder that a
+    later service mounts from inside its own writable mount. The control (MIRAI's separate copy
+    switched off) read the outside canary;
+  - **with MIRAI's separate copy for such mounts,** the later service saw only its own copy.
+
 ## Residual risk this adds to research/09 §7
 
 - **The config allowlist and the hash, not the pins, are the control** for filters, merge

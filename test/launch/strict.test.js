@@ -93,7 +93,7 @@ const template = (config = { compose: { env_file: '.env.test' } }, mode = 'read-
 test('T1: the trust root holds one machine-free template per access mode and per agent', () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
-  assert.equal(trust.manifest.format, 2);
+  assert.equal(trust.manifest.format, 3); // 3 since unit 14c (the compose inputs)
   for (const name of ['read-write', 'read-only']) {
     assert.ok(trust.manifest.files.some((f) => f.path === `strict/${name}.json`), name);
     const t = trustedStrict(trust, name);
@@ -121,7 +121,7 @@ test('T1: the trust root holds one machine-free template per access mode and per
   writeFileSync(recordPath, JSON.stringify(record));
   const again = snapshot({ cwd: r.root, env: r.env });
   assert.equal(again.reused, false);
-  assert.equal(again.manifest.format, 2);
+  assert.equal(again.manifest.format, 3);
 });
 
 test('T2: reads: home denied; the checkout, input, scratch, trust root and committed dummy env readable; secrets denied again; all absolute', () => {
