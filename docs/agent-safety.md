@@ -204,11 +204,13 @@ version it was seen on.
 
 ### Tests run in containers (units 14a–14d)
 
-Agents never run `docker` or the project's tests themselves. They ask MIRAI's `run_tests` tool
-(unit 14d). Until that exists, you can run the same thing yourself with
-`mirai test <level or check> [--path <file or test id>]` (unit 14c).
+Agents never run `docker` or the project's tests themselves. They ask MIRAI's MCP server: the
+tools `run_tests` and `run_check` (unit 14d, below). You run the same thing yourself with
+`mirai test <level or check> [--path <file or folder>]` (unit 14c).
 
-**What happens on each run** (one run at a time per project):
+**What happens on each run** (one run at a time per project, and at most `[tests] max_parallel`
+at once across all your projects, set in your personal `~/.config/mirai/config.toml`, 1–8,
+default 2; a run waits up to 30 minutes in all for its turn and a slot):
 1. **A fresh copy of the project** is made in MIRAI's store. It holds the files git lists: tracked
    ones, plus new ones that aren't ignored.
    - **Never copied:**
@@ -328,6 +330,97 @@ need their own probes first.
   `/mirai/out`. Redaction catches the login token and known secret shapes, nothing else, so
   anything a container can read can come back in a test's output. That's why containers get
   only the copy and dummy env files.
+
+### How agents run tests: `run_tests` and `run_check` (unit 14d)
+
+A headless agent run gets **MIRAI's MCP server** with exactly two tools:
+- **`run_tests(level, path?)`**: one of the project's test levels, optionally for one file or
+  folder;
+- **`run_check(name)`**: one of its named checks (`lint`, …), always whole.
+
+Each one runs the steps above and returns the result in its reply. The server offers no other
+tool, and gives no shell or Docker access. Claude Code starts the server itself, outside the
+sandbox, with an empty environment, as with the hook (so `NODE_OPTIONS` and the like never reach
+it). The server's code comes from the trust root, so a branch can't change it.
+
+**What the agent can pass:**
+- **a name** from the configured list only. An unknown one is refused, with the list;
+- **a `path`:**
+  - a file or folder of the project, relative to its top: letters, digits and `_ . / @ -`;
+  - never starting with `-` or `/`, and no `.` or `..` parts. So there are no options, shell
+    characters, spaces or quotes;
+  - checked again in the copy: it must be there, with no link along it. It's passed after
+    `--`;
+  - test IDs (`File::testName`) wait for unit 16, which knows each runner's escaping;
+- **nothing else:** an extra field (such as a `script`) is refused.
+
+A name or path of the wrong form is refused before anything runs (`bad-arguments`). A path that
+isn't in the copy, or has a link along it, is refused after the copy (`bad-path`). The same path
+rules hold for `mirai test --path`.
+
+**What comes back:**
+- the outcome (pass, fail, timeout, env-fault, refused) and the exit code;
+- the duration, and the last 32 KiB of output, redacted;
+- the output folder's file list, and the tree hash.
+
+Nothing in the reply points into MIRAI's store, error messages included: paths into the MIRAI
+home show as `<mirai home>` and `<trust root>`. Agents can't read the store anyway. Each agent
+run's stored result names its launch.
+
+**What's checked on every call:**
+- **the trust root** is hashed again, and it must be the launch's: a pull or a merge mid-session
+  doesn't switch the rules. If it changed, the call is refused and the server refuses every
+  later call;
+- **`.git`:** D-54's hash is compared with the launch's before the call, again when the run's
+  turn comes (before MIRAI's first git call on the checkout, since the wait can be long), and
+  after the run, however it ended. If it changed, the call fails and the server refuses every
+  later call. The launch's own end check (unit 19's `finishLaunch`) finds the change too;
+- **one call at a time:** a second call while one runs gets "busy".
+
+**Where the server's settings come from:** nothing from its environment or from Claude Code.
+Everything is in a policy file that MIRAI writes read-only into the launch's `input/` folder,
+with its hash on the server's command line. A changed policy file and the server won't start.
+
+**How the launch wires it:**
+- `input/mcp.json` with `--mcp-config`, next to `--strict-mcp-config`, so no other server
+  loads;
+- an allow rule for each tool. Under `dontAsk` an MCP tool without one is denied (probed);
+- the launch's init check requires MIRAI's server to be connected, and still refuses any other
+  server;
+- the wiring is part of the strict template in the trust root (which levels and checks are
+  offered), so the template's hash and the canonical bundle hash red-team results are keyed by
+  both cover it;
+- `MCP_TOOL_TIMEOUT` is set to six hours, since a call may wait 30 minutes for its turn, run up
+  to 240 and then clean up. A 12-minute call completed in the probes.
+
+`mirai sandbox show` lists the server, its tools and the names it offers.
+
+**When a run ends mid-call:**
+- **What Claude Code does:** it sends its MCP servers SIGINT (probed).
+- **What MIRAI's server does:** it cancels the run. The Docker call under way is killed, with
+  its own process group. Then it removes the containers before exiting. With Claude Code gone it
+  writes nothing more, so a closed pipe can't end the cleanup early.
+- **`mirai test`** does the same on Ctrl-C, a kill or a closed terminal.
+- **If either is killed outright (SIGKILL):** the next test run of the project sweeps what was
+  left.
+
+**Signed results (`mirai test --gate`):**
+- `mirai test <name> --gate --branch <b>` is for you and, later, the orchestrator. It runs the
+  whole level or check (no `--path`). It refuses unless HEAD is on `<b>` and the work tree is
+  clean: no changed, staged or new files that aren't ignored, and no tracked file marked
+  assume-unchanged or skip-worktree (which `git status` doesn't check).
+- **Checked three times:** before the run, again right after the copy (a run can wait a long
+  time for its turn), and again before signing. If HEAD or the tree changed in between, the run
+  is refused and nothing is signed. So the copy that ran is HEAD's files, plus the base commit's
+  dummy env files that every run gets.
+- **What's signed:** the whole stored result, with your key, for this repo. That includes the
+  outcome, the tree hash, HEAD, the base commit, the frozen compose file's hash and the trust
+  root's hash. Only a run that ended in pass, fail or timeout is signed; a refusal or an
+  environment fault isn't.
+- **Kept apart:** a signed result is also kept in the store's `tests/gate/`, so agents' runs
+  can't push it out of the last 20.
+- **An agent's runs are never signed:** they're stored as `by: "agent"`. Unit 25 builds the
+  gate-result record from signed results.
 
 ## MIRAI's own git
 
@@ -521,6 +614,5 @@ So if your token leaks:
 
 ## Coming next
 
-- **Unit 14d:** the `run_tests` tool, so agents can run tests the same way.
 - **Unit 18:** the red-team suite, re-run after every update.
 - **Unit 19:** the first real agent runs.

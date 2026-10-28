@@ -1694,6 +1694,11 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
      - it returns structured results **inline**: pass/fail per test (JUnit XML), coverage (lcov or
        Cobertura), text output (capped) and screenshots as MCP image content. It also stores
        them in the store.
+     - **Built in unit 14d** as two tools, `run_tests(level, path?)` and `run_check(name)` (the
+       roadmap's split). Until unit 16, `path` is a file or folder only (no `:` test IDs) and
+       results are the outcome, exit code, output tail and the output folder's file list; `script`
+       comes with `qa-explore` (unit 51). Only `mirai test --gate` signs a result; an agent's
+       runs are stored unsigned (`by: "agent"`).
   1a. **Named checks** (R3-C2, PM3-3, TL3-1): `lint`, `types`, `build`, `gate` and any other
       check the project's quality gate needs are configured by name in the trust-root config.
       Setup translates the project's gate script into named checks and test levels; a gate step

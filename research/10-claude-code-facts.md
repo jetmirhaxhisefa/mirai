@@ -108,6 +108,27 @@ safe value and refuses a settings file that loosens one.
 session variables are visible to Bash. G2 (the usage-limit exit code) wasn't hit. G19 (DNS) wasn't
 probed here: it's unit 14's.
 
+**From unit 14d's MCP probes** (Claude Code 2.1.311, Haiku, `test/probes/mcp-probes.js`; one run
+each, through the strict bundle's real launch plan):
+- **M1:** a stdio server from `--mcp-config` with `--strict-mcp-config` starts and is listed in
+  the init event as `{ name, status: "connected" }`. Claude Code asks for protocol version
+  `2025-11-25`, and sends `server/discover` before `initialize` (a server may answer "method not
+  found").
+- **M2:** under `--permission-mode dontAsk`, an MCP tool **without an allow rule is denied**
+  (`permission_denials`). With the rule, it runs. `--tools` doesn't need to name it (13a).
+- **M3:** the server gets Claude Code's environment (the launch's allowlisted variables plus a few
+  of its own: `CLAUDECODE`, `CLAUDE_PROJECT_DIR`, `CLAUDE_CODE_SESSION_ID`, …), extra pipes from
+  fd 3 up, and the project as its working folder. No variable holds the token. MIRAI's server
+  uses none of it: everything comes from its policy file.
+- **M4:** the server runs **outside the sandbox.** It reached the Docker socket and read a canary
+  in the store; Bash in the same bundle can't reach either (13a, G18).
+- **M5:** a 3-minute call completes with the default tool timeout, and so does a 12-minute call
+  with `MCP_TOOL_TIMEOUT` set. Claude Code sends a progress token with every call. So a test call
+  blocks until it's done; no start-then-poll tool is needed.
+- **M6:** when the run is stopped (SIGTERM to `claude`), the server gets **SIGINT** and exits. No
+  server process was left. MIRAI's server cancels its run and cleans up on SIGINT
+  (`run-tests-probes.js` d7: containers were up, none left).
+
 ## Residual risk this adds to research/09 §7
 
 - **The data-protection keychain** (newer app passwords) is reached through `securityd`'s XPC

@@ -40,7 +40,13 @@ import { HOOKED_TOOLS, hookPolicy, policyText, WRITE_TOOLS } from './hook.js';
 //   launch's scratch is a short private folder, /private/tmp/mirai-<8 hex>, not one inside the
 //   launch folder.
 
-export const STRICT_SCHEMA = 'mirai-strict/2';
+export const STRICT_SCHEMA = 'mirai-strict/3';
+// A test call waits at most 30 minutes for its turn (one deadline for the repo's turn and a
+// machine slot), runs at most 240, and cleans up: 6 hours leaves room.
+export const MCP_TOOL_TIMEOUT_MS = 6 * 3600 * 1000;
+// MIRAI's MCP server (unit 14d) and its tools, as Claude Code names them.
+export const MCP_SERVER = 'mirai';
+export const MCP_TOOLS = Object.freeze({ run_tests: 'mcp__mirai__run_tests', run_check: 'mcp__mirai__run_check' });
 export const MODES = Object.freeze(['read-write', 'read-only']);
 const ADAPTER = 'claude-code';
 // The floors: data can add to these, never take away.
@@ -99,6 +105,10 @@ export function strictTemplate({ registry, config, agent, mode }) {
     builtin: { version: profile.builtin_version, plugins: [...profile.builtin_plugins], skills: [...profile.builtin_skills], agents: [...profile.builtin_agents] },
     // The secret shapes the hook refuses in what an agent writes (unit 13c).
     secrets: Object.values(registry.secrets ?? {}).flatMap((d) => d.patterns.map((p) => ({ name: p.name, regex: p.regex }))),
+    // MIRAI's MCP server (unit 14d): the levels and checks it offers, or null for none. In the
+    // template, so the trust root's manifest and the canonical hash cover the wiring. Every
+    // template gets them (open point 5); an agent's definition decides whether it uses them.
+    tests: testTools(config),
   };
 }
 
@@ -178,7 +188,7 @@ export function readableEnv(template, tracked) {
 // project, so for them the hook only adds refusals.
 export function renderStrict(template, facts) {
   if (template?.schema !== STRICT_SCHEMA) throw new StrictError('the strict template isn\'t one this MIRAI reads', { code: 'bad-template' });
-  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets'];
+  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets', 'tests'];
   const extra = Object.keys(template).filter((k) => !known.includes(k));
   if (extra.length) throw new StrictError(`the strict template has fields MIRAI doesn't know (${extra.join(', ')})`, { code: 'bad-template' });
   if (!MODES.includes(template.mode)) throw new StrictError('the strict template\'s mode is neither read-write nor read-only', { code: 'bad-template' });
@@ -232,7 +242,7 @@ export function renderStrict(template, facts) {
 
   if (typeof facts.hookCommand !== 'string' || facts.hookCommand === '') throw new StrictError('the settings need the hook command', { code: 'no-hook' });
   return {
-    permissions: { allow: template.tools.filter((t) => !WRITE_TOOLS.includes(t)), deny: [...new Set(deny)] },
+    permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t)), ...mcpTools(template)], deny: [...new Set(deny)] },
     hooks: { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
     sandbox: {
       enabled: true,
@@ -295,16 +305,21 @@ export function launchEnv({ env, launchDir, scratchDir, configHome, gitconfig, c
     GIT_CONFIG_GLOBAL: gitconfig,
     // The token is written on file descriptor 3 (research/10, G5/G9), never into the environment.
     CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR: '3',
+    // MIRAI's MCP server (unit 14d): a test call may wait 30 minutes for its turn, run up to 240
+    // and then clean up (a 12-minute call completed with the default in 14d's probes; the limit is
+    // set, not relied on). The server must start within 30 s.
+    MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS),
+    MCP_TIMEOUT: '30000',
   });
   return out;
 }
 
 // The launch flags, without the prompt (unit 19 adds `-p <prompt>`).
-export function launchArgs({ template, settingsFile, agentsJson }) {
+export function launchArgs({ template, settingsFile, agentsJson, mcpConfig = null }) {
   return [
     '--restricted', '--tools', template.tools.join(','),
     '--settings', settingsFile,
-    '--strict-mcp-config',
+    '--strict-mcp-config', ...(mcpConfig ? ['--mcp-config', mcpConfig] : []),
     ...(agentsJson ? ['--agents', agentsJson, '--agent', template.agent] : []),
     '--permission-mode', 'dontAsk', '--output-format', 'stream-json', '--verbose',
   ];
@@ -443,7 +458,11 @@ export function launchPolicy(template, facts, trust) {
 // trustedStrict); `agentsJson`: the agent's definition for --agents (unit 19). A launch that
 // fails half-way leaves nothing behind. The token is on `plan.fds[3]`, which isn't enumerable,
 // so logging the plan can't print it.
-export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, id = null, miraiHomeDir = null }) {
+// MIRAI's MCP server (unit 14d) is wired when the template has test levels or checks
+// (`template.tests`). `probe` is for the probes only ({ home, dockerSocket }): their fixture's
+// MIRAI home sits under a temporary HOME; it requires `miraiHomeDir`, which only they pass.
+export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, id = null, miraiHomeDir = null, probe = null }) {
+  if (probe && !miraiHomeDir) throw new StrictError('probe settings are for the probes only', { code: 'bad-probe' });
   if (typeof trust?.manifestSha256 !== 'string') throw new StrictError('the launch needs a verified trust root (its manifest hash)', { code: 'no-trust' });
   const token = readToken(env);
   if (!token) throw new StrictError('there is no Claude login token for agent runs', { code: 'no-token', exitCode: EXIT.NEEDS_HUMAN, hint: 'in your terminal: claude setup-token, then mirai token set' });
@@ -475,6 +494,27 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
     // The hook runs with an empty environment: nothing from yours (NODE_OPTIONS, …) or Claude Code's.
     facts.hookCommand = `/usr/bin/env -i "HOME=${facts.home}" "PATH=/usr/bin:/bin" "${node}" "${hookScript}" "${policyFile}" ${sha256(policyBody)}`;
     const settings = renderStrict(template, facts);
+    // MIRAI's MCP server (unit 14d): its policy and mcp.json, read-only in input/, and the allow
+    // rules for its tools (under dontAsk an MCP tool without one is denied, 14d's M2).
+    const tests = template.tests;
+    let mcpConfig = null;
+    if (tests) {
+      const mcpScript = join(facts.trustDir, 'tree', '.mirai', 'framework', 'bin', 'mcp.js');
+      if (!existsSync(mcpScript)) throw new StrictError('the trust root has no MCP server (a framework copy from before unit 14d)', { code: 'no-mcp', hint: 'run: mirai init --refresh, and commit it' });
+      const mcpPolicy = {
+        schema: 'mirai-mcp-policy/1', checkout: facts.checkout, trust_dir: facts.trustDir, manifest_sha256: trust.manifestSha256, home: probe?.home ?? facts.home,
+        repo_state: guard.hash, launch_id: launchId, levels: [...tests.levels], checks: [...tests.checks],
+        ...(probe?.dockerSocket ? { docker_socket: probe.dockerSocket } : {}),
+      };
+      const mcpPolicyFile = join(facts.launchDir, 'input', 'mcp-policy.json');
+      const mcpPolicyBody = `${JSON.stringify(mcpPolicy, null, 2)}\n`;
+      writeReadOnly(mcpPolicyFile, mcpPolicyBody);
+      mcpConfig = join(facts.launchDir, 'input', 'mcp.json');
+      // Like the hook, with an empty environment: Claude Code adds its own to `env` (14d's M3), and
+      // node reads NODE_OPTIONS and the like before any of MIRAI's code runs.
+      const server = { type: 'stdio', command: '/usr/bin/env', args: ['-i', `HOME=${facts.home}`, 'PATH=/usr/bin:/bin', node, mcpScript, mcpPolicyFile, sha256(mcpPolicyBody)], env: {} };
+      writeReadOnly(mcpConfig, `${JSON.stringify({ mcpServers: { [MCP_SERVER]: server } }, null, 2)}\n`);
+    }
     const loose = looseKeys(settings);
     if (loose.length) throw new StrictError(`the rendered settings are loose (${loose.join(', ')})`, { code: 'loose' });
     const settingsText = `${JSON.stringify(settings, null, 2)}\n`;
@@ -489,7 +529,7 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
       launchDir: facts.launchDir,
       scratchDir,
       cwd: facts.checkout,
-      args: launchArgs({ template, settingsFile, agentsJson }),
+      args: launchArgs({ template, settingsFile, agentsJson, mcpConfig }),
       env: launchEnv({ env, launchDir: facts.launchDir, scratchDir, configHome: join(facts.launchDir, 'claude-config'), gitconfig, checkout: facts.checkout, miraiHome: facts.miraiHome }),
       settingsSha256: sha256(settingsText),
       templateSha256: listed?.sha256 ?? sha256(templateText(template)),
@@ -549,8 +589,9 @@ export function removeLaunch(launchDir, scratchDir = null) {
 
 // What the run's init event must say, for checkInit.
 export function expectedInit(template, { cwd = null, model = null } = {}) {
+  const mcp = mcpTools(template);
   return {
-    tools: [...template.tools].sort(), apiKeySource: 'none', memoryPaths: null, permissionMode: 'dontAsk', mcpServers: [],
+    tools: [...template.tools, ...mcp].sort(), apiKeySource: 'none', memoryPaths: null, permissionMode: 'dontAsk', mcpServers: mcp.length ? [MCP_SERVER] : [],
     builtin: template.builtin, agent: template.agent, cwd, model,
   };
 }
@@ -573,6 +614,11 @@ export function checkInit(init, expected, { version } = {}) {
   const nameOf = (x) => (typeof x === 'string' ? x : x?.name);
   const mcp = (init.mcp_servers ?? []).filter((m) => !expected.mcpServers.includes(nameOf(m)));
   if (mcp.length) problems.push(`MCP servers MIRAI didn't pass: ${mcp.map((m) => nameOf(m) ?? '(no name)').join(', ')}`);
+  // MIRAI's own server must be up: a server that failed to start fails the launch, not the tool.
+  for (const name of expected.mcpServers) {
+    const m = (init.mcp_servers ?? []).find((x) => nameOf(x) === name);
+    if (!m || (typeof m === 'object' && m.status !== 'connected')) problems.push(`MIRAI's MCP server ${name} isn't connected (${typeof m === 'object' ? m?.status ?? 'missing' : 'missing'})`);
+  }
   const b = expected.builtin;
   const plugins = (init.plugins ?? []).filter((p) => !(typeof p === 'object' && p?.path === 'builtin' && b.plugins.includes(p.name)));
   if (plugins.length) problems.push(`plugins that aren't Claude Code's own: ${plugins.map((p) => nameOf(p) ?? '(no name)').join(', ')}`);
@@ -585,4 +631,19 @@ export function checkInit(init, expected, { version } = {}) {
   if (expected.model && init.model !== expected.model) problems.push(`the model is ${init.model ?? 'missing'}, expected ${expected.model}`);
   if (init.claude_code_version !== version) problems.push(`Claude Code is ${init.claude_code_version ?? 'unknown'}, expected ${version}`);
   return problems;
+}
+
+// The test levels and named checks MIRAI's MCP server offers for a trust-root config (unit 14d):
+// only with [compose] files and env_file, and only the ones with a service. Null when none.
+export function testTools(config) {
+  if (!config.compose?.files?.length || !config.compose?.env_file) return null;
+  const levels = (config.testing?.levels ?? []).filter((l) => l.service).map((l) => l.name);
+  const checks = Object.entries(config.checks ?? {}).filter(([, c]) => !Array.isArray(c) && c?.service).map(([n]) => n);
+  return levels.length || checks.length ? { levels, checks } : null;
+}
+
+// The MCP tools a template's launch gets, as Claude Code names them.
+export function mcpTools(template) {
+  const t = template.tests;
+  return t ? [...(t.levels.length ? [MCP_TOOLS.run_tests] : []), ...(t.checks.length ? [MCP_TOOLS.run_check] : [])] : [];
 }

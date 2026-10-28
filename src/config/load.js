@@ -189,7 +189,7 @@ function layerMessage(kind, path) {
   if (kind === 'project') return [`${shown} is a personal setting`, shown.startsWith('git.') ? `move ${shown} to [git] in ~/.config/mirai/config.toml` : `move [${shown.split('.')[0]}] to ~/.config/mirai/config.toml`];
   return [
     `${shown} can't be set in a personal file`,
-    kind === 'personal-global' ? 'this file holds only [subscription], [usage] and git.allow_repo_config' : 'this file holds only models.light, models.standard, models.deep and run.stop_by',
+    kind === 'personal-global' ? 'this file holds only [subscription], [usage], git.allow_repo_config and tests.max_parallel' : 'this file holds only models.light, models.standard, models.deep and run.stop_by',
   ];
 }
 
@@ -275,4 +275,21 @@ export function personalRepoConfigAllow(home) {
     if (problem) throw fail(`git.allow_repo_config: ${problem}`);
   }
   return list;
+}
+
+// `[tests] max_parallel` from your personal global file alone (unit 14d): how many test runs may
+// run at once across all your projects. 1–8, default 2.
+export const DEFAULT_MAX_PARALLEL = 2;
+export function personalMaxParallel(home) {
+  if (!home) return DEFAULT_MAX_PARALLEL;
+  const source = '~/.config/mirai/config.toml';
+  const file = readConfigFile(globalConfigPath(home), { trust: 'personal', source, optional: true });
+  const value = file?.value?.tests?.max_parallel;
+  if (value === undefined) return DEFAULT_MAX_PARALLEL;
+  if (!Number.isInteger(value) || value < 1 || value > 8) {
+    const at = file.positions.get('tests.max_parallel') ?? { line: 1, column: 1 };
+    const reason = 'tests.max_parallel must be a whole number from 1 to 8';
+    throw new ConfigError(`${source}:${at.line}:${at.column}: ${reason}`, { source, line: at.line, column: at.column, path: 'tests.max_parallel', reason, code: 'range' });
+  }
+  return value;
 }

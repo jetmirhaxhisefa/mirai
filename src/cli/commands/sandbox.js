@@ -34,8 +34,10 @@ export default {
     const facts = launchFacts({ trust, checkout: store.checkout, env: io.env, launchDir, scratchDir: '/private/tmp/mirai-EXAMPLE0', template });
     facts.hookCommand = `"<node>" "${join(trust.dir, 'tree', '.mirai', 'framework', 'bin', 'hook.js')}" "${join(launchDir, 'input', 'hook-policy.json')}" <policy sha256>`;
     const settings = renderStrict(template, facts);
+    // MIRAI's MCP server (unit 14d), when the template has test levels or checks to offer.
+    const tests = template.tests;
     const { refused } = readableEnv(template, facts.tracked);
-    const flags = launchArgs({ template, settingsFile: join(launchDir, 'input', 'settings.json'), agentsJson: template.agent ? '<the agent from the trust root>' : null });
+    const flags = launchArgs({ template, settingsFile: join(launchDir, 'input', 'settings.json'), agentsJson: template.agent ? '<the agent from the trust root>' : null, mcpConfig: tests ? join(launchDir, 'input', 'mcp.json') : null });
     const expected = expectedInit(template);
     io.stdout.write([
       `${template.agent ? `agent ${template.agent}` : `mode ${template.mode}`} (${template.mode}), from the trust root at ${trust.baseSha.slice(0, 12)}`,
@@ -48,8 +50,16 @@ export default {
       '  TMPDIR, CLAUDE_CODE_TMPDIR (the launch\'s own short scratch folder, /private/tmp/mirai-<8 hex>);',
       '  CLAUDE_CONFIG_DIR (a fresh, empty folder per launch); GIT_CONFIG_NOSYSTEM=1, GIT_CONFIG_GLOBAL (MIRAI\'s);',
       '  CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR=3 (the token goes on fd 3, from mirai token)',
+      '  MCP_TOOL_TIMEOUT, MCP_TIMEOUT (fixed: how long a test call and the server\'s start may take)',
       '',
-      `checked after launch: tools ${expected.tools.join(', ')}; no API key; no memory; permission mode ${expected.permissionMode}; no MCP server MIRAI didn't pass; only Claude Code ${template.builtin.version}'s own plugins, skills and agents`,
+      ...(tests ? [
+        'MIRAI\'s MCP server (from the trust root, outside the sandbox; its policy in the launch\'s input/):',
+        ...(tests.levels.length ? [`  run_tests(level, path?): ${tests.levels.join(', ')}`] : []),
+        ...(tests.checks.length ? [`  run_check(name): ${tests.checks.join(', ')}`] : []),
+        '  a path is a file or folder of the project (letters, digits, _ . / @ -; no leading - or /, no "." or ".." parts)',
+        '',
+      ] : ['MIRAI\'s MCP server: none (no [compose] files and env_file, or no level or check with a service)', '']),
+      `checked after launch: tools ${expected.tools.join(', ')}; no API key; no memory; permission mode ${expected.permissionMode}; ${expected.mcpServers.length ? 'MIRAI\'s MCP server connected, ' : ''}no MCP server MIRAI didn't pass; only Claude Code ${template.builtin.version}'s own plugins, skills and agents`,
       '',
       ...(refused.length ? ['readable env files the config names but that stay denied:', ...refused.map((r) => `  ${r.path}: ${r.why}`), ''] : []),
       `canonical bundle hash (what red-team results are keyed by): ${canonicalSha256(template).slice(0, 16)}`,

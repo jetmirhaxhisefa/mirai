@@ -1,16 +1,21 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { copyFileSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 import { EXIT } from '../cli/exit-codes.js';
 import { catBlobs, lsTree } from '../store/git.js';
-import { acquireLock, ensurePrivateDir } from '../store/files.js';
+import { ensurePrivateDir } from '../store/files.js';
 import { openStore } from '../store/home.js';
+import { personalMaxParallel } from '../config/load.js';
+import { checkPathForm, checkPathInCopy } from '../mcp/args.js';
+import { signObject } from '../sign/sign.js';
 import { readToken } from '../sign/token.js';
 import { snapshot, trustedConfig, trustedFile, trustedRegistry } from '../trust/snapshot.js';
 import { checkAllowlist, nestedBinds, prescan, tighten } from './compose.js';
 import { copyTree, removeCopy } from './copy.js';
 import { checkDockerRunning, dockerCall, dockerSetup, TestRunError } from './docker.js';
+import { gateRecheck } from './gate.js';
+import { machineSlot, repoLock, waitFor, WAIT_MS } from './slots.js';
 
 // One test level or named check, run in the project's own containers (unit 14c; D-48, D-49):
 // a copy of the project, compose files from the trust root, resolved once, tightened, checked
@@ -20,12 +25,17 @@ import { checkDockerRunning, dockerCall, dockerSetup, TestRunError } from './doc
 // Each run's folder is `<store>/tests/<id>/` (not runs/, which holds the run logs): tree/ (the
 // copy) and binds/ (nested binds' own copies), both removed after; out/ (the output folder);
 // compose.frozen.json; result.json, written for every run that got this far, whatever happened.
-// The last KEEP_TEST_RUNS folders are kept.
+// The last KEEP_TEST_RUNS folders are kept. A gate run's signed result is also kept in
+// `<store>/tests/gate/<id>.json` (the last KEEP_GATE_RESULTS), so agents' runs can't prune it.
+//
+// Async since unit 14d: Docker calls don't block, a run can be cancelled (`signal`; cleanup still
+// runs), and a run waits for its repo's turn and a machine-wide slot instead of failing at once.
 
 export const OUTPUT_TAIL_BYTES = 64 * 1024;
 export const DEFAULT_TIMEOUT_MINUTES = 15;
 export const DEFAULT_OUTPUT = '/mirai/out';
 export const KEEP_TEST_RUNS = 20;
+export const KEEP_GATE_RESULTS = 100;
 export const OUT_LIMITS = Object.freeze({ files: 1000, bytes: 256 * 1024 ** 2, depth: 16 });
 
 export const testRunId = (now = new Date()) => `t-${now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15).toLowerCase()}-${randomBytes(3).toString('hex')}`;
@@ -108,8 +118,8 @@ const ids = (r) => r.stdout.split(/\s+/).filter(Boolean);
 // exactly its service's binds in the frozen file (Docker Desktop may report /host_mnt + the Mac
 // path), volumes are the project's, its host settings are the defaults, and every network is
 // the project's and internal.
-function inspectRun(setup, call, project, frozen, containerIds = null) {
-  const list = containerIds ?? ids(call(setup, ['ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`]));
+async function inspectRun(setup, call, project, frozen, containerIds = null) {
+  const list = containerIds ?? ids(await call(setup, ['ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`]));
   if (list.length === 0) return;
   const parse = (r, what) => {
     try {
@@ -121,7 +131,7 @@ function inspectRun(setup, call, project, frozen, containerIds = null) {
   const bad = (name, what) => {
     throw new TestRunError(`container ${name}: ${what}, which the frozen file doesn't have`, { code: 'inspect-mismatch', hint: 'stop: something changed the containers between the check and the run' });
   };
-  for (const c of parse(call(setup, ['inspect', ...list]), 'inspect')) {
+  for (const c of parse(await call(setup, ['inspect', ...list]), 'inspect')) {
     const service = c.Config?.Labels?.['com.docker.compose.service'];
     if (!service || !frozen.services?.[service]) bad(c.Name, 'a service the frozen file doesn\'t name');
     const want = (frozen.services[service].volumes ?? []).filter((v) => v.type === 'bind').map((v) => v.source).sort();
@@ -142,9 +152,9 @@ function inspectRun(setup, call, project, frozen, containerIds = null) {
       if (!['bind', 'volume', 'tmpfs'].includes(m.Type)) bad(c.Name, `a ${m.Type} mount`);
     }
   }
-  const nets = ids(call(setup, ['network', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`]));
+  const nets = ids(await call(setup, ['network', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`]));
   if (nets.length) {
-    for (const n of parse(call(setup, ['network', 'inspect', ...nets]), 'network inspect')) {
+    for (const n of parse(await call(setup, ['network', 'inspect', ...nets]), 'network inspect')) {
       if (n.Internal !== true) bad(n.Name, 'a network with outside access');
     }
   }
@@ -153,24 +163,24 @@ function inspectRun(setup, call, project, frozen, containerIds = null) {
 // Force-removes the project's containers, then `down -v` (when the frozen file exists), then
 // any network or volume of the project left (14a's P5: containers outlive a killed client, and a
 // one-off keeps its network). Returns what's still there afterwards.
-function cleanup(setup, call, compose, project) {
+async function cleanup(setup, call, compose, project) {
   const label = `label=com.docker.compose.project=${project}`;
-  const containers = () => ids(call(setup, ['ps', '-aq', '--filter', label]));
-  const running = containers();
-  if (running.length) call(setup, ['rm', '-f', '-v', ...running]);
-  if (compose) call(setup, [...compose, 'down', '-v', '--remove-orphans', '--timeout', '5']);
+  const list = async (args) => ids(await call(setup, args));
+  const running = await list(['ps', '-aq', '--filter', label]);
+  if (running.length) await call(setup, ['rm', '-f', '-v', ...running]);
+  if (compose) await call(setup, [...compose, 'down', '-v', '--remove-orphans', '--timeout', '5']);
   for (const kind of ['network', 'volume']) {
-    const found = ids(call(setup, [kind, 'ls', '-q', '--filter', label]));
-    if (found.length) call(setup, [kind, 'rm', ...(kind === 'volume' ? ['-f'] : []), ...found]);
+    const found = await list([kind, 'ls', '-q', '--filter', label]);
+    if (found.length) await call(setup, [kind, 'rm', ...(kind === 'volume' ? ['-f'] : []), ...found]);
   }
-  return [...containers(), ...['network', 'volume'].flatMap((kind) => ids(call(setup, [kind, 'ls', '-q', '--filter', label])))];
+  return [...await list(['ps', '-aq', '--filter', label]), ...await list(['network', 'ls', '-q', '--filter', label]), ...await list(['volume', 'ls', '-q', '--filter', label])];
 }
 
 // Containers of this repo left by a run that didn't finish (a crash, a kill): removed with their
 // projects before the next run, which holds the repo's test lock, so none of them is live.
-function sweepStale(setup, call, repoId) {
-  const r = call(setup, ['ps', '-a', '--filter', `label=mirai.repo=${repoId}`, '--format', '{{.Label "com.docker.compose.project"}}']);
-  for (const project of new Set(ids(r))) if (/^mirai-[a-z0-9]+-t-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$/.test(project)) cleanup(setup, call, null, project);
+async function sweepStale(setup, call, repoId) {
+  const r = await call(setup, ['ps', '-a', '--filter', `label=mirai.repo=${repoId}`, '--format', '{{.Label "com.docker.compose.project"}}']);
+  for (const project of new Set(ids(r))) if (/^mirai-[a-z0-9]+-t-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$/.test(project)) await cleanup(setup, call, null, project);
 }
 
 function pruneRuns(testsDir, keep) {
@@ -180,15 +190,28 @@ function pruneRuns(testsDir, keep) {
 
 // Codes that mean a check refused the run; anything else that stops a run is an environment
 // fault, never a failing test.
-const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch']);
+const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch', 'bad-path', 'gate-branch', 'gate-dirty', 'repo-changed']);
 
 // Runs one level or check. For tests and probes: `docker` ({ client, plugins, socket }) instead
-// of Docker Desktop's, and `minuteMs` to shorten the timeout.
-export function runTest({ cwd, env, name, path = null, now = () => new Date(), docker = {}, call = dockerCall, minuteMs = 60_000 }) {
+// of Docker Desktop's, and `minuteMs` to shorten the timeout. Unit 14d:
+// - `trust`: an open trust root to use (the MCP server's launch), instead of the base's now;
+// - `by`: "you" or "agent" (runs through the MCP server), stored in the result;
+// - `signal`: cancels the run (the current Docker call is killed; cleanup still runs);
+// - `waitMs`, `onWait`, `maxParallel`: waiting for the repo's turn and a machine-wide slot (one
+//   deadline for both; `onWait` is called once);
+// - `onTurn`: called once both are taken, before any git call on the checkout (the MCP server
+//   checks D-54's .git hash there); it may throw to refuse the run;
+// - `gate`: { branch, head, signer }: the result is signed (mirai test --gate). The caller checks
+//   it first (gateCheck); it's checked again right after the copy and before signing, and only
+//   a run that ended in pass, fail or timeout is signed;
+// - `launchId`: the launch an agent's run came from, stored in the result.
+export async function runTest({ cwd, env, name, path = null, now = () => new Date(), docker = {}, call = dockerCall, minuteMs = 60_000,
+  trust: givenTrust = null, by = 'you', signal, waitMs = WAIT_MS, onWait = () => {}, onTurn = () => {}, maxParallel = null, gate = null, launchId = null }) {
   const store = openStore({ cwd, env });
-  const trust = snapshot({ cwd, env });
+  const trust = givenTrust ?? snapshot({ cwd, env });
   const config = trustedConfig(trust);
   const target = findTarget(config, name);
+  const testPath = path === null ? null : checkPathForm(path);
   const files = config.compose?.files ?? [];
   if (files.length === 0) throw new TestRunError('this project has no [compose] files', { code: 'no-compose', hint: 'name its compose file in .mirai/config.toml: [compose] files = ["docker-compose.yml"]' });
   if (!config.compose?.env_file) throw new TestRunError('this project has no [compose] env_file', { code: 'no-env-file', hint: 'commit a file of dummy values (such as .env.test) and name it: [compose] env_file = ".env.test"' });
@@ -209,25 +232,38 @@ export function runTest({ cwd, env, name, path = null, now = () => new Date(), d
   const envFile = treeFile(config.compose.env_file, 'the env file');
 
   const setup = dockerSetup(env, docker);
-  const dockerVersion = checkDockerRunning(setup, call);
+  const dockerVersion = await checkDockerRunning(setup, call);
   const testsDir = join(store.dir, 'tests');
   ensurePrivateDir(testsDir);
-  let lock;
+  const busy = () => new TestRunError('another test run is still running', { code: 'test-busy', exitCode: EXIT.NEEDS_HUMAN, hint: 'test runs of one project run one at a time, and only [tests] max_parallel at once on this machine; try again when it\'s done' });
+  const until = Date.now() + waitMs;
+  let told = false;
+  const once = () => {
+    if (!told) onWait();
+    told = true;
+  };
+  const lock = await waitFor(repoLock(store.dir), { waitMs, signal, onWait: once });
+  if (!lock) throw busy();
+  let slot = null;
   try {
-    lock = acquireLock(join(store.dir, 'locks', 'tests.lock'), 'test run', { waitMs: 2000 });
-  } catch {
-    throw new TestRunError('another test run of this project is running', { code: 'test-busy', exitCode: EXIT.NEEDS_HUMAN, hint: 'wait for it to finish; test runs of one project run one at a time' });
-  }
-  try {
-    sweepStale(setup, call, store.repoId);
+    const max = maxParallel ?? personalMaxParallel(env.HOME);
+    slot = await waitFor(machineSlot(env, max), { waitMs: Math.max(0, until - Date.now()), signal, onWait: once });
+    if (!slot) throw busy();
+    if (signal?.aborted) throw new TestRunError('the test run was cancelled', { code: 'cancelled' });
+    onTurn();
+    await sweepStale(setup, call, store.repoId);
     pruneRuns(testsDir, KEEP_TEST_RUNS - 1);
-    return runLocked({ store, trust, config, target, name, path, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env });
+    return await runLocked({ store, trust, config, target, name, path: testPath, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId });
   } finally {
+    slot?.release();
     lock.release();
   }
 }
 
-function runLocked({ store, trust, config, target, name, path, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env }) {
+// The signature's context for a test result: what it's for, and the repo.
+export const resultContext = (repoId) => `mirai/test-result/1:${repoId}`;
+
+async function runLocked({ store, trust, config, target, name, path, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId }) {
   const id = testRunId(now());
   const dir = join(testsDir, id);
   ensurePrivateDir(dir);
@@ -241,7 +277,14 @@ function runLocked({ store, trust, config, target, name, path, now, setup, call,
   const clean = (text) => redact(text, { token: readToken(env), secrets });
   const result = {
     schema_version: 1, id, name, kind: target.kind, service: target.service, command: target.command, path, project, docker: dockerVersion,
-    started_at: now().toISOString(), base_sha: trust.baseSha,
+    started_at: now().toISOString(), base_sha: trust.baseSha, trust_manifest_sha256: trust.manifestSha256 ?? null, by,
+    ...(launchId ? { launch_id: launchId } : {}),
+  };
+  // Every Docker call of the run itself can be cancelled; cleanup's calls can't.
+  const live = async (s2, args, opts = {}) => {
+    const r = await call(s2, args, { ...opts, signal });
+    if (signal?.aborted) throw new TestRunError('the test run was cancelled', { code: 'cancelled' });
+    return r;
   };
   // The committed dummy env files the copy keeps, from the base commit's blobs (never the work
   // tree): the compose env file and readable_env.
@@ -260,8 +303,11 @@ function runLocked({ store, trust, config, target, name, path, now, setup, call,
     projectDir = copyReal;
     const outReal = realpathSync(outDir);
     result.tree = { files: copied.files, bytes: copied.bytes, hash: copied.treeHash, env_left_out: copied.left.length };
+    // A gate run: the copy must be HEAD's files, so nothing may have changed while it waited.
+    if (gate && by === 'you') gateRecheck(store.checkout, gate, env);
+    if (path !== null) checkPathInCopy(copyReal, path);
 
-    const r = call(setup, [...compose(null), '--profile', '*', 'config', '--format', 'json'], { timeout: 60_000 });
+    const r = await live(setup, [...compose(null), '--profile', '*', 'config', '--format', 'json'], { timeout: 60_000 });
     if (r.status !== 0) throw new TestRunError(`docker compose config failed: ${r.stderr.trim().split('\n').pop() ?? ''}`, { code: 'compose-config' });
     let resolved;
     try {
@@ -276,7 +322,7 @@ function runLocked({ store, trust, config, target, name, path, now, setup, call,
     const images = {};
     for (const s of Object.values(tightened.services)) {
       if (typeof s.image !== 'string' || s.image in images) continue;
-      const i = call(setup, ['image', 'inspect', '--format', '{{.Id}}', s.image]);
+      const i = await live(setup, ['image', 'inspect', '--format', '{{.Id}}', s.image]);
       images[s.image] = i.status === 0 ? i.stdout.trim() : null;
     }
     const check = (isolated) => checkAllowlist(tightened, { project, copy: copyReal, out: outReal, imageOk: (ref) => Boolean(images[ref]), allow: config.compose.allow ?? [], isolated });
@@ -294,10 +340,12 @@ function runLocked({ store, trust, config, target, name, path, now, setup, call,
     result.isolated_binds = nested.map((b) => `${b.service}: ${b.source.slice(copyReal.length + 1) || '.'}`);
     result.images = Object.fromEntries(Object.entries(tightened.services).map(([n, s]) => [n, images[s.image]]));
     const frozen = join(dir, 'compose.frozen.json');
-    writeFileSync(frozen, `${JSON.stringify(tightened, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+    const frozenText = `${JSON.stringify(tightened, null, 2)}\n`;
+    writeFileSync(frozen, frozenText, { mode: 0o600, flag: 'wx' });
+    result.frozen_sha256 = createHash('sha256').update(frozenText).digest('hex');
 
     base = compose(frozen);
-    if (cleanup(setup, call, base, project).length) throw new TestRunError(`the test project ${project} can't be cleared`, { code: 'cleanup-failed' });
+    if ((await cleanup(setup, call, base, project)).length) throw new TestRunError(`the test project ${project} can't be cleared`, { code: 'cleanup-failed' });
     const deadline = Date.now() + target.timeoutMinutes * minuteMs;
     const left = () => Math.max(Math.min(1000, minuteMs), deadline - Date.now());
     const cmd = [...target.command, ...(path ? ['--', path] : [])];
@@ -309,32 +357,33 @@ function runLocked({ store, trust, config, target, name, path, now, setup, call,
     const startNow = oneoff ? Object.keys(tightened.services[target.service].depends_on ?? {}) : [target.service];
     let run = null;
     if (startNow.length) {
-      const up = call(setup, [...base, 'up', '-d', '--wait', '--no-build', '--pull', 'never', ...startNow], { timeout: left() });
+      const up = await live(setup, [...base, 'up', '-d', '--wait', '--no-build', '--pull', 'never', ...startNow], { timeout: left() });
       if (up.timedOut) run = up;
       else if (up.status !== 0) {
         // The exited containers' last log lines say why.
-        const exited = call(setup, ['ps', '-a', '--filter', `label=com.docker.compose.project=${project}`, '--filter', 'status=exited', '--format', '{{.ID}} {{.Label "com.docker.compose.service"}}']).stdout.trim().split('\n').filter(Boolean);
-        const logs = exited.slice(0, 3).map((line) => {
+        const exited = (await call(setup, ['ps', '-a', '--filter', `label=com.docker.compose.project=${project}`, '--filter', 'status=exited', '--format', '{{.ID}} {{.Label "com.docker.compose.service"}}'])).stdout.trim().split('\n').filter(Boolean);
+        const logs = [];
+        for (const line of exited.slice(0, 3)) {
           const [cid, svc] = line.split(' ');
-          const l = call(setup, ['logs', '--tail', '15', cid], { timeout: 30_000 });
-          return `--- ${svc} ---\n${l.stdout}${l.stderr}`.trim();
-        }).join('\n');
-        throw new TestRunError(`the services didn't start: ${up.stderr.trim().split('\n').slice(-3).join(' / ')}${logs ? `\n${logs}` : ''}`, { code: 'stack-down' });
-      } else inspectRun(setup, call, project, tightened);
+          const l = await call(setup, ['logs', '--tail', '15', cid], { timeout: 30_000 });
+          logs.push(`--- ${svc} ---\n${l.stdout}${l.stderr}`.trim());
+        }
+        throw new TestRunError(`the services didn't start: ${up.stderr.trim().split('\n').slice(-3).join(' / ')}${logs.length ? `\n${logs.join('\n')}` : ''}`, { code: 'stack-down' });
+      } else await inspectRun(setup, live, project, tightened);
     }
     if (!run && oneoff) {
-      const one = call(setup, [...base, 'run', '-d', '--no-deps', '--pull', 'never', ...workdir, target.service, ...cmd], { timeout: left() });
+      const one = await live(setup, [...base, 'run', '-d', '--no-deps', '--pull', 'never', ...workdir, target.service, ...cmd], { timeout: left() });
       const cid = ids(one).at(-1);
       if (one.timedOut) run = one;
       else if (one.status !== 0 || !cid) throw new TestRunError(`${target.service} didn't start: ${one.stderr.trim().split('\n').slice(-3).join(' / ')}`, { code: 'stack-down' });
       else {
-        inspectRun(setup, call, project, tightened, [cid]);
-        const waited = call(setup, ['wait', cid], { timeout: left() });
-        const logs = call(setup, ['logs', cid], { timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
+        await inspectRun(setup, live, project, tightened, [cid]);
+        const waited = await live(setup, ['wait', cid], { timeout: left() });
+        const logs = await live(setup, ['logs', cid], { timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
         run = { status: waited.timedOut ? null : Number.parseInt(waited.stdout.trim(), 10), timedOut: waited.timedOut, stdout: logs.stdout, stderr: logs.stderr };
       }
     } else if (!run) {
-      run = call(setup, [...base, 'exec', '-T', ...workdir, target.service, ...cmd], { timeout: left(), maxBuffer: 64 * 1024 * 1024 });
+      run = await live(setup, [...base, 'exec', '-T', ...workdir, target.service, ...cmd], { timeout: left(), maxBuffer: 64 * 1024 * 1024 });
     }
     const t = tail(clean(`${run.stdout}${run.stderr ? `${run.stdout && !run.stdout.endsWith('\n') ? '\n' : ''}${run.stderr}` : ''}`), OUTPUT_TAIL_BYTES);
     result.timed_out = run.timedOut;
@@ -345,7 +394,7 @@ function runLocked({ store, trust, config, target, name, path, now, setup, call,
     error = err;
   } finally {
     try {
-      const leftover = cleanup(setup, call, base, project);
+      const leftover = await cleanup(setup, call, base, project);
       if (leftover.length && !error) {
         error = new TestRunError(`${leftover.length} container(s), network(s) or volume(s) of ${project} couldn't be removed`, { code: 'cleanup-failed', hint: `remove them yourself: docker ps -a --filter label=com.docker.compose.project=${project}` });
       }
@@ -367,12 +416,35 @@ function runLocked({ store, trust, config, target, name, path, now, setup, call,
   const listed = listOut(outDir);
   result.out_files = listed.files;
   result.out_over_cap = listed.overCap;
-  writeFileSync(join(dir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+  result.finished_at = now().toISOString();
+  // A gate run (mirai test --gate) that ran to an outcome is signed whole with your key, after a
+  // last check that HEAD and the tree are as they were; an agent's run never is.
+  let stored = result;
+  if (gate && by === 'you' && !error) {
+    try {
+      gateRecheck(store.checkout, gate, env);
+      result.gate = { branch: gate.branch, head: gate.head };
+      stored = signObject(result, gate.signer, { context: resultContext(store.repoId), now });
+    } catch (err) {
+      error = err;
+      result.outcome = 'refused';
+      result.code = err.code ?? 'error';
+      result.message = clean(String(err.message));
+    }
+  }
+  writeFileSync(join(dir, 'result.json'), `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+  if (stored.signature) {
+    const kept = join(testsDir, 'gate');
+    ensurePrivateDir(kept);
+    writeFileSync(join(kept, `${id}.json`), `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+    const all = readdirSync(kept).filter((n) => /^t-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}\.json$/.test(n)).sort();
+    for (const old of all.slice(0, Math.max(0, all.length - KEEP_GATE_RESULTS))) rmSync(join(kept, old), { force: true });
+  }
   if (error) {
-    error.result = { ...result, dir };
+    error.result = { ...stored, dir };
     throw error;
   }
-  return { ...result, dir };
+  return { ...stored, dir };
 }
 
 // Removes a test run's folder.

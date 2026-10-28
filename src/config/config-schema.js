@@ -11,7 +11,7 @@ export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.integration_branch', 'git.branch_pattern', 'git.trailer', 'models.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
-  'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config'],
+  'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'tests.max_parallel'],
 });
 
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -249,6 +249,9 @@ export const CONFIG_SCHEMA = {
         stop_by: { type: 'string', pattern: /^([01][0-9]|2[0-3]):[0-5][0-9]$/, patternHint: 'a 24-hour time as a string, for example "06:30"' },
       },
     },
+    // How many test runs may run at once across all your projects (unit 14d). Personal global
+    // file only: it's about this machine.
+    tests: { type: 'table', fields: { max_parallel: { type: 'integer', min: 1, max: 8 } } },
     subscription: {
       type: 'table',
       fields: { plan: { type: 'string', pattern: PLAN, patternHint: 'for example "max-20x" (at most 32 characters)' } },

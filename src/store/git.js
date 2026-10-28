@@ -331,6 +331,23 @@ export function ignoredNames(root, env) {
   return all.filter((n) => !n.endsWith('/') || !all.some((m) => m !== n && m.startsWith(n)));
 }
 
+// What `git status` shows in the work tree (unit 14d's gate): changed, staged and new files that
+// aren't ignored, at any depth, as porcelain v2 entries. Empty means clean. No optional locks, so
+// it never rewrites the index.
+export function workTreeChanges(root, env) {
+  const r = git(root, ['--no-optional-locks', 'status', '--porcelain=v2', '--untracked-files=all', '--ignore-submodules=none', '-z'], env, { raw: true, timeout: 60_000, maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) throw new StoreError('git status failed', { code: 'git-failed' });
+  return nulList(r.out);
+}
+
+// Tracked files `git status` doesn't look at: marked assume-unchanged (a lowercase tag in
+// `ls-files -v`) or skip-worktree (`S`). Their work-tree edits never show as changes.
+export function hiddenFromStatus(root, env) {
+  const r = git(root, ['ls-files', '-v', '-z'], env, { raw: true, timeout: 60_000, maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+  return nulList(r.out).filter((e) => /^([a-z]|S) /.test(e)).map((e) => e.slice(2));
+}
+
 // The commit a ref points at, or null.
 export function commitOf(root, ref, env) {
   const r = git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], env);

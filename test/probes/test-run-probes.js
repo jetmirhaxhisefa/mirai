@@ -42,8 +42,8 @@ export function scenarios() {
     },
     { id: 'c2-fail', title: 'a failing command is a failing test, with its exit code', compose: { services: { app: app() } }, levels: [level('t', sh('echo failing; exit 3'))], check: (r) => r.outcome === 'fail' && r.exit_code === 3 },
     {
-      id: 'c3-path', title: '--path goes after --', compose: { services: { app: app() } }, levels: [level('t', ['sh', '-c', 'echo "args:$*"', 'sh'])], path: 'tests/a b.php',
-      check: (r) => r.outcome === 'pass' && r.output.tail.includes('args:-- tests/a b.php'),
+      id: 'c3-path', title: '--path goes after --', compose: { services: { app: app() } }, levels: [level('t', ['sh', '-c', 'echo "args:$*"', 'sh'])], path: 'tests/a_b.php', files: { 'tests/a_b.php': '' },
+      check: (r) => r.outcome === 'pass' && r.output.tail.includes('args:-- tests/a_b.php'),
     },
     {
       id: 'c4-oneoff', title: 'a one-off service with a profile, after its dependency is healthy; the peer answers by name',
@@ -177,7 +177,7 @@ export async function runTestProbes({ workdir, only = null, keep = false, socket
       let r = null;
       let error = null;
       try {
-        r = runTest({ cwd: root, env, name: s.run ?? s.levels[0].name, path: s.path ?? null, docker: { socket } });
+        r = await runTest({ cwd: root, env, name: s.run ?? s.levels[0].name, path: s.path ?? null, docker: { socket } });
       } catch (err) {
         error = { code: err.code, message: err.message };
       }

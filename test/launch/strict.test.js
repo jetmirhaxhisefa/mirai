@@ -10,7 +10,8 @@ import { init } from '../../src/install/init.js';
 import { openStore } from '../../src/store/home.js';
 import { loadRegistry } from '../../src/config/registry.js';
 import { snapshot, trustedConfig, trustedRegistry, trustedStrict } from '../../src/trust/snapshot.js';
-import { anchored, checkInit, expectedInit, finishLaunch, looseKeys, prepareLaunch, readableEnv, removeLaunch, renderStrict, strictTemplate, strictTemplates } from '../../src/launch/strict.js';
+import { anchored, canonicalSha256, checkInit, expectedInit, finishLaunch, looseKeys, prepareLaunch, readableEnv, removeLaunch, renderStrict, strictTemplate, strictTemplates, testTools } from '../../src/launch/strict.js';
+import { readPolicy } from '../../src/mcp/server.js';
 import { writeToken } from '../../src/sign/token.js';
 import { main } from '../../src/cli/main.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
@@ -93,7 +94,7 @@ const template = (config = { compose: { env_file: '.env.test' } }, mode = 'read-
 test('T1: the trust root holds one machine-free template per access mode and per agent', () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
-  assert.equal(trust.manifest.format, 3); // 3 since unit 14c (the compose inputs)
+  assert.equal(trust.manifest.format, 4); // 4 since unit 14d (the MCP tools in the templates)
   for (const name of ['read-write', 'read-only']) {
     assert.ok(trust.manifest.files.some((f) => f.path === `strict/${name}.json`), name);
     const t = trustedStrict(trust, name);
@@ -121,7 +122,7 @@ test('T1: the trust root holds one machine-free template per access mode and per
   writeFileSync(recordPath, JSON.stringify(record));
   const again = snapshot({ cwd: r.root, env: r.env });
   assert.equal(again.reused, false);
-  assert.equal(again.manifest.format, 3);
+  assert.equal(again.manifest.format, 4);
 });
 
 test('T2: reads: home denied; the checkout, input, scratch, trust root and committed dummy env readable; secrets denied again; all absolute', () => {
@@ -235,7 +236,7 @@ test('T5, T6: the launch: production layout, a private folder, read-only input, 
   writeToken(env, TOKEN);
   const plan = launch({ trust, template: t, checkout: r.root, env });
   const mode = (p) => statSync(p).mode & 0o777;
-  assert.deepEqual(Object.keys(plan.env).sort(), ['CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR', 'CLAUDE_CODE_TMPDIR', 'CLAUDE_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'HOME', 'LANG', 'PATH', 'TMPDIR']);
+  assert.deepEqual(Object.keys(plan.env).sort(), ['CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR', 'CLAUDE_CODE_TMPDIR', 'CLAUDE_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'HOME', 'LANG', 'MCP_TIMEOUT', 'MCP_TOOL_TIMEOUT', 'PATH', 'TMPDIR']);
   for (const d of plan.env.PATH.split(':')) assert.ok(d.startsWith('/') && !d.startsWith(plan.cwd), `PATH keeps ${d}`);
   assert.equal(plan.fds[3], TOKEN);
   assert.ok(!JSON.stringify(plan).includes(TOKEN), 'the token is in the plan\'s JSON');
@@ -361,6 +362,7 @@ test('T8: mirai sandbox show prints the resolved settings and flags, starts noth
   assert.match(out, /"denyRead"/);
   assert.match(out, /\.env: a personal file/);
   assert.match(out, /canonical bundle hash/);
+  assert.match(out, /MIRAI's MCP server: none/);
   assert.ok(out.includes(join(r.env.HOME, 'Library', 'Keychains')));
   assert.ok(!out.includes(TOKEN));
   const store = openStore({ cwd: r.root, env: r.env });
@@ -385,4 +387,89 @@ test('14b T11: a launch guards .git: a hook planted during it is caught by finis
   writeFileSync(join(r.root, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\n', { mode: 0o755 });
   assert.throws(() => finishLaunch(plan), (err) => err.code === 'repo-changed' && /\(hooks\)/.test(err.message));
   assert.ok(!existsSync(plan.launchDir) && !existsSync(plan.scratchDir));
+});
+
+test('14d T8b: mirai sandbox show names MIRAI\'s MCP server, its tools and names', async () => {
+  const r = installed();
+  const cfg = join(r.root, '.mirai', 'config.toml');
+  chmodSync(cfg, 0o644);
+  writeFileSync(cfg, `${readFileSync(cfg, 'utf8').replace('[compose]\n', '[compose]\nfiles = ["compose.yml"]\n')}\n[[testing.levels]]\nname = "unit"\ncommand = ["t"]\nservice = "app"\n\n[checks]\nlint = { command = ["l"], service = "app" }\n`);
+  writeFileSync(join(r.root, 'compose.yml'), 'services:\n  app:\n    image: x\n');
+  git(r.root, 'add', '-A');
+  git(r.root, 'commit', '-qm', 'compose');
+  let out = '';
+  let err = '';
+  const io = { stdin: Readable.from([]), stdout: { isTTY: false, write: (s) => (out += s) }, stderr: { write: (s) => (err += s) }, env: r.env, cwd: r.root };
+  assert.equal(await main(['sandbox', 'show'], io), EXIT.OK, err);
+  assert.match(out, /--strict-mcp-config --mcp-config "[^"]+\/input\/mcp\.json"/);
+  assert.match(out, /run_tests\(level, path\?\): unit\n {2}run_check\(name\): lint/);
+  assert.match(out, /MIRAI's MCP server connected/);
+  assert.match(out, /"mcp__mirai__run_tests",\s+"mcp__mirai__run_check"/);
+  // The template in the trust root carries the names (so its manifest hash covers them).
+  const tr = snapshot({ cwd: r.root, env: r.env });
+  assert.deepEqual({ ...trustedStrict(tr, 'read-write').tests }, { levels: ['unit'], checks: ['lint'] });
+  assert.deepEqual({ ...trustedStrict(tr, 'read-only').tests }, { levels: ['unit'], checks: ['lint'] });
+});
+
+test('14d T8: MIRAI\'s MCP server in the launch: read-only policy and mcp.json, --mcp-config, the allow rules, the init check; none without tests', () => {
+  const r = installed();
+  const trust = snapshot({ cwd: r.root, env: r.env });
+  const t = trustedStrict(trust, 'read-write');
+  writeToken(r.env, TOKEN);
+  assert.equal(t.tests, null, 'no [compose] files: no tools');
+  const withTests = { ...t, tests: { levels: ['unit', 'e2e'], checks: ['lint'] } };
+  const plan = launch({ trust, template: withTests, checkout: r.root, env: r.env });
+  const input = join(plan.launchDir, 'input');
+  const mode = (p) => statSync(p).mode & 0o777;
+  assert.equal(mode(join(input, 'mcp.json')), 0o400);
+  assert.equal(mode(join(input, 'mcp-policy.json')), 0o400);
+  const at = plan.args.indexOf('--mcp-config');
+  assert.equal(plan.args[at - 1], '--strict-mcp-config');
+  assert.equal(plan.args[at + 1], join(input, 'mcp.json'));
+  const mcp = JSON.parse(readFileSync(join(input, 'mcp.json'), 'utf8'));
+  assert.deepEqual(Object.keys(mcp.mcpServers), ['mirai']);
+  const server = mcp.mcpServers.mirai;
+  assert.equal(server.type, 'stdio');
+  // Started like the hook, with an empty environment: nothing of Claude Code's (NODE_OPTIONS, …)
+  // reaches node (review fix).
+  assert.equal(server.command, '/usr/bin/env');
+  assert.deepEqual(server.args.slice(0, 5), ['-i', `HOME=${realpathSync(r.env.HOME)}`, 'PATH=/usr/bin:/bin', realpathSync(process.execPath), join(realpathSync(trust.dir), 'tree', '.mirai', 'framework', 'bin', 'mcp.js')]);
+  assert.deepEqual(server.env, {});
+  // The server's own check of its policy passes, and the policy names this launch.
+  const policy = readPolicy(server.args[5], server.args[6]);
+  assert.deepEqual([policy.checkout, policy.trust_dir, policy.manifest_sha256, policy.levels, policy.checks], [plan.cwd, realpathSync(trust.dir), trust.manifestSha256, ['unit', 'e2e'], ['lint']]);
+  assert.equal(policy.repo_state, plan.guard.hash);
+  assert.equal(policy.launch_id, plan.launchId);
+  assert.ok(!readFileSync(server.args[5], 'utf8').includes(TOKEN));
+  const settings = JSON.parse(readFileSync(join(input, 'settings.json'), 'utf8'));
+  assert.deepEqual(settings.permissions.allow, ['Bash', 'Glob', 'Grep', 'Read', 'mcp__mirai__run_tests', 'mcp__mirai__run_check']);
+  assert.deepEqual(plan.expectedInit.mcpServers, ['mirai']);
+  assert.ok(plan.expectedInit.tools.includes('mcp__mirai__run_tests') && plan.expectedInit.tools.includes('mcp__mirai__run_check'));
+  assert.equal(plan.env.MCP_TOOL_TIMEOUT, String(6 * 3600 * 1000));
+  // The wiring is the template's, so the canonical hash red-team results are keyed by covers it
+  // (review fix): the same template with and without tools hashes differently.
+  assert.notEqual(plan.canonicalSha256, canonicalSha256(t));
+  assert.deepEqual(renderStrict(withTests, FACTS).permissions.allow.filter((x) => x.startsWith('mcp__')), ['mcp__mirai__run_tests', 'mcp__mirai__run_check']);
+  // Probe settings only with a probe's own MIRAI home.
+  assert.throws(() => prepareLaunch({ trust, template: withTests, checkout: r.root, env: r.env, probe: { home: '/tmp/x' } }), (err) => err.code === 'bad-probe');
+  // Checks only: only run_check.
+  const checksOnly = launch({ trust, template: { ...t, tests: { levels: [], checks: ['lint'] } }, checkout: r.root, env: r.env });
+  assert.deepEqual(JSON.parse(readFileSync(join(checksOnly.launchDir, 'input', 'settings.json'), 'utf8')).permissions.allow.filter((x) => x.startsWith('mcp__')), ['mcp__mirai__run_check']);
+  // No tests: no server, no rules.
+  const none = launch({ trust, template: t, checkout: r.root, env: r.env });
+  assert.equal(none.args.includes('--mcp-config'), false);
+  assert.equal(existsSync(join(none.launchDir, 'input', 'mcp.json')), false);
+  assert.deepEqual(none.expectedInit.mcpServers, []);
+  // checkInit: MIRAI's server must be there and connected; any other still fails.
+  const e = expectedInit({ ...t, tools: ['Read'], tests: { levels: ['unit'], checks: [] } });
+  const good = { type: 'system', subtype: 'init', tools: ['Read', 'mcp__mirai__run_tests'], apiKeySource: 'none', memory_paths: null, permissionMode: 'dontAsk',
+    mcp_servers: [{ name: 'mirai', status: 'connected' }], plugins: t.builtin.plugins.map((name) => ({ name, path: 'builtin' })), skills: [...t.builtin.skills], agents: [...t.builtin.agents], claude_code_version: 'v' };
+  assert.deepEqual(checkInit(good, e, { version: 'v' }), []);
+  assert.match(checkInit({ ...good, mcp_servers: [] }, e, { version: 'v' }).join('; '), /mirai isn't connected \(missing\)/);
+  assert.match(checkInit({ ...good, mcp_servers: [{ name: 'mirai', status: 'failed' }] }, e, { version: 'v' }).join('; '), /isn't connected \(failed\)/);
+  assert.match(checkInit({ ...good, mcp_servers: [...good.mcp_servers, { name: 'probe', status: 'connected' }] }, e, { version: 'v' }).join('; '), /didn't pass: probe/);
+  // testTools: only with [compose] files and env_file, only names with a service.
+  assert.equal(testTools({}), null);
+  assert.equal(testTools({ compose: { files: ['c.yml'] }, testing: { levels: [{ name: 'u', service: 'app' }] } }), null);
+  assert.deepEqual(testTools({ compose: { files: ['c.yml'], env_file: '.env.test' }, testing: { levels: [{ name: 'u', service: 'app' }, { name: 'v' }] }, checks: { lint: { service: 'app' }, bare: ['x'] } }), { levels: ['u'], checks: ['lint'] });
 });

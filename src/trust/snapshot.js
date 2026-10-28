@@ -40,8 +40,9 @@ export const KEEP_SNAPSHOTS = 10;
 export const LIMITS = Object.freeze({ fileBytes: 2 * 1024 * 1024, totalBytes: 64 * 1024 * 1024, files: 5000 });
 const MANIFEST = 'manifest.json';
 // What a snapshot holds changes as units add to it (13b: strict/, 14c: the compose files and
-// their env file); a snapshot of an older format is built again, not reused.
-export const SNAPSHOT_FORMAT = 3;
+// their env file, 14d: the MCP tools in the strict templates); a snapshot of an older format is
+// built again, not reused.
+export const SNAPSHOT_FORMAT = 4;
 const TMP_MAX_AGE_MS = 60 * 60 * 1000;
 const RECORD = 'trust.json';
 // MIRAI's files read from the base commit (folders are read whole). The signing keys aren't
