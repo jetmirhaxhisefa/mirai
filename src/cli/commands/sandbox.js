@@ -5,7 +5,7 @@ import { UsageError } from '../errors.js';
 import { shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { snapshot, trustedStrict } from '../../trust/snapshot.js';
-import { canonicalSha256, expectedInit, launchArgs, launchFacts, MODES, readableEnv, renderStrict } from '../../launch/strict.js';
+import { canonicalSha256, expectedInit, launchArgs, launchFacts, mcpPolicyTools, MODES, readableEnv, renderStrict } from '../../launch/strict.js';
 
 // mirai sandbox show [<agent> | --mode read-write|read-only] (unit 13b). Prints the settings an
 // agent would run under in this checkout, with this machine's paths filled in, plus the launch
@@ -34,10 +34,12 @@ export default {
     const facts = launchFacts({ trust, checkout: store.checkout, env: io.env, launchDir, scratchDir: '/private/tmp/mirai-EXAMPLE0', template });
     facts.hookCommand = `"<node>" "${join(trust.dir, 'tree', '.mirai', 'framework', 'bin', 'hook.js')}" "${join(launchDir, 'input', 'hook-policy.json')}" <policy sha256>`;
     const settings = renderStrict(template, facts);
-    // MIRAI's MCP server (unit 14d), when the template has test levels or checks to offer.
-    const tests = template.tests;
+    // MIRAI's MCP server: every launch has it (log_event, unit 15a), with the test tools when the
+    // template has levels or checks to offer (unit 14d).
+    const tools = mcpPolicyTools(template);
+    const wired = Object.keys(tools).length > 0;
     const { refused } = readableEnv(template, facts.tracked);
-    const flags = launchArgs({ template, settingsFile: join(launchDir, 'input', 'settings.json'), agentsJson: template.agent ? '<the agent from the trust root>' : null, mcpConfig: tests ? join(launchDir, 'input', 'mcp.json') : null });
+    const flags = launchArgs({ template, settingsFile: join(launchDir, 'input', 'settings.json'), agentsJson: template.agent ? '<the agent from the trust root>' : null, mcpConfig: wired ? join(launchDir, 'input', 'mcp.json') : null });
     const expected = expectedInit(template);
     io.stdout.write([
       `${template.agent ? `agent ${template.agent}` : `mode ${template.mode}`} (${template.mode}), from the trust root at ${trust.baseSha.slice(0, 12)}`,
@@ -52,13 +54,15 @@ export default {
       '  CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR=3 (the token goes on fd 3, from mirai token)',
       '  MCP_TOOL_TIMEOUT, MCP_TIMEOUT (fixed: how long a test call and the server\'s start may take)',
       '',
-      ...(tests ? [
+      ...(wired ? [
         'MIRAI\'s MCP server (from the trust root, outside the sandbox; its policy in the launch\'s input/):',
-        ...(tests.levels.length ? [`  run_tests(level, path?): ${tests.levels.join(', ')}`] : []),
-        ...(tests.checks.length ? [`  run_check(name): ${tests.checks.join(', ')}`] : []),
-        '  a path is a file or folder of the project (letters, digits, _ . / @ -; no leading - or /, no "." or ".." parts)',
+        ...(tools.run_tests ? [`  run_tests(level, path?): ${tools.run_tests.levels.join(', ')}`] : []),
+        ...(tools.run_check ? [`  run_check(name): ${tools.run_check.checks.join(', ')}`] : []),
+        ...(tools.run_tests ? ['  a path is a file or folder of the project (letters, digits, _ . / @ -; no leading - or /, no "." or ".." parts)'] : []),
+        ...(tools.run_tests || tools.run_check ? [] : ['  no test tools (no [compose] files and env_file, or no level or check with a service)']),
+        ...(tools.log_event ? [`  log_event(type, message, template?, section?): ${tools.log_event.types.join(', ')}; written to the journal as the agent's, for this launch's item; at most ${tools.log_event.max_events} per launch, ${tools.log_event.max_message} characters each`] : []),
         '',
-      ] : ['MIRAI\'s MCP server: none (no [compose] files and env_file, or no level or check with a service)', '']),
+      ] : ['MIRAI\'s MCP server: none', '']),
       `checked after launch: tools ${expected.tools.join(', ')}; no API key; no memory; permission mode ${expected.permissionMode}; ${expected.mcpServers.length ? 'MIRAI\'s MCP server connected, ' : ''}no MCP server MIRAI didn't pass; only Claude Code ${template.builtin.version}'s own plugins, skills and agents`,
       '',
       ...(refused.length ? ['readable env files the config names but that stay denied:', ...refused.map((r) => `  ${r.path}: ${r.why}`), ''] : []),

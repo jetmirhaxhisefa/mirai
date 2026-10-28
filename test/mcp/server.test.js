@@ -39,11 +39,13 @@ function trustRoot() {
   return { dir, manifestSha256: sha256(text) };
 }
 
-function policyFor(extra = {}) {
+// Policy 2 (unit 15a): the tools and their settings under `tools`.
+function policyFor({ levels = ['unit', 'e2e'], checks = ['lint'], ...extra } = {}) {
   const t = trustRoot();
   return {
-    schema: POLICY_SCHEMA, checkout: tempDir('checkout'), trust_dir: t.dir, manifest_sha256: t.manifestSha256, home: tempDir('home'),
-    repo_state: 'a'.repeat(64), launch_id: '20261027120000-0123abcd', levels: ['unit', 'e2e'], checks: ['lint'], ...extra,
+    schema: POLICY_SCHEMA, kind: 'headless', checkout: tempDir('checkout'), trust_dir: t.dir, manifest_sha256: t.manifestSha256, home: tempDir('home'),
+    repo_state: 'a'.repeat(64), launch_id: '20261027120000-0123abcd', launch_dir: tempDir('launch'), item: null,
+    tools: { ...(levels.length ? { run_tests: { levels } } : {}), ...(checks.length ? { run_check: { checks } } : {}) }, ...extra,
   };
 }
 
@@ -84,7 +86,7 @@ test('14d T1: the protocol: initialize, tools/list with the configured names, pi
   assert.deepEqual(tools[0].inputSchema.properties.level.enum, ['unit', 'e2e']);
   assert.deepEqual(tools[1].inputSchema.properties.name.enum, ['lint']);
   assert.ok(tools.every((t) => t.inputSchema.additionalProperties === false));
-  assert.deepEqual(toolList({ levels: [], checks: ['lint'] }).map((t) => t.name), ['run_check']);
+  assert.deepEqual(toolList({ tools: { run_check: { checks: ['lint'] } } }).map((t) => t.name), ['run_check']);
   assert.deepEqual((await h.rpc('ping')).result, {});
   assert.equal((await h.rpc('resources/list')).error.code, -32601);
   assert.equal((await h.rpc('tools/call', { name: 'Bash', arguments: {} })).error.code, -32602);
@@ -198,10 +200,10 @@ test('14d T4: the policy: its hash, its shape; nothing from the environment but 
   assert.throws(() => readPolicy(file, 'f'.repeat(64)), /doesn't match its hash/);
   assert.throws(() => readPolicy(file, undefined), /doesn't match its hash/);
   assert.throws(() => readPolicy(join(dir, 'missing.json'), sha256(body)), /can't be read/);
-  for (const bad of [{ schema: 'x' }, { checkout: 'relative' }, { repo_state: 'short' }, { levels: 'unit' }, { docker_socket: 'rel/sock' }]) {
+  for (const bad of [{ schema: 'x' }, { checkout: 'relative' }, { repo_state: 'short' }, { tools: { run_tests: { levels: 'unit' } } }, { docker_socket: 'rel/sock' }]) {
     const b = `${JSON.stringify({ ...p, ...bad })}\n`;
     writeFileSync(file, b);
-    assert.throws(() => readPolicy(file, sha256(b)), /isn't one this server reads|isn't an absolute path/, JSON.stringify(bad));
+    assert.throws(() => readPolicy(file, sha256(b)), /isn't one this server reads|isn't an absolute path|needs its levels/, JSON.stringify(bad));
   }
   // The executor gets exactly { HOME } from the policy.
   let env;

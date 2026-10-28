@@ -129,6 +129,26 @@ each, through the strict bundle's real launch plan):
   server process was left. MIRAI's server cancels its run and cleans up on SIGINT
   (`run-tests-probes.js` d7: containers were up, none left).
 
+**From unit 15a's broker probes** (Claude Code 2.1.311, Haiku, `test/probes/broker-probes.js`;
+through MIRAI's own launch plan):
+- **B1:** Claude Code starts MIRAI's server through `/usr/bin/env -i` with `env: {}` (as
+  `mcp.json` says), and lists it as connected (`source: "dynamic"`). A `log_event` call reached
+  the journal as the agent's.
+- **B2: `--restricted` confines the file tools to the working directory.** A Read outside it is
+  refused with "…is outside <cwd>; --restricted confines the file tools to the working
+  directory", whatever the sandbox's `allowRead` says. **`--add-dir <folder>`** lets Read in,
+  and the init event lists it under `additional_directories`; nothing else loaded with it (no
+  skill, instruction file or memory).
+- **B2: `--add-dir` also opens the folder to sandboxed writes.** Without a deny, `chmod 600` on a
+  0400 file there succeeded from Bash; only the file modes stopped `echo >>` and `rm`. With a
+  sandbox `denyWrite` and `Edit` deny on the folder, everything was refused: Write and Edit by
+  the rule ("denied by your permission settings"), Bash's `echo >>`, `chmod` and `rm` by the
+  sandbox ("Operation not permitted"). So a denyWrite wins over `--add-dir` (as over
+  `allowWrite`, G20).
+- **B2c:** sandboxed Bash reads a folder in `allowRead` (`cat` of the input file).
+- **B3:** `mirai …` from Bash is denied by the rule; `node <trust>/…/bin/mirai.js log note`
+  runs but finds no store (the MIRAI home is denied), and nothing reaches the journal.
+
 ## Residual risk this adds to research/09 §7
 
 - **The data-protection keychain** (newer app passwords) is reached through `securityd`'s XPC

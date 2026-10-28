@@ -4,12 +4,12 @@ import { closest } from '../../util/closest.js';
 import { shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { STRING_MAX } from '../../store/files.js';
-import { appendEvent, checkEvent, EVENT_TYPES } from '../../store/journal.js';
+import { appendEvent, checkEvent, EVENT_TYPES, LOG_TYPES } from '../../store/journal.js';
 
 // mirai log <type> --message <text> [--item <id>] [--template <t> --section <s>] (unit 05b).
-// Appends a journal line with `by: "unverified"`. Only the types in this list may be written:
-// an allowlist, so any type added later is MIRAI's own until someone decides otherwise (D-17).
-export const LOG_TYPES = Object.freeze(['note', 'template_gap']);
+// Appends a journal line with `by: "unverified"`. Only the journal's LOG_TYPES may be written
+// (D-17); agents write the same types through MIRAI's MCP server (`log_event`, unit 15a).
+export { LOG_TYPES };
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
 
 export default {

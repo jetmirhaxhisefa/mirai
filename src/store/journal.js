@@ -20,9 +20,9 @@ import { signObject, verifySigned } from '../sign/sign.js';
 // signed line can't be edited or moved. They're verified on write and on every read against the
 // public keys on the integration branch.
 
-// Version 2 (unit 06) adds the `approval` event and signed human lines; version-1 lines read
-// unchanged.
-export const JOURNAL_SCHEMA_VERSION = 2;
+// Version 2 (unit 06) adds the `approval` event and signed human lines; version 3 (unit 15a)
+// adds `by: "agent"` lines, written through MIRAI's MCP server. Older lines read unchanged.
+export const JOURNAL_SCHEMA_VERSION = 3;
 const SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
 
@@ -83,9 +83,16 @@ export const EVENT_TYPES = Object.freeze({
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },
 });
 
+// The types you (`mirai log`) and agents (`log_event`) may write: an allowlist, so any type
+// added later is MIRAI's own until someone decides otherwise (D-17, D-53).
+export const LOG_TYPES = Object.freeze(['note', 'template_gap']);
+
 // A privileged type is written by MIRAI itself (`script`), or, for the types marked `human`, by
-// you with a signature. An `unverified` mr_merged must never derive `done` (D-17).
-const BY = ['script', 'unverified', 'human'];
+// you with a signature. An `unverified` mr_merged must never derive `done` (D-17). `agent` is an
+// agent's line through MIRAI's MCP server (`log_event`, unit 15a): non-privileged types only,
+// always with the launch it came from.
+const BY = ['script', 'unverified', 'human', 'agent'];
+const LAUNCH_ID = /^[0-9]{14}-[0-9a-f]{8}$/;
 const ENVELOPE = ['schema_version', 'seq', 'ts', 'type', 'by', 'item'];
 const SIGNATURE = {
   type: 'table',
@@ -114,6 +121,7 @@ function eventProblems(event) {
   }
   if (!spec.privileged && event.by === 'human') return [`${event.type} is never a signed human line`];
   if ((event.by === 'human') !== (event.signature !== undefined)) return [event.by === 'human' ? 'a human line must be signed' : 'only a human line carries a signature'];
+  if ((event.by === 'agent') !== (event.launch_id !== undefined)) return [event.by === 'agent' ? 'an agent line names its launch (launch_id)' : 'only an agent line carries a launch_id'];
   const node = {
     type: 'table',
     fields: {
@@ -124,6 +132,7 @@ function eventProblems(event) {
       by: { type: 'enum', values: BY },
       item: { type: 'string', pattern: ITEM, patternHint: 'a ticket or document id' },
       signature: SIGNATURE,
+      launch_id: { type: 'string', pattern: LAUNCH_ID, patternHint: 'a launch id' },
       ...spec.fields,
     },
     required: [...ENVELOPE.filter((k) => k !== 'item'), ...spec.required],
@@ -151,7 +160,8 @@ function readCounter(file) {
 // must have been taken here, used once, and be higher than the last one written to the same
 // file; anything else is refused before it's written, because one out-of-order line would make
 // the file unreadable (fail closed). Returns fn's result.
-export function withSeq(store, fn) {
+// `lock` passes options to the lock (`waitMs`: MIRAI's MCP server waits briefly, unit 15a).
+export function withSeq(store, fn, { lock } = {}) {
   const p = paths(store);
   return withLock(p.lock, 'journal', ({ broken }) => {
     let seq = readCounter(p.counter);
@@ -184,7 +194,7 @@ export function withSeq(store, fn) {
         appendRunLineRaw(store, runId, n, line);
       },
     });
-  });
+  }, lock);
 }
 
 // Checks an event without writing it, including the line's size: `{ type, by, item?,
@@ -215,14 +225,14 @@ function appendRaw(p, seq, event, signer, context) {
 // Appends one event: `{ type, by, item?, ...fields }`. `before(seq)` runs first, under the same
 // lock, for a file that must carry the same number (a ticket status file); when it returns
 // false, nothing is appended (the number stays a gap). Returns the seq, or null when skipped.
-export function appendEvent(store, event, { before, signer } = {}) {
+export function appendEvent(store, event, { before, signer, lock } = {}) {
   const rest = checkEvent(event); // before taking a number, so a bad event doesn't use one up
   return withSeq(store, ({ take, event: write }) => {
     const seq = take();
     if (before && before(seq) === false) return null;
     write(seq, rest, { signer });
     return seq;
-  });
+  }, { lock });
 }
 
 // Reads every event, checked. A torn last line is skipped and counted in `torn`. Human lines are

@@ -311,7 +311,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     the tool's shell timeout (Claude's Bash tool: 10 min max; agent runs: up to 45 min).
   - **Work-file exchange** (R3-C3, AR3-3). Agents never read or write the store:
     - **Inputs are injected.** Per launch, the launcher renders a **read-only input folder**
-      outside the project (`<mirai-home>/<repo-id>/input/<launch>/`) holding the plan (frozen
+      outside the project (`<mirai-home>/<repo-id>/launches/<launch>/input/files/`, unit 15a; reached by the file tools through `--add-dir`, write-denied) holding the plan (frozen
       block plus agent sections), the delta diff, this round's findings and the ACs. Only that
       launch gets a sandbox `allowRead` on it, and it's deleted after the run.
     - **Outputs come back as structured output only:** the plan's agent sections, finding
@@ -1851,6 +1851,14 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     only broker verbs.
   - Whether a nested `claude -p` started by an MCP server outside the sandbox gets its own fresh
     sandbox is UNVERIFIED (G24) and tested before supervised launches rely on it.
+- **Where each verb is built** (split on 2026-10-28): unit 15a builds the server's tools as
+  data, `log_event` (journal lines `by: "agent"` with their launch, filed under the launch's
+  item, secret shapes and the token refused) and the per-launch input folder; `template_gap`
+  has two paths on purpose: `log_event` while a run goes, and the structured output at its end
+  (unit 19 de-duplicates them by launch); 15b gives your own sessions the broker (`lint`,
+  `log_event`, `run_tests`/`run_check`); `start_agent`/`agent_status` and
+  `session_start`/`session_end` come with unit 19, which builds `mirai agent run`; `trace` with
+  unit 43.
 
 ### D-54 · `.git` and auto-run config are protected and integrity-checked
 

@@ -227,7 +227,7 @@ test('T6: a torn last line is skipped and counted, then cut off by the next appe
   assert.equal(after.torn, 0);
   assert.deepEqual(after.events.map((e) => e.message), ['one', 'two']);
   assert.equal(after.events[1].seq, 3, 'the torn line\'s number stays a gap');
-  assert.ok(readFileSync(journal, 'utf8').split('\n').every((l) => l === '' || l.startsWith('{"schema_version":2,"seq":')));
+  assert.ok(readFileSync(journal, 'utf8').split('\n').every((l) => l === '' || l.startsWith('{"schema_version":3,"seq":')));
   assert.equal(readFileSync(`${journal}.torn`, 'utf8'), '{"schema_version":1,"seq":2,"ts":"2026-10\n', 'the fragment is kept for doctor');
   assert.equal(mode(`${journal}.torn`), 0o600);
 

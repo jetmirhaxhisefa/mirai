@@ -376,7 +376,7 @@ test('T10b: a signed line copied into another repo\'s journal doesn\'t verify th
   atomicWrite(join(storeB.dir, 'journal.jsonl'), line);
   atomicWrite(join(storeB.dir, 'seq'), '1\n');
   refused(() => readJournal(openStore({ cwd: b.repo, env: a.env })), 'bad-signature');
-  assert.match(journalContext(storeB), /^mirai\/journal\/2:/);
+  assert.match(journalContext(storeB), /^mirai\/journal\/3:/);
 });
 
 test('T11: the key-change rule', () => {
@@ -417,4 +417,16 @@ test('T12: no key, or a key not committed yet: approve says what to do; key show
   symlinkSync(outside, join(k.repo, 'tickets', 'link.md'));
   r = await run(['approve', 'T-12', '--file', 'tickets/link.md'], { cwd: k.repo, env: k.env }, { answers: ['a', 'T-12'] });
   assert.equal(r.code, EXIT.USAGE);
+});
+
+test('15a: a signed line from before journal version 3 still verifies; relabelled as version 3 it doesn\'t', async () => {
+  const s = await withKey();
+  const signer = loadSigner(s.env, s.store);
+  const line = signObject({ schema_version: 2, seq: 1, ts: '2026-10-27T10:00:00.000Z', type: 'status_written', by: 'human', ticket: 'T-5', state: 'ready-for-dev' },
+    signer, { context: `mirai/journal/2:${s.store.repoId}` });
+  atomicWrite(join(s.store.dir, 'journal.jsonl'), `${JSON.stringify(line)}\n`);
+  atomicWrite(join(s.store.dir, 'seq'), '1\n');
+  assert.deepEqual(readJournal(s.store).events.map((e) => [e.schema_version, e.by, e.ticket]), [[2, 'human', 'T-5']]);
+  atomicWrite(join(s.store.dir, 'journal.jsonl'), `${JSON.stringify({ ...line, schema_version: 3 })}\n`);
+  refused(() => readJournal(s.store), 'bad-signature');
 });

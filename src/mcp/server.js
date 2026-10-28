@@ -2,36 +2,43 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
-import { checkPathForm } from './args.js';
+import { checkArgs, toolList, toolNamed, TOOLS } from './tools.js';
+import { inlineResult, INLINE_TAIL_BYTES } from './tools/tests.js';
+import { LOG_TYPES } from '../store/journal.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { repoState } from '../store/repo-state.js';
 import { readToken } from '../sign/token.js';
 import { verifyTrustRoot } from '../trust/snapshot.js';
-import { redact, runTest } from '../tests/run.js';
+import { redact } from '../tests/run.js';
 
-// MIRAI's MCP server for headless agent runs (unit 14d; D-48, D-53): exactly two tools,
-// run_tests(level, path?) and run_check(name), over stdio (newline-delimited JSON-RPC 2.0, no
-// dependencies). Claude Code starts it from the launch's mcp.json, outside the sandbox; its code
-// comes from the trust root. Unit 15's broker grows out of it.
+// MIRAI's MCP server (unit 14d; unit 15a's broker core; D-48, D-53), over stdio
+// (newline-delimited JSON-RPC 2.0, no dependencies). Claude Code starts it from the launch's
+// mcp.json, outside the sandbox; its code comes from the trust root. The tools are data
+// (src/mcp/tools.js): this file is the protocol and what holds for every tool.
 //
 // It takes nothing from its environment or Claude Code: everything comes from the launch's
-// policy file (read-only in the launch's input/, its hash on the command line). On every call:
-// the trust root is hashed again (it must be the launch's), D-54's .git hash is compared with the
-// launch's before the call, again once the run's turn comes (before any git call on the
-// checkout) and after, and 14c's executor runs with that trust root, as the agent's run
-// (`by: "agent"`, never signed). A changed .git or trust root stops the server: every later call
-// is refused.
+// policy file (read-only in the launch's input/, its hash on the command line). On every call
+// the trust root is hashed again (it must be the launch's). A changed trust root, or a changed
+// .git under a test tool (D-54), stops the server: every later call is refused.
 
-export const POLICY_SCHEMA = 'mirai-mcp-policy/1';
+export const POLICY_SCHEMA = 'mirai-mcp-policy/2';
 export const PROTOCOL_VERSIONS = Object.freeze(['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']);
 export const MAX_MESSAGE_BYTES = 1024 * 1024;
-export const INLINE_TAIL_BYTES = 32 * 1024;
 export const PROGRESS_MS = 60_000;
 const SERVER_INFO = Object.freeze({ name: 'mirai', version: '0.1.0' });
+const HEX64 = /^[0-9a-f]{64}$/;
+const LAUNCH_ID = /^[0-9]{14}-[0-9a-f]{8}$/;
+const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
+const REPO_ID = /^[a-z0-9][a-z0-9-]{0,40}-[0-9a-f]{12}$/;
+
+export { inlineResult, INLINE_TAIL_BYTES, toolList, TOOLS };
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 
 export class PolicyError extends Error {}
+
+const names = (v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string' && x !== '');
+const count = (v, max) => Number.isInteger(v) && v >= 1 && v <= max;
 
 // Reads and checks the policy file against the hash it was started with.
 export function readPolicy(file, hash) {
@@ -41,106 +48,75 @@ export function readPolicy(file, hash) {
   } catch {
     throw new PolicyError('the policy file can\'t be read');
   }
-  if (!/^[0-9a-f]{64}$/.test(hash ?? '') || sha256(bytes) !== hash) throw new PolicyError('the policy file doesn\'t match its hash');
-  const p = JSON.parse(bytes.toString('utf8'));
+  if (!HEX64.test(hash ?? '') || sha256(bytes) !== hash) throw new PolicyError('the policy file doesn\'t match its hash');
+  return checkPolicy(JSON.parse(bytes.toString('utf8')));
+}
+
+// The policy's shape: { schema, kind, checkout, trust_dir, manifest_sha256, home, repo_state,
+// launch_id, launch_dir, item (null or the launch's ticket or document), docker_socket?,
+// store? ({ dir, repo_id }, with log_event), tools: { run_tests?: { levels }, run_check?:
+// { checks }, log_event?: { types, max_events, max_message, secrets } } }. `kind` is the server's
+// context: a tool is offered only in the contexts its entry names (D-53: headless runs never get
+// start_agent, by the table, not only by whoever writes the policy).
+export const KINDS = Object.freeze(['headless']);
+export function checkPolicy(p) {
   const abs = (v) => typeof v === 'string' && isAbsolute(v);
-  if (p.schema !== POLICY_SCHEMA || !abs(p.checkout) || !abs(p.trust_dir) || !abs(p.home) || !/^[0-9a-f]{64}$/.test(p.manifest_sha256 ?? '')
-    || !/^[0-9a-f]{64}$/.test(p.repo_state ?? '') || !Array.isArray(p.levels) || !Array.isArray(p.checks)) {
+  if (p?.schema === 'mirai-mcp-policy/1') throw new PolicyError('the policy is from an older MIRAI (mirai-mcp-policy/1); start the launch again');
+  if (p?.schema !== POLICY_SCHEMA || !KINDS.includes(p.kind) || !abs(p.checkout) || !abs(p.trust_dir) || !abs(p.home) || !abs(p.launch_dir) || !HEX64.test(p.manifest_sha256 ?? '')
+    || !HEX64.test(p.repo_state ?? '') || !LAUNCH_ID.test(p.launch_id ?? '') || !(p.item === null || ITEM.test(p.item ?? ''))
+    || p.tools === null || typeof p.tools !== 'object' || Array.isArray(p.tools)) {
     throw new PolicyError('the policy file isn\'t one this server reads');
   }
   if (p.docker_socket !== undefined && p.docker_socket !== null && !abs(p.docker_socket)) throw new PolicyError('the policy\'s docker socket isn\'t an absolute path');
+  const known = TOOLS.map((t) => t.name);
+  const unknown = Object.keys(p.tools).filter((k) => !known.includes(k));
+  if (unknown.length) throw new PolicyError(`the policy names tools this server doesn't have (${unknown.join(', ')})`);
+  const outside = TOOLS.filter((t) => Object.hasOwn(p.tools, t.name) && !t.contexts.includes(p.kind)).map((t) => t.name);
+  if (outside.length) throw new PolicyError(`the policy offers tools a ${p.kind} server never has (${outside.join(', ')})`);
+  const { run_tests: rt, run_check: rc, log_event: le } = p.tools;
+  if (rt !== undefined && !names(rt?.levels)) throw new PolicyError('the policy\'s run_tests needs its levels');
+  if (rc !== undefined && !names(rc?.checks)) throw new PolicyError('the policy\'s run_check needs its checks');
+  if (le !== undefined) {
+    if (!names(le?.types) || le.types.some((t) => !LOG_TYPES.includes(t)) || !count(le.max_events, 1000) || !count(le.max_message, 4096)) {
+      throw new PolicyError('the policy\'s log_event needs types agents may log and its caps');
+    }
+    const regex = (r) => {
+      try {
+        return typeof r === 'string' && Boolean(new RegExp(r, 'u'));
+      } catch {
+        return false;
+      }
+    };
+    if (!Array.isArray(le.secrets) || !le.secrets.every((x) => typeof x?.name === 'string' && regex(x.regex))) throw new PolicyError('the policy\'s log_event needs the secret shapes');
+    if (!abs(p.store?.dir) || !REPO_ID.test(p.store?.repo_id ?? '')) throw new PolicyError('the policy\'s log_event needs the store');
+  }
   return p;
-}
-
-// The tools, with the policy's names as enums.
-export function toolList(policy) {
-  const tools = [];
-  if (policy.levels.length) {
-    tools.push({
-      name: 'run_tests',
-      description: 'Run one of the project\'s test levels in its own containers (a copy of the project, no network out), optionally for one file or folder. Returns the outcome, exit code and the end of the output.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          level: { type: 'string', enum: [...policy.levels], description: 'the test level' },
-          path: { type: 'string', maxLength: 512, pattern: '^[A-Za-z0-9_][A-Za-z0-9_./@-]*$', description: 'optional: one file or folder, relative to the project\'s top' },
-        },
-        required: ['level'],
-        additionalProperties: false,
-      },
-    });
-  }
-  if (policy.checks.length) {
-    tools.push({
-      name: 'run_check',
-      description: 'Run one of the project\'s named checks (such as lint) in its own containers, on a copy of the project. Returns the outcome, exit code and the end of the output.',
-      inputSchema: {
-        type: 'object',
-        properties: { name: { type: 'string', enum: [...policy.checks], description: 'the check' } },
-        required: ['name'],
-        additionalProperties: false,
-      },
-    });
-  }
-  return tools;
 }
 
 const text = (value, isError = false) => ({ content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }], isError });
 
-// The arguments of a call, checked against the policy: { name, path } or a refusal message.
-export function callArgs(policy, tool, args) {
-  if (args === null || typeof args !== 'object' || Array.isArray(args)) return { refused: 'the arguments must be an object' };
-  const allowed = tool === 'run_tests' ? ['level', 'path'] : tool === 'run_check' ? ['name'] : null;
-  if (!allowed) return { refused: `there is no tool ${tool}` };
-  const extra = Object.keys(args).filter((k) => !allowed.includes(k));
-  if (extra.length) return { refused: `${tool} takes no ${extra.join(', ')}` };
-  const name = tool === 'run_tests' ? args.level : args.name;
-  const list = tool === 'run_tests' ? policy.levels : policy.checks;
-  if (typeof name !== 'string' || !list.includes(name)) return { refused: `${JSON.stringify(name)} isn't a configured ${tool === 'run_tests' ? 'test level' : 'check'}; configured: ${list.join(', ') || 'none'}` };
-  if (args.path === undefined) return { name, path: null };
-  if (typeof args.path !== 'string') return { refused: 'path must be a string' };
-  try {
-    return { name, path: checkPathForm(args.path) };
-  } catch (err) {
-    return { refused: err.message };
-  }
-}
-
-// What an agent sees of a result: no store paths (agents can't read the store anyway).
-export function inlineResult(r) {
-  const tailText = r.output?.tail ?? '';
-  const cut = Buffer.byteLength(tailText) > INLINE_TAIL_BYTES;
-  return {
-    id: r.id,
-    outcome: r.outcome,
-    ...(r.code ? { code: r.code } : {}),
-    ...(r.message ? { message: r.message } : {}),
-    exit_code: r.exit_code ?? null,
-    duration_s: Math.round((r.duration_ms ?? 0) / 1000),
-    [r.kind === 'check' ? 'check' : 'level']: r.name,
-    path: r.path ?? null,
-    output_tail: cut ? Buffer.from(tailText).subarray(-INLINE_TAIL_BYTES).toString('utf8') : tailText,
-    output_truncated: cut || Boolean(r.output?.truncated),
-    out_files: r.out_files ?? [],
-    isolated_binds: r.isolated_binds ?? [],
-    tree_hash: r.tree?.hash ?? null,
-  };
+// The arguments of a call, checked against the policy: the tool's checked arguments, or
+// `{ refused }`.
+export function callArgs(policy, name, args) {
+  const tool = toolNamed(policy, name);
+  if (!tool) return { refused: `there is no tool ${name}` };
+  const r = checkArgs(policy, tool, args);
+  return r.refused ? r : r.args;
 }
 
 // The server, without its transport: `handle(message)` for each parsed message; `send(msg)`
 // writes one. `deps.runTest` and `deps.repoState` are for tests.
 export function createServer({ policy, send, deps = {} }) {
-  const run = deps.runTest ?? runTest;
   const state = deps.repoState ?? ((top) => repoState(top).hash);
   const env = Object.freeze({ HOME: policy.home });
   let stopped = null;
-  let current = null; // { id, controller }
+  let current = null; // the exclusive call under way: { id, controller }
 
   const reply = (id, result) => send({ jsonrpc: '2.0', id, result });
   const fail = (id, code, message) => send({ jsonrpc: '2.0', id, error: { code, message } });
   // Error text an agent sees: the token redacted, and no paths into the MIRAI home (the store and
   // the trust root).
-  const hidden = [[policy.trust_dir, '<trust root>'], [miraiHome(env), '<mirai home>']];
+  const hidden = [[policy.trust_dir, '<trust root>'], [policy.store?.dir, '<store>'], [policy.launch_dir, '<launch>'], [miraiHome(env), '<mirai home>']].filter(([p]) => p);
   const clean = (s) => {
     let out = String(s);
     for (const [path, name] of hidden) out = out.split(path).join(name);
@@ -152,7 +128,7 @@ export function createServer({ policy, send, deps = {} }) {
   };
   const stop = (why) => {
     stopped ??= why;
-    return text({ outcome: 'refused', code: 'repo-changed', message: why }, true);
+    return { body: { outcome: 'refused', code: 'repo-changed', message: why }, isError: true };
   };
   // D-54's check: false when .git isn't as it was at the launch (or can't be read).
   const sameRepo = () => {
@@ -164,23 +140,22 @@ export function createServer({ policy, send, deps = {} }) {
   };
 
   async function call(id, params) {
-    const tool = params?.name;
-    if (tool !== 'run_tests' && tool !== 'run_check') return fail(id, -32602, `unknown tool ${String(tool).slice(0, 64)}`);
+    const tool = toolNamed(policy, params?.name);
+    if (!tool) return fail(id, -32602, `unknown tool ${String(params?.name).slice(0, 64)}`);
     if (stopped) return reply(id, text({ outcome: 'refused', code: 'stopped', message: `this server stopped: ${stopped}` }, true));
-    if (current) return reply(id, text({ outcome: 'refused', code: 'busy', message: 'a test run of this session is still going; wait for its result' }, true));
-    const args = callArgs(policy, tool, params.arguments ?? {});
-    if (args.refused) return reply(id, text({ outcome: 'refused', code: 'bad-arguments', message: args.refused }, true));
-    const controller = new AbortController();
-    current = { id, controller };
+    if (tool.exclusive && current) return reply(id, text({ outcome: 'refused', code: 'busy', message: 'a test run of this session is still going; wait for its result' }, true));
+    const checked = checkArgs(policy, tool, params.arguments ?? {});
+    if (checked.refused) return reply(id, text({ outcome: 'refused', code: 'bad-arguments', message: checked.refused }, true));
+    const controller = tool.exclusive ? new AbortController() : null;
+    if (controller) current = { id, controller };
     const token = params?._meta?.progressToken;
     const begun = Date.now();
-    let note = `running ${args.name}`;
-    const progress = token === undefined ? null : setInterval(() => {
+    let note = `running ${checked.args.name ?? tool.name}`;
+    const progress = !controller || token === undefined ? null : setInterval(() => {
       const minutes = Math.round((Date.now() - begun) / 60_000);
       send({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: minutes, message: `${note}, ${minutes} min` } });
     }, deps.progressMs ?? PROGRESS_MS);
-    controller.signal.addEventListener('abort', () => progress && clearInterval(progress), { once: true });
-    let started = false;
+    controller?.signal.addEventListener('abort', () => progress && clearInterval(progress), { once: true });
     try {
       let trust;
       try {
@@ -192,40 +167,18 @@ export function createServer({ policy, send, deps = {} }) {
         }
         throw err;
       }
-      if (!sameRepo()) return reply(id, stop('the repo\'s .git changed since the launch'));
-      started = true;
-      let r;
-      try {
-        r = await run({
-          cwd: policy.checkout, env, name: args.name, path: args.path, trust, by: 'agent', signal: controller.signal, launchId: policy.launch_id ?? null,
-          onWait: () => (note = `waiting for another test run, then ${args.name}`),
-          // The run's turn: .git is checked again before the executor's first git call.
-          onTurn: () => {
-            note = `running ${args.name}`;
-            if (!sameRepo()) {
-              stopped ??= 'the repo\'s .git changed while the run waited';
-              throw Object.assign(new Error(stopped), { code: 'repo-changed' });
-            }
-          },
-          ...(policy.docker_socket ? { docker: { socket: policy.docker_socket } } : {}),
-        });
-      } catch (err) {
-        if (!err.result) throw err;
-        r = err.result;
-      }
-      if (!sameRepo()) return reply(id, stop('the repo\'s .git changed during a test run'));
-      started = false;
-      const out = inlineResult(r);
-      return reply(id, text({ ...out, ...(out.message ? { message: clean(out.message) } : {}) }, !['pass', 'fail'].includes(r.outcome)));
+      const ctx = {
+        policy, env, trust, deps, clean, sameRepo, stop, signal: controller?.signal ?? null,
+        note: (n) => (note = n),
+        token: () => readToken(env),
+      };
+      const out = await tool.run(checked.args, ctx);
+      return reply(id, text(out.body, out.isError));
     } catch (err) {
-      if (err.code === 'repo-changed') return reply(id, stop(err.message));
-      // The after check holds for every way a run ends.
-      if (started && !sameRepo()) return reply(id, stop('the repo\'s .git changed during a test run'));
-      const outcome = err.code === 'unknown-test' || err.code === 'bad-path' ? 'refused' : 'env-fault';
-      return reply(id, text({ outcome, code: err.code ?? 'error', message: clean(err.message), ...(err.hint ? { hint: clean(err.hint) } : {}) }, true));
+      return reply(id, text({ outcome: 'env-fault', code: err.code ?? 'error', message: clean(err.message) }, true));
     } finally {
       if (progress) clearInterval(progress);
-      current = null;
+      if (controller) current = null;
     }
   }
 

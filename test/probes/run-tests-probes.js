@@ -138,7 +138,7 @@ async function direct(fx, socket, log) {
     const init = await s.rpc('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'probe' } });
     check('d1-initialize', init.result?.protocolVersion === '2025-11-25', JSON.stringify(init.result?.serverInfo));
     const list = (await s.rpc('tools/list')).result.tools;
-    check('d2-tools', JSON.stringify(list.map((t) => t.name)) === '["run_tests","run_check"]' && list[0].inputSchema.properties.level.enum.join() === 'unit,slow', list.map((t) => `${t.name}(${Object.keys(t.inputSchema.properties)})`).join(' '));
+    check('d2-tools', JSON.stringify(list.map((t) => t.name)) === '["run_tests","run_check","log_event"]' && list[0].inputSchema.properties.level.enum.join() === 'unit,slow', list.map((t) => `${t.name}(${Object.keys(t.inputSchema.properties)})`).join(' '));
     for (const [id, name, args, code] of [
       ['d3-dash', 'run_tests', { level: 'unit', path: '-x' }, 'bad-arguments'], ['d3-semicolon', 'run_tests', { level: 'unit', path: 'a;b' }, 'bad-arguments'],
       ['d3-subshell', 'run_tests', { level: 'unit', path: '$(id)' }, 'bad-arguments'], ['d3-dotdot', 'run_tests', { level: 'unit', path: '../x' }, 'bad-arguments'],

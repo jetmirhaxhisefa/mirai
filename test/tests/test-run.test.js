@@ -194,7 +194,7 @@ test('14c T1: the copy: tracked and new files with modes; no .git, ignored or re
 test('14c T2: the compose inputs come from the base commit\'s trust root, never the work tree', async () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
-  assert.equal(trust.manifest.format, 4);
+  assert.equal(trust.manifest.format, 5);
   assert.equal(trustedFile(trust, 'compose.yml').toString(), COMPOSE);
   assert.equal(trustedFile(trust, '.env.test').toString(), 'MODE=test\n');
   writeFileSync(join(r.root, 'compose.yml'), 'services: {}\n');
@@ -444,10 +444,10 @@ test('14c T12: the Docker probe scenarios stay canary-only and local', () => {
   assert.ok(list.filter((s) => s.refused).length >= 10, 'refusal scenarios');
 });
 
-test('14c T13: the test runner is stack-neutral: no language, framework or tool names in src/tests/ or src/mcp/ (14d)', () => {
-  const dirs = ['../../src/tests/', '../../src/mcp/'].map((d) => new URL(d, import.meta.url).pathname);
+test('14c T13: the test runner is stack-neutral: no language, framework or tool names in src/tests/ or src/mcp/ (14d) and src/mcp/tools/ (15a)', () => {
+  const dirs = ['../../src/tests/', '../../src/mcp/', '../../src/mcp/tools/'].map((d) => new URL(d, import.meta.url).pathname);
   const STACK = /\b(php|laravel|artisan|composer|phpunit|pest|npm|npx|yarn|pnpm|node_modules|vitest|jest|playwright|python|pytest|django|pip|ruby|rails|rspec|bundler|golang|cargo|rust|java|maven|gradle|dotnet|mysql|postgres|redis|APP_ENV|RAILS_ENV|NODE_ENV|DJANGO_SETTINGS_MODULE|vendor)\b/i;
-  for (const [dir, name] of dirs.flatMap((d) => readdirSync(d).map((n) => [d, n]))) {
+  for (const [dir, name] of dirs.flatMap((d) => readdirSync(d).filter((n) => n.endsWith('.js')).map((n) => [d, n]))) {
     const text = readFileSync(join(dir, name), 'utf8');
     const m = STACK.exec(text);
     assert.equal(m, null, `${name} names ${m?.[0]}`);

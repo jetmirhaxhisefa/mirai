@@ -333,13 +333,13 @@ need their own probes first.
 
 ### How agents run tests: `run_tests` and `run_check` (unit 14d)
 
-A headless agent run gets **MIRAI's MCP server** with exactly two tools:
+A headless agent run gets **MIRAI's MCP server** with two tools for tests:
 - **`run_tests(level, path?)`**: one of the project's test levels, optionally for one file or
   folder;
 - **`run_check(name)`**: one of its named checks (`lint`, …), always whole.
 
-Each one runs the steps above and returns the result in its reply. The server offers no other
-tool, and gives no shell or Docker access. Claude Code starts the server itself, outside the
+Each one runs the steps above and returns the result in its reply. The server's only other tool
+is `log_event` (see "How agents talk to MIRAI" below), and it gives no shell or Docker access. Claude Code starts the server itself, outside the
 sandbox, with an empty environment, as with the hook (so `NODE_OPTIONS` and the like never reach
 it). The server's code comes from the trust root, so a branch can't change it.
 
@@ -421,6 +421,73 @@ with its hash on the server's command line. A changed policy file and the server
   can't push it out of the last 20.
 - **An agent's runs are never signed:** they're stored as `by: "agent"`. Unit 25 builds the
   gate-result record from signed results.
+
+## How agents talk to MIRAI (unit 15a)
+
+Agents can't run `mirai` (it's denied in Bash, and it would need the MIRAI home, which the
+sandbox denies). Everything an agent may ask of MIRAI goes through the same MCP server as the
+test tools (D-53). Its tools are a table in MIRAI's code: each one has its own arguments and
+checks, and later units add tools to the table rather than new ways in.
+
+**Every headless run gets the server,** with or without tests, because every agent may need
+`log_event`. If it doesn't start, the run doesn't either.
+
+**`log_event(type, message, template?, section?)`** writes one line to the repo's journal:
+- **Two types only:** `note` and `template_gap` (a section a MIRAI template is missing), the same
+  ones `mirai log` takes. Approvals, status changes, gate results and records aren't in the
+  list, so an agent can't write them.
+- **The line says it's the agent's:** `by: "agent"` and the launch it came from. Your own
+  `mirai log` lines say `by: "unverified"`, and your signed lines `by: "human"`.
+- **The agent doesn't choose the ticket.** The line is filed under the launch's own item, which
+  MIRAI sets; an `item` argument is refused.
+- **Plain text only:** no control characters but newlines and tabs, no bidi overrides, nothing
+  invisible-only. The text is the agent's and ends up in your inbox and reports.
+- **No secrets:** as the hook does for files an agent writes, text with the login token (in any
+  encoding) or a known secret shape is refused, never written.
+- **Limits:** at most 50 lines per run and 4,000 characters per message. Past that the tool says
+  `log-full`. The count is kept in the launch folder, so a restarted server doesn't start again
+  at 0, and a refused or failed call doesn't count.
+- **What's checked:** the arguments (no extra fields), the trust root on every call, and a
+  stopped server refuses this tool too. It runs no git, so it needs no `.git` check. If the
+  journal is busy, the call waits two seconds at most (the server answers nothing while it
+  waits) and then says `journal-busy`.
+- **Which tools a server may offer** is in the table too: each tool names the kinds of server it
+  may be in, and every tool so far is for agent runs only. A policy that offers a tool outside
+  its kind stops the server at start (D-53: an agent run never gets `start_agent`, unit 19).
+
+**The input folder:** what an agent is given to read for one run (its plan, the findings of
+earlier rounds) is written into that run's `input/files/` before it starts:
+- **readable by the agent's tools:** Claude Code's `--restricted` keeps the file tools inside
+  the project, so the launch adds the folder with `--add-dir` (and the init check expects
+  exactly that folder). Bash reads it through the sandbox's `allowRead`;
+- **read-only:** `--add-dir` would also let sandboxed commands write there (probed: a `chmod`
+  got through), so every launch write-denies its `input/` in the sandbox and for Edit. Under
+  that, Write, Edit, `echo >>`, `chmod` and `rm` were all refused (probed). The files are also
+  0400 in a 0500 folder, and MIRAI's hook only lets the file tools write inside the project and
+  scratch;
+- **this run only:** the folder is in this run's `allowRead` and `--add-dir`, and in no other
+  run's;
+- **checked names:** lower case, ending in `.md`, `.json`, `.txt` or `.diff`; at most 32 files
+  and 4 MiB;
+- **gone after the run,** with the rest of the launch folder.
+
+- **no instruction files:** `claude.md`, `agents.md` and the like are refused as input names (on
+  your Mac's disk, `claude.md` is `CLAUDE.md`), though nothing loads them today.
+
+Unit 19 fills it with real plans. What an agent produces comes back as its structured output,
+never as files it writes for MIRAI.
+
+**Not secret from the agent:** the server's and the hook's policy files sit in the launch's
+`input/`, which sandboxed Bash can read, and they name the store, the trust root and the MIRAI
+home. That's by design: those paths are denied anyway. Error messages still show them as
+`<store>`, `<trust root>` and `<mirai home>`, which keeps replies short and free of your user
+name.
+
+**What isn't here yet:**
+- **your own sessions' use of the broker** (`lint`, `log_event` and the test tools): unit 15b;
+- **launching agents and session runs** (`start_agent`, `agent_status`, `session_start` and
+  `session_end`): unit 19, with `mirai agent run`;
+- **`trace`:** unit 43.
 
 ## MIRAI's own git
 
@@ -614,5 +681,6 @@ So if your token leaks:
 
 ## Coming next
 
+- **Unit 15b:** the broker in your own Claude Code sessions.
 - **Unit 18:** the red-team suite, re-run after every update.
 - **Unit 19:** the first real agent runs.
