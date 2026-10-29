@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="15" failures="6" errors="0" time="23.074646833">
+    <testsuite name="src/flaky-seed.test.ts" timestamp="2026-10-29T08:00:22.237Z" hostname="6aa2c2e9d3bf" tests="1" failures="1" errors="0" skipped="0" time="2.236507476">
+        <testcase classname="src/flaky-seed.test.ts" name="flaky seed &gt; passes about half the time" time="2.021723961">
+            <failure message="expected 0.9598635645407028 to be less than 0.5" type="AssertionError">
+AssertionError: expected 0.9598635645407028 to be less than 0.5
+ ❯ src/flaky-seed.test.ts:6:27
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/probe-shapes.test.ts" timestamp="2026-10-29T08:00:22.766Z" hostname="6aa2c2e9d3bf" tests="8" failures="2" errors="0" skipped="1" time="0.761856716">
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; a b" time="0.062649999">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; regex (x)+ &quot;q&quot; [y]" time="0.020890389">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; regex (x)+ &quot;q&quot; [y] more" time="0.008347394">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; fails" time="0.546126198">
+            <failure message="probe assertion: expected 1 to be 2 // Object.is equality" type="AssertionError">
+AssertionError: probe assertion: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ src/probe-shapes.test.ts:5:52
+            </failure>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; throws" time="0.089113848">
+            <failure message="probe error" type="Error">
+Error: probe error
+ ❯ src/probe-shapes.test.ts:6:30
+            </failure>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; skipped" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; inner &gt; regex (x)+ &quot;q&quot; [y]" time="0.00066976">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="top level" time="0.000487483">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/probe-shapes.test.tsx" timestamp="2026-10-29T08:00:22.977Z" hostname="6aa2c2e9d3bf" tests="1" failures="0" errors="0" skipped="0" time="0.020712765">
+        <testcase classname="src/probe-shapes.test.tsx" name="tsx twin" time="0.005593221">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AddTaskForm.test.tsx" timestamp="2026-10-29T08:00:22.988Z" hostname="6aa2c2e9d3bf" tests="3" failures="3" errors="0" skipped="0" time="15.587996839">
+        <testcase classname="src/components/AddTaskForm.test.tsx" name="AddTaskForm &gt; adds a trimmed title and clears the field" time="9.543798595">
+            <failure message="Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with &quot;testTimeout&quot;." type="Error">
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with &quot;testTimeout&quot;.
+ ❯ src/components/AddTaskForm.test.tsx:6:3
+            </failure>
+        </testcase>
+        <testcase classname="src/components/AddTaskForm.test.tsx" name="AddTaskForm &gt; shows an error when saving fails" time="0.870127352">
+            <failure message="[2mexpect([22m[31melement[39m[2m).toHaveValue([22m[32mBuy milk[39m[2m)[22m
+
+Expected the element to have value:
+[32m  Buy milk[39m
+Received:
+[31m  BBuuyy  mmiillkk  [39m" type="Error">
+Error: expect(element).toHaveValue(Buy milk)
+
+Expected the element to have value:
+  Buy milk
+Received:
+  BBuuyy  mmiillkk  
+ ❯ src/components/AddTaskForm.test.tsx:21:47
+            </failure>
+        </testcase>
+        <testcase classname="src/components/AddTaskForm.test.tsx" name="AddTaskForm &gt; refuses an empty or too long title" time="5.123700854">
+            <failure message="Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with &quot;testTimeout&quot;." type="Error">
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with &quot;testTimeout&quot;.
+ ❯ src/components/AddTaskForm.test.tsx:24:3
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/TaskList.test.tsx" timestamp="2026-10-29T08:00:23.304Z" hostname="6aa2c2e9d3bf" tests="2" failures="0" errors="0" skipped="0" time="4.467573037">
+        <testcase classname="src/components/TaskList.test.tsx" name="TaskList &gt; shows an empty state" time="2.531089566">
+        </testcase>
+        <testcase classname="src/components/TaskList.test.tsx" name="TaskList &gt; completes an open task and locks a done one" time="1.912565643">
+        </testcase>
+    </testsuite>
+</testsuites>

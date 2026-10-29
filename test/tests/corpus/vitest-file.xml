@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="9" failures="2" errors="0" time="0.037020133">
+    <testsuite name="src/probe-shapes.test.ts" timestamp="2026-10-29T08:04:14.992Z" hostname="a811ccf64eea" tests="8" failures="2" errors="0" skipped="1" time="0.030793597">
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; a b" time="0.002199258">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; regex (x)+ &quot;q&quot; [y]" time="0.000649515">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; regex (x)+ &quot;q&quot; [y] more" time="0.000322693">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; fails" time="0.023425357">
+            <failure message="probe assertion: expected 1 to be 2 // Object.is equality" type="AssertionError">
+AssertionError: probe assertion: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ src/probe-shapes.test.ts:5:52
+            </failure>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; throws" time="0.001137624">
+            <failure message="probe error" type="Error">
+Error: probe error
+ ❯ src/probe-shapes.test.ts:6:30
+            </failure>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; skipped" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; inner &gt; regex (x)+ &quot;q&quot; [y]" time="0.00024461">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="top level" time="0.000217408">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/probe-shapes.test.tsx" timestamp="2026-10-29T08:04:15.024Z" hostname="a811ccf64eea" tests="1" failures="0" errors="0" skipped="0" time="0.006226536">
+        <testcase classname="src/probe-shapes.test.tsx" name="tsx twin" time="0.003709528">
+        </testcase>
+    </testsuite>
+</testsuites>

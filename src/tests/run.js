@@ -7,14 +7,17 @@ import { catBlobs, lsTree } from '../store/git.js';
 import { ensurePrivateDir } from '../store/files.js';
 import { openStore } from '../store/home.js';
 import { personalMaxParallel } from '../config/load.js';
-import { checkPathForm, checkPathInCopy } from '../mcp/args.js';
+import { checkPathForm, checkPathInCopy, checkTestId } from '../mcp/args.js';
 import { signObject } from '../sign/sign.js';
 import { readToken } from '../sign/token.js';
 import { snapshot, trustedConfig, trustedFile, trustedRegistry } from '../trust/snapshot.js';
+import { adapterRun, findAdapter, trustedAdapters } from './adapters.js';
 import { checkAllowlist, nestedBinds, prescan, tighten } from './compose.js';
 import { copyTree, removeCopy } from './copy.js';
 import { checkDockerRunning, dockerCall, dockerSetup, TestRunError } from './docker.js';
 import { gateRecheck } from './gate.js';
+import { serviceMounts, toServicePath } from './paths.js';
+import { readReportFile, REPORT_FILE, STORED_FAILING, testResults } from './results.js';
 import { machineSlot, repoLock, waitFor, WAIT_MS } from './slots.js';
 
 // One test level or named check, run in the project's own containers (unit 14c; D-48, D-49):
@@ -30,6 +33,11 @@ import { machineSlot, repoLock, waitFor, WAIT_MS } from './slots.js';
 //
 // Async since unit 14d: Docker calls don't block, a run can be cancelled (`signal`; cleanup still
 // runs), and a run waits for its repo's turn and a machine-wide slot instead of failing at once.
+//
+// Unit 16a: a level with a test adapter (src/tests/adapters.js) asks its runner for a JUnit report
+// in the output folder, runs one file or one test ID through the adapter's arguments, and its
+// result has the report's counts and failing tests (src/tests/results.js). A file or test is
+// named by its project path and passed as the service's own path for it (src/tests/paths.js).
 
 export const OUTPUT_TAIL_BYTES = 64 * 1024;
 export const DEFAULT_TIMEOUT_MINUTES = 15;
@@ -41,7 +49,7 @@ export const OUT_LIMITS = Object.freeze({ files: 1000, bytes: 256 * 1024 ** 2, d
 export const testRunId = (now = new Date()) => `t-${now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15).toLowerCase()}-${randomBytes(3).toString('hex')}`;
 
 // The level or check named `name` in the trust root's config: { kind, name, service, command,
-// workdir, timeoutMinutes, run }.
+// workdir, timeoutMinutes, run, adapter, reportRoot }.
 export function findTarget(config, name) {
   const level = (config.testing?.levels ?? []).find((l) => l.name === name);
   const check = config.checks?.[name];
@@ -51,7 +59,10 @@ export function findTarget(config, name) {
   }
   const t = level ?? (Array.isArray(check) ? { command: check } : check);
   if (!t.service) throw new TestRunError(`${name} has no service`, { code: 'no-service', hint: 'name the compose service it runs in (service = "app"); tests always run in the project\'s containers' });
-  return { kind: level ? 'level' : 'check', name, service: t.service, command: t.command, workdir: t.workdir ?? null, timeoutMinutes: t.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES, run: t.run ?? 'exec' };
+  return {
+    kind: level ? 'level' : 'check', name, service: t.service, command: t.command, workdir: t.workdir ?? null, timeoutMinutes: t.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES, run: t.run ?? 'exec',
+    adapter: level?.adapter ?? null, reportRoot: level?.report_root ? checkPathForm(level.report_root) : null,
+  };
 }
 
 // Redacts the login token's exact value and every secret shape the trust root knows; terminal
@@ -190,7 +201,7 @@ function pruneRuns(testsDir, keep) {
 
 // Codes that mean a check refused the run; anything else that stops a run is an environment
 // fault, never a failing test.
-const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch', 'bad-path', 'gate-branch', 'gate-dirty', 'repo-changed']);
+const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch', 'bad-path', 'gate-branch', 'gate-dirty', 'repo-changed', 'no-adapter', 'unknown-adapter', 'bad-adapter']);
 
 // Runs one level or check. For tests and probes: `docker` ({ client, plugins, socket }) instead
 // of Docker Desktop's, and `minuteMs` to shorten the timeout. Unit 14d:
@@ -205,14 +216,19 @@ const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'cop
 // - `gate`: { branch, head, signer }: the result is signed (mirai test --gate). The caller checks
 //   it first (gateCheck); it's checked again right after the copy and before signing, and only
 //   a run that ended in pass, fail or timeout is signed;
-// - `launchId`: the launch an agent's run came from, stored in the result.
-export async function runTest({ cwd, env, name, path = null, now = () => new Date(), docker = {}, call = dockerCall, minuteMs = 60_000,
+// - `launchId`: the launch an agent's run came from, stored in the result;
+// - `test` (unit 16a): one test ID, `<path>::<name>`, instead of `path`; a level with an adapter only.
+export async function runTest({ cwd, env, name, path = null, test = null, now = () => new Date(), docker = {}, call = dockerCall, minuteMs = 60_000,
   trust: givenTrust = null, by = 'you', signal, waitMs = WAIT_MS, onWait = () => {}, onTurn = () => {}, maxParallel = null, gate = null, launchId = null }) {
   const store = openStore({ cwd, env });
   const trust = givenTrust ?? snapshot({ cwd, env });
   const config = trustedConfig(trust);
   const target = findTarget(config, name);
-  const testPath = path === null ? null : checkPathForm(path);
+  if (path !== null && test !== null) throw new TestRunError('give a path or a test ID, not both', { code: 'bad-path', exitCode: EXIT.USAGE });
+  const testId = test === null ? null : checkTestId(test);
+  const testPath = path === null ? testId?.path ?? null : checkPathForm(path);
+  const adapter = target.adapter ? findAdapter(trustedAdapters(trust), target.adapter) : null;
+  if (testId && !adapter) throw new TestRunError(`${name} has no test adapter, so it can't run one test by its ID`, { code: 'no-adapter', exitCode: EXIT.USAGE, hint: 'name its runner in the level (adapter = "<name>", see docs/test-adapters.md), or pass the file as path' });
   const files = config.compose?.files ?? [];
   if (files.length === 0) throw new TestRunError('this project has no [compose] files', { code: 'no-compose', hint: 'name its compose file in .mirai/config.toml: [compose] files = ["docker-compose.yml"]' });
   if (!config.compose?.env_file) throw new TestRunError('this project has no [compose] env_file', { code: 'no-env-file', hint: 'commit a file of dummy values (such as .env.test) and name it: [compose] env_file = ".env.test"' });
@@ -254,7 +270,7 @@ export async function runTest({ cwd, env, name, path = null, now = () => new Dat
     onTurn();
     await sweepStale(setup, call, store.repoId);
     pruneRuns(testsDir, KEEP_TEST_RUNS - 1);
-    return await runLocked({ store, trust, config, target, name, path: testPath, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId });
+    return await runLocked({ store, trust, config, target, name, path: testPath, testName: testId?.name ?? null, adapter, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId });
   } finally {
     slot?.release();
     lock.release();
@@ -264,7 +280,7 @@ export async function runTest({ cwd, env, name, path = null, now = () => new Dat
 // The signature's context for a test result: what it's for, and the repo.
 export const resultContext = (repoId) => `mirai/test-result/1:${repoId}`;
 
-async function runLocked({ store, trust, config, target, name, path, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId }) {
+async function runLocked({ store, trust, config, target, name, path, testName, adapter, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId }) {
   const id = testRunId(now());
   const dir = join(testsDir, id);
   ensurePrivateDir(dir);
@@ -277,7 +293,8 @@ async function runLocked({ store, trust, config, target, name, path, now, setup,
   const secrets = Object.values(trustedRegistry(trust).secrets ?? {}).flatMap((d) => d.patterns);
   const clean = (text) => redact(text, { token: readToken(env), secrets });
   const result = {
-    schema_version: 1, id, name, kind: target.kind, service: target.service, command: target.command, path, project, docker: dockerVersion,
+    schema_version: 1, id, name, kind: target.kind, service: target.service, command: target.command, path, ...(testName !== null ? { test: `${path}::${testName}` } : {}),
+    ...(adapter ? { adapter: target.adapter } : {}), project, docker: dockerVersion,
     started_at: now().toISOString(), base_sha: trust.baseSha, trust_manifest_sha256: trust.manifestSha256 ?? null, by,
     ...(launchId ? { launch_id: launchId } : {}),
   };
@@ -298,6 +315,8 @@ async function runLocked({ store, trust, config, target, name, path, now, setup,
   const compose = (frozen) => ['compose', '--progress', 'quiet', ...(frozen ? ['-f', frozen] : composeFiles.flatMap((f) => ['-f', f])), '-p', project, '--project-directory', projectDir, '--env-file', envFile];
   let base = null;
   let error = null;
+  let readMounts = null;
+  let reportBase = null;
   try {
     const copied = copyTree({ root: store.checkout, env, dest: copyDir, keep });
     const copyReal = realpathSync(copyDir);
@@ -321,11 +340,24 @@ async function runLocked({ store, trust, config, target, name, path, now, setup,
     });
     if (!tightened.services?.[target.service]) throw new TestRunError(`${name} runs in ${target.service}, which the compose files don't have`, { code: 'no-service' });
     const images = {};
+    const workdirs = {};
     for (const s of Object.values(tightened.services)) {
       if (typeof s.image !== 'string' || s.image in images) continue;
-      const i = await live(setup, ['image', 'inspect', '--format', '{{.Id}}', s.image]);
-      images[s.image] = i.status === 0 ? i.stdout.trim() : null;
+      const i = await live(setup, ['image', 'inspect', '--format', '{{.Id}} {{.Config.WorkingDir}}', s.image]);
+      const [imageId, ...dir] = i.stdout.trim().split(' ');
+      images[s.image] = i.status === 0 && imageId ? imageId : null;
+      workdirs[s.image] = dir.join(' ') || null;
     }
+    // The service's mounts of the copy, before nested binds get their own copies: where a project
+    // path is in the service, and where a report's paths are in the project.
+    const service = tightened.services[target.service];
+    const mounts = serviceMounts(service, copyReal);
+    const servicePath = path === null ? null : toServicePath(mounts, path, target.service);
+    // A test ID names a test in a file, never a folder.
+    if (testName !== null && !lstatSync(join(copyReal, path)).isFile()) throw new TestRunError(`${path} is a folder; a test ID names a file`, { code: 'bad-path', hint: 'pass the folder as path, or <file>::<test name>' });
+    const serviceDir = target.workdir ?? service.working_dir ?? workdirs[service.image] ?? null;
+    reportBase = target.reportRoot ? toServicePath(mounts, target.reportRoot, target.service) : serviceDir;
+    readMounts = mounts;
     const check = (isolated) => checkAllowlist(tightened, { project, copy: copyReal, out: outReal, imageOk: (ref) => Boolean(images[ref]), allow: config.compose.allow ?? [], isolated });
     check([]);
     // Binds another service could swap before this one starts get their own copy.
@@ -349,8 +381,18 @@ async function runLocked({ store, trust, config, target, name, path, now, setup,
     if ((await cleanup(setup, call, base, project)).length) throw new TestRunError(`the test project ${project} can't be cleared`, { code: 'cleanup-failed' });
     const deadline = Date.now() + target.timeoutMinutes * minuteMs;
     const left = () => Math.max(Math.min(1000, minuteMs), deadline - Date.now());
-    const cmd = [...target.command, ...(path ? ['--', path] : [])];
-    const workdir = target.workdir ? ['-w', target.workdir] : [];
+    // With an adapter, its arguments; without one, 14c's `-- <path>`. Either way the path is the
+    // service's own.
+    const output = config.compose.output ?? DEFAULT_OUTPUT;
+    const extra = adapter
+      ? adapterRun(adapter, { report: `${output.replace(/\/+$/, '')}/${REPORT_FILE}`, select: servicePath === null ? null : testName === null ? { path: servicePath } : { path: servicePath, name: testName } })
+      : { args: servicePath ? ['--', servicePath] : [], env: {} };
+    const cmd = [...target.command, ...extra.args];
+    // What MIRAI added to the level's command, kept with the result.
+    result.added_args = extra.args;
+    result.added_env = Object.keys(extra.env);
+    const envFlags = Object.entries(extra.env).flatMap(([k, v]) => ['-e', `${k}=${v}`]);
+    const workdir = [...(target.workdir ? ['-w', target.workdir] : []), ...envFlags];
     // `exec`: the service and what it depends on are started and checked, then the command runs
     // in it. `oneoff`: what it depends on is started and checked, then the service is started
     // once in the background, checked, waited for, and its output read.
@@ -391,6 +433,25 @@ async function runLocked({ store, trust, config, target, name, path, now, setup,
     result.exit_code = run.timedOut ? null : run.status;
     result.outcome = run.timedOut ? 'timeout' : run.status === 0 ? 'pass' : 'fail';
     result.output = { tail: t.text, truncated: t.truncated };
+    if (adapter && !run.timedOut) {
+      const file = readReportFile(outDir);
+      const r = testResults({ adapter, report: file, exitCode: run.status, output: t.text, mounts: readMounts, base: reportBase, asked: path === null ? null : testName === null ? { path } : { path, name: testName }, clean });
+      // Every case in scope goes to cases.json beside the result, which holds its hash (and the
+      // report's), so a signed result covers both; result.json keeps STORED_FAILING failing tests
+      // with their messages, and the reply fewer.
+      const casesText = `${JSON.stringify({ schema_version: 1, cases: r.cases })}\n`;
+      writeFileSync(join(dir, 'cases.json'), casesText, { mode: 0o600, flag: 'wx' });
+      Object.assign(result, {
+        report: r.report, ...(r.report_problem ? { report_problem: r.report_problem } : {}),
+        ...(file.bytes ? { report_sha256: createHash('sha256').update(file.bytes).digest('hex') } : {}),
+        cases_sha256: createHash('sha256').update(casesText).digest('hex'),
+        tests: r.tests, failing: r.failing.slice(0, STORED_FAILING), failing_total: r.failing.length,
+      });
+      // A run that couldn't load its tests, or ran none it was asked for, fails; one that should
+      // have left a report and didn't is an environment fault, whatever its exit code (P5).
+      if (r.load || r.not_found || r.tests.failed + r.tests.errors > 0) result.outcome = 'fail';
+      else if (r.report !== 'ok') throw new TestRunError(`${name} left ${r.report === 'missing' ? 'no report' : `a report MIRAI can't read (${r.report_problem})`}, so its result can't be trusted`, { code: 'bad-report', hint: `the ${target.adapter} adapter asks the runner for ${REPORT_FILE} in the output folder; check the level's command passes its options on` });
+    }
   } catch (err) {
     error = err;
   } finally {

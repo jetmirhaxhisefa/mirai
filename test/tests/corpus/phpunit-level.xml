@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="/var/www/html/phpunit.xml" tests="21" assertions="39" errors="1" failures="2" skipped="1" time="7.873785">
+    <testsuite name="Unit" tests="10" assertions="10" errors="1" failures="1" skipped="1" time="1.251367">
+      <testsuite name="Tests\Unit\ProbeShapesTest" file="/var/www/html/tests/Unit/ProbeShapesTest.php" tests="7" assertions="5" errors="1" failures="1" skipped="1" time="0.047226">
+        <testcase name="test_a_b" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="10" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="1" time="0.021737"/>
+        <testcase name="test_a_bc" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="11" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="1" time="0.002462"/>
+        <testcase name="test_fails" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="12" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="1" time="0.008049">
+          <failure type="PHPUnit\Framework\ExpectationFailedException">Tests\Unit\ProbeShapesTest::test_fails
+probe assertion
+second line
+Failed asserting that 2 is identical to 1.
+
+/var/www/html/tests/Unit/ProbeShapesTest.php:12</failure>
+        </testcase>
+        <testcase name="test_throws" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="13" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="0" time="0.004265">
+          <error type="RuntimeException">Tests\Unit\ProbeShapesTest::test_throws
+RuntimeException: probe error
+
+/var/www/html/tests/Unit/ProbeShapesTest.php:13</error>
+        </testcase>
+        <testcase name="test_skipped" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="14" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="0" time="0.002450">
+          <skipped/>
+        </testcase>
+        <testsuite name="Tests\Unit\ProbeShapesTest::test_data" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.008263">
+          <testcase name="test_data with data set &quot;x y &quot;q&quot;&quot;" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="17" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="1" time="0.007656"/>
+          <testcase name="test_data with data set &quot;plain&quot;" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="17" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="1" time="0.000606"/>
+        </testsuite>
+      </testsuite>
+      <testsuite name="Tests\Unit\TaskRulesTest" file="/var/www/html/tests/Unit/TaskRulesTest.php" tests="3" assertions="5" errors="0" failures="0" skipped="0" time="1.204141">
+        <testcase name="test_a_title_is_required" file="/var/www/html/tests/Unit/TaskRulesTest.php" line="17" class="Tests\Unit\TaskRulesTest" classname="Tests.Unit.TaskRulesTest" assertions="2" time="0.459718"/>
+        <testcase name="test_the_title_has_a_maximum_length" file="/var/www/html/tests/Unit/TaskRulesTest.php" line="23" class="Tests\Unit\TaskRulesTest" classname="Tests.Unit.TaskRulesTest" assertions="2" time="0.214011"/>
+        <testcase name="test_done_is_cast_to_a_boolean" file="/var/www/html/tests/Unit/TaskRulesTest.php" line="29" class="Tests\Unit\TaskRulesTest" classname="Tests.Unit.TaskRulesTest" assertions="1" time="0.530411"/>
+      </testsuite>
+    </testsuite>
+    <testsuite name="Feature" tests="11" assertions="29" errors="0" failures="1" skipped="0" time="6.622418">
+      <testsuite name="Tests\Feature\AuthTest" file="/var/www/html/tests/Feature/AuthTest.php" tests="3" assertions="9" errors="0" failures="0" skipped="0" time="5.987744">
+        <testcase name="test_a_user_can_log_in_and_read_their_profile" file="/var/www/html/tests/Feature/AuthTest.php" line="20" class="Tests\Feature\AuthTest" classname="Tests.Feature.AuthTest" assertions="4" time="5.584570"/>
+        <testcase name="test_wrong_credentials_are_refused" file="/var/www/html/tests/Feature/AuthTest.php" line="31" class="Tests\Feature\AuthTest" classname="Tests.Feature.AuthTest" assertions="3" time="0.315092"/>
+        <testcase name="test_guests_cannot_reach_the_api" file="/var/www/html/tests/Feature/AuthTest.php" line="40" class="Tests\Feature\AuthTest" classname="Tests.Feature.AuthTest" assertions="2" time="0.088082"/>
+      </testsuite>
+      <testsuite name="Tests\Feature\KnownFailureSeedTest" file="/var/www/html/tests/Feature/KnownFailureSeedTest.php" tests="1" assertions="1" errors="0" failures="1" skipped="0" time="0.055763">
+        <testcase name="test_known_failure_seed" file="/var/www/html/tests/Feature/KnownFailureSeedTest.php" line="15" class="Tests\Feature\KnownFailureSeedTest" classname="Tests.Feature.KnownFailureSeedTest" assertions="1" time="0.055763">
+          <failure type="PHPUnit\Framework\ExpectationFailedException">Tests\Feature\KnownFailureSeedTest::test_known_failure_seed
+Seeded known failure (see README).
+Failed asserting that two strings are identical.
+--- Expected
++++ Actual
+@@ @@
+-'expected'
++'actual'
+
+/var/www/html/tests/Feature/KnownFailureSeedTest.php:17</failure>
+        </testcase>
+      </testsuite>
+      <testsuite name="Tests\Feature\TaskApiTest" file="/var/www/html/tests/Feature/TaskApiTest.php" tests="7" assertions="19" errors="0" failures="0" skipped="0" time="0.578911">
+        <testcase name="test_a_user_sees_only_their_own_tasks" file="/var/www/html/tests/Feature/TaskApiTest.php" line="14" class="Tests\Feature\TaskApiTest" classname="Tests.Feature.TaskApiTest" assertions="3" time="0.100615"/>
+        <testcase name="test_a_user_can_create_a_task" file="/var/www/html/tests/Feature/TaskApiTest.php" line="26" class="Tests\Feature\TaskApiTest" classname="Tests.Feature.TaskApiTest" assertions="4" time="0.078946"/>
+        <testcase name="test_an_invalid_task_is_refused" file="/var/www/html/tests/Feature/TaskApiTest.php" line="38" class="Tests\Feature\TaskApiTest" classname="Tests.Feature.TaskApiTest" assertions="3" time="0.068694"/>
+        <testcase name="test_a_too_long_title_is_refused" file="/var/www/html/tests/Feature/TaskApiTest.php" line="47" class="Tests\Feature\TaskApiTest" classname="Tests.Feature.TaskApiTest" assertions="3" time="0.074145"/>
+        <testcase name="test_done_cannot_be_set_on_create" file="/var/www/html/tests/Feature/TaskApiTest.php" line="56" class="Tests\Feature\TaskApiTest" classname="Tests.Feature.TaskApiTest" assertions="2" time="0.073281"/>
+        <testcase name="test_a_user_can_complete_their_task" file="/var/www/html/tests/Feature/TaskApiTest.php" line="65" class="Tests\Feature\TaskApiTest" classname="Tests.Feature.TaskApiTest" assertions="2" time="0.093521"/>
+        <testcase name="test_a_user_cannot_complete_another_users_task" file="/var/www/html/tests/Feature/TaskApiTest.php" line="75" class="Tests\Feature\TaskApiTest" classname="Tests.Feature.TaskApiTest" assertions="2" time="0.089708"/>
+      </testsuite>
+    </testsuite>
+  </testsuite>
+</testsuites>

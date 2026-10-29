@@ -83,7 +83,12 @@ const level = {
   fields: {
     name: { type: 'string', pattern: NAME, patternHint: NAME_HINT },
     repo: { type: 'string' },
-    adapter: { type: 'string' },
+    // The level's test adapter (unit 16a): a name from registry/test-adapters/ or the project's
+    // .mirai/custom/test-adapters/, checked when the level runs.
+    adapter: { type: 'string', pattern: NAME, patternHint: 'a test adapter\'s name, such as "phpunit"' },
+    // With an adapter whose report names files relative to somewhere other than the service's
+    // working folder (a runner's own test folder): that folder, as a project path.
+    report_root: { type: 'string', pattern: /^(?![-/])(?!.*(^|\/)\.{1,2}(\/|$))[A-Za-z0-9_./@-]{1,512}$/, patternHint: 'a folder of the project, relative to its top, such as "e2e/tests"' },
     command: argv,
     purpose: { type: 'string' },
     required_for: { type: 'array', items: { type: 'enum', values: REQUIRED_FOR } },

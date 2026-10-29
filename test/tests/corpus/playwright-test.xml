@@ -1,0 +1,6 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="3.988032">
+<testsuite name="probe-shapes.spec.ts" timestamp="2026-10-29T08:16:31.193Z" hostname="" tests="1" failures="0" skipped="0" time="0.024" errors="0">
+<testcase name="probe › regex (x)+ &quot;q&quot; [y]" classname="probe-shapes.spec.ts" time="0.024">
+</testcase>
+</testsuite>
+</testsuites>

@@ -8,8 +8,11 @@ import { TestRunError } from '../tests/docker.js';
 // the copy, the tree that actually runs.
 //
 // A path is a file or folder only: it never starts with "-" or "/", has no space, quote, "$",
-// ";", "|", backquote or newline, and no "." or ".." part. Test IDs with ":" (a runner's filter)
-// wait for unit 16's adapters, which know each runner's escaping.
+// ";", "|", backquote or newline, and no "." or ".." part.
+//
+// A test ID (unit 16a) is `<path>::<name>`: the file by the path's rules, and the test's name as
+// its runner reports it, as plain printable text. A level's test adapter (src/tests/adapters.js)
+// passes the name to the runner as one argument, escaped for how that runner matches names.
 
 export const PATH_MAX = 512;
 export const PATH_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_./@-]*$/;
@@ -25,6 +28,27 @@ export function checkPathForm(path) {
   const parts = trimmed.split('/');
   if (parts.some((p) => p === '' || p === '.' || p === '..')) throw refuse(`the path ${path} has an empty, "." or ".." part`);
   return trimmed;
+}
+
+// Long enough for the nested and data-set names reports hold.
+export const TEST_NAME_MAX = 1000;
+export const TEST_ID_MAX = PATH_MAX + 2 + TEST_NAME_MAX;
+// No control character (tab and newline included), format character (bidi marks and overrides,
+// zero-width characters, the soft hyphen, tags), line or paragraph separator, or lone surrogate.
+const NAME_BAD = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}]/u;
+// Something visible: not only spaces, or fillers that render blank (Hangul fillers, the Braille
+// blank).
+const NAME_VISIBLE = /[^\s\p{Zs}\u115f\u1160\u2800\u3164\uffa0]/u;
+
+// The ID's form: { path, name }. The path is checked as checkPathForm checks it.
+export function checkTestId(id) {
+  if (typeof id !== 'string' || id === '') throw refuse('the test ID is empty', 'a test ID is <file>::<test name>, such as tests/login.test::rejects a wrong password');
+  const at = id.indexOf('::');
+  if (at < 0) throw refuse('a test ID is <file>::<test name>', 'such as tests/login.test::rejects a wrong password; for a file or folder, pass path instead');
+  const name = id.slice(at + 2);
+  if (name.length < 1 || name.length > TEST_NAME_MAX) throw refuse(`the test name must be 1 to ${TEST_NAME_MAX} characters`);
+  if (NAME_BAD.test(name) || !NAME_VISIBLE.test(name)) throw refuse('the test name has a control, format or invisible-only character', 'plain printable text, as the test runner reports the name');
+  return { path: checkPathForm(id.slice(0, at)), name };
 }
 
 // The path in the copy: it must be there, as a plain file or folder, with no link along it.

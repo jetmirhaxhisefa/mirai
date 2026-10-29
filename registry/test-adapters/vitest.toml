@@ -1,0 +1,32 @@
+# Vitest (unit 16a; seen on 3.2, probes J1–J4 in research/12). Opt-in per level:
+# adapter = "vitest". Through npm (npm test), the level's command ends with "--", so these
+# options reach Vitest: command = ["npm", "test", "--"].
+kind = "test-adapter"
+schema_version = 1
+name = "vitest"
+description = "Vitest (seen on 3.2), directly or through a package script whose command ends with --"
+
+[report]
+format = "junit"
+# The default reporter too, so the output still reads as usual.
+args = ["--reporter=default", "--reporter=junit", "--outputFile.junit={report}"]
+# Each <testcase> has the file, relative to Vitest's root (the service's working folder), as its
+# classname, and its describe blocks and title joined with " > ".
+file = "classname"
+separator = " > "
+
+[select]
+# A file filter is a substring: a twin such as a.test.tsx for a.test.ts runs too, and is counted
+# outside what was asked.
+file = ["{path}"]
+# -t is a regex on the describe blocks and title joined with spaces.
+test = ["{path}", "-t", '(?:^| ){name:regex}$']
+join = " "
+
+[classify]
+# Every failure is a <failure>: its type says whether it's an assertion.
+assertion_types = ['^AssertionError$']
+# Matchers that throw a plain Error (such as Testing Library's) start with "expect(".
+assertion_messages = ['^expect\(']
+# A file that doesn't load (a missing import, a syntax error) is one case named after the file.
+file_cases_are_load = true

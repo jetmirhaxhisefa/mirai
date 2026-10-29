@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Tests\Unit\ProbeShapesTest" file="/var/www/html/tests/Unit/ProbeShapesTest.php" tests="1" assertions="1" errors="0" failures="0" skipped="0" time="0.014139">
+    <testcase name="test_a_b" file="/var/www/html/tests/Unit/ProbeShapesTest.php" line="10" class="Tests\Unit\ProbeShapesTest" classname="Tests.Unit.ProbeShapesTest" assertions="1" time="0.014139"/>
+  </testsuite>
+</testsuites>

@@ -1,11 +1,9 @@
-import { test, after } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { init } from '../../src/install/init.js';
 import { snapshot, trustedFile } from '../../src/trust/snapshot.js';
 import { copyTree, isEnvPath } from '../../src/tests/copy.js';
 import { checkAllowlist, DAYTIME_KEYS, prescan, tighten } from '../../src/tests/compose.js';
@@ -17,119 +15,11 @@ import { main } from '../../src/cli/main.js';
 import { COMMANDS } from '../../src/cli/commands/index.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
 import { guardScenario, scenarios } from '../probes/test-run-probes.js';
+import { COMPOSE, CONFIG, fakeDocker, gitIn, installed, resolvedApp, tempDir } from './run-fixture.js';
 
 // Unit 14c: the test executor, without Docker (a fake docker records every call). The real
-// Docker runs are test/probes/test-run-probes.js and the sample app (test-results.md).
-
-const temps = [];
-after(() => {
-  for (const d of temps) {
-    execFileSync('/bin/chmod', ['-R', 'u+rwX', d]);
-    rmSync(d, { recursive: true, force: true });
-  }
-});
-const tempDir = (name) => {
-  const d = realpathSync(mkdtempSync(join(tmpdir(), `mirai-14c-${name}-`)));
-  temps.push(d);
-  return d;
-};
-const gitIn = (cwd, home) => (...a) => execFileSync('/usr/bin/git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], {
-  cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { PATH: '/usr/bin:/bin', HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
-}).toString().trim();
-
-const COMPOSE = 'services:\n  app:\n    image: nginx:1.27-alpine\n    ports:\n      - "127.0.0.1:8080:80"\n    volumes:\n      - ./:/w\n';
-const CONFIG = '\n[compose]\nfiles = ["compose.yml"]\nenv_file = ".env.test"\n\n[[testing.levels]]\nname = "unit"\ncommand = ["run-tests"]\nservice = "app"\n\n[checks]\nlint = { command = ["lint-it"], service = "app", workdir = "/w", run = "oneoff" }\nbare = ["no-service"]\n';
-
-// A repo with MIRAI installed and the compose inputs committed on main.
-function installed({ compose = COMPOSE, config = CONFIG, files = {} } = {}) {
-  const root = join(tempDir('repo'), 'r');
-  mkdirSync(root);
-  const home = tempDir('home');
-  const git = gitIn(root, home);
-  git('init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'README.md'), '# r\n');
-  writeFileSync(join(root, '.gitignore'), '.env\nbuild/\n');
-  git('add', '-A');
-  git('commit', '-qm', 'first');
-  const env = { PATH: '/usr/bin:/bin', HOME: home };
-  init({ cwd: root, env, branch: 'main' });
-  const cfg = join(root, '.mirai', 'config.toml');
-  chmodSync(cfg, 0o644);
-  writeFileSync(cfg, `${readFileSync(cfg, 'utf8')}${config}`);
-  writeFileSync(join(root, 'compose.yml'), compose);
-  writeFileSync(join(root, '.env.test'), 'MODE=test\n');
-  for (const [p, body] of Object.entries(files)) {
-    mkdirSync(join(root, p, '..'), { recursive: true });
-    writeFileSync(join(root, p), body);
-  }
-  git('add', '-A');
-  git('commit', '-qm', 'compose');
-  return { root, home, env, git };
-}
-
-// A fake docker: records each call (arguments, environment), answers the few calls a run makes.
-// `resolved` is what `compose config` prints, with @PROJECT@ and @COPY@ filled in from the call.
-function fakeDocker({ resolved, execOut = 'ran\n', execCode = 0, execSleep = 0, ps = '', inspect = '[]', missingImage = null, upCode = 0, execPs = '', upPs = '' } = {}) {
-  const d = tempDir('docker');
-  const socket = join(d, 'docker.sock');
-  symlinkSync('/dev/null', socket);
-  writeFileSync(join(d, 'resolved.json'), JSON.stringify(resolved ?? {}));
-  writeFileSync(join(d, 'exec.out'), execOut);
-  writeFileSync(join(d, 'inspect.json'), inspect);
-  writeFileSync(join(d, 'ps.out'), ps);
-  const client = join(d, 'docker');
-  writeFileSync(client, `#!/bin/sh
-d='${d}'
-n=$(/bin/ls "$d" | /usr/bin/grep -c '^call\\.[0-9]*$')
-f="$d/call.$(printf %04d "$n")"
-/usr/bin/env > "$f.env"
-printf '%s\\n' "$@" > "$f.tmp" && /bin/mv "$f.tmp" "$f"
-p=''; c=''; prev=''
-for a in "$@"; do
-  [ "$prev" = "-p" ] && p="$a"
-  [ "$prev" = "--project-directory" ] && c="$a"
-  prev="$a"
-done
-[ -n "$c" ] && printf '%s' "$c" > "$d/copy.path"
-case " $* " in
-  *" version "*) echo 29.6.2 ;;
-  *" config --format json "*) /usr/bin/sed -e "s|@PROJECT@|$p|g" -e "s|@COPY@|$c|g" "$d/resolved.json" ;;
-  *" image inspect "*) case " $* " in *" ${missingImage ?? '@none@'} "*) exit 1 ;; *) echo sha256:0123 ;; esac ;;
-  *" exec "*) printf '%s' '${execPs}' > "$d/ps.out"; /bin/cat "$d/exec.out"; echo "to-stderr" >&2; /bin/sleep ${execSleep}; exit ${execCode} ;;
-  *" run -d "*) echo oneoff1 ;;
-  " wait "*) /bin/sleep ${execSleep}; echo ${execCode} ;;
-  " logs oneoff1 ") /bin/cat "$d/exec.out"; echo "to-stderr" >&2 ;;
-  *" up -d "*) printf '%s' '${upPs}' > "$d/ps.out"; [ ${upCode} -ne 0 ] && echo "container x-app-1 exited (1)" >&2; exit ${upCode} ;;
-  *" status=exited "*) echo "c7 app" ;;
-  *" logs --tail "*) echo "app says: backend/.env is missing ghp_${'a1B2'.repeat(9)}" ;;
-  *" ps -aq "*) /bin/cat "$d/ps.out" ;;
-  *" rm -f -v "*) : > "$d/ps.out" ;;
-  *" network inspect "*) echo '[]' ;;
-  *" inspect "*) cp=$(/bin/cat "$d/copy.path"); /usr/bin/sed -e "s|@COPY@|$cp|g" -e "s|@OUT@|$(/usr/bin/dirname "$cp")/out|g" "$d/inspect.json" ;;
-esac
-exit 0
-`, { mode: 0o755 });
-  const calls = () => readdirSync(d).filter((n) => /^call\.\d+$/.test(n)).sort().map((n) => ({
-    args: readFileSync(join(d, n), 'utf8').split('\n').slice(0, -1),
-    env: Object.fromEntries(readFileSync(join(d, `${n}.env`), 'utf8').split('\n').filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])),
-  }));
-  return { docker: { client, plugins: '/nonexistent/plugins', socket }, calls };
-}
-
-// What `compose config --format json` gives for COMPOSE (shape as Compose 5.3.1 prints it).
-const resolvedApp = (extra = {}, top = {}) => ({
-  name: '@PROJECT@',
-  services: {
-    app: {
-      command: null, entrypoint: null, image: 'nginx:1.27-alpine', networks: { default: null },
-      ports: [{ mode: 'ingress', host_ip: '127.0.0.1', target: 80, published: '8080', protocol: 'tcp' }],
-      volumes: [{ type: 'bind', source: '@COPY@', target: '/w', bind: {} }],
-      ...extra,
-    },
-  },
-  networks: { default: { name: '@PROJECT@_default', ipam: {} } },
-  ...top,
-});
+// Docker runs are test/probes/test-run-probes.js and the sample app (test-results.md). The
+// fixtures are in run-fixture.js (unit 16a).
 
 test('14c T1: the copy: tracked and new files with modes; no .git, ignored or real .env files; links stay inside; limits; the tree hash', () => {
   const r = installed({ files: { 'bin/run': '#!/bin/sh\n', 'sub/.env.example': 'X=1\n' } });
@@ -311,7 +201,8 @@ test('14c T7: the run: frozen file, down before and after, exec vs oneoff, --pat
   const clear = ['ps -aq', 'down', 'network ls', 'volume ls', 'ps -aq', 'network ls', 'volume ls'];
   assert.deepEqual(verbs, ['version --format', 'ps -a', 'config', 'image inspect', ...clear, 'up', 'ps -aq', 'exec', ...clear]);
   const exec = f.calls().find((c) => c.args.includes('exec')).args;
-  assert.deepEqual(exec.slice(exec.indexOf('exec')), ['exec', '-T', 'app', 'run-tests', '--', 'tests/A_Test.php']);
+  // Unit 16a: the path is the service's own for it (the copy is at /w in app).
+  assert.deepEqual(exec.slice(exec.indexOf('exec')), ['exec', '-T', 'app', 'run-tests', '--', '/w/tests/A_Test.php']);
   const frozenPath = exec[exec.indexOf('-f') + 1];
   assert.ok(frozenPath.endsWith('compose.frozen.json'));
   const frozen = JSON.parse(readFileSync(frozenPath, 'utf8'));
@@ -402,8 +293,8 @@ test('14c T9: the result: output tail capped and redacted, the output folder lis
 test('14c T10: config: the new fields validate; an unknown name is refused with the list; a level needs a service', () => {
   const load = (extra) => checkConfig([{ kind: 'project', file: { ...parseToml(`schema_version = 1\n[git]\nintegration_branch = "main"\n${extra}`, { source: 'c', positions: true }), source: 'c' } }]).config;
   const config = load(CONFIG);
-  assert.deepEqual(findTarget(config, 'unit'), { kind: 'level', name: 'unit', service: 'app', command: ['run-tests'], workdir: null, timeoutMinutes: 15, run: 'exec' });
-  assert.deepEqual(findTarget(config, 'lint'), { kind: 'check', name: 'lint', service: 'app', command: ['lint-it'], workdir: '/w', timeoutMinutes: 15, run: 'oneoff' });
+  assert.deepEqual(findTarget(config, 'unit'), { kind: 'level', name: 'unit', service: 'app', command: ['run-tests'], workdir: null, timeoutMinutes: 15, run: 'exec', adapter: null, reportRoot: null });
+  assert.deepEqual(findTarget(config, 'lint'), { kind: 'check', name: 'lint', service: 'app', command: ['lint-it'], workdir: '/w', timeoutMinutes: 15, run: 'oneoff', adapter: null, reportRoot: null });
   assert.throws(() => findTarget(config, 'nope'), (e) => e.code === 'unknown-test' && e.exitCode === EXIT.USAGE && /unit, lint, bare/.test(e.hint));
   assert.throws(() => findTarget(config, 'bare'), (e) => e.code === 'no-service');
   for (const [bad, re] of [['[compose]\nallow = ["privileged"]\n', /allow/], ['[[testing.levels]]\nname = "u"\ncommand = ["x"]\nservice = "app"\nworkdir = "rel"\n', /workdir/],

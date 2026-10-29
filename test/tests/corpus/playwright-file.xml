@@ -1,0 +1,99 @@
+<testsuites id="" name="" tests="9" failures="1" skipped="1" errors="1" time="4.675305000000001">
+<testsuite name="probe-shapes.spec.ts" timestamp="2026-10-29T08:17:52.959Z" hostname="" tests="8" failures="1" skipped="1" time="0.057" errors="1">
+<testcase name="probe › a b" classname="probe-shapes.spec.ts" time="0.006">
+</testcase>
+<testcase name="probe › regex (x)+ &quot;q&quot; [y]" classname="probe-shapes.spec.ts" time="0.003">
+</testcase>
+<testcase name="probe › regex (x)+ &quot;q&quot; [y] more" classname="probe-shapes.spec.ts" time="0.003">
+</testcase>
+<testcase name="probe › fails" classname="probe-shapes.spec.ts" time="0.013">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../../e2e/test-results/probe-shapes-probe-fails/error-context.md]]
+
+[[ATTACHMENT|../../e2e/test-results/probe-shapes-probe-fails/trace.zip]]
+]]>
+</system-out>
+<failure message="probe assertion" type="expect.toBe">
+<![CDATA[  probe-shapes.spec.ts:7:7 › probe › fails ─────────────────────────────────────────────────────────
+
+    Error: probe assertion
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       5 |   test('regex (x)+ "q" [y]', async () => {});
+       6 |   test('regex (x)+ "q" [y] more', async () => {});
+    >  7 |   test('fails', async () => { expect(1, 'probe assertion').toBe(2); });
+         |                                                            ^
+       8 |   test('throws', async () => { throw new Error('probe error'); });
+       9 |   test.skip('skipped', async () => {});
+      10 |   test.describe('inner', () => {
+        at /e2e/tests/probe-shapes.spec.ts:7:60
+
+    Error Context: ../test-results/probe-shapes-probe-fails/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/probe-shapes-probe-fails/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/probe-shapes-probe-fails/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+</testcase>
+<testcase name="probe › throws" classname="probe-shapes.spec.ts" time="0.013">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../../e2e/test-results/probe-shapes-probe-throws/error-context.md]]
+
+[[ATTACHMENT|../../e2e/test-results/probe-shapes-probe-throws/trace.zip]]
+]]>
+</system-out>
+<error message="probe error" type="Error">
+<![CDATA[  probe-shapes.spec.ts:8:7 › probe › throws ────────────────────────────────────────────────────────
+
+    Error: probe error
+
+       6 |   test('regex (x)+ "q" [y] more', async () => {});
+       7 |   test('fails', async () => { expect(1, 'probe assertion').toBe(2); });
+    >  8 |   test('throws', async () => { throw new Error('probe error'); });
+         |                                      ^
+       9 |   test.skip('skipped', async () => {});
+      10 |   test.describe('inner', () => {
+      11 |     test('regex (x)+ "q" [y]', async () => {});
+        at /e2e/tests/probe-shapes.spec.ts:8:38
+
+    Error Context: ../test-results/probe-shapes-probe-throws/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/probe-shapes-probe-throws/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/probe-shapes-probe-throws/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</error>
+</testcase>
+<testcase name="probe › skipped" classname="probe-shapes.spec.ts">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="probe › inner › regex (x)+ &quot;q&quot; [y]" classname="probe-shapes.spec.ts" time="0.013">
+</testcase>
+<testcase name="top level" classname="probe-shapes.spec.ts" time="0.006">
+</testcase>
+</testsuite>
+<testsuite name="probe-shapes.spec.tsx" timestamp="2026-10-29T08:17:52.959Z" hostname="" tests="1" failures="0" skipped="0" time="0.004" errors="0">
+<testcase name="tsx twin" classname="probe-shapes.spec.tsx" time="0.004">
+</testcase>
+</testsuite>
+</testsuites>

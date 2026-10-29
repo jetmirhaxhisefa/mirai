@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Tests\Feature\KnownFailureSeedTest" file="/var/www/html/tests/Feature/KnownFailureSeedTest.php" tests="1" assertions="1" errors="0" failures="1" skipped="0" time="0.377045">
+    <testcase name="test_known_failure_seed" file="/var/www/html/tests/Feature/KnownFailureSeedTest.php" line="15" class="Tests\Feature\KnownFailureSeedTest" classname="Tests.Feature.KnownFailureSeedTest" assertions="1" time="0.377045">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">Tests\Feature\KnownFailureSeedTest::test_known_failure_seed
+Seeded known failure (see README).
+Failed asserting that two strings are identical.
+--- Expected
++++ Actual
+@@ @@
+-'expected'
++'actual'
+
+/var/www/html/tests/Feature/KnownFailureSeedTest.php:17</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

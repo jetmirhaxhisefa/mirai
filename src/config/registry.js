@@ -420,76 +420,223 @@ const SECRETS = {
   required: ['kind', 'schema_version', 'name', 'patterns'],
 };
 
+// Test adapters (unit 16a; D-48 item 5): how one test runner writes a JUnit report, runs one
+// file or one test, and names its cases, as data. A level opts in with `adapter = "<name>"`;
+// a project adds its own in .mirai/custom/test-adapters/ (read from the trust root). Each
+// argument template is one argv element, never a shell line; a placeholder fills part of it:
+//   {report}       the report file in the run's output folder (the service's path)
+//   {path}         the file, as the service's absolute path (src/tests/paths.js)
+//   {path:regex}   the same, every regex character escaped
+//   {name}         the test's name, its parts joined by `select.join`
+//   {name:regex}   the same, every regex character escaped
+// A value can't start an argument: {path} and {report} are absolute paths, and an argument
+// can't start with {name}, so nothing a caller gives becomes an option.
+export const TEST_PLACEHOLDERS = Object.freeze({
+  report: ['report'],
+  file: ['path', 'path:regex'],
+  test: ['path', 'path:regex', 'name', 'name:regex'],
+});
+const templateList = (allowed) => ({
+  type: 'array',
+  items: {
+    type: 'string',
+    pattern: /^[^\0\n]{1,300}$/,
+    patternHint: 'one argument of at most 300 characters',
+    check(value, path, report) {
+      if (typeof value !== 'string') return;
+      for (const m of value.matchAll(/\{([^{}]*)\}/g)) {
+        if (!allowed.includes(m[1])) report(path, `${path} has the placeholder {${showName(m[1])}}; this list takes ${allowed.map((a) => `{${a}}`).join(', ')}`, undefined, 'placeholder');
+      }
+      if (/[{}]/.test(value.replace(/\{[^{}]*\}/g, ''))) report(path, `${path} has a "{" or "}" that isn't a placeholder`, undefined, 'placeholder');
+      if (/^\{name(?::regex)?\}/.test(value)) report(path, `${path} starts with {name}: a test's name could then start an option`, 'put the option before it as its own argument, or text before it', 'placeholder');
+    },
+  },
+});
+const showName = (n) => (/^[a-z:]{1,20}$/.test(n) ? n : '…');
+const REGEX_LIST = {
+  type: 'array',
+  items: {
+    type: 'string',
+    pattern: /^[^\n]{1,200}$/,
+    patternHint: 'one line of at most 200 characters',
+    check(value, path, report) {
+      if (typeof value !== 'string') return;
+      if (/\\[1-9]|\\k</.test(value)) report(path, `${path} can't use back-references`, undefined, 'pattern');
+      try {
+        new RegExp(value, 'u');
+      } catch {
+        report(path, `${path} isn't a valid regular expression`, undefined, 'pattern');
+      }
+    },
+  },
+};
+const SEPARATOR = { type: 'string', pattern: /^[^\0\n]{1,8}$/, patternHint: 'at most 8 characters, such as " > "' };
+const TEST_ADAPTER = {
+  type: 'table',
+  fields: {
+    kind: { type: 'enum', values: ['test-adapter'] },
+    schema_version: { type: 'integer', min: 1, max: 1 },
+    name: { type: 'string', pattern: NAME, patternHint: 'for example "phpunit"' },
+    description: DESCRIPTION,
+    report: {
+      type: 'table',
+      fields: {
+        format: { type: 'enum', values: ['junit'] },
+        // The arguments, or environment variables, that make the runner write it to {report}.
+        args: templateList(TEST_PLACEHOLDERS.report),
+        env: { type: 'table', map: templateList(TEST_PLACEHOLDERS.report).items, keyPattern: /^[A-Z_][A-Z0-9_]{0,63}$/, keyHint: 'an environment variable name' },
+        // Which attribute of a <testcase> holds its file: `file`, or `classname` for runners
+        // that put the file there. A relative one is from the service's working folder, or the
+        // level's report_root.
+        file: { type: 'enum', values: ['file', 'classname'] },
+        // How the report joins a nested test's titles (describe blocks), if it does.
+        separator: SEPARATOR,
+        // What follows a test's name in the names of its variants, which a test ID by that name
+        // also covers (PHPUnit's data sets: "test_x with data set …").
+        variant: { type: 'string', pattern: /^[^\0\n]{1,40}$/, patternHint: 'at most 40 characters, such as " with data set "' },
+      },
+      required: ['format', 'file'],
+      check(value, path, report) {
+        if (!value.args?.length && !Object.keys(value.env ?? {}).length) report(path, `${path} needs args or env that ask the runner for the report`, undefined, 'required');
+      },
+    },
+    select: {
+      type: 'table',
+      fields: {
+        file: { ...templateList(TEST_PLACEHOLDERS.file), minItems: 1 },
+        test: { ...templateList(TEST_PLACEHOLDERS.test), minItems: 1 },
+        // How the runner's name filter joins a nested test's titles.
+        join: SEPARATOR,
+      },
+      required: ['file', 'test'],
+      check(value, path, report) {
+        for (const key of ['file', 'test']) {
+          const all = (value[key] ?? []).join('\n');
+          if (!/\{path(?::regex)?\}/.test(all)) report(`${path}.${key}`, `${path}.${key} must name the file ({path} or {path:regex})`, undefined, 'placeholder');
+        }
+        if (!/\{name(?::regex)?\}/.test((value.test ?? []).join('\n'))) report(`${path}.test`, `${path}.test must name the test ({name} or {name:regex})`, undefined, 'placeholder');
+      },
+    },
+    classify: {
+      type: 'table',
+      fields: {
+        // A <failure> or <error> whose type matches one of these is an assertion; any other
+        // <error> is an error. Without the list, a <failure> is an assertion and an <error> an
+        // error.
+        assertion_types: REGEX_LIST,
+        // Or whose message's first line matches one of these (matchers that throw a plain Error).
+        assertion_messages: REGEX_LIST,
+        // A run that ended with one of these exit codes, or whose output matches one of these,
+        // couldn't load or compile the tests: a failing run of kind "load", report or not.
+        load_exit_codes: { type: 'array', items: { type: 'integer', min: 1, max: 255 } },
+        load_output: REGEX_LIST,
+        // A failure's first line that only repeats the test's own name, skipped for the message.
+        message_skip: REGEX_LIST,
+        // A case named after its own file is the file's failure to load (a runner that reports a
+        // file it couldn't import as one case).
+        file_cases_are_load: { type: 'boolean' },
+      },
+    },
+  },
+  required: ['kind', 'schema_version', 'name', 'description', 'report', 'select'],
+};
+
 const KINDS = [
   { folder: 'agents', kind: 'agent', bucket: 'agents', schema: AGENT, refs: ['prompt'] },
   { folder: 'document-types', kind: 'document-type', bucket: 'documentTypes', schema: DOCUMENT_TYPE, refs: ['template', 'checklist'] },
   { folder: 'adapters', kind: 'adapter', bucket: 'adapters', schema: ADAPTER, refs: [] },
   { folder: 'protected-paths', kind: 'protected-paths', bucket: 'protectedPaths', schema: PROTECTED_PATHS, refs: [] },
   { folder: 'secrets', kind: 'secrets', bucket: 'secrets', schema: SECRETS, refs: [] },
+  { folder: 'test-adapters', kind: 'test-adapter', bucket: 'testAdapters', schema: TEST_ADAPTER, refs: [] },
 ];
 
 // Loads and checks every definition under `dir`. Returns frozen `{ dir, agents, documentTypes,
-// adapters, protectedPaths, skills }` keyed by name, plus `agentFiles` and `adapterFiles` (each definition's
-// file, relative to `dir`), or throws one ConfigError listing every problem. `dir` lets the
-// lint read a type's template (unit 08a).
+// adapters, protectedPaths, secrets, testAdapters, skills }` keyed by name, plus `agentFiles`
+// and `adapterFiles` (each definition's file, relative to `dir`), or throws one ConfigError
+// listing every problem. `dir` lets the lint read a type's template (unit 08a).
 export function loadRegistry(dir) {
   const problems = [];
-  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, secrets: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
-  for (const { folder, kind, bucket: key, schema, refs } of KINDS) {
-    let files = [];
-    const sub = join(dir, folder);
-    let info;
-    try {
-      info = lstatSync(sub);
-    } catch (err) {
-      if (err.code !== 'ENOENT') throw err;
-    }
-    if (info && !info.isDirectory()) {
-      problems.push({ code: info.isSymbolicLink() ? 'symlink' : 'not-folder', source: folder, line: 1, column: 1, reason: `${folder} must be a real folder inside the registry` });
-      continue;
-    }
-    if (info) files = readdirSync(sub).filter((f) => f.endsWith('.toml')).sort();
-    const bucket = out[key];
-    for (const f of files) {
-      const source = `${folder}/${f}`;
-      let file;
-      try {
-        file = readConfigFile(join(dir, folder, f), { trust: 'definition', source, within: dir });
-      } catch (err) {
-        if (!(err instanceof ConfigError)) throw err;
-        problems.push(...err.errors.map((e) => ({ ...e, source })));
-        continue;
-      }
-      const locate = (path) => {
-        for (let p = path; ; p = p.slice(0, Math.max(p.lastIndexOf('.'), p.lastIndexOf('['), 0))) {
-          const at = file.positions.get(p);
-          if (at) return { source, ...at };
-          if (p === '') return { source, line: 1, column: 1 };
-        }
-      };
-      const found = validate(file.value, schema, locate);
-      for (const ref of refs) {
-        const target = file.value[ref];
-        if (typeof target !== 'string') continue;
-        const reason = badReference(dir, target);
-        if (reason) found.push({ code: 'reference', ...locate(ref), path: ref, reason: `${ref} ${reason}`, hint: 'a relative path to a .md file inside the registry folder' });
-      }
-      const name = file.value.name;
-      if (typeof name === 'string' && Object.hasOwn(bucket, name)) {
-        found.push({ code: 'duplicate', ...locate('name'), path: 'name', reason: `name is already used by another ${kind} definition` });
-      }
-      problems.push(...found);
-      if (found.length === 0) {
-        bucket[name] = file.value;
-        if (kind === 'agent') out.agentFiles[name] = source;
-        if (kind === 'adapter') out.adapterFiles[name] = source;
-      }
+  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, secrets: {}, testAdapters: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
+  for (const spec of KINDS) {
+    for (const { name, value, source } of loadFolder(dir, spec, problems, out[spec.bucket])) {
+      out[spec.bucket][name] = value;
+      if (spec.kind === 'agent') out.agentFiles[name] = source;
+      if (spec.kind === 'adapter') out.adapterFiles[name] = source;
     }
   }
   loadSkills(dir, out.skills, problems);
   if (problems.length > 0) {
     const n = problems.length;
     throw new ConfigError(`${n} problem${n === 1 ? '' : 's'} in the registry`, { errors: problems });
+  }
+  return deepFreeze(out);
+}
+
+// One kind's definitions in `dir`/<folder>: [{ name, value, source }], each checked; problems
+// are added to `problems`. A name already in `taken` is a duplicate.
+function loadFolder(dir, { folder, kind, schema, refs }, problems, taken = {}) {
+  const found = [];
+  const sub = join(dir, folder);
+  let info;
+  try {
+    info = lstatSync(sub);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  if (!info) return found;
+  if (!info.isDirectory()) {
+    problems.push({ code: info.isSymbolicLink() ? 'symlink' : 'not-folder', source: folder, line: 1, column: 1, reason: `${folder} must be a real folder inside the registry` });
+    return found;
+  }
+  const names = new Set(Object.keys(taken));
+  for (const f of readdirSync(sub).filter((n) => n.endsWith('.toml')).sort()) {
+    const source = `${folder}/${f}`;
+    let file;
+    try {
+      file = readConfigFile(join(dir, folder, f), { trust: 'definition', source, within: dir });
+    } catch (err) {
+      if (!(err instanceof ConfigError)) throw err;
+      problems.push(...err.errors.map((e) => ({ ...e, source })));
+      continue;
+    }
+    const locate = (path) => {
+      for (let p = path; ; p = p.slice(0, Math.max(p.lastIndexOf('.'), p.lastIndexOf('['), 0))) {
+        const at = file.positions.get(p);
+        if (at) return { source, ...at };
+        if (p === '') return { source, line: 1, column: 1 };
+      }
+    };
+    const issues = validate(file.value, schema, locate);
+    for (const ref of refs) {
+      const target = file.value[ref];
+      if (typeof target !== 'string') continue;
+      const reason = badReference(dir, target);
+      if (reason) issues.push({ code: 'reference', ...locate(ref), path: ref, reason: `${ref} ${reason}`, hint: 'a relative path to a .md file inside the registry folder' });
+    }
+    const name = file.value.name;
+    if (typeof name === 'string' && names.has(name)) {
+      issues.push({ code: 'duplicate', ...locate('name'), path: 'name', reason: `name is already used by another ${kind} definition` });
+    }
+    problems.push(...issues);
+    if (issues.length === 0) {
+      names.add(name);
+      found.push({ name, value: file.value, source });
+    }
+  }
+  return found;
+}
+
+// A project's own test adapters (unit 16a): `<dir>/test-adapters/*.toml` (dir is the trust
+// root's .mirai/custom), checked as the registry's are, and refused when a name is one of
+// `core`'s: a project adds runners, it doesn't change MIRAI's. Throws one ConfigError.
+export function loadCustomTestAdapters(dir, core = {}) {
+  const problems = [];
+  const spec = KINDS.find((k) => k.kind === 'test-adapter');
+  const out = {};
+  for (const { name, value } of loadFolder(dir, spec, problems, core)) out[name] = value;
+  if (problems.length > 0) {
+    const n = problems.length;
+    throw new ConfigError(`${n} problem${n === 1 ? '' : 's'} in the project's test adapters (.mirai/custom/test-adapters/)`, { errors: problems });
   }
   return deepFreeze(out);
 }

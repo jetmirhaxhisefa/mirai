@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="9" failures="0" errors="0" time="0.026108612">
+    <testsuite name="src/probe-shapes.test.ts" timestamp="2026-10-29T08:02:59.821Z" hostname="8f0dc1748b79" tests="8" failures="0" errors="0" skipped="7" time="0.026108612">
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; a b" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; regex (x)+ &quot;q&quot; [y]" time="0.017352328">
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; regex (x)+ &quot;q&quot; [y] more" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; fails" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; throws" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; skipped" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="probe &gt; inner &gt; regex (x)+ &quot;q&quot; [y]" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/probe-shapes.test.ts" name="top level" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/probe-shapes.test.tsx" timestamp="2026-10-29T08:02:59.862Z" hostname="8f0dc1748b79" tests="1" failures="0" errors="0" skipped="1" time="0">
+        <testcase classname="src/probe-shapes.test.tsx" name="tsx twin" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+</testsuites>

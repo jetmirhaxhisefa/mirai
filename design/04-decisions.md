@@ -1731,11 +1731,22 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   5. **The test-adapter contract per stack** (R2-M7): run one file or test ID; JUnit XML results;
      lcov or Cobertura coverage. MIRAI ships small zero-dependency parsers for exactly those
      formats (D-40). A stack without one of them gets a project adapter at setup.
+     - **Built in unit 16a for results** (coverage and unified diff: 16b). An adapter is a data
+       file (`registry/test-adapters/`, or the project's `.mirai/custom/test-adapters/`, both
+       read from the trust root) that a level opts into; MIRAI's runner stays the same for every
+       stack (`docs/test-adapters.md`).
+     - A test ID is `<project path>::<name>`. The path reaches the runner as the service's own
+       path, from the frozen compose file's mounts; the name is one argument, escaped for the
+       runner's filter.
+     - A run returns its counts and failing tests by ID and kind (assertion, error, not-found,
+       load). A missing or unreadable report on such a level is an environment fault.
   6. **The sandbox has no `excludedCommands`.** The MCP server runs outside the sandbox, so it's
      MIRAI's own small, tested code with fixed behaviour.
 - **Consequences:**
   - Partial runs (one file) avoid the Bash 10-minute limit; full suites run in the background
-    with the result polled.
+    with the result polled. (Unit 14d: agents run tests through the MCP tool, which proved
+    12-minute calls and allows 6 hours, so 16a drops chunking; a level's `timeout_minutes` still
+    ends a run as an environment fault.)
   - Some compose facts (override auto-loading, `COMPOSE_FILE` handling) are UNVERIFIED and tested
     in the unit (`research/09` §8).
 

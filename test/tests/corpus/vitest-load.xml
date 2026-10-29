@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="1" failures="1" errors="0" time="0">
+    <testsuite name="src/probe-broken.test.ts" timestamp="2026-10-29T08:08:13.195Z" hostname="6fd566749396" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/probe-broken.test.ts" name="src/probe-broken.test.ts" time="0">
+            <failure message="Failed to resolve import &quot;./probe-does-not-exist&quot; from &quot;src/probe-broken.test.ts&quot;. Does the file exist?" type="Error">
+Error: Failed to resolve import &quot;./probe-does-not-exist&quot; from &quot;src/probe-broken.test.ts&quot;. Does the file exist?
+  Plugin: vite:import-analysis
+  File: /app/src/probe-broken.test.ts:1:21
+  1  |  import { nope } from &apos;./probe-does-not-exist&apos;;
+     |                        ^
+  2  |  it(&apos;x&apos;, ()=&gt;{
+  3  |      nope();
+ ❯ TransformPluginContext._formatError node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41
+ ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16
+ ❯ normalizeUrl node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23
+ ❯ node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+ ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7
+ ❯ PluginContainer.transform node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

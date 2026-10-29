@@ -1,0 +1,35 @@
+# Playwright Test (unit 16a; seen on 1.64, probes J1–J4 in research/12). Opt-in per level:
+# adapter = "playwright", and report_root = the config's testDir as a project path (such as
+# "e2e/tests"): the report names files relative to it. The project's config must list the junit
+# reporter (reporter: [..., ['junit']]): the variable below only says where it writes.
+kind = "test-adapter"
+schema_version = 1
+name = "playwright"
+description = "Playwright Test (seen on 1.64); its config lists the junit reporter; the level's report_root is its testDir"
+
+[report]
+format = "junit"
+# The environment variable wins over the junit reporter's outputFile in the config, and leaves
+# the config's other reporters as they are.
+env = { PLAYWRIGHT_JUNIT_OUTPUT_FILE = "{report}" }
+# Each <testcase> has the file, relative to testDir, as its classname, and its describe blocks
+# and title joined with " › ".
+file = "classname"
+separator = " › "
+
+[select]
+# A file argument is a case-insensitive regex on the absolute path: escaped and anchored at the
+# end or a "/", so a.spec.ts doesn't also run a.spec.tsx, and a folder runs what's in it.
+file = ['{path:regex}(?:/|$)']
+# -g is a case-insensitive regex on the project, file, describe blocks and title joined with
+# spaces.
+test = ['{path:regex}$', "-g", '(?:^| ){name:regex}$']
+join = " "
+
+[classify]
+# An expect() that fails is a <failure>, a throw or a timeout an <error>: the defaults.
+# A file that doesn't load stops the run before any test (exit 1, an empty report): its error
+# is printed at the start of a line. "No tests found." alone is a name or file that matched
+# nothing. MIRAI counts the line only when no test ran, so a line a test prints can't turn a real
+# failure into a load failure.
+load_output = ['^Error: (?!No tests found\.$)']

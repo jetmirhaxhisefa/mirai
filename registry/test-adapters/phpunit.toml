@@ -1,0 +1,29 @@
+# PHPUnit, run directly or through a command that passes its options on, such as Laravel's
+# `php artisan test` (unit 16a). Seen on PHPUnit 12.5 (probes J1–J4, research/12). Opt-in per
+# level: adapter = "phpunit".
+kind = "test-adapter"
+schema_version = 1
+name = "phpunit"
+description = "PHPUnit (seen on 12.5), directly or through a command that passes its options on (such as php artisan test)"
+
+[report]
+format = "junit"
+args = ["--log-junit", "{report}"]
+# Each <testcase> has the file as the service's absolute path.
+file = "file"
+# A data provider's cases are "<method> with data set …": a test ID by the method covers them.
+variant = " with data set "
+
+[select]
+file = ["{path}"]
+# --filter is a regex on "Class::method", with " with data set …" after a data provider's.
+# Anchored, so test_a_b doesn't also run test_a_bc.
+test = ["--filter", '/::{name:regex}(?: with data set .*)?$/', "{path}"]
+
+[classify]
+# A file that doesn't parse stops the whole run: exit 255, this line, an empty report. Exit 255
+# without the line (a missing autoloader, a memory fatal) isn't a load failure, so it's left to
+# the report: none, and it's an environment fault.
+load_output = ['^An error occurred inside PHPUnit\.$']
+# A failure's text starts with "Class::method".
+message_skip = ['^[A-Za-z_\\][A-Za-z0-9_\\]*::[A-Za-z0-9_]']

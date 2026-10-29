@@ -254,7 +254,7 @@ version it was seen on.
 
 Agents never run `docker` or the project's tests themselves. They ask MIRAI's MCP server: the
 tools `run_tests` and `run_check` (unit 14d, below). You run the same thing yourself with
-`mirai test <level or check> [--path <file or folder>]` (unit 14c).
+`mirai test <level or check> [--path <file or folder> | --test <test ID>]` (units 14c, 16a).
 
 **What happens on each run** (one run at a time per project, and at most `[tests] max_parallel`
 at once across all your projects, set in your personal `~/.config/mirai/config.toml`, 1–8,
@@ -382,8 +382,8 @@ need their own probes first.
 ### How agents run tests: `run_tests` and `run_check` (unit 14d)
 
 A headless agent run gets **MIRAI's MCP server** with two tools for tests:
-- **`run_tests(level, path?)`**: one of the project's test levels, optionally for one file or
-  folder;
+- **`run_tests(level, path? or test?)`**: one of the project's test levels, optionally for one
+  file or folder, or one test by its ID (unit 16a, on a level with a test adapter);
 - **`run_check(name)`**: one of its named checks (`lint`, …), always whole.
 
 Each one runs the steps above and returns the result in its reply. The server's only other tool
@@ -397,9 +397,20 @@ it). The server's code comes from the trust root, so a branch can't change it.
   - a file or folder of the project, relative to its top: letters, digits and `_ . / @ -`;
   - never starting with `-` or `/`, and no `.` or `..` parts. So there are no options, shell
     characters, spaces or quotes;
-  - checked again in the copy: it must be there, with no link along it. It's passed after
-    `--`;
-  - test IDs (`File::testName`) wait for unit 16, which knows each runner's escaping;
+  - checked again in the copy: it must be there, with no link along it;
+  - passed to the runner as the **service's own path** for it, from the frozen compose file's
+    mounts (unit 16a). The sample app's `backend/` is `/var/www/html` in its `app` service, so
+    `backend/tests/Unit` reaches the runner as `/var/www/html/tests/Unit`. A path the service
+    doesn't mount, or that another of its mounts hides, is refused (`bad-path`);
+  - on a level without a test adapter, it's passed after `--`;
+- **a `test`** (unit 16a): one test, as `<file>::<test name>`:
+  - the file by the path's rules;
+  - the name as the runner reports it (the failing list shows it): 1–1,000 characters of plain
+    printable text, with no control, format (bidi, zero-width) or invisible-only characters. A
+    data provider's method name covers its data sets (`phpunit`'s `variant`);
+  - a file, never a folder (`bad-path`);
+  - only on a level with a test adapter, which passes it as one argument, escaped for how that
+    runner matches names. A level without one refuses it (`no-adapter`);
 - **nothing else:** an extra field (such as a `script`) is refused.
 
 A name or path of the wrong form is refused before anything runs (`bad-arguments`). A path that
@@ -409,7 +420,44 @@ rules hold for `mirai test --path`.
 **What comes back:**
 - the outcome (pass, fail, timeout, env-fault, refused) and the exit code;
 - the duration, and the last 32 KiB of output, redacted;
-- the output folder's file list, and the tree hash.
+- the output folder's file list, and the tree hash;
+- **on a level with a test adapter** (unit 16a, below), what its JUnit report says:
+  - `tests`: the counts, `total`, `passed`, `failed`, `errors`, `skipped`, and `outside` (cases
+    that ran but weren't asked for, such as a file's twin that a runner's filter also matched);
+  - `failing`: the failed and errored tests, each with its `id`, `kind` and the first line of its
+    message (redacted, at most 300 characters). At most 50, and at most 16 KiB of the reply (the
+    output's tail gets the rest of the 32 KiB), with `failing_total` counting them all;
+  - `report`: `ok`, `missing` or `malformed`.
+
+**Test adapters and kinds** (unit 16a; how to write one: [test-adapters.md](test-adapters.md)).
+A level opts in with `adapter = "<name>"`: `phpunit`, `vitest` and `playwright` ship, as data
+files in `registry/test-adapters/`, and a project adds its own in `.mirai/custom/test-adapters/`.
+Both are read from the trust root, so a branch can't change how MIRAI asks for and reads its
+reports. What the runner does is still the branch's: its own config and scripts choose which
+tests run, and the code under test could write the report itself. So a report is evidence, and
+unit 25 compares counts and IDs with the integration branch's baseline. Each failing test has a
+`kind`:
+- **`assertion`:** a check in the test failed;
+- **`error`:** the test threw, or the runner reported an error;
+- **`not-found`:** the file, test or level ran nothing: it isn't there, or every case was
+  skipped. Some runners exit 0 when their name filter matches nothing, so this is never a pass;
+- **`load`:** the tests couldn't be loaded or compiled (a syntax error, a missing import). Only
+  when no test ran: a line a test prints can't turn a real failure into this.
+
+A failed run with nothing failing in its report (a runner that fails on warnings) gets one
+`error` entry, so a failed run never reads as "no failures". Every case is stored in the run's
+`cases.json`, and the failing ones with messages in `result.json` (up to 1,000); the result holds
+the hashes of both and of the report.
+
+The kind is the runner's word, read from the report; it's what unit 23's red check uses to tell
+"fails for the right reason" (an assertion) from a typo or a crash.
+
+**A level with an adapter whose report is missing or unreadable** is an environment fault
+(`bad-report`), whatever the exit code: a run that should have written results and didn't can't
+be trusted to have run the tests. A run whose tests didn't load fails as `load` instead. MIRAI
+reads the report as a regular file only (never through a link the container left), at most
+16 MiB, with a small XML reader of its own: no DOCTYPE, no entities of the file's own, nothing
+fetched.
 
 Nothing in the reply points into MIRAI's store, error messages included: paths into the MIRAI
 home show as `<mirai home>` and `<trust root>`. Agents can't read the store anyway. Each agent
