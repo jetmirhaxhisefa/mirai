@@ -290,8 +290,9 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
 - **Decision:** option 3 for every verifier, reviewer, QA and scripted developer run.
   - **Interactive authoring** (the PM interviewing you) runs in your session, wrapped by
     `session_start` / `session_end` on the **MIRAI MCP broker** (D-53), which give it a run id
-    (R-M3). Its `.claude/` files are rendered from the same launch bundle, so custom overrides
-    apply there too (R2-M12).
+    (R-M3). Its `.claude/` skills and agents are rendered from the same registry and custom
+    overrides as the launch bundle (R2-M12); your session itself isn't sandboxed (unit 13c), only
+    held to hard denies in `.claude/settings.json`.
   - **No sandboxed process calls `mirai`** (R3-C3, AR3-2). A workflow skill in your session, or
     an agent, reaches MIRAI only through the broker's narrow verbs (`start_agent`,
     `agent_status`, `session_start`/`session_end`, `log_event`, `lint`, `trace`). The plain
@@ -1840,22 +1841,29 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - `start_agent(role, item)` and `agent_status(id)`: for workflow skills in **your** session.
     The launch token is minted and consumed inside the broker and never shown to the session;
   - `session_start` / `session_end`;
-  - `lint(doc)` and `trace(item)`: read-only.
-  - **The interactive `mcp.json`** gets the broker and `run_tests`. **The headless `mcp.json`**
-    gets only `run_tests` and `log_event`, never `start_agent`, so the recursion guard holds by
-    construction.
+  - `lint(paths?)` and `trace(item)`: read-only.
+  - **Your session's server** (unit 15b) is registered at Claude Code's local scope through its
+    own CLI, never committed, and only when you run `mirai session-server install`; it offers
+    `lint`, `log_event` and the test tools, and later `start_agent`/`agent_status`. **The
+    headless `mcp.json`** gets only `run_tests`, `run_check` and `log_event`, never
+    `start_agent`: the tool table names each tool's contexts, so the recursion guard holds by
+    construction (unit 15a).
   - **No sandboxed process calls `mirai`** (`Bash(mirai *)` is denied, D-30). The plain binary is
     for your terminal and the orchestrator.
 - **Consequences:**
-  - The interactive bundle denies the store exactly like the headless one; the daytime flow uses
-    only broker verbs.
+  - There's no interactive bundle (unit 13c): your session isn't sandboxed, and the store is
+    denied only to its file tools (a Bash command asks you first). So "workflow skills use only
+    broker verbs" is a convention MIRAI's skills follow, not something your session enforces; the
+    broker's checks guard against what a branch contains, not against your session.
   - Whether a nested `claude -p` started by an MCP server outside the sandbox gets its own fresh
     sandbox is UNVERIFIED (G24) and tested before supervised launches rely on it.
 - **Where each verb is built** (split on 2026-10-28): unit 15a builds the server's tools as
   data, `log_event` (journal lines `by: "agent"` with their launch, filed under the launch's
   item, secret shapes and the token refused) and the per-launch input folder; `template_gap`
   has two paths on purpose: `log_event` while a run goes, and the structured output at its end
-  (unit 19 de-duplicates them by launch); 15b gives your own sessions the broker (`lint`,
+  (unit 19 de-duplicates them by launch); 15b gives your own sessions the broker (registered
+  at Claude Code's local scope through its own CLI, never committed; journal lines `by:
+  "session"`; no `.git` stop, since your commits change it) (`lint`,
   `log_event`, `run_tests`/`run_check`); `start_agent`/`agent_status` and
   `session_start`/`session_end` come with unit 19, which builds `mirai agent run`; `trace` with
   unit 43.

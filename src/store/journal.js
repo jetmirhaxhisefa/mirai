@@ -21,8 +21,10 @@ import { signObject, verifySigned } from '../sign/sign.js';
 // public keys on the integration branch.
 
 // Version 2 (unit 06) adds the `approval` event and signed human lines; version 3 (unit 15a)
-// adds `by: "agent"` lines, written through MIRAI's MCP server. Older lines read unchanged.
-export const JOURNAL_SCHEMA_VERSION = 3;
+// adds `by: "agent"` lines, written through MIRAI's MCP server; version 4 (unit 15b) adds
+// `by: "session"` lines, from your own Claude Code sessions through the same server. Older lines
+// read unchanged.
+export const JOURNAL_SCHEMA_VERSION = 4;
 const SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
 
@@ -90,9 +92,12 @@ export const LOG_TYPES = Object.freeze(['note', 'template_gap']);
 // A privileged type is written by MIRAI itself (`script`), or, for the types marked `human`, by
 // you with a signature. An `unverified` mr_merged must never derive `done` (D-17). `agent` is an
 // agent's line through MIRAI's MCP server (`log_event`, unit 15a): non-privileged types only,
-// always with the launch it came from.
-const BY = ['script', 'unverified', 'human', 'agent'];
+// always with the launch it came from. `session` is your own Claude Code session's, through the
+// same server (unit 15b), with its registration's id (one per repo; unit 19's session runs add
+// their own run ids next to it): your Claude wrote it, not you.
+const BY = ['script', 'unverified', 'human', 'agent', 'session'];
 const LAUNCH_ID = /^[0-9]{14}-[0-9a-f]{8}$/;
+export const REGISTRATION_ID = /^s-[0-9a-f]{12}$/;
 const ENVELOPE = ['schema_version', 'seq', 'ts', 'type', 'by', 'item'];
 const SIGNATURE = {
   type: 'table',
@@ -122,6 +127,7 @@ function eventProblems(event) {
   if (!spec.privileged && event.by === 'human') return [`${event.type} is never a signed human line`];
   if ((event.by === 'human') !== (event.signature !== undefined)) return [event.by === 'human' ? 'a human line must be signed' : 'only a human line carries a signature'];
   if ((event.by === 'agent') !== (event.launch_id !== undefined)) return [event.by === 'agent' ? 'an agent line names its launch (launch_id)' : 'only an agent line carries a launch_id'];
+  if ((event.by === 'session') !== (event.registration_id !== undefined)) return [event.by === 'session' ? 'a session line names its registration (registration_id)' : 'only a session line carries a registration_id'];
   const node = {
     type: 'table',
     fields: {
@@ -133,6 +139,7 @@ function eventProblems(event) {
       item: { type: 'string', pattern: ITEM, patternHint: 'a ticket or document id' },
       signature: SIGNATURE,
       launch_id: { type: 'string', pattern: LAUNCH_ID, patternHint: 'a launch id' },
+      registration_id: { type: 'string', pattern: REGISTRATION_ID, patternHint: 'a registration id' },
       ...spec.fields,
     },
     required: [...ENVELOPE.filter((k) => k !== 'item'), ...spec.required],

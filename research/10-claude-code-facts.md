@@ -149,6 +149,37 @@ through MIRAI's own launch plan):
 - **B3:** `mirai …` from Bash is denied by the rule; `node <trust>/…/bin/mirai.js log note`
   runs but finds no store (the MIRAI home is denied), and nothing reaches the journal.
 
+**From unit 15b's session probes** (Claude Code 2.1.312, `test/probes/session-probes.js`; a
+temporary `CLAUDE_CONFIG_DIR`, never your real config; S2–S4 with Haiku):
+- **S1:** `claude mcp add-json <name> '<json>' --scope local` stores the server in
+  `$CLAUDE_CONFIG_DIR/.claude.json`, keyed by the project's path. `claude mcp get` shows "Local
+  config (private to you in this project)" and starts it to show "Connected"; `claude mcp
+  remove … --scope local` removes it. **From a moved project folder the entry is gone** ("No MCP
+  server named …").
+- **S2:** a normal `claude -p` in the project (no `--strict-mcp-config`) starts the local-scope
+  server through `/usr/bin/env -i` (`mirai: connected, source local`); its tool runs with an
+  allow rule in the committed `.claude/settings.json` and is denied without one.
+- **S2: a folder you never trusted ignores the committed allow rules:** "Ignoring 1
+  permissions.allow entry from .claude/settings.json: this workspace has not been trusted". The
+  fix is the trust dialog once (or `projects["<path>"].hasTrustDialogAccepted` in the config).
+- **S3:** a committed `.mcp.json` declaring a server of the same name doesn't replace the
+  local-scope one, with or without `enableAllProjectMcpServers: true` in the committed settings:
+  only the local server appears in the init event, and it answers.
+- **S4:** a registered server that can't start shows as `failed` in the init event; the run goes
+  on without its tools (about 8 s here).
+- **S5:** MIRAI's own session server, registered as `mirai session-server install` does it, works
+  from a real session: `log_event` wrote a `by: "session"` line and `lint` answered. **The model
+  reached both tools through tool search** (deferred tools: the first tool result was a
+  `tool_reference` list), so a skill must name the tools exactly, or expect a search step first.
+- **After review:** an allow rule only in a git-ignored `.claude/settings.local.json` is honoured
+  (s2-local). With no local registration, a committed `.mcp.json` server named `mirai` and
+  `enableAllProjectMcpServers: true`, the look-alike server is loaded (`source: project`) and its
+  tool denied for want of an allow rule (s3-no-local): committed allow rules would have let it run
+  unasked. Both runs showed the server as `pending` in the init event on a busy machine.
+- **The probes' guard on your real config** was `grep -c` of the fixture's path in
+  `~/.claude.json` and `~/.claude/settings*.json`: a count, never printed or stored; 0 before and
+  after every run.
+
 ## Residual risk this adds to research/09 §7
 
 - **The data-protection keychain** (newer app passwords) is reached through `securityd`'s XPC

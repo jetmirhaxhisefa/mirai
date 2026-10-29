@@ -179,6 +179,54 @@ plain JSON with 2-space indents the first time. It's shared with your team, so p
 are only yours in `.claude/settings.local.json`, which Claude Code reads too (keep it out of
 git).
 
+### MIRAI's tools in your sessions (unit 15b)
+
+Your sessions can use the same MCP server agents use, with four tools: `lint` (MIRAI's document
+checks), `log_event` (a note or a template gap in the journal), and `run_tests` and `run_check`
+(the project's tests and checks in their containers). Workflow skills call these, so a skill works
+the same in your session and in an agent run. Later (unit 19) this server is also how a skill
+starts an agent, so the skill never handles the launch token.
+
+**How it's set up, and only if you choose to:** `mirai session-server install` registers the
+server with Claude Code's own CLI at **local scope**: in your Claude Code config, for this project
+folder only, never in the repo. MIRAI never edits Claude Code's files itself, and never replaces
+or removes a server named `mirai` that it didn't register.
+- **The allow rules** for the four tools go into your `.claude/settings.local.json` (yours, and
+  only if git ignores it, so they're never shared). Not into the committed settings: there they'd
+  also let a look-alike `mirai` server from a branch's `.mcp.json` run its tools without asking,
+  for a teammate who never registered.
+- **Keeping it current:** `mirai render`, run in your terminal, registers it again only when it's
+  behind the integration branch. It never registers a project that hasn't been, so `remove` lasts.
+  `mirai session-server status` says where it stands.
+- **A moved project folder** loses the entry (it's keyed by the folder's path): run install again.
+- **A failed or impossible install** (no `claude` on your PATH) leaves the registration that's
+  running alone: each policy file is named by its own hash, and its trust root is kept.
+
+**What's checked:**
+- **The rules come from the integration branch.** The server runs from the trust root it was
+  registered with, hashed again on every call; `lint` uses that trust root's document rules and
+  config, never the work tree's, so a branch can't loosen them.
+- **Its environment is empty** (`/usr/bin/env -i`), as for agent runs.
+- **A committed `.mcp.json` can't take its place.** A local-scope server wins over a project one
+  of the same name, even with `enableAllProjectMcpServers` (probed). `.mcp.json` and `.claude/` are
+  also auto-run paths: agents can't write them, and a branch that changes them is high risk.
+- **What your session writes says so:** journal lines are `by: "session"`, with the
+  registration's id (one per repo, shared by all your sessions there), apart from yours and an
+  agent run's. At most 200 a day (a UTC day), counted under the journal lock. Its test runs are
+  stored as the session's and never signed. `lint` says which trust root's rules it used.
+- **What these checks guard against:** what a branch contains, and accidents, not your session
+  itself. Your session isn't sandboxed (13c): from Bash it could rewrite the policy, its
+  registration or the store, and only your prompts hold it back. So these tools add little safety
+  on their own.
+- **Not checked, on purpose:** the server doesn't stop when `.git` changes, as an agent run's
+  does, because your own commits change it all the time. MIRAI's git calls still run its pinned
+  git with the repo config allowlist and the shape check (unit 14b).
+
+**If something's off:** a server that can't start shows as "failed" in Claude Code (`claude mcp
+list`), and your session goes on without its tools. A project you've never trusted in Claude Code
+ignores the project's allow rules, so the tools then ask first. Claude Code may also list the tools
+through its tool search rather than up front; they're there all the same (probed).
+
 ## How this was tested
 
 Every limit above rests on a fact that was tested, not assumed (unit 13a,
@@ -484,7 +532,6 @@ home. That's by design: those paths are denied anyway. Error messages still show
 name.
 
 **What isn't here yet:**
-- **your own sessions' use of the broker** (`lint`, `log_event` and the test tools): unit 15b;
 - **launching agents and session runs** (`start_agent`, `agent_status`, `session_start` and
   `session_end`): unit 19, with `mirai agent run`;
 - **`trace`:** unit 43.
@@ -681,6 +728,5 @@ So if your token leaks:
 
 ## Coming next
 
-- **Unit 15b:** the broker in your own Claude Code sessions.
 - **Unit 18:** the red-team suite, re-run after every update.
 - **Unit 19:** the first real agent runs.

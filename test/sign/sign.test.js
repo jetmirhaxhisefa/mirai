@@ -376,7 +376,7 @@ test('T10b: a signed line copied into another repo\'s journal doesn\'t verify th
   atomicWrite(join(storeB.dir, 'journal.jsonl'), line);
   atomicWrite(join(storeB.dir, 'seq'), '1\n');
   refused(() => readJournal(openStore({ cwd: b.repo, env: a.env })), 'bad-signature');
-  assert.match(journalContext(storeB), /^mirai\/journal\/3:/);
+  assert.match(journalContext(storeB), /^mirai\/journal\/4:/);
 });
 
 test('T11: the key-change rule', () => {

@@ -84,6 +84,29 @@ export function snapshot({ cwd, env, now = () => new Date(), keep = [] }) {
   return withLock(join(store.dir, 'trust.lock'), () => build(store, { env, now, keep }));
 }
 
+// The bases your sessions' MIRAI server runs from (unit 15b, src/mcp/session.js): every trust
+// root a session policy file names is kept, so a registration still starts until it's made
+// again. Read here, not through session.js, which imports this file.
+function registeredBase(store) {
+  const dir = join(store.repoHome, 'session');
+  let names = [];
+  try {
+    names = readdirSync(dir).filter((n) => /^mcp-policy-[0-9a-f]{64}\.json$/.test(n));
+  } catch {
+    return [];
+  }
+  const bases = [];
+  for (const n of names) {
+    try {
+      const base = JSON.parse(readFileSync(join(dir, n), 'utf8')).trust_dir?.split('/').pop();
+      if (/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(base ?? '')) bases.push(base);
+    } catch {
+      // unreadable: nothing to keep
+    }
+  }
+  return bases;
+}
+
 function build(store, { env, now, keep }) {
   const root = store.checkout;
   const base = baseCommit(root, store.branch, env);
@@ -138,7 +161,7 @@ function build(store, { env, now, keep }) {
     renameSync(tmp, dir);
     const manifestSha256 = sha256(text);
     record.snapshots[base] = { manifest_sha256: manifestSha256, created_at: now().toISOString() };
-    prune(home, record, new Set([base, ...keep]));
+    prune(home, record, new Set([base, ...keep, ...registeredBase(store)]));
     atomicWrite(join(store.dir, RECORD), `${JSON.stringify(record, null, 2)}\n`);
     return { dir, baseSha: base, branch: store.branch, manifest, manifestSha256, reused: false };
   } catch (err) {

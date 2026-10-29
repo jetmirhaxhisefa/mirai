@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { PolicyError, readPolicy, serveStdio } from '../src/mcp/server.js';
 
-// MIRAI's MCP server for headless agent runs (units 14d, 15a): run_tests, run_check and
-// log_event (src/mcp/tools.js). Claude Code starts it from the launch's mcp.json, from the run's
-// trust root, with an empty environment:
+// MIRAI's MCP server (units 14d, 15a, 15b): for a headless agent run, started from the launch's
+// mcp.json, and for your own Claude Code sessions, from its local-scope registration (the tools
+// are in src/mcp/tools.js). Either way from a trust root, with an empty environment:
 //   node <trust-root>/tree/.mirai/framework/bin/mcp.js <policy file> <policy sha256>
 // Everything it needs is in the policy file; nothing comes from its environment.
 

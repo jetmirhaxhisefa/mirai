@@ -53,7 +53,8 @@ export default {
       '',
       'Next:',
       `  1. Review these files and commit them on ${r.branch} (MIRAI never commits).`,
-      ...(r.previous ? ['  2. mirai lint'] : ['  2. mirai key new   (once per machine; commit the public key it writes)', '  3. mirai lint']),
+      ...(r.previous ? ['  2. mirai lint', '  3. mirai session-server install   (after the commit: MIRAI\'s tools in your own Claude Code sessions)']
+        : ['  2. mirai key new   (once per machine; commit the public key it writes)', '  3. mirai lint', '  4. mirai session-server install   (after the commit: MIRAI\'s tools in your own Claude Code sessions)']),
       '',
     ].join('\n'));
     return EXIT.OK;

@@ -1,3 +1,4 @@
+import lint from './tools/lint.js';
 import logEvent from './tools/log-event.js';
 import { runCheck, runTests } from './tools/tests.js';
 
@@ -6,8 +7,9 @@ import { runCheck, runTests } from './tools/tests.js';
 //
 // An entry: { name, description, exclusive, contexts, enabled(policy), schema(policy),
 // check(args, policy), run(args, ctx) }.
-// - `contexts`: the kinds of server that may offer it (`headless` for an agent run; 15b adds
-//   your own session's). A policy offering a tool outside its kind is refused at start;
+// - `contexts`: the kinds of server that may offer it (`headless` for an agent run,
+//   `interactive` for your own session, unit 15b). A policy offering a tool outside its kind is
+//   refused at start;
 // - `enabled`: whether this launch's policy offers it; a tool not enabled is unknown;
 // - `schema`: the input schema tools/list shows, with the policy's names as enums;
 // - `check`: the checked arguments `{ args }`, or `{ refused }`. The shared check (an object, no
@@ -18,13 +20,13 @@ import { runCheck, runTests } from './tools/tests.js';
 //   (a restarted server must not start again from nothing);
 // - `exclusive`: takes the server's one-call-at-a-time slot (the test tools); the others are
 //   answered while it's held.
-export const TOOLS = Object.freeze([runTests, runCheck, logEvent]);
+export const TOOLS = Object.freeze([runTests, runCheck, logEvent, lint]);
 
 export const toolNamed = (policy, name) => TOOLS.find((t) => t.name === name && t.enabled(policy)) ?? null;
 
 // The tools this launch offers, as tools/list shows them.
 export function toolList(policy) {
-  return TOOLS.filter((t) => t.enabled(policy)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.schema(policy) }));
+  return TOOLS.filter((t) => t.enabled(policy)).map((t) => ({ name: t.name, description: typeof t.description === 'function' ? t.description(policy) : t.description, inputSchema: t.schema(policy) }));
 }
 
 // The shared check, then the tool's own: `{ args }` or `{ refused }`.

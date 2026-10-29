@@ -96,10 +96,11 @@ const agentLines = (store) => readJournal(store).events.filter((e) => e.by === '
 test('15a T1: tools as data: tools/list comes from the table and the policy; a tool not enabled is unknown', async () => {
   for (const t of TOOLS) {
     assert.deepEqual(Object.keys(t).sort(), ['check', 'contexts', 'description', 'enabled', 'exclusive', 'name', 'run', 'schema'], t.name);
-    assert.deepEqual([...t.contexts], ['headless'], t.name);
+    assert.ok(t.contexts.length > 0 && t.contexts.every((c) => ['headless', 'interactive'].includes(c)), t.name);
     assert.ok(Object.isFrozen(t), t.name);
   }
-  assert.deepEqual(TOOLS.map((t) => [t.name, t.exclusive]), [['run_tests', true], ['run_check', true], ['log_event', false]]);
+  assert.deepEqual(TOOLS.map((t) => [t.name, t.exclusive, [...t.contexts]]), [['run_tests', true, ['headless', 'interactive']], ['run_check', true, ['headless', 'interactive']],
+    ['log_event', false, ['headless', 'interactive']], ['lint', false, ['interactive']]]);
   const all = policyFor();
   assert.deepEqual(toolList(all).map((t) => t.name), ['run_tests', 'run_check', 'log_event']);
   const log = toolList(all).find((t) => t.name === 'log_event');
@@ -255,7 +256,7 @@ test('15a T4: log_event is answered while a test runs; a second test call is sti
 });
 
 test('15a T5: the journal: by agent for the log types only, always with its launch; older lines still read', () => {
-  assert.equal(JOURNAL_SCHEMA_VERSION, 3);
+  assert.equal(JOURNAL_SCHEMA_VERSION, 4);
   assert.doesNotThrow(() => checkEvent({ type: 'note', by: 'agent', launch_id: LAUNCH, message: 'x' }));
   assert.throws(() => checkEvent({ type: 'note', by: 'agent', message: 'x' }), /names its launch/);
   assert.throws(() => checkEvent({ type: 'note', by: 'unverified', launch_id: LAUNCH, message: 'x' }), /only an agent line carries a launch_id/);

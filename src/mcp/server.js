@@ -4,7 +4,7 @@ import { isAbsolute } from 'node:path';
 
 import { checkArgs, toolList, toolNamed, TOOLS } from './tools.js';
 import { inlineResult, INLINE_TAIL_BYTES } from './tools/tests.js';
-import { LOG_TYPES } from '../store/journal.js';
+import { LOG_TYPES, REGISTRATION_ID } from '../store/journal.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { repoState } from '../store/repo-state.js';
 import { readToken } from '../sign/token.js';
@@ -52,18 +52,26 @@ export function readPolicy(file, hash) {
   return checkPolicy(JSON.parse(bytes.toString('utf8')));
 }
 
-// The policy's shape: { schema, kind, checkout, trust_dir, manifest_sha256, home, repo_state,
-// launch_id, launch_dir, item (null or the launch's ticket or document), docker_socket?,
-// store? ({ dir, repo_id }, with log_event), tools: { run_tests?: { levels }, run_check?:
-// { checks }, log_event?: { types, max_events, max_message, secrets } } }. `kind` is the server's
-// context: a tool is offered only in the contexts its entry names (D-53: headless runs never get
-// start_agent, by the table, not only by whoever writes the policy).
-export const KINDS = Object.freeze(['headless']);
+// The policy's shape: { schema, kind, checkout, trust_dir, manifest_sha256, home,
+// docker_socket?, store? ({ dir, repo_id }, with log_event), tools: { run_tests?: { levels },
+// run_check?: { checks }, log_event?: { types, max_events, max_message, secrets }, lint?: {} } },
+// and per kind:
+// - headless (an agent run, unit 15a): repo_state (D-54's hash at the launch), launch_id,
+//   launch_dir, item (null or the launch's ticket or document);
+// - interactive (your own Claude Code session, unit 15b): registration_id and state_dir (where
+//   its counts are kept). No .git hash: your own commits change .git all the
+//   time; MIRAI's git calls are guarded by 14b's pins, the config allowlist and the shape check.
+// `kind` is the server's context: a tool is offered only in the contexts its entry names (D-53:
+// headless runs never get start_agent, by the table, not only by whoever writes the policy).
+export const KINDS = Object.freeze(['headless', 'interactive']);
 export function checkPolicy(p) {
   const abs = (v) => typeof v === 'string' && isAbsolute(v);
   if (p?.schema === 'mirai-mcp-policy/1') throw new PolicyError('the policy is from an older MIRAI (mirai-mcp-policy/1); start the launch again');
-  if (p?.schema !== POLICY_SCHEMA || !KINDS.includes(p.kind) || !abs(p.checkout) || !abs(p.trust_dir) || !abs(p.home) || !abs(p.launch_dir) || !HEX64.test(p.manifest_sha256 ?? '')
-    || !HEX64.test(p.repo_state ?? '') || !LAUNCH_ID.test(p.launch_id ?? '') || !(p.item === null || ITEM.test(p.item ?? ''))
+  const perKind = p?.kind === 'headless'
+    ? abs(p.launch_dir) && HEX64.test(p.repo_state ?? '') && LAUNCH_ID.test(p.launch_id ?? '') && (p.item === null || ITEM.test(p.item ?? ''))
+    : p?.kind === 'interactive' && REGISTRATION_ID.test(p.registration_id ?? '') && abs(p.state_dir)
+      && ['repo_state', 'launch_id', 'launch_dir', 'item'].every((k) => p[k] === undefined);
+  if (p?.schema !== POLICY_SCHEMA || !perKind || !abs(p.checkout) || !abs(p.trust_dir) || !abs(p.home) || !HEX64.test(p.manifest_sha256 ?? '')
     || p.tools === null || typeof p.tools !== 'object' || Array.isArray(p.tools)) {
     throw new PolicyError('the policy file isn\'t one this server reads');
   }
@@ -76,6 +84,7 @@ export function checkPolicy(p) {
   const { run_tests: rt, run_check: rc, log_event: le } = p.tools;
   if (rt !== undefined && !names(rt?.levels)) throw new PolicyError('the policy\'s run_tests needs its levels');
   if (rc !== undefined && !names(rc?.checks)) throw new PolicyError('the policy\'s run_check needs its checks');
+  if (p.tools.lint !== undefined && (p.tools.lint === null || typeof p.tools.lint !== 'object' || Object.keys(p.tools.lint).length)) throw new PolicyError('the policy\'s lint takes no settings');
   if (le !== undefined) {
     if (!names(le?.types) || le.types.some((t) => !LOG_TYPES.includes(t)) || !count(le.max_events, 1000) || !count(le.max_message, 4096)) {
       throw new PolicyError('the policy\'s log_event needs types agents may log and its caps');
@@ -116,7 +125,7 @@ export function createServer({ policy, send, deps = {} }) {
   const fail = (id, code, message) => send({ jsonrpc: '2.0', id, error: { code, message } });
   // Error text an agent sees: the token redacted, and no paths into the MIRAI home (the store and
   // the trust root).
-  const hidden = [[policy.trust_dir, '<trust root>'], [policy.store?.dir, '<store>'], [policy.launch_dir, '<launch>'], [miraiHome(env), '<mirai home>']].filter(([p]) => p);
+  const hidden = [[policy.trust_dir, '<trust root>'], [policy.store?.dir, '<store>'], [policy.launch_dir, '<launch>'], [policy.state_dir, '<session>'], [miraiHome(env), '<mirai home>']].filter(([p]) => p);
   const clean = (s) => {
     let out = String(s);
     for (const [path, name] of hidden) out = out.split(path).join(name);
@@ -130,8 +139,9 @@ export function createServer({ policy, send, deps = {} }) {
     stopped ??= why;
     return { body: { outcome: 'refused', code: 'repo-changed', message: why }, isError: true };
   };
-  // D-54's check: false when .git isn't as it was at the launch (or can't be read).
-  const sameRepo = () => {
+  // D-54's check: false when .git isn't as it was at the launch (or can't be read). Agent runs
+  // only: in your own session it always holds (see the policy's shape above).
+  const sameRepo = policy.kind !== 'headless' ? () => true : () => {
     try {
       return state(policy.checkout) === policy.repo_state;
     } catch {
@@ -162,7 +172,7 @@ export function createServer({ policy, send, deps = {} }) {
         trust = verifyTrustRoot({ dir: policy.trust_dir, manifestSha256: policy.manifest_sha256 });
       } catch (err) {
         if (err.code === 'trust-tampered') {
-          stopped = 'the trust root changed since the launch';
+          stopped = 'the trust root changed since the server started';
           return reply(id, text({ outcome: 'refused', code: 'trust-tampered', message: stopped }, true));
         }
         throw err;

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { appendEvent, checkEvent, LOG_TYPES } from '../../store/journal.js';
@@ -6,16 +6,18 @@ import { atomicWrite, checkPrivateDir } from '../../store/files.js';
 import { containsToken } from '../../sign/token.js';
 
 // log_event(type, message, template?, section?) (unit 15a; D-53): an agent's note or template
-// gap, written to the repo's journal as `by: "agent"` with the launch it came from. Only the
-// journal's LOG_TYPES: the privileged types (approvals, status, gate results, records) aren't in
-// the enum. The item is the launch's, from the policy, never the agent's. No git: the policy
-// names the store outright.
+// gap, written to the repo's journal as `by: "agent"` with the launch it came from, or, from your
+// own session (unit 15b), as `by: "session"` with the registration's id. Only the journal's
+// LOG_TYPES: the privileged types (approvals, status, gate results, records) aren't in the enum.
+// The item is the launch's, from the policy, never the agent's. No git: the policy names the
+// store outright.
 //
 // The text is the agent's, headed for your inbox and reports, so it's held to more than the
 // journal's own rules: no control characters but newline and tab, no bidi or invisible-only text,
 // and, as the hook does for written files, no login token and no known secret shape. At most
-// `max_events` lines per launch, counted in the launch folder (so a restarted server doesn't
-// start again at 0), and only once a line is written.
+// `max_events` lines per launch (or, in your session, per UTC day), counted in the launch's (or
+// the session's) folder, so a restarted server doesn't start again at 0, and taken under the
+// journal lock with the line itself.
 
 const TEXT_MAX = 200;
 // How long a call waits for the journal lock: the server answers nothing while it waits, so not
@@ -35,6 +37,15 @@ function textProblem(name, v, limit) {
   return null;
 }
 
+// Your session's day counts older than a week are removed.
+function pruneDays(dir, today) {
+  const cutoff = new Date(Date.parse(`${today}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10);
+  for (const name of readdirSync(dir)) {
+    const m = /^log-events-(\d{4}-\d{2}-\d{2})$/.exec(name);
+    if (m && m[1] < cutoff) rmSync(join(dir, name), { force: true });
+  }
+}
+
 const refuse = (code, message) => ({ body: { outcome: 'refused', code, message }, isError: true });
 
 function countSoFar(file) {
@@ -48,9 +59,9 @@ function countSoFar(file) {
 
 export default Object.freeze({
   name: 'log_event',
-  description: 'Write a note, or a template gap (a section a MIRAI template is missing), to MIRAI\'s journal for this run. Returns the line\'s number.',
+  description: (policy) => `Write a note, or a template gap (a section a MIRAI template is missing), to MIRAI's journal ${policy.kind === 'headless' ? 'for this run' : 'as your session\'s'}. Returns the line's number.`,
   exclusive: false,
-  contexts: Object.freeze(['headless']),
+  contexts: Object.freeze(['headless', 'interactive']),
   enabled: (policy) => Boolean(policy.tools.log_event),
   schema: (policy) => ({
     type: 'object',
@@ -74,14 +85,18 @@ export default Object.freeze({
       if (problem) return { refused: `template_gap needs ${k}: ${problem}` };
       if (!gap && args[k] !== undefined) return { refused: `${k} is for template_gap` };
     }
-    const event = { type: args.type, by: 'agent', ...(gap ? { template: args.template, section: args.section } : {}), message: args.message };
+    const event = { type: args.type, ...(gap ? { template: args.template, section: args.section } : {}), message: args.message };
     return { args: event };
   },
   async run(event, ctx) {
     const { policy } = ctx;
     const { max_events: max, secrets } = policy.tools.log_event;
-    const counter = join(policy.launch_dir, COUNT_FILE);
-    if (countSoFar(counter) >= max) return refuse('log-full', `this run has logged ${max} events, the most it may`);
+    // An agent run's cap is per launch; your session's per registration and UTC day.
+    const headless = policy.kind === 'headless';
+    const today = (ctx.deps.now?.() ?? new Date()).toISOString().slice(0, 10);
+    const counter = headless ? join(policy.launch_dir, COUNT_FILE) : join(policy.state_dir, `${COUNT_FILE}-${today}`);
+    const full = () => refuse('log-full', headless ? `this run has logged ${max} events, the most it may` : `your sessions here have logged ${max} events today (UTC), the most they may`);
+    if (countSoFar(counter) >= max) return full();
     // The secret check, as the hook does for what an agent writes: refused, never redacted.
     let token;
     try {
@@ -94,7 +109,9 @@ export default Object.freeze({
       const hit = secrets.find((s) => new RegExp(s.regex, 'u').test(text));
       if (hit) return refuse('secret', `the text holds a secret (${hit.name}); leave it out`);
     }
-    const line = { ...event, launch_id: policy.launch_id, ...(policy.item ? { item: policy.item } : {}) };
+    const line = headless
+      ? { ...event, by: 'agent', launch_id: policy.launch_id, ...(policy.item ? { item: policy.item } : {}) }
+      : { ...event, by: 'session', registration_id: policy.registration_id };
     const store = { dir: policy.store.dir, repoId: policy.store.repo_id };
     try {
       checkEvent(line);
@@ -110,12 +127,23 @@ export default Object.freeze({
     if (!ok) return { body: { outcome: 'env-fault', code: 'no-store', message: 'this repo\'s store is missing or not private' }, isError: true };
     let seq;
     try {
-      seq = appendEvent(store, line, { lock: { waitMs: ctx.deps.lockWaitMs ?? LOCK_WAIT_MS } });
+      // The count is checked again and taken under the journal lock, just before the line is
+      // written, so two sessions (two servers) on one registration can't pass the cap together.
+      seq = appendEvent(store, line, {
+        lock: { waitMs: ctx.deps.lockWaitMs ?? LOCK_WAIT_MS },
+        before: () => {
+          const n = countSoFar(counter);
+          if (n >= max) return false;
+          atomicWrite(counter, `${n + 1}\n`);
+          if (!headless) pruneDays(policy.state_dir, today);
+          return true;
+        },
+      });
     } catch (err) {
       if (err.code === 'locked') return { body: { outcome: 'env-fault', code: 'journal-busy', message: 'MIRAI\'s journal is busy; try again in a moment' }, isError: true };
       return { body: { outcome: 'env-fault', code: err.code ?? 'error', message: ctx.clean(err.message) }, isError: true };
     }
-    atomicWrite(counter, `${countSoFar(counter) + 1}\n`);
+    if (seq === null) return full();
     return { body: { logged: event.type, seq }, isError: false };
   },
 });

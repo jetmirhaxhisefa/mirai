@@ -195,7 +195,8 @@ const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'cop
 // Runs one level or check. For tests and probes: `docker` ({ client, plugins, socket }) instead
 // of Docker Desktop's, and `minuteMs` to shorten the timeout. Unit 14d:
 // - `trust`: an open trust root to use (the MCP server's launch), instead of the base's now;
-// - `by`: "you" or "agent" (runs through the MCP server), stored in the result;
+// - `by`: "you", "agent" (an agent run, through the MCP server) or "session" (your own Claude
+//   Code session, through it, unit 15b), stored in the result; only "you" is ever signed;
 // - `signal`: cancels the run (the current Docker call is killed; cleanup still runs);
 // - `waitMs`, `onWait`, `maxParallel`: waiting for the repo's turn and a machine-wide slot (one
 //   deadline for both; `onWait` is called once);

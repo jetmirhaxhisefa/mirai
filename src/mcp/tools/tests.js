@@ -2,9 +2,9 @@ import { checkPathForm, PATH_MAX } from '../args.js';
 import { runTest } from '../../tests/run.js';
 
 // run_tests(level, path?) and run_check(name) (unit 14d): 14c's executor, as the agent's run
-// (`by: "agent"`, never signed). D-54's .git hash is checked before the call, once the run's turn
-// comes (before the executor's first git call on the checkout) and after; a change stops the
-// server.
+// (`by: "agent"`) or your session's (`by: "session"`, unit 15b), never signed. In an agent run,
+// D-54's .git hash is checked before the call, once the run's turn comes (before the executor's
+// first git call on the checkout) and after; a change stops the server.
 
 export const INLINE_TAIL_BYTES = 32 * 1024;
 
@@ -37,7 +37,7 @@ async function execute({ name, path }, ctx) {
     let r;
     try {
       r = await (ctx.deps.runTest ?? runTest)({
-        cwd: policy.checkout, env: ctx.env, name, path, trust: ctx.trust, by: 'agent', signal, launchId: policy.launch_id,
+        cwd: policy.checkout, env: ctx.env, name, path, trust: ctx.trust, by: policy.kind === 'headless' ? 'agent' : 'session', signal, launchId: policy.launch_id ?? null,
         onWait: () => note(`waiting for another test run, then ${name}`),
         // The run's turn: .git is checked again before the executor's first git call.
         onTurn: () => {
@@ -71,7 +71,7 @@ export const runTests = Object.freeze({
   name: 'run_tests',
   description: 'Run one of the project\'s test levels in its own containers (a copy of the project, no network out), optionally for one file or folder. Returns the outcome, exit code and the end of the output.',
   exclusive: true,
-  contexts: Object.freeze(['headless']),
+  contexts: Object.freeze(['headless', 'interactive']),
   enabled: (policy) => Boolean(policy.tools.run_tests),
   schema: (policy) => ({
     type: 'object',
@@ -100,7 +100,7 @@ export const runCheck = Object.freeze({
   name: 'run_check',
   description: 'Run one of the project\'s named checks (such as lint) in its own containers, on a copy of the project. Returns the outcome, exit code and the end of the output.',
   exclusive: true,
-  contexts: Object.freeze(['headless']),
+  contexts: Object.freeze(['headless', 'interactive']),
   enabled: (policy) => Boolean(policy.tools.run_check),
   schema: (policy) => ({
     type: 'object',
