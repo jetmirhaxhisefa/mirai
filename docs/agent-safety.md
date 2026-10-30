@@ -365,6 +365,9 @@ lint = { command = ["your", "lint", "command"], service = "app" }
   setting there.
 - **`[compose] allow`** lets a few resource keys through when a project needs them: `shm_size`,
   `ulimits`, `mem_limit`, `cpus`, `pids_limit`.
+- **`mirai baseline`** (unit 17b, `docs/test-baseline.md`) records the tests that already fail on
+  the integration branch, signed with your key and kept in the store, which agents can't reach: an
+  agent can't add its own failure to the known ones.
 - **`mirai detect`** (unit 17a, `docs/setup-detection.md`) drafts these lines for you. It reads the
   integration branch's commit from git objects, and resolves the compose file alone with an empty
   env file, so your `.env` is never read and no container starts. It warns when a service mounts

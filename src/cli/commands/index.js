@@ -1,4 +1,5 @@
 import approve from './approve.js';
+import baseline from './baseline.js';
 import config from './config.js';
 import detect from './detect.js';
 import drop from './drop.js';
@@ -19,4 +20,4 @@ import version from './version.js';
 // The real command list, fixed in code: a file dropped into this folder does nothing.
 // Later units add their commands here, by name. `help` is added by main.js, because it
 // needs the router itself.
-export const COMMANDS = [approve, config, detect, drop, init, key, lint, log, protectedCmd, render, sandbox, sessionServer, status, test, token, trust, version];
+export const COMMANDS = [approve, baseline, config, detect, drop, init, key, lint, log, protectedCmd, render, sandbox, sessionServer, status, test, token, trust, version];

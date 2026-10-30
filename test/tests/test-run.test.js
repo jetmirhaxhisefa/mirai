@@ -335,8 +335,8 @@ test('14c T12: the Docker probe scenarios stay canary-only and local', () => {
   assert.ok(list.filter((s) => s.refused).length >= 10, 'refusal scenarios');
 });
 
-test('14c T13: the test runner is stack-neutral: no language, framework or tool names in src/tests/ or src/mcp/ (14d), src/mcp/tools/ (15a) and src/detect/ (17a)', () => {
-  const dirs = ['../../src/tests/', '../../src/mcp/', '../../src/mcp/tools/', '../../src/detect/'].map((d) => new URL(d, import.meta.url).pathname);
+test('14c T13: the test runner is stack-neutral: no language, framework or tool names in src/tests/ or src/mcp/ (14d), src/mcp/tools/ (15a), src/detect/ (17a) and src/baseline/ (17b)', () => {
+  const dirs = ['../../src/tests/', '../../src/mcp/', '../../src/mcp/tools/', '../../src/detect/', '../../src/baseline/'].map((d) => new URL(d, import.meta.url).pathname);
   const STACK = /\b(php|laravel|artisan|composer|phpunit|pest|npm|npx|yarn|pnpm|node_modules|vitest|jest|playwright|python|pytest|django|pip|ruby|rails|rspec|bundler|golang|cargo|rust|java|maven|gradle|dotnet|mysql|postgres|redis|APP_ENV|RAILS_ENV|NODE_ENV|DJANGO_SETTINGS_MODULE|vendor)\b/i;
   for (const [dir, name] of dirs.flatMap((d) => readdirSync(d).filter((n) => n.endsWith('.js')).map((n) => [d, n]))) {
     const text = readFileSync(join(dir, name), 'utf8');

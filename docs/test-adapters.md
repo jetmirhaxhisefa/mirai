@@ -146,7 +146,7 @@ browser tests don't measure the app's code, so `playwright` has none.
 root. But the runner's own config (`phpunit.xml`, `vitest.config.*`, `playwright.config.*`), the
 package scripts and the code under test are the branch's: they decide which tests run, and could
 write the report themselves. So a report is evidence of what ran, not proof. Unit 25 compares a
-branch's counts and IDs with the integration branch's baseline (unit 17b).
+branch's counts and IDs with the integration branch's baseline (unit 17b, `docs/test-baseline.md`).
 
 **Coverage is the same kind of evidence.** The runner's config decides which files are listed and
 which lines count: include and exclude lists, ignore comments (`@codeCoverageIgnore`,
