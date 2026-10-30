@@ -20,8 +20,9 @@ import { parseDiff } from '../tests/diff.js';
 //
 // Calls used: `rev-parse`, `rev-list`, `config --file`, (unit 06) `ls-tree` / `cat-file`,
 // (unit 07b) `ls-files`, (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff
-// --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files. A new call needs its
-// own probe (test/probes/git-probes.js --mirai).
+// --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files, (unit 16b) `diff -U0`,
+// (unit 17a) `for-each-ref` and `log`. A new call needs its own probe (test/probes/git-probes.js
+// --mirai).
 
 const TIMEOUT_MS = 10_000;
 const MAX_OUTPUT = 1024 * 1024;
@@ -190,16 +191,17 @@ export function remotes(root, env) {
   return found;
 }
 
-// The entries of a tree path on a ref: [{ mode, type, sha, path }]. Null when the ref or path
-// is missing. Used to read committed public keys from the integration branch (unit 06).
-export function lsTree(root, ref, path, env, { recursive = false } = {}) {
+// The entries of a tree path on a ref: [{ mode, type, sha, path }], plus each blob's `size`
+// with `sizes` (unit 17a). Null when the ref or path is missing. Used to read committed public
+// keys from the integration branch (unit 06).
+export function lsTree(root, ref, path, env, { recursive = false, sizes = false, maxBuffer = 16 * MAX_OUTPUT, timeout = TIMEOUT_MS } = {}) {
   // Literal pathspecs: a path is a path, never a pattern (`:(glob)…`), wherever it came from.
-  const r = git(root, ['--literal-pathspecs', 'ls-tree', '-z', ...(recursive ? ['-r'] : []), `${ref}^{tree}`, '--', path], env, { maxBuffer: 16 * MAX_OUTPUT });
+  const r = git(root, ['--literal-pathspecs', 'ls-tree', '-z', ...(recursive ? ['-r'] : []), ...(sizes ? ['-l'] : []), `${ref}^{tree}`, '--', path], env, { maxBuffer, timeout });
   if (!r.ok) return null;
   return r.out.split('\0').filter(Boolean).map((line) => {
     const tab = line.indexOf('\t');
-    const [mode, type, sha] = line.slice(0, tab).split(' ');
-    return { mode, type, sha, path: line.slice(tab + 1) };
+    const [mode, type, sha, size] = line.slice(0, tab).split(/ +/);
+    return { mode, type, sha, path: line.slice(tab + 1), ...(sizes ? { size: size === '-' ? null : Number(size) } : {}) };
   });
 }
 
@@ -400,6 +402,22 @@ export function hiddenFromStatus(root, env) {
   const r = git(root, ['ls-files', '-v', '-z'], env, { raw: true, timeout: 60_000, maxBuffer: 16 * MAX_OUTPUT });
   if (!r.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
   return nulList(r.out).filter((e) => /^([a-z]|S) /.test(e)).map((e) => e.slice(2));
+}
+
+// The names of the local and remote-tracking branches (unit 17a, for the branch pattern): full ref
+// names, at most `max`, sorted; a remote's HEAD isn't one.
+export function branchRefs(root, env, { max = 2000 } = {}) {
+  const r = git(root, ['for-each-ref', `--count=${max}`, '--format=%(refname)', 'refs/heads/', 'refs/remotes/'], env, { maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) throw new StoreError('git for-each-ref failed', { code: 'git-failed' });
+  return r.out.split('\n').filter((n) => n !== '' && !n.endsWith('/HEAD')).sort();
+}
+
+// The full messages of the last `max` commits on `ref` that aren't merges (unit 17a, for the
+// commit format), newest first, as UTF-8 text. No signature check, no notes, no mailmap.
+export function commitMessages(root, ref, env, { max = 200 } = {}) {
+  const r = git(root, ['log', '-z', '--no-merges', `--max-count=${max}`, '--no-show-signature', '--no-notes', '--no-decorate', '--no-color', '--encoding=UTF-8', '--format=%B', `${ref}^{commit}`, '--'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) throw new StoreError(`git log ${ref} failed`, { code: 'git-failed' });
+  return r.out.toString('utf8').split('\0').filter((m) => m.trim() !== '');
 }
 
 // The commit a ref points at, or null.

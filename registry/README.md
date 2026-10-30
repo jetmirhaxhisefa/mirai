@@ -20,6 +20,14 @@ MIRAI's own definitions (D-37), shipped with it:
 - **`secrets/`:** secret shapes the agents' hook refuses in what they write (unit 13c):
   `core.toml`, true on every stack, with fixed prefixes only (private keys, GitHub, AWS, Slack,
   Stripe, npm tokens…). Packs can add their own later.
+- **`test-adapters/`:** how each test runner writes its report and coverage, runs one file or
+  test, and is found by setup detection (units 16a, 16b, 17a; `docs/test-adapters.md`).
+- **`stacks/`:** what marks a stack, the pack it suggests, its named checks and its
+  commit-message rules, for setup detection (unit 17a; `docs/setup-detection.md`): `node` and
+  `php` with checks, `python`, `go`, `rust` and `ruby` with markers only. A project adds its own
+  in `.mirai/custom/stacks/`.
+- **`instruction-flags/`:** the agent-instruction files setup detection lists, and the shell,
+  network and install commands it flags in them (unit 17a; P2).
 - **`adapters/`:** one profile per tool, which says where it reads instructions, skills and
   agents (unit 11): `claude-code`.
 

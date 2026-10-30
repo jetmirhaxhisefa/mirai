@@ -34,3 +34,14 @@ join = " "
 # nothing. MIRAI counts the line only when no test ran, so a line a test prints can't turn a real
 # failure into a load failure.
 load_output = ['^Error: (?!No tests found\.$)']
+
+# How setup detection finds it (unit 17a): its config file. The report's paths are relative to
+# the config's testDir, which detection can't read (the config is code): report_root is the
+# first of these folders beside the config that exists, to check.
+[detect]
+markers = ["playwright.config.ts", "playwright.config.js", "playwright.config.mts", "playwright.config.mjs", "playwright.config.cts", "playwright.config.cjs"]
+level = "e2e"
+report_root = ["tests", "e2e", "test"]
+
+[[detect.commands]]
+command = ["npx", "playwright", "test"]

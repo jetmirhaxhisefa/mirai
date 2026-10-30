@@ -34,3 +34,21 @@ message_skip = ['^[A-Za-z_\\][A-Za-z0-9_\\]*::[A-Za-z0-9_]']
 format = "cobertura"
 args = ["--coverage-cobertura", "{coverage}"]
 file = "cobertura.xml"
+
+# How setup detection finds it (unit 17a): its config file, through artisan when that's beside
+# it. Suites are read as facts only: probe D1 found a path given to a --testsuite level replaces
+# the suite instead of narrowing it, so a suite isn't a level.
+[detect]
+markers = ["phpunit.xml", "phpunit.xml.dist", "phpunit.dist.xml"]
+level = "unit"
+
+[[detect.commands]]
+if_file = "artisan"
+command = ["php", "artisan", "test"]
+
+[[detect.commands]]
+command = ["vendor/bin/phpunit"]
+
+[detect.suites]
+element = "testsuite"
+attribute = "name"

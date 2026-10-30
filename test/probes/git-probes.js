@@ -73,7 +73,7 @@ export const MIRAI_STEPS = Object.freeze([
   ['refExists', (root, env) => mirai.refExists(root, 'refs/heads/main', env)],
   ['configValue', (root, env) => mirai.configValue(root, 'core.hooksPath', env)],
   ['remotes', (root, env) => mirai.remotes(root, env)],
-  ['lsTree', (root, env) => mirai.lsTree(root, 'HEAD', '.', env, { recursive: true })],
+  ['lsTree', (root, env) => mirai.lsTree(root, 'HEAD', '.', env, { recursive: true, sizes: true })],
   ['treeId', (root, env) => mirai.treeId(root, 'HEAD', 'a.txt', env)],
   ['catBlobs', (root, env) => mirai.catBlobs(root, (mirai.lsTree(root, 'HEAD', 'a.txt', env) ?? []).map((e) => e.sha), env)],
   ['blobAt', (root, env) => mirai.blobAt(root, 'HEAD', 'a.txt', env)],
@@ -87,6 +87,9 @@ export const MIRAI_STEPS = Object.freeze([
   ['ignoredNames', (root, env) => mirai.ignoredNames(root, env)],
   ['mergeBase', (root, env) => mirai.mergeBase(root, 'main', 'side', env)],
   ['isAncestor', (root, env) => mirai.isAncestor(root, 'main', 'side', env)],
+  ['changedLines', (root, env) => mirai.changedLines(root, 'main', null, env)],
+  ['branchRefs', (root, env) => mirai.branchRefs(root, env)],
+  ['commitMessages', (root, env) => mirai.commitMessages(root, 'side', env)],
 ]);
 const REFUSALS = new Set(['repo-config', 'repo-shape', 'repo-nested', 'repo-lfs', 'git-file']);
 

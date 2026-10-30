@@ -1,0 +1,16 @@
+# The python stack (unit 17a): markers, the python pack and commit-message rules. No named check is
+# guessed; a project adds its own in .mirai/custom/stacks/.
+kind = "stack"
+schema_version = 1
+name = "python"
+description = "Python, with a pyproject.toml, setup.py, setup.cfg, requirements.txt or Pipfile"
+markers = ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"]
+pack = "python"
+
+# Commit-message rules (G8): gitlint, or a pre-commit hook at the commit-msg stage.
+[[commit_rules]]
+file = ".gitlint"
+
+[[commit_rules]]
+file = ".pre-commit-config.yaml"
+contains = "commit-msg"

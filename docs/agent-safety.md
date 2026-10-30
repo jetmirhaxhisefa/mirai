@@ -128,7 +128,8 @@ readable under the target's own name). The message tells you what to do.
 run under another name (`prod.env`, `config/app.env`, a `*.pem` key, an `auth.json`) is a new
 file MIRAI doesn't know is secret. So is a `.env` that was ever committed: it stays readable in
 git's history. Keep secrets out of the project folder except the `.env*` files, and never commit
-them. Secret files for a given technology come as pack data later (unit 17).
+them. Secret files for a given technology come as pack data later (set for unit 17; neither
+17a nor 17b covers it, so it waits for a unit of its own).
 
 ### Seeing it yourself: `mirai sandbox show`
 
@@ -279,8 +280,9 @@ default 2; a run waits up to 30 minutes in all for its turn and a slot):
 2. **The compose files come from the integration branch** (the trust root), not from the branch
    being tested. A branch's own `compose.override.yml`, `COMPOSE_FILE` or `.env` changes nothing.
 3. **A quick text check** refuses compose files that use keys acting on your machine before
-   Compose even reads them: `include`, `extends`, `env_file`, `provider`, `models`, YAML tags,
-   merge keys and explicit (`?`) keys. It's coarse, and fails closed: a false match is refused
+   Compose even reads them: `include`, `extends`, `env_file`, `label_file` (added in unit 17a's
+   review: Compose reads the file it names), `provider`, `models`, YAML tags, merge keys and
+   explicit (`?`) keys. It's coarse, and fails closed: a false match is refused
    with its line.
 4. **Compose resolves the files once:**
    - with Docker Desktop's own client, never the `docker` on your `PATH`;
@@ -363,6 +365,10 @@ lint = { command = ["your", "lint", "command"], service = "app" }
   setting there.
 - **`[compose] allow`** lets a few resource keys through when a project needs them: `shm_size`,
   `ulimits`, `mem_limit`, `cpus`, `pids_limit`.
+- **`mirai detect`** (unit 17a, `docs/setup-detection.md`) drafts these lines for you. It reads the
+  integration branch's commit from git objects, and resolves the compose file alone with an empty
+  env file, so your `.env` is never read and no container starts. It warns when a service mounts
+  your home folder, the Docker socket, `.git` or a folder outside the repo.
 
 **What MIRAI requires is Docker Compose,** not a language: tests must run in containers, so they
 can't reach the network or your Mac (D-48, D-49). Today that means **Docker Desktop on macOS**
@@ -373,7 +379,8 @@ need their own probes first.
 - **The test code is the agent's.** It runs as whatever user the image allows, in Docker
   Desktop's VM, with every peer service and its data within reach.
 - **The images are the ones you built.** Their Dockerfiles are protected paths, but they're not
-  rebuilt from the integration branch before each run until unit 17.
+  rebuilt from the integration branch before each run (set for unit 17; neither 17a nor 17b
+  covers it, so it waits for a unit of its own).
 - **The output goes back to the agent.** That's the last 64 KiB of output and the files in
   `/mirai/out`. Redaction catches the login token and known secret shapes, nothing else, so
   anything a container can read can come back in a test's output. That's why containers get

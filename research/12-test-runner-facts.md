@@ -3,7 +3,7 @@ status: settled by test
 version: 1
 ---
 
-# 12 — Test runner facts, settled by probes (units 16a, 16b)
+# 12 — Test runner facts, settled by probes (units 16a, 16b, 17a)
 
 **What this is:** the facts the shipped test adapters (`registry/test-adapters/`) are built on:
 - how each of the sample app's runners writes JUnit XML;
@@ -119,6 +119,24 @@ MIRAI refuses a file that isn't in the copy before anything runs (14d).
 A run without the report option (14d's `--path` run above) left the output folder empty. MIRAI
 reads the report only as a regular file in the output folder, without following a link.
 
+## D1: a suite as a level (unit 17a)
+
+**The question:** can each of a runner's suites be its own level (PHPUnit's `Unit` and `Feature`
+as `unit` and `api`, unit 02 review's P7), with `run_tests(level, path)` still narrowing within it?
+
+**Run** through the shipped `phpunit` adapter, on levels whose command ends `--testsuite=<name>`
+(2026-10-30; the d- scenarios):
+
+| Run | Result |
+|---|---|
+| `d-suite-path`: the `Unit` suite's level, given `backend/tests/Feature/TaskApiTest.php` | pass: the Feature file's 7 tests ran. The path **replaced** the suite |
+| `d-suite-test`: the `Feature` suite's level, given one test ID in that suite | pass: exactly 1 test |
+
+**So:** a path given to a suite level isn't kept inside the suite: `run_tests(unit, <a Feature
+file>)` would run Feature tests under the `unit` level's name. Setup detection lists suites as
+facts only and drafts one level per runner (`docs/setup-detection.md`). Splitting by suite would
+need the adapter to refuse a path outside the suite's folders; not done.
+
 ## Seen on the way
 
 - **One PHPUnit file that doesn't parse stops every PHPUnit run that includes it.** Through
@@ -132,5 +150,5 @@ reads the report only as a regular file in the output folder, without following 
     ("BBuuyy mmiillkk");
   - Playwright's smoke test timed out at 30 s waiting for the page after login.
 
-  Both ran while other test runs loaded the machine, and both passed in 14c. Unit 17's baseline
+  Both ran while other test runs loaded the machine, and both passed in 14c. Unit 17b's baseline
   will see such failures as flaky.

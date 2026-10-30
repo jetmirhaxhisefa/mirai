@@ -1,0 +1,123 @@
+# Agent-instruction files (unit 17a; P2): what setup detection lists, and the commands it flags
+# in them for you to review (unit 39's ledger asks about each file). Nothing here blocks.
+#
+# In Markdown, code spans, fenced blocks and lines that start with "$ " are read, and the patterns
+# marked `prose` on every other line too, so prose that only mentions a word isn't flagged. In
+# JSON, only the keys named below. Every other file is read line by line. Patterns match without
+# regard to case. Flags are hints for review, never a verdict: zero flags isn't "clean".
+kind = "instruction-flags"
+schema_version = 1
+name = "core"
+
+# Files at any depth, by name or by the end of their path.
+files = ["AGENTS.md", "CLAUDE.md", "CLAUDE.local.md", "GEMINI.md", ".cursorrules", ".windsurfrules", ".github/copilot-instructions.md", ".mcp.json"]
+
+# Every file under these folders, at any depth.
+folders = [".claude", ".cursor/rules", ".agents", "_bmad", ".github/instructions", ".windsurf/rules"]
+
+# Read as Markdown.
+markdown = [".md", ".mdc", ".markdown"]
+
+# In JSON (Claude Code's settings, .mcp.json): a command and its args, as one line; each entry of an
+# allow list; and keys whose value the tool runs or connects to, always flagged.
+json_command = ["command"]
+json_args = ["args"]
+json_scan = ["allow"]
+
+[[json_always]]
+key = "apiKeyHelper"
+kind = "shell"
+
+[[json_always]]
+key = "awsAuthRefresh"
+kind = "shell"
+
+[[json_always]]
+key = "awsCredentialExport"
+kind = "shell"
+
+[[json_always]]
+key = "otelHeadersHelper"
+kind = "shell"
+
+[[json_always]]
+key = "url"
+kind = "network"
+
+[[json_always]]
+key = "ANTHROPIC_BASE_URL"
+kind = "network"
+
+[[json_always]]
+key = "ANTHROPIC_BEDROCK_BASE_URL"
+kind = "network"
+
+[[json_always]]
+key = "ANTHROPIC_VERTEX_BASE_URL"
+kind = "network"
+
+[[patterns]]
+name = "fetch"
+kind = "network"
+regex = '\b(?:curl|wget)\b|\bInvoke-(?:WebRequest|RestMethod)\b'
+
+[[patterns]]
+name = "remote-shell"
+kind = "network"
+regex = '\b(?:ssh|scp|sftp|rsync)\s+\S'
+
+[[patterns]]
+name = "pipe-to-shell"
+kind = "shell"
+regex = '\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b'
+prose = true
+
+[[patterns]]
+name = "shell-string"
+kind = "shell"
+regex = '\b(?:ba|z)?sh\s+-c\b'
+
+[[patterns]]
+name = "sudo"
+kind = "shell"
+regex = '\bsudo\s+\S'
+
+[[patterns]]
+name = "docker"
+kind = "shell"
+regex = '\bdocker(?:-compose)?\s+(?:run|exec|compose|build|pull|cp|up)\b'
+
+[[patterns]]
+name = "remove-recursive"
+kind = "shell"
+regex = '\brm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)'
+
+[[patterns]]
+name = "js-install"
+kind = "install"
+regex = '\b(?:npm|pnpm|yarn|bun)\s+(?:i|install|add|ci|dlx|exec|x)\b|\b(?:npx|bunx)\s+\S'
+
+[[patterns]]
+name = "python-install"
+kind = "install"
+regex = '\bpip3?\s+install\b|\bpipx\s+(?:install|run)\b|\buv\s+(?:add|pip\s+install|tool\s+(?:install|run))\b|\buvx\s+\S|\bpoetry\s+(?:add|install)\b'
+
+[[patterns]]
+name = "php-install"
+kind = "install"
+regex = '\bcomposer\s+(?:require|install|update|global|create-project)\b'
+
+[[patterns]]
+name = "rust-go-install"
+kind = "install"
+regex = '\bcargo\s+(?:install|add)\b|\bgo\s+(?:install|get)\s+\S'
+
+[[patterns]]
+name = "ruby-install"
+kind = "install"
+regex = '\bgem\s+install\b|\bbundle\s+(?:install|add)\b'
+
+[[patterns]]
+name = "system-install"
+kind = "install"
+regex = '\bbrew\s+(?:install|tap)\b|\bapt(?:-get)?\s+install\b|\bapk\s+add\b|\b(?:dnf|yum)\s+install\b'

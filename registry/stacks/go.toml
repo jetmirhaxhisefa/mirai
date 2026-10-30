@@ -1,0 +1,8 @@
+# The go stack (unit 17a): markers and the go pack only. No named check is guessed; a
+# project adds its own in .mirai/custom/stacks/.
+kind = "stack"
+schema_version = 1
+name = "go"
+description = "Go, with a go.mod"
+markers = ["go.mod"]
+pack = "go"

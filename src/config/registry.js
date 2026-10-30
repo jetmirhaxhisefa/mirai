@@ -473,6 +473,33 @@ const REGEX_LIST = {
     },
   },
 };
+// Setup detection's data (unit 17a; src/detect/). File names are plain names, matched against a
+// path's last part at any depth; a manifest is a JSON file read beside its marker; a command is
+// argv, never a shell line.
+const FILE_NAME = { type: 'string', pattern: /^[A-Za-z0-9_.][A-Za-z0-9_.+-]{0,99}$/, patternHint: 'a file name such as "package.json"' };
+const JSON_NAME = { type: 'string', pattern: /^[A-Za-z0-9_.-]{1,64}\.json$/, patternHint: 'a JSON file name such as "package.json"' };
+const JSON_KEY = { type: 'string', pattern: /^[A-Za-z0-9_@/:.-]{1,100}$/, patternHint: 'a key such as "scripts" or "devDependencies"' };
+const ARGV = { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[^\0\n]{1,300}$/, patternHint: 'one argument of at most 300 characters' } };
+// A command template may name {script} (the script's name from the manifest's own list in the
+// data, never from the repo).
+const argvWith = (allowed) => ({
+  ...ARGV,
+  items: {
+    ...ARGV.items,
+    check(value, path, report) {
+      if (typeof value !== 'string') return;
+      for (const m of value.matchAll(/\{([^{}]*)\}/g)) {
+        if (!allowed.includes(m[1])) report(path, `${path} has the placeholder {${showName(m[1])}}; ${allowed.length ? `this list takes ${allowed.map((a) => `{${a}}`).join(', ')}` : 'this list takes none'}`, undefined, 'placeholder');
+      }
+    },
+  },
+});
+// A dependency check: `name` listed as a key of one of `fields` in the JSON file `file`.
+const PACKAGE = {
+  type: 'table',
+  fields: { file: JSON_NAME, fields: { type: 'array', minItems: 1, items: JSON_KEY }, name: JSON_KEY },
+  required: ['file', 'fields', 'name'],
+};
 const SEPARATOR = { type: 'string', pattern: /^[^\0\n]{1,8}$/, patternHint: 'at most 8 characters, such as " > "' };
 const TEST_ADAPTER = {
   type: 'table',
@@ -535,6 +562,43 @@ const TEST_ADAPTER = {
         if (!value.args?.length && !Object.keys(value.env ?? {}).length) report(path, `${path} needs args or env that ask the runner for coverage`, undefined, 'required');
       },
     },
+    // How setup detection finds the runner (unit 17a): its config files (`markers`), an optional
+    // dependency the manifest beside a marker must list, the first command whose conditions hold
+    // (`if_file`: a file beside the marker; `if_script`: a script of the manifest containing a
+    // word), the level name to suggest, report_root candidates (beside the marker), and where the
+    // config names its suites (facts only: unit 17a's probe D1 found a path replaces a suite).
+    detect: {
+      type: 'table',
+      fields: {
+        markers: { type: 'array', minItems: 1, items: FILE_NAME },
+        package: PACKAGE,
+        commands: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'table',
+            fields: {
+              command: argvWith([]),
+              if_file: FILE_NAME,
+              if_script: {
+                type: 'table',
+                fields: { file: JSON_NAME, field: JSON_KEY, name: JSON_KEY, contains: { type: 'string', pattern: /^[^\0\n]{1,64}$/, patternHint: 'a word such as "vitest"' } },
+                required: ['file', 'field', 'name', 'contains'],
+              },
+            },
+            required: ['command'],
+          },
+        },
+        level: { type: 'string', pattern: NAME, patternHint: 'a level name such as "unit"' },
+        report_root: { type: 'array', items: { type: 'string', pattern: /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}){0,3}$/, patternHint: 'a folder beside the marker, such as "tests"' } },
+        suites: {
+          type: 'table',
+          fields: { element: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/, patternHint: 'an XML element name' }, attribute: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/, patternHint: 'an XML attribute name' } },
+          required: ['element', 'attribute'],
+        },
+      },
+      required: ['markers', 'commands', 'level'],
+    },
     classify: {
       type: 'table',
       fields: {
@@ -559,6 +623,99 @@ const TEST_ADAPTER = {
   required: ['kind', 'schema_version', 'name', 'description', 'report', 'select'],
 };
 
+// Setup detection's stacks (unit 17a).
+const STACK = {
+  type: 'table',
+  fields: {
+    kind: { type: 'enum', values: ['stack'] },
+    schema_version: { type: 'integer', min: 1, max: 1 },
+    name: { type: 'string', pattern: NAME, patternHint: 'for example "node"' },
+    description: DESCRIPTION,
+    // Files whose presence in a folder marks the stack there.
+    markers: { type: 'array', minItems: 1, items: FILE_NAME },
+    // The protected-paths pack it suggests for [gate] packs (unit 12).
+    pack: { type: 'string', pattern: NAME, patternHint: 'a pack name such as "node"' },
+    // Named checks, from a manifest beside a marker: each script of `names` that `field` of
+    // `file` lists becomes a check named after it, running `command` ({script} is its name); or,
+    // with `package`, one check `name` when the manifest lists that dependency.
+    checks: {
+      type: 'array',
+      items: {
+        type: 'table',
+        fields: {
+          file: JSON_NAME,
+          field: JSON_KEY,
+          names: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9:_.-]{0,63}$/, patternHint: 'a script name such as "lint"' } },
+          package: PACKAGE,
+          name: { type: 'string', pattern: NAME, patternHint: 'a check name such as "format"' },
+          command: argvWith(['script']),
+        },
+        required: ['command'],
+        check(value, path, report) {
+          const scripts = value.field !== undefined || value.names !== undefined || value.file !== undefined;
+          const pkg = value.package !== undefined || value.name !== undefined;
+          if (scripts === pkg) report(path, `${path} takes either file, field and names (scripts), or package and name (a dependency)`, undefined, 'invalid');
+          else if (scripts && (value.file === undefined || value.field === undefined || value.names === undefined)) report(path, `${path} needs file, field and names`, undefined, 'required');
+          else if (pkg && (value.package === undefined || value.name === undefined)) report(path, `${path} needs package and name`, undefined, 'required');
+          const uses = (value.command ?? []).some((a) => typeof a === 'string' && a.includes('{script}'));
+          if (scripts && !uses) report(`${path}.command`, `${path}.command must name the script ({script})`, undefined, 'placeholder');
+          if (pkg && uses) report(`${path}.command`, `${path}.command can't use {script} for a dependency`, undefined, 'placeholder');
+        },
+      },
+    },
+    // Files that hold a commit-message rule (for G8), with an optional word the file must contain.
+    commit_rules: {
+      type: 'array',
+      items: { type: 'table', fields: { file: FILE_NAME, contains: { type: 'string', pattern: /^[^\0\n]{1,64}$/, patternHint: 'a word such as "commit-msg"' } }, required: ['file'] },
+    },
+  },
+  required: ['kind', 'schema_version', 'name', 'description', 'markers'],
+};
+
+// What setup detection lists and flags in agent-instruction files (unit 17a; P2): file names at
+// any depth, folders at any depth, and patterns of shell, network and install commands.
+const INSTRUCTION_FLAGS = {
+  type: 'table',
+  fields: {
+    kind: { type: 'enum', values: ['instruction-flags'] },
+    schema_version: { type: 'integer', min: 1, max: 1 },
+    name: { type: 'string', pattern: NAME, patternHint: 'for example "core"' },
+    files: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^(?!\/)(?!.*\/\/)[A-Za-z0-9_.][A-Za-z0-9_./-]{0,99}$/, patternHint: 'a file name or a path ending such as ".github/copilot-instructions.md"' } },
+    folders: { type: 'array', items: { type: 'string', pattern: /^(?!\/)(?!.*\/\/)[A-Za-z0-9_.][A-Za-z0-9_./-]{0,99}[^/]$/, patternHint: 'a folder name or path such as ".cursor/rules", without a trailing "/"' } },
+    patterns: {
+      type: 'array',
+      minItems: 1,
+      uniqueBy: 'name',
+      items: {
+        type: 'table',
+        fields: {
+          name: { type: 'string', pattern: NAME, patternHint: 'for example "pipe-to-shell"' },
+          kind: { type: 'enum', values: ['shell', 'network', 'install'] },
+          regex: SECRETS.fields.patterns.items.fields.regex,
+          // Also matched on Markdown's prose lines, not only its code: for patterns that are
+          // never ordinary prose (a pipe into a shell).
+          prose: { type: 'boolean' },
+        },
+        required: ['name', 'kind', 'regex'],
+      },
+    },
+    // The file endings read as Markdown.
+    markdown: { type: 'array', items: { type: 'string', pattern: /^\.[A-Za-z0-9]{1,16}$/, patternHint: 'a file ending such as ".md"' } },
+    // In JSON: the keys whose value is a command (with the args keys beside it, as one line), keys
+    // whose strings are each read as a command (an allow list), and keys whose value is always
+    // flagged (a helper the tool runs, a URL it connects to).
+    json_command: { type: 'array', items: JSON_KEY },
+    json_args: { type: 'array', items: JSON_KEY },
+    json_scan: { type: 'array', items: JSON_KEY },
+    json_always: {
+      type: 'array',
+      uniqueBy: 'key',
+      items: { type: 'table', fields: { key: JSON_KEY, kind: { type: 'enum', values: ['shell', 'network', 'install'] } }, required: ['key', 'kind'] },
+    },
+  },
+  required: ['kind', 'schema_version', 'name', 'files', 'patterns'],
+};
+
 const KINDS = [
   { folder: 'agents', kind: 'agent', bucket: 'agents', schema: AGENT, refs: ['prompt'] },
   { folder: 'document-types', kind: 'document-type', bucket: 'documentTypes', schema: DOCUMENT_TYPE, refs: ['template', 'checklist'] },
@@ -566,15 +723,17 @@ const KINDS = [
   { folder: 'protected-paths', kind: 'protected-paths', bucket: 'protectedPaths', schema: PROTECTED_PATHS, refs: [] },
   { folder: 'secrets', kind: 'secrets', bucket: 'secrets', schema: SECRETS, refs: [] },
   { folder: 'test-adapters', kind: 'test-adapter', bucket: 'testAdapters', schema: TEST_ADAPTER, refs: [] },
+  { folder: 'stacks', kind: 'stack', bucket: 'stacks', schema: STACK, refs: [] },
+  { folder: 'instruction-flags', kind: 'instruction-flags', bucket: 'instructionFlags', schema: INSTRUCTION_FLAGS, refs: [] },
 ];
 
 // Loads and checks every definition under `dir`. Returns frozen `{ dir, agents, documentTypes,
-// adapters, protectedPaths, secrets, testAdapters, skills }` keyed by name, plus `agentFiles`
+// adapters, protectedPaths, secrets, testAdapters, stacks, instructionFlags, skills }` keyed by name, plus `agentFiles`
 // and `adapterFiles` (each definition's file, relative to `dir`), or throws one ConfigError
 // listing every problem. `dir` lets the lint read a type's template (unit 08a).
 export function loadRegistry(dir) {
   const problems = [];
-  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, secrets: {}, testAdapters: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
+  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, secrets: {}, testAdapters: {}, stacks: {}, instructionFlags: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
   for (const spec of KINDS) {
     for (const { name, value, source } of loadFolder(dir, spec, problems, out[spec.bucket])) {
       out[spec.bucket][name] = value;
@@ -647,14 +806,19 @@ function loadFolder(dir, { folder, kind, schema, refs }, problems, taken = {}) {
 // A project's own test adapters (unit 16a): `<dir>/test-adapters/*.toml` (dir is the trust
 // root's .mirai/custom), checked as the registry's are, and refused when a name is one of
 // `core`'s: a project adds runners, it doesn't change MIRAI's. Throws one ConfigError.
-export function loadCustomTestAdapters(dir, core = {}) {
+export const loadCustomTestAdapters = (dir, core = {}) => loadCustom(dir, 'test-adapter', core);
+
+// A project's own stacks (unit 17a): `<dir>/stacks/*.toml`, as its test adapters are.
+export const loadCustomStacks = (dir, core = {}) => loadCustom(dir, 'stack', core);
+
+function loadCustom(dir, kind, core) {
   const problems = [];
-  const spec = KINDS.find((k) => k.kind === 'test-adapter');
+  const spec = KINDS.find((k) => k.kind === kind);
   const out = {};
   for (const { name, value } of loadFolder(dir, spec, problems, core)) out[name] = value;
   if (problems.length > 0) {
     const n = problems.length;
-    throw new ConfigError(`${n} problem${n === 1 ? '' : 's'} in the project's test adapters (.mirai/custom/test-adapters/)`, { errors: problems });
+    throw new ConfigError(`${n} problem${n === 1 ? '' : 's'} in the project's ${spec.folder.replace('-', ' ')} (.mirai/custom/${spec.folder}/)`, { errors: problems });
   }
   return deepFreeze(out);
 }

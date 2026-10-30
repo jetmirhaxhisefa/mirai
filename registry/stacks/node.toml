@@ -1,0 +1,65 @@
+# The node stack (unit 17a): JavaScript and TypeScript projects with a package.json. Setup
+# detection (mirai detect) proposes its pack and these named checks; nothing here runs by itself.
+kind = "stack"
+schema_version = 1
+name = "node"
+description = "JavaScript and TypeScript, with a package.json"
+markers = ["package.json"]
+pack = "node"
+
+# A package script with one of these names becomes a named check, run through npm. Not "format":
+# it usually fixes files ("format:check" doesn't). A build writes only into the run's copy.
+[[checks]]
+file = "package.json"
+field = "scripts"
+names = ["lint", "typecheck", "type-check", "types", "format:check", "build"]
+command = ["npm", "run", "{script}"]
+
+# Commit-message rules (G8): commitlint's config files, or a package.json that names it, and a
+# hook manager's commit-msg hook.
+[[commit_rules]]
+file = "commitlint.config.js"
+
+[[commit_rules]]
+file = "commitlint.config.cjs"
+
+[[commit_rules]]
+file = "commitlint.config.mjs"
+
+[[commit_rules]]
+file = "commitlint.config.ts"
+
+[[commit_rules]]
+file = ".commitlintrc"
+
+[[commit_rules]]
+file = ".commitlintrc.json"
+
+[[commit_rules]]
+file = ".commitlintrc.yml"
+
+[[commit_rules]]
+file = ".commitlintrc.yaml"
+
+[[commit_rules]]
+file = ".commitlintrc.js"
+
+[[commit_rules]]
+file = ".commitlintrc.cjs"
+
+[[commit_rules]]
+file = "package.json"
+contains = "commitlint"
+
+# Husky 4 kept its hooks in package.json.
+[[commit_rules]]
+file = "package.json"
+contains = "commit-msg"
+
+[[commit_rules]]
+file = "lefthook.yml"
+contains = "commit-msg"
+
+[[commit_rules]]
+file = ".lefthook.yml"
+contains = "commit-msg"

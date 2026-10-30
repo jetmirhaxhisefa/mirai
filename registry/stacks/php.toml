@@ -1,0 +1,36 @@
+# The php stack (unit 17a): PHP projects with a composer.json. Setup detection (mirai detect)
+# proposes its pack and these named checks; nothing here runs by itself.
+kind = "stack"
+schema_version = 1
+name = "php"
+description = "PHP, with a composer.json"
+markers = ["composer.json"]
+pack = "php"
+
+# A Composer script with one of these names becomes a named check. Not "format" or "cs": those
+# usually fix files, and a check that fixes what it checks always passes.
+[[checks]]
+file = "composer.json"
+field = "scripts"
+names = ["lint", "analyse", "analyze"]
+command = ["composer", "run-script", "{script}"]
+
+# Tools that only check when asked to: Pint's --test changes nothing.
+[[checks]]
+package = { file = "composer.json", fields = ["require-dev", "require"], name = "laravel/pint" }
+name = "format"
+command = ["vendor/bin/pint", "--test"]
+
+[[checks]]
+package = { file = "composer.json", fields = ["require-dev", "require"], name = "phpstan/phpstan" }
+name = "static-analysis"
+command = ["vendor/bin/phpstan", "analyse", "--no-progress"]
+
+# Commit-message rules (G8): CaptainHook's or GrumPHP's.
+[[commit_rules]]
+file = "captainhook.json"
+contains = "commit-msg"
+
+[[commit_rules]]
+file = "grumphp.yml"
+contains = "git_commit_message"

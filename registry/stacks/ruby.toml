@@ -1,0 +1,13 @@
+# The ruby stack (unit 17a): markers, the ruby pack and commit-message rules. No named check is
+# guessed; a project adds its own in .mirai/custom/stacks/.
+kind = "stack"
+schema_version = 1
+name = "ruby"
+description = "Ruby, with a Gemfile"
+markers = ["Gemfile"]
+pack = "ruby"
+
+# Commit-message rules (G8): Overcommit's commit-msg hooks.
+[[commit_rules]]
+file = ".overcommit.yml"
+contains = "CommitMsg"

@@ -14,7 +14,7 @@ import { included } from '../util/glob.js';
 //
 // The coverage is the branch's evidence, not proof: the runner's config (include and exclude
 // lists, ignore comments, the coverage provider) is the branch's, and decides what's listed and
-// measurable. Units 17, 26 and 54 compare it with the integration branch's baseline.
+// measurable. Units 17b, 26 and 54 compare it with the integration branch's baseline.
 
 // `changed` is changedLines' { files }; `coverage` is { files } from src/tests/coverage.js;
 // `paths` (optional) are path patterns (src/util/glob.js, `!` excludes) a file must match to count.

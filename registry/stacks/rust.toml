@@ -1,0 +1,8 @@
+# The rust stack (unit 17a): markers and the rust pack only. No named check is guessed; a
+# project adds its own in .mirai/custom/stacks/.
+kind = "stack"
+schema_version = 1
+name = "rust"
+description = "Rust, with a Cargo.toml"
+markers = ["Cargo.toml"]
+pack = "rust"

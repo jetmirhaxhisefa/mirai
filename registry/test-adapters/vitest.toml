@@ -38,3 +38,17 @@ file_cases_are_load = true
 format = "lcov"
 args = ["--coverage.enabled", "--coverage.reporter=lcov", "--coverage.reportsDirectory={coverage_dir}", "--coverage.reportOnFailure"]
 file = "lcov.info"
+
+# How setup detection finds it (unit 17a): a package.json that lists vitest; through the test
+# script when it runs vitest (ending with "--", as above), else directly.
+[detect]
+markers = ["package.json"]
+package = { file = "package.json", fields = ["devDependencies", "dependencies"], name = "vitest" }
+level = "unit"
+
+[[detect.commands]]
+if_script = { file = "package.json", field = "scripts", name = "test", contains = "vitest" }
+command = ["npm", "test", "--"]
+
+[[detect.commands]]
+command = ["npx", "vitest", "run"]

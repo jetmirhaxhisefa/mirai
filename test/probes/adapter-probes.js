@@ -22,6 +22,9 @@ import { DOCKER } from '../../src/tests/docker.js';
 // w- scenarios settle 16a's two open Playwright cases. Each run's whole output folder is kept in
 // the report folder (<id>-out/).
 //
+// Unit 17a, D1: the d- scenarios run levels that are one PHPUnit suite each (as detection drafts
+// them) with a path or a test ID, through the shipped adapter.
+//
 // The m- scenarios run the shipped adapters themselves (J2 through MIRAI): the clone's MIRAI is
 // refreshed from this checkout first (mirai init --refresh, committed in the clone), as you'd
 // refresh the sample app.
@@ -123,6 +126,9 @@ const M = {
   front: { mirai: 'frontend-a', service: 'frontend', command: ['npm', 'test', '--'], adapter: 'vitest' },
   e2eNr: { mirai: 'e2e-nr', service: 'playwright', run: 'oneoff', command: ['npx', 'playwright', 'test', '--config', 'playwright.noreporter.config.ts'], adapter: 'playwright', report_root: 'e2e/tests' },
   e2e: { mirai: 'e2e-a', service: 'playwright', run: 'oneoff', command: ['npx', 'playwright', 'test'], adapter: 'playwright', report_root: 'e2e/tests' },
+  // Unit 17a, D1: a level that is one of the runner's suites, as detection would draft it.
+  unitSuite: { mirai: 'unit-suite', service: 'app', command: ['php', 'artisan', 'test', '--testsuite=Unit'], adapter: 'phpunit' },
+  apiSuite: { mirai: 'api-suite', service: 'app', command: ['php', 'artisan', 'test', '--testsuite=Feature'], adapter: 'phpunit' },
 };
 
 const SPECIAL = String.raw`(?:^| )probe regex \(x\)\+ "q" \[y\]$`;
@@ -172,6 +178,10 @@ export function scenarios() {
     { id: 'w-folder', j: 'J2', title: 'through the playwright adapter: a folder', ...M.e2e, path: 'e2e/tests' },
     { id: 'm-front-coverage', j: 'K4', title: 'through the vitest adapter: coverage of the whole level, which has failing tests (reportOnFailure)', ...M.front, coverage: true },
     { id: 'm-e2e-noreporter', j: 'J1', title: 'through the playwright adapter: a config without a junit reporter (the adapter\'s --reporter)', ...M.e2eNr, path: 'e2e/tests/probe-shapes.spec.ts' },
+    // Unit 17a, D1. A Feature file asked for in the Unit suite's level: its tests ran (the path
+    // replaces the suite), none ran (it narrows it), or the Unit suite ran (the path is ignored).
+    { id: 'd-suite-path', j: 'D1', title: 'a suite level (--testsuite=Unit) given a file of another suite', ...M.unitSuite, path: 'backend/tests/Feature/TaskApiTest.php' },
+    { id: 'd-suite-test', j: 'D1', title: 'a suite level (--testsuite=Feature) given one test by its ID', ...M.apiSuite, test: 'backend/tests/Feature/TaskApiTest.php::test_a_user_can_create_a_task' },
     { id: 'w-noreporter', j: 'J1', title: 'Playwright: a config without a junit reporter, with the variable', ...pw('--config', 'playwright.noreporter.config.ts', 'tests/probe-shapes.spec.ts') },
   ];
 }

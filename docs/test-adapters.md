@@ -67,6 +67,24 @@ format = "lcov"                        # or "cobertura"
 args = ["--cov-out", "{coverage}"]     # or env; {coverage_dir} for runners that name the file
 file = "lcov.info"                     # the file's name in the coverage folder
 
+[detect]                               # optional: how mirai detect finds it (unit 17a)
+markers = ["mytool.config.json"]       # its config files, at any depth
+level = "unit"                         # the level name to suggest
+package = { file = "package.json", fields = ["devDependencies"], name = "mytool" }  # optional
+report_root = ["tests"]                # optional: candidates beside the marker, first one found
+
+[[detect.commands]]                    # the first whose conditions hold
+if_file = "bin/mytool"                 # optional: a file beside the marker
+command = ["bin/mytool", "run"]
+
+[[detect.commands]]
+if_script = { file = "package.json", field = "scripts", name = "test", contains = "mytool" }
+command = ["npm", "test", "--"]
+
+[detect.suites]                        # optional: where its XML config names suites (facts only)
+element = "suite"
+attribute = "name"
+
 [classify]                             # all optional
 assertion_types = ['^AssertionError$'] # a failure of this type is an assertion; others are errors
 assertion_messages = ['^expect\(']     # or one whose message starts like this
@@ -128,13 +146,13 @@ browser tests don't measure the app's code, so `playwright` has none.
 root. But the runner's own config (`phpunit.xml`, `vitest.config.*`, `playwright.config.*`), the
 package scripts and the code under test are the branch's: they decide which tests run, and could
 write the report themselves. So a report is evidence of what ran, not proof. Unit 25 compares a
-branch's counts and IDs with the integration branch's baseline (unit 17).
+branch's counts and IDs with the integration branch's baseline (unit 17b).
 
 **Coverage is the same kind of evidence.** The runner's config decides which files are listed and
 which lines count: include and exclude lists, ignore comments (`@codeCoverageIgnore`,
 `/* v8 ignore */`), a custom coverage provider. The code under test could write the coverage file
 itself too. So a branch can make a new file "not listed", or a line "can't run", without a test.
-Diff coverage guards against forgotten tests, not a branch that games it. Units 17, 26 and 54
+Diff coverage guards against forgotten tests, not a branch that games it. Units 17b, 26 and 54
 compare what's measured with the integration branch's baseline. Coverage also counts execution,
 not assertions: a test that checks nothing still covers lines.
 
@@ -143,4 +161,5 @@ not assertions: a test that checks nothing still covers lines.
 2. Run one test: `mirai test <level> --test <id from the failing list>`.
 3. Run a name that doesn't exist: it should come back `not-found`.
 
-The probes that settled the shipped adapters are in `research/12-test-runner-facts.md` (J1–J4).
+The probes that settled the shipped adapters are in `research/12-test-runner-facts.md` (J1–J4,
+K1–K4, D1). How `mirai detect` uses `[detect]` is in `docs/setup-detection.md`.

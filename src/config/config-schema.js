@@ -205,7 +205,16 @@ export const CONFIG_SCHEMA = {
     // agents; [compose] env_file (the tests' dummy file) is always readable.
     sandbox: { type: 'table', fields: { readable_env: { type: 'array', items: relPath } } },
     repos: { type: 'array', items: repo, minItems: 1, uniqueBy: 'name' },
-    workspace: { type: 'table', fields: { e2e: { type: 'enum', values: ['local', 'deployed', 'none'] } } },
+    workspace: {
+      type: 'table',
+      fields: {
+        e2e: { type: 'enum', values: ['local', 'deployed', 'none'] },
+        // Whether the toolchain works from a second checkout of the repo (D-24, R-C5): false when
+        // the compose file fixes the project name, mounts the checkout or fixes host ports.
+        // Recorded by setup detection (unit 17a); read once work runs in parallel.
+        worktree_safe: { type: 'boolean' },
+      },
+    },
     resources: { type: 'table', map: resource, keyPattern: NAME, keyHint: NAME_HINT },
     gate: {
       type: 'table',

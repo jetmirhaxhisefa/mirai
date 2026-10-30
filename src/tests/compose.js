@@ -14,7 +14,8 @@ import { TestRunError } from './docker.js';
 // key anywhere in the text; YAML tags and merge keys; an escape in a double-quoted key. Coarse
 // on purpose: a false match is refused with its line.
 const PRESCAN = [
-  { re: /(^|[\s{,'"-])(include|extends|env_file|provider|models)['"]?\s*:/, why: (m) => `the key ${m[2]} acts on your machine or is hidden by resolving` },
+  // label_file (unit 17a's review): Compose reads the file it names while resolving, as env_file.
+  { re: /(^|[\s{,'"-])(include|extends|env_file|label_file|provider|models)['"]?\s*:/, why: (m) => `the key ${m[2]} acts on your machine or is hidden by resolving` },
   { re: /(^|[\s:[,-])!{1,2}[A-Za-z<]/, why: () => 'a YAML tag' },
   { re: /<<\s*:/, why: () => 'a YAML merge key' },
   { re: /"[^"\n]*\\[^"\n]*"\s*:/, why: () => 'an escape in a quoted key' },
