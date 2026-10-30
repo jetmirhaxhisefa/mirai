@@ -27,7 +27,7 @@ adapter = "phpunit"
 |---|---|---|
 | `phpunit` | PHPUnit (seen on 12.5), directly or through a command that passes its options on (`php artisan test`) | a test ID by a data provider's method covers all its data sets |
 | `vitest` | Vitest (seen on 3.2) | through a package script, end the command with `--`: `["npm", "test", "--"]` |
-| `playwright` | Playwright Test (seen on 1.64) | its config must list the junit reporter (`reporter: [['list'], ['junit']]`); set `report_root` to the config's `testDir`, as a project path (`"e2e/tests"`) |
+| `playwright` | Playwright Test (seen on 1.64) | set `report_root` to the config's `testDir`, as a project path (`"e2e/tests"`). In MIRAI's runs the reporters are `list` and `junit`, whatever the config lists |
 
 "Seen on" is what the probes ran. Other versions are likely to work, but haven't been checked.
 
@@ -62,6 +62,11 @@ file = ["{path}"]                      # the arguments for one file or folder
 test = ["{path}", "--grep", '^{name:regex}$']   # the arguments for one test
 join = " "                             # optional: how the runner's name filter joins the parts
 
+[coverage]                             # optional: line coverage, on a run that asks for it
+format = "lcov"                        # or "cobertura"
+args = ["--cov-out", "{coverage}"]     # or env; {coverage_dir} for runners that name the file
+file = "lcov.info"                     # the file's name in the coverage folder
+
 [classify]                             # all optional
 assertion_types = ['^AssertionError$'] # a failure of this type is an assertion; others are errors
 assertion_messages = ['^expect\(']     # or one whose message starts like this
@@ -80,6 +85,8 @@ file_cases_are_load = true             # a case named after its file is the file
 | `{path:regex}` | the same, with regex characters escaped | `select.file`, `select.test` |
 | `{name}` | the test's name, its parts joined with `select.join` | `select.test` |
 | `{name:regex}` | the same, with regex characters escaped | `select.test` |
+| `{coverage}` | the coverage file's path in the service (`coverage/<file>` in MIRAI's output folder) | `coverage.args`, `coverage.env` |
+| `{coverage_dir}` | that folder | `coverage.args`, `coverage.env` |
 
 **The rules, checked when MIRAI loads the adapter:**
 - each list item is **one argument**, never a shell line: a name with spaces or quotes stays one
@@ -102,11 +109,34 @@ Every case goes to the run's `cases.json`, and the failing ones, with messages, 
 (up to 1,000). The result holds both files' hashes and the report's, so a signed gate result
 covers them.
 
+**Coverage** (unit 16b): `mirai test <level> --coverage`, or `run_tests(…, coverage: true)`,
+on a level whose adapter has `[coverage]`; otherwise it's refused (`no-coverage`). The runner's
+lcov or Cobertura file is mapped to project paths, and stored as the run's `coverage.json`. The
+result holds its hash and the raw file's, and a summary (files, lines, lines that ran). A run
+asked for coverage that leaves none, or a file MIRAI can't read, is an environment fault
+(`bad-coverage`), unless its tests didn't load. Add `--against <ref>` to see **diff coverage**:
+of the lines your work tree added since the merge base with `<ref>`, the ones that can run, and
+which of them ran. Files the coverage doesn't list (a new file no test loaded, a template), and
+files git shows as binary, are shown apart, never counted as covered. `--against` needs the
+whole level: a one-file run lists every other file as not run.
+
+Shipped: `phpunit` (Cobertura; needs pcov or Xdebug in the image, and a `<source>` in
+`phpunit.xml`) and `vitest` (lcov; needs `@vitest/coverage-v8` or `-istanbul`). Playwright's
+browser tests don't measure the app's code, so `playwright` has none.
+
 **What a report proves.** MIRAI's adapter, the reader and the compose files come from the trust
 root. But the runner's own config (`phpunit.xml`, `vitest.config.*`, `playwright.config.*`), the
 package scripts and the code under test are the branch's: they decide which tests run, and could
 write the report themselves. So a report is evidence of what ran, not proof. Unit 25 compares a
 branch's counts and IDs with the integration branch's baseline (unit 17).
+
+**Coverage is the same kind of evidence.** The runner's config decides which files are listed and
+which lines count: include and exclude lists, ignore comments (`@codeCoverageIgnore`,
+`/* v8 ignore */`), a custom coverage provider. The code under test could write the coverage file
+itself too. So a branch can make a new file "not listed", or a line "can't run", without a test.
+Diff coverage guards against forgotten tests, not a branch that games it. Units 17, 26 and 54
+compare what's measured with the integration branch's baseline. Coverage also counts execution,
+not assertions: a test that checks nothing still covers lines.
 
 **Check it on your project:**
 1. Run one level: `mirai test <level>`. The counts should match the runner's own summary.

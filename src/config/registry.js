@@ -429,10 +429,13 @@ const SECRETS = {
 //   {path:regex}   the same, every regex character escaped
 //   {name}         the test's name, its parts joined by `select.join`
 //   {name:regex}   the same, every regex character escaped
+//   {coverage}     the coverage file, in the output folder's coverage/ (unit 16b)
+//   {coverage_dir} that folder, for runners that name the file themselves
 // A value can't start an argument: {path} and {report} are absolute paths, and an argument
 // can't start with {name}, so nothing a caller gives becomes an option.
 export const TEST_PLACEHOLDERS = Object.freeze({
   report: ['report'],
+  coverage: ['coverage', 'coverage_dir'],
   file: ['path', 'path:regex'],
   test: ['path', 'path:regex', 'name', 'name:regex'],
 });
@@ -515,6 +518,21 @@ const TEST_ADAPTER = {
           if (!/\{path(?::regex)?\}/.test(all)) report(`${path}.${key}`, `${path}.${key} must name the file ({path} or {path:regex})`, undefined, 'placeholder');
         }
         if (!/\{name(?::regex)?\}/.test((value.test ?? []).join('\n'))) report(`${path}.test`, `${path}.test must name the test ({name} or {name:regex})`, undefined, 'placeholder');
+      },
+    },
+    // How the runner writes line coverage (unit 16b): asked for only on a run with coverage.
+    coverage: {
+      type: 'table',
+      fields: {
+        format: { type: 'enum', values: ['lcov', 'cobertura'] },
+        args: templateList(TEST_PLACEHOLDERS.coverage),
+        env: { type: 'table', map: templateList(TEST_PLACEHOLDERS.coverage).items, keyPattern: /^[A-Z_][A-Z0-9_]{0,63}$/, keyHint: 'an environment variable name' },
+        // The file's name in the coverage folder ({coverage} is that folder and this name).
+        file: { type: 'string', pattern: /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$/, patternHint: 'a file name such as "lcov.info"' },
+      },
+      required: ['format', 'file'],
+      check(value, path, report) {
+        if (!value.args?.length && !Object.keys(value.env ?? {}).length) report(path, `${path} needs args or env that ask the runner for coverage`, undefined, 'required');
       },
     },
     classify: {

@@ -1,4 +1,4 @@
-import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { readJunit } from './junit.js';
@@ -18,21 +18,33 @@ export const REPORT_FILE = 'junit.xml';
 export const STORED_FAILING = 1000;
 export const MESSAGE_MAX = 300;
 
-// The report the run left in its output folder: { bytes } or { missing } or { malformed }. A link,
-// a folder or anything but a regular file is malformed, and is never followed: the container
-// wrote this folder.
-export function readReportFile(outDir) {
+// A file the run left in its output folder: { bytes } or { missing } or { malformed }. A link
+// (the file, or a folder on the way to it), a folder or anything but a regular file is malformed,
+// and is never followed: the container wrote this folder. `what` names it in messages.
+export const readReportFile = (outDir) => readOutFile(outDir, REPORT_FILE, XML_LIMITS.bytes, 'the report');
+export function readOutFile(outDir, name, maxBytes, what) {
+  const parts = name.split('/');
+  for (let k = 1; k < parts.length; k++) {
+    let info;
+    try {
+      info = lstatSync(join(outDir, ...parts.slice(0, k)));
+    } catch (err) {
+      if (err.code === 'ENOENT') return { missing: true };
+      throw err;
+    }
+    if (!info.isDirectory()) return { malformed: `${parts.slice(0, k).join('/')} in the output folder isn't a folder` };
+  }
   let fd;
   try {
-    fd = openSync(join(outDir, REPORT_FILE), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    fd = openSync(join(outDir, name), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   } catch (err) {
     if (err.code === 'ENOENT') return { missing: true };
-    return { malformed: err.code === 'ELOOP' ? 'the report is a link' : `the report can't be read (${err.code})` };
+    return { malformed: err.code === 'ELOOP' ? `${what} is a link` : `${what} can't be read (${err.code})` };
   }
   try {
     const info = fstatSync(fd);
-    if (!info.isFile()) return { malformed: 'the report isn\'t a regular file' };
-    if (info.size > XML_LIMITS.bytes) return { malformed: `the report is larger than ${XML_LIMITS.bytes} bytes` };
+    if (!info.isFile()) return { malformed: `${what} isn't a regular file` };
+    if (info.size > maxBytes) return { malformed: `${what} is larger than ${maxBytes} bytes` };
     const bytes = Buffer.alloc(info.size);
     let at = 0;
     while (at < bytes.length) {

@@ -26,7 +26,7 @@ const SERVICES = {
 const results = (runner, file, opts = {}) => testResults({ adapter: adapters[runner], report: { bytes: corpus(file) }, exitCode: 1, output: '', ...SERVICES[runner], ...opts });
 
 test('16a T2: every report in the corpus reads', () => {
-  const files = readdirSync(CORPUS).filter((f) => f.endsWith('.xml'));
+  const files = readdirSync(CORPUS).filter((f) => f.endsWith('.xml') && !f.includes('coverage'));
   assert.ok(files.length >= 10);
   for (const f of files) assert.equal(readJunit(corpus(f), { file: f.startsWith('phpunit') ? 'file' : 'classname' }).report, 'ok', f);
 });

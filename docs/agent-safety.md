@@ -382,8 +382,10 @@ need their own probes first.
 ### How agents run tests: `run_tests` and `run_check` (unit 14d)
 
 A headless agent run gets **MIRAI's MCP server** with two tools for tests:
-- **`run_tests(level, path? or test?)`**: one of the project's test levels, optionally for one
-  file or folder, or one test by its ID (unit 16a, on a level with a test adapter);
+- **`run_tests(level, path? or test?, coverage?)`**: one of the project's test levels,
+  optionally for one file or folder, or one test by its ID (unit 16a, on a level with a test
+  adapter), and with line coverage (unit 16b, on a level whose adapter measures it: the reply
+  has the summary, the per-line data stays in MIRAI's store);
 - **`run_check(name)`**: one of its named checks (`lint`, …), always whole.
 
 Each one runs the steps above and returns the result in its reply. The server's only other tool
@@ -458,6 +460,14 @@ be trusted to have run the tests. A run whose tests didn't load fails as `load` 
 reads the report as a regular file only (never through a link the container left), at most
 16 MiB, with a small XML reader of its own: no DOCTYPE, no entities of the file's own, nothing
 fetched.
+
+**Coverage files** (unit 16b) are read the same way: every folder on the way to the file must be a
+real folder, at most 64 MiB. For a level with an adapter, the containers are removed **before**
+MIRAI reads any file the run left, so none can swap a folder for a link mid-read. A Cobertura file
+may name its DTD in a DOCTYPE (PHPUnit's do). That one shape, with no internal subset, is let
+through for Cobertura only, and the DTD is never fetched. A run asked for coverage that would pass
+but left none is an environment fault (`bad-coverage`); a failing run records the missing
+coverage and stays failing.
 
 Nothing in the reply points into MIRAI's store, error messages included: paths into the MIRAI
 home show as `<mirai home>` and `<trust root>`. Agents can't read the store anyway. Each agent

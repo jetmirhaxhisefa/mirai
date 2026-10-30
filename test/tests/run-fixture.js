@@ -59,8 +59,9 @@ export function installed({ compose = COMPOSE, config = CONFIG, files = {} } = {
 // A fake docker: records each call (arguments, environment), answers the few calls a run makes.
 // `resolved` is what `compose config` prints, with @PROJECT@ and @COPY@ filled in from the call.
 // `report` (unit 16a): what the test command leaves in the output folder as junit.xml: its text,
-// or { link } for a link to that path.
-export function fakeDocker({ resolved, execOut = 'ran\n', execCode = 0, execSleep = 0, ps = '', inspect = '[]', missingImage = null, upCode = 0, execPs = '', upPs = '', report = null } = {}) {
+// or { link } for a link to that path. `coverage` (unit 16b): { name, text } left in the output
+// folder's coverage/ (name may climb out through a link, for the tests that check that).
+export function fakeDocker({ resolved, execOut = 'ran\n', execCode = 0, execSleep = 0, ps = '', inspect = '[]', missingImage = null, upCode = 0, execPs = '', upPs = '', report = null, coverage = null } = {}) {
   const d = tempDir('docker');
   const socket = join(d, 'docker.sock');
   symlinkSync('/dev/null', socket);
@@ -72,6 +73,14 @@ export function fakeDocker({ resolved, execOut = 'ran\n', execCode = 0, execSlee
     ? '/bin/cp "$d/report.xml" "$(/usr/bin/dirname "$(/bin/cat "$d/copy.path")")/out/junit.xml"'
     : `/bin/ln -s '${report.link}' "$(/usr/bin/dirname "$(/bin/cat "$d/copy.path")")/out/junit.xml"`;
   if (typeof report === 'string') writeFileSync(join(d, 'report.xml'), report);
+  const out = '"$(/usr/bin/dirname "$(/bin/cat "$d/copy.path")")/out"';
+  let leaveCoverage = ':';
+  if (coverage) {
+    writeFileSync(join(d, 'coverage.data'), coverage.text ?? '');
+    leaveCoverage = coverage.swapDir
+      ? `/bin/rm -rf ${out}/coverage; /bin/ln -s '${coverage.swapDir}' ${out}/coverage`
+      : `/bin/mkdir -p ${out}/coverage; /bin/cp "$d/coverage.data" ${out}/coverage/'${coverage.name}'`;
+  }
   const client = join(d, 'docker');
   writeFileSync(client, `#!/bin/sh
 d='${d}'
@@ -90,8 +99,8 @@ case " $* " in
   *" version "*) echo 29.6.2 ;;
   *" config --format json "*) /usr/bin/sed -e "s|@PROJECT@|$p|g" -e "s|@COPY@|$c|g" "$d/resolved.json" ;;
   *" image inspect "*) case " $* " in *" ${missingImage ?? '@none@'} "*) exit 1 ;; *) echo sha256:0123 ;; esac ;;
-  *" exec "*) printf '%s' '${execPs}' > "$d/ps.out"; ${leave}; /bin/cat "$d/exec.out"; echo "to-stderr" >&2; /bin/sleep ${execSleep}; exit ${execCode} ;;
-  *" run -d "*) ${leave}; echo oneoff1 ;;
+  *" exec "*) printf '%s' '${execPs}' > "$d/ps.out"; ${leave}; ${leaveCoverage}; /bin/cat "$d/exec.out"; echo "to-stderr" >&2; /bin/sleep ${execSleep}; exit ${execCode} ;;
+  *" run -d "*) ${leave}; ${leaveCoverage}; echo oneoff1 ;;
   " wait "*) /bin/sleep ${execSleep}; echo ${execCode} ;;
   " logs oneoff1 ") /bin/cat "$d/exec.out"; echo "to-stderr" >&2 ;;
   *" up -d "*) printf '%s' '${upPs}' > "$d/ps.out"; [ ${upCode} -ne 0 ] && echo "container x-app-1 exited (1)" >&2; exit ${upCode} ;;

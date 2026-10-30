@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { copyFileSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 import { EXIT } from '../cli/exit-codes.js';
@@ -17,7 +17,8 @@ import { copyTree, removeCopy } from './copy.js';
 import { checkDockerRunning, dockerCall, dockerSetup, TestRunError } from './docker.js';
 import { gateRecheck } from './gate.js';
 import { serviceMounts, toServicePath } from './paths.js';
-import { readReportFile, REPORT_FILE, STORED_FAILING, testResults } from './results.js';
+import { COVERAGE_LIMITS, readCoverage } from './coverage.js';
+import { readOutFile, readReportFile, REPORT_FILE, STORED_FAILING, testResults } from './results.js';
 import { machineSlot, repoLock, waitFor, WAIT_MS } from './slots.js';
 
 // One test level or named check, run in the project's own containers (unit 14c; D-48, D-49):
@@ -40,6 +41,8 @@ import { machineSlot, repoLock, waitFor, WAIT_MS } from './slots.js';
 // named by its project path and passed as the service's own path for it (src/tests/paths.js).
 
 export const OUTPUT_TAIL_BYTES = 64 * 1024;
+// Coverage goes in this folder of the output folder (unit 16b).
+export const COVERAGE_DIR = 'coverage';
 export const DEFAULT_TIMEOUT_MINUTES = 15;
 export const DEFAULT_OUTPUT = '/mirai/out';
 export const KEEP_TEST_RUNS = 20;
@@ -201,7 +204,7 @@ function pruneRuns(testsDir, keep) {
 
 // Codes that mean a check refused the run; anything else that stops a run is an environment
 // fault, never a failing test.
-const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch', 'bad-path', 'gate-branch', 'gate-dirty', 'repo-changed', 'no-adapter', 'unknown-adapter', 'bad-adapter']);
+const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch', 'bad-path', 'gate-branch', 'gate-dirty', 'repo-changed', 'no-adapter', 'unknown-adapter', 'bad-adapter', 'no-coverage']);
 
 // Runs one level or check. For tests and probes: `docker` ({ client, plugins, socket }) instead
 // of Docker Desktop's, and `minuteMs` to shorten the timeout. Unit 14d:
@@ -217,8 +220,9 @@ const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'cop
 //   it first (gateCheck); it's checked again right after the copy and before signing, and only
 //   a run that ended in pass, fail or timeout is signed;
 // - `launchId`: the launch an agent's run came from, stored in the result;
-// - `test` (unit 16a): one test ID, `<path>::<name>`, instead of `path`; a level with an adapter only.
-export async function runTest({ cwd, env, name, path = null, test = null, now = () => new Date(), docker = {}, call = dockerCall, minuteMs = 60_000,
+// - `test` (unit 16a): one test ID, `<path>::<name>`, instead of `path`; a level with an adapter only;
+// - `coverage` (unit 16b): ask the runner for line coverage too; an adapter with [coverage] only.
+export async function runTest({ cwd, env, name, path = null, test = null, coverage = false, now = () => new Date(), docker = {}, call = dockerCall, minuteMs = 60_000,
   trust: givenTrust = null, by = 'you', signal, waitMs = WAIT_MS, onWait = () => {}, onTurn = () => {}, maxParallel = null, gate = null, launchId = null }) {
   const store = openStore({ cwd, env });
   const trust = givenTrust ?? snapshot({ cwd, env });
@@ -228,6 +232,7 @@ export async function runTest({ cwd, env, name, path = null, test = null, now = 
   const testId = test === null ? null : checkTestId(test);
   const testPath = path === null ? testId?.path ?? null : checkPathForm(path);
   const adapter = target.adapter ? findAdapter(trustedAdapters(trust), target.adapter) : null;
+  if (coverage && !adapter?.coverage) throw new TestRunError(`${name} can't be run with coverage: ${adapter ? `the ${target.adapter} adapter has no [coverage]` : 'it has no test adapter'}`, { code: 'no-coverage', exitCode: EXIT.USAGE, hint: 'run it without coverage, or give its adapter a [coverage] section (docs/test-adapters.md)' });
   if (testId && !adapter) throw new TestRunError(`${name} has no test adapter, so it can't run one test by its ID`, { code: 'no-adapter', exitCode: EXIT.USAGE, hint: 'name its runner in the level (adapter = "<name>", see docs/test-adapters.md), or pass the file as path' });
   const files = config.compose?.files ?? [];
   if (files.length === 0) throw new TestRunError('this project has no [compose] files', { code: 'no-compose', hint: 'name its compose file in .mirai/config.toml: [compose] files = ["docker-compose.yml"]' });
@@ -270,7 +275,7 @@ export async function runTest({ cwd, env, name, path = null, test = null, now = 
     onTurn();
     await sweepStale(setup, call, store.repoId);
     pruneRuns(testsDir, KEEP_TEST_RUNS - 1);
-    return await runLocked({ store, trust, config, target, name, path: testPath, testName: testId?.name ?? null, adapter, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId });
+    return await runLocked({ store, trust, config, target, name, path: testPath, testName: testId?.name ?? null, adapter, coverage, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId });
   } finally {
     slot?.release();
     lock.release();
@@ -280,12 +285,14 @@ export async function runTest({ cwd, env, name, path = null, test = null, now = 
 // The signature's context for a test result: what it's for, and the repo.
 export const resultContext = (repoId) => `mirai/test-result/1:${repoId}`;
 
-async function runLocked({ store, trust, config, target, name, path, testName, adapter, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId }) {
+async function runLocked({ store, trust, config, target, name, path, testName, adapter, coverage, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId }) {
   const id = testRunId(now());
   const dir = join(testsDir, id);
   ensurePrivateDir(dir);
   const outDir = join(dir, 'out');
   ensurePrivateDir(outDir);
+  // The runner's coverage folder, made here so every runner finds it.
+  if (coverage) ensurePrivateDir(join(outDir, COVERAGE_DIR));
   const copyDir = join(dir, 'tree');
   const bindsDir = join(dir, 'binds');
   const project = `mirai-${store.repoId.slice(0, 12).toLowerCase().replace(/[^a-z0-9]/g, '')}-${id}`;
@@ -294,7 +301,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
   const clean = (text) => redact(text, { token: readToken(env), secrets });
   const result = {
     schema_version: 1, id, name, kind: target.kind, service: target.service, command: target.command, path, ...(testName !== null ? { test: `${path}::${testName}` } : {}),
-    ...(adapter ? { adapter: target.adapter } : {}), project, docker: dockerVersion,
+    ...(adapter ? { adapter: target.adapter } : {}), ...(coverage ? { with_coverage: true } : {}), project, docker: dockerVersion,
     started_at: now().toISOString(), base_sha: trust.baseSha, trust_manifest_sha256: trust.manifestSha256 ?? null, by,
     ...(launchId ? { launch_id: launchId } : {}),
   };
@@ -317,6 +324,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
   let error = null;
   let readMounts = null;
   let reportBase = null;
+  let serviceDirOf = null;
   try {
     const copied = copyTree({ root: store.checkout, env, dest: copyDir, keep });
     const copyReal = realpathSync(copyDir);
@@ -357,6 +365,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
     if (testName !== null && !lstatSync(join(copyReal, path)).isFile()) throw new TestRunError(`${path} is a folder; a test ID names a file`, { code: 'bad-path', hint: 'pass the folder as path, or <file>::<test name>' });
     const serviceDir = target.workdir ?? service.working_dir ?? workdirs[service.image] ?? null;
     reportBase = target.reportRoot ? toServicePath(mounts, target.reportRoot, target.service) : serviceDir;
+    serviceDirOf = serviceDir;
     readMounts = mounts;
     const check = (isolated) => checkAllowlist(tightened, { project, copy: copyReal, out: outReal, imageOk: (ref) => Boolean(images[ref]), allow: config.compose.allow ?? [], isolated });
     check([]);
@@ -385,7 +394,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
     // service's own.
     const output = config.compose.output ?? DEFAULT_OUTPUT;
     const extra = adapter
-      ? adapterRun(adapter, { report: `${output.replace(/\/+$/, '')}/${REPORT_FILE}`, select: servicePath === null ? null : testName === null ? { path: servicePath } : { path: servicePath, name: testName } })
+      ? adapterRun(adapter, { report: `${output.replace(/\/+$/, '')}/${REPORT_FILE}`, select: servicePath === null ? null : testName === null ? { path: servicePath } : { path: servicePath, name: testName }, coverage: coverage ? `${output.replace(/\/+$/, '')}/${COVERAGE_DIR}` : null })
       : { args: servicePath ? ['--', servicePath] : [], env: {} };
     const cmd = [...target.command, ...extra.args];
     // What MIRAI added to the level's command, kept with the result.
@@ -434,6 +443,9 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
     result.outcome = run.timedOut ? 'timeout' : run.status === 0 ? 'pass' : 'fail';
     result.output = { tail: t.text, truncated: t.truncated };
     if (adapter && !run.timedOut) {
+      // The containers go before their files are read, so none can swap a folder of the output
+      // folder for a link while MIRAI reads it (unit 16b).
+      if ((await cleanup(setup, call, base, project)).length) throw new TestRunError(`the test project ${project} can't be cleared`, { code: 'cleanup-failed' });
       const file = readReportFile(outDir);
       const r = testResults({ adapter, report: file, exitCode: run.status, output: t.text, mounts: readMounts, base: reportBase, asked: path === null ? null : testName === null ? { path } : { path, name: testName }, clean });
       // Every case in scope goes to cases.json beside the result, which holds its hash (and the
@@ -451,6 +463,29 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
       // have left a report and didn't is an environment fault, whatever its exit code (P5).
       if (r.load || r.not_found || r.tests.failed + r.tests.errors > 0) result.outcome = 'fail';
       else if (r.report !== 'ok') throw new TestRunError(`${name} left ${r.report === 'missing' ? 'no report' : `a report MIRAI can't read (${r.report_problem})`}, so its result can't be trusted`, { code: 'bad-report', hint: `the ${target.adapter} adapter asks the runner for ${REPORT_FILE} in the output folder; check the level's command passes its options on` });
+      // Coverage (unit 16b), once the outcome is known: coverage.json beside the result, its hash
+      // and the raw file's in it, and a summary. None, or a file MIRAI can't read, is an
+      // environment fault on a run that would pass; a failing run records it and stays failing,
+      // and a run whose tests didn't load has nothing to measure.
+      if (coverage && !r.failing.some((f) => f.kind === 'load')) {
+        const covFile = readOutFile(outDir, `${COVERAGE_DIR}/${adapter.coverage.file}`, COVERAGE_LIMITS.bytes, 'the coverage file');
+        const exists = (p) => existsSync(join(copyReal, p));
+        const cov = covFile.bytes ? readCoverage(adapter.coverage.format, covFile.bytes, { mounts: readMounts, base: serviceDirOf, exists }) : { coverage: covFile.missing ? 'missing' : 'malformed', reason: covFile.malformed };
+        if (cov.coverage !== 'ok') {
+          result.coverage = { state: cov.coverage, ...(cov.reason ? { problem: clean(cov.reason).slice(0, 300) } : {}) };
+          // A failing run stays a failing run (its own code may have broken the coverage); only a
+          // run that would pass is an environment fault without it.
+          if (result.outcome === 'pass') throw new TestRunError(`${name} left ${cov.coverage === 'missing' ? 'no coverage file' : `a coverage file MIRAI can't read (${clean(cov.reason)})`}`, { code: 'bad-coverage', hint: `the ${target.adapter} adapter asks the runner for ${adapter.coverage.format} coverage; check its coverage driver is in the image` });
+        } else {
+          const covText = `${JSON.stringify({ schema_version: 1, files: cov.files, unmapped: cov.unmapped })}\n`;
+          writeFileSync(join(dir, 'coverage.json'), covText, { mode: 0o600, flag: 'wx' });
+          const all = Object.values(cov.files).flatMap((f) => Object.values(f));
+          result.coverage = {
+            state: 'ok', format: adapter.coverage.format, files: Object.keys(cov.files).length, lines: all.length, covered: all.filter((h) => h > 0).length, unmapped: cov.unmapped,
+            sha256: createHash('sha256').update(covText).digest('hex'), file_sha256: createHash('sha256').update(covFile.bytes).digest('hex'),
+          };
+        }
+      }
     }
   } catch (err) {
     error = err;

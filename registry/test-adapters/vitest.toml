@@ -30,3 +30,11 @@ assertion_types = ['^AssertionError$']
 assertion_messages = ['^expect\(']
 # A file that doesn't load (a missing import, a syntax error) is one case named after the file.
 file_cases_are_load = true
+
+[coverage]
+# lcov, with @vitest/coverage-v8 (or -istanbul) installed. The reporter given here replaces the
+# config's; lcov's reporter also writes an HTML report beside the file. Without reportOnFailure,
+# a run with a failing test writes no coverage.
+format = "lcov"
+args = ["--coverage.enabled", "--coverage.reporter=lcov", "--coverage.reportsDirectory={coverage_dir}", "--coverage.reportOnFailure"]
+file = "lcov.info"

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { StoreError } from '../cli/errors.js';
@@ -8,6 +8,7 @@ import { globalConfigPath, personalRepoConfigAllow } from '../config/load.js';
 import { DIFF_FLAGS, excludesFor, pinArgs, pinEnv } from './git-pins.js';
 import { checkConfig, checkLfs, checkNested, checkShape, configSignature, gitFileError, parseConfigList } from './repo-check.js';
 import { checkGuards } from './repo-state.js';
+import { parseDiff } from '../tests/diff.js';
 
 // The git calls MIRAI makes on your machine. Since unit 14b every one is pinned (D-54;
 // src/store/git-pins.js, probed in unit 14a): `/usr/bin/git` only, never a shell, the repo
@@ -319,6 +320,59 @@ export function changedNames(root, from, to, env) {
 }
 
 const nulList = (bytes) => bytes.toString('utf8').split('\0').filter(Boolean);
+
+// The lines a change touched (unit 16b), for diff coverage: `git diff -U0` from a commit to a
+// commit or to the work tree, with DIFF_ARGS' pins, the default prefixes and a fixed algorithm
+// whatever the repo's config says, read by src/tests/diff.js. With the work tree, an untracked
+// file git doesn't ignore is wholly added (a binary one has no lines). Renames are off, so a moved
+// file is wholly added (a known limit for units 26 and 54). Returns parseDiff's { files }.
+const UNIFIED_ARGS = ['diff', '-U0', '--no-renames', ...DIFF_FLAGS, '--ignore-submodules=none', '--src-prefix=a/', '--dst-prefix=b/', '--diff-algorithm=myers', '--no-relative'];
+export const UNTRACKED_MAX_BYTES = 4 * 1024 * 1024;
+export function changedLines(root, from, to, env) {
+  // With the work tree, a nested repo is refused before the diff looks into it (as changedNames).
+  let untracked = [];
+  if (!to) {
+    const u = git(root, ['ls-files', '-z', '--others', '--exclude-standard'], env, { raw: true, maxBuffer: 16 * MAX_OUTPUT });
+    if (!u.ok) throw new StoreError('git ls-files failed', { code: 'git-failed' });
+    untracked = nulList(u.out);
+    checkNested(stageOf(root, ['.'], env), untracked);
+  }
+  const r = git(root, [...UNIFIED_ARGS, from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 64 * MAX_OUTPUT, timeout: 120_000 });
+  if (!r.ok) throw new StoreError(`git diff ${from}${to ? `..${to}` : ''} failed`, { code: 'git-failed' });
+  const { files } = parseDiff(r.out);
+  for (const path of untracked) files.push(untrackedFile(root, path));
+  return { files };
+}
+
+// An untracked file as a diff would show it: every line added. Read without following a link
+// (a link is one line, its target, as git would store it), and never opened as anything but a
+// regular file. Larger than UNTRACKED_MAX_BYTES: `too_large`, its lines not counted.
+function untrackedFile(root, path) {
+  const abs = join(root, path);
+  const file = { path, status: 'added', added: [], removed: [], binary: false };
+  if (lstatSync(abs).isSymbolicLink()) return { ...file, added: [1] };
+  let fd;
+  try {
+    fd = openSync(abs, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  } catch {
+    return file;
+  }
+  let bytes;
+  try {
+    const info = fstatSync(fd);
+    if (!info.isFile()) return file;
+    if (info.size > UNTRACKED_MAX_BYTES) return { ...file, too_large: true };
+    bytes = Buffer.alloc(info.size);
+    readSync(fd, bytes, 0, info.size, 0);
+  } finally {
+    closeSync(fd);
+  }
+  // Git's own test: a NUL in the first 8,000 bytes.
+  if (bytes.subarray(0, 8000).includes(0)) return { ...file, binary: true };
+  const text = bytes.toString('utf8');
+  const count = text === '' ? 0 : text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+  return { ...file, added: Array.from({ length: count }, (_, i) => i + 1) };
+}
 
 // The work tree's files that git ignores (unit 12): ignored folders come as one entry ending in
 // "/", not their contents.

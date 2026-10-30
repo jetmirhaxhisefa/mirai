@@ -90,11 +90,19 @@ test('16a T3: argv from an adapter: one element per template, placeholders fille
   const one = adapterRun(a, { report: '/o/j.xml', select: { path: '/w/t/A.php', name: 'test_data with data set "x y" $(id)' } }).args;
   assert.deepEqual(one, ['--log-junit', '/o/j.xml', '--filter', '/::test_data with data set "x y" \\$\\(id\\)(?: with data set .*)?$/', '/w/t/A.php']);
   // Playwright: a file or a folder, anchored at the end or a "/"; the twin a.spec.tsx stays out.
-  const [pw] = adapterRun(core.playwright, { report: '/o/j.xml', select: { path: '/e2e/tests/a.spec.ts' } }).args;
+  const pw = adapterRun(core.playwright, { report: '/o/j.xml', select: { path: '/e2e/tests/a.spec.ts' } }).args.at(-1);
   const re = new RegExp(pw, 'gi');
   assert.ok(re.test('/e2e/tests/a.spec.ts') && !new RegExp(pw, 'gi').test('/e2e/tests/a.spec.tsx'));
-  const [dir] = adapterRun(core.playwright, { report: '/o/j.xml', select: { path: '/e2e/tests' } }).args;
+  const dir = adapterRun(core.playwright, { report: '/o/j.xml', select: { path: '/e2e/tests' } }).args.at(-1);
   assert.ok(new RegExp(dir, 'gi').test('/e2e/tests/a.spec.ts') && !new RegExp(dir, 'gi').test('/e2e/testsx/a.spec.ts'));
+  // Coverage (unit 16b): every placeholder filled, none left as text.
+  for (const a of [core.phpunit, core.vitest]) {
+    const { args } = adapterRun(a, { report: '/o/j.xml', coverage: '/o/coverage' });
+    assert.ok(args.every((x) => !/[{}]/.test(x)), args.join(' '));
+  }
+  assert.ok(adapterRun(core.vitest, { report: '/o/j.xml', coverage: '/o/coverage' }).args.includes('--coverage.reportsDirectory=/o/coverage'));
+  assert.deepEqual(adapterRun(core.phpunit, { report: '/o/j.xml', coverage: '/o/coverage' }).args.slice(-2), ['--coverage-cobertura', '/o/coverage/cobertura.xml']);
+  assert.deepEqual(adapterRun(core.playwright, { report: '/o/j.xml' }).args, ['--reporter=list,junit']);
   // Playwright's report file comes from an environment variable.
   assert.deepEqual(adapterRun(core.playwright, { report: '/o/j.xml' }).env, { PLAYWRIGHT_JUNIT_OUTPUT_FILE: '/o/j.xml' });
   // A nested name: the report's separator becomes the filter's join.
@@ -145,5 +153,5 @@ test('16a T8: the adapter probes stay local: the sample app\'s images only, neve
   assert.match(src, /add --yes to run/);
   // Every scenario runs a level of the clone; every probe file is under the app's own folders.
   for (const s of scenarios()) assert.ok(s.level || s.mirai || s.command, s.id);
-  for (const p of [...Object.keys(FILES), ...Object.keys(BROKEN)]) assert.match(p, /^(backend\/tests|frontend\/src|e2e\/tests)\//);
+  for (const p of [...Object.keys(FILES), ...Object.keys(BROKEN)]) assert.match(p, /^(?:(?:backend\/tests|frontend\/src|e2e\/tests)\/|e2e\/playwright\.noreporter\.config\.ts$)/);
 });

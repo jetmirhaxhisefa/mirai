@@ -3,7 +3,7 @@ status: settled by test
 version: 1
 ---
 
-# 12 — Test runner facts, settled by probes (unit 16a)
+# 12 — Test runner facts, settled by probes (units 16a, 16b)
 
 **What this is:** the facts the shipped test adapters (`registry/test-adapters/`) are built on:
 - how each of the sample app's runners writes JUnit XML;
@@ -66,13 +66,39 @@ as is: `--path backend/tests/Unit` passed MIRAI's check, and PHPUnit answered `T
 "backend/tests/Unit" not found` (exit 2, which 14d reported as a failing test). Since 16a, MIRAI
 passes the service's absolute path, from the frozen compose file's mounts.
 
-**Not probed:**
-- **Playwright with a folder:** the adapter anchors the path at the end or a `/`
-  (`…/tests(?:/|$)`), read from Playwright's source, not run.
-- **Playwright without a junit reporter in the config:** the sample app's config lists one. As
-  read in Playwright's source, `PLAYWRIGHT_JUNIT_OUTPUT_FILE` only sets where that reporter
-  writes, so a config without it would leave no report (`bad-report`). The adapter's docs say
-  the config must list it.
+**Probed in unit 16b:**
+- **Playwright with a folder:** the anchored `…/tests(?:/|$)` ran every test under it (10
+  tests).
+- **Playwright without a junit reporter in the config:** `PLAYWRIGHT_JUNIT_OUTPUT_FILE` alone
+  wrote no report; the tests ran and the output folder stayed empty. So the adapter passes
+  `--reporter=list,junit` itself, which wins over the config's reporters. Through the adapter, a
+  config listing only `list` gave a full report (8 tests).
+
+## K1–K4: coverage (unit 16b)
+
+Also seen on 2026-10-29, on the same versions; pcov 1.0 in the `app` image, and
+`@vitest/coverage-v8` in the `frontend` image.
+
+| | PHPUnit | Vitest |
+|---|---|---|
+| **How it's asked for** (K1) | `--coverage-cobertura <file>`, passed on by artisan; pcov is the driver, the config's `<source>` the files | `--coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=<dir> --coverage.reportOnFailure`: the CLI reporter **replaces** the config's (no text summary); lcov also writes an HTML report beside `lcov.info` |
+| **The file** (K2) | Cobertura with `<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">`; one `<source>` (`/var/www/html/app`), `<class filename>` relative to it; each line in the class's `<lines>` and again in its `<methods>` | lcov; `SF:` relative to Vitest's root (`src/App.tsx`); `DA:<line>,<hits>`, plus `FN`/`FNDA`/`BRDA` records |
+| **Which lines** (K2) | lines that can run; a file with none (an abstract controller) is listed with no lines. The totals matched the file's own `lines-valid` (35) and `lines-covered` (31) | lines that can run |
+| **One file run** (K3) | every file of `<source>` is listed, most at 0 | every file of the config's `coverage.include` is listed, most at 0 |
+| **A failing run** (K4) | coverage written | **none, unless `--coverage.reportOnFailure`**: with it, a level with failing tests wrote coverage (6 files, 41 of 121 lines) |
+| **Doesn't load** (K4) | no coverage file (exit 255, an empty report) | no coverage file, seen **without** `reportOnFailure` (which blocks coverage on any failure), so not settled for the adapter's flags. MIRAI doesn't ask for coverage after a load failure either way |
+
+So:
+- a DOCTYPE naming an external DTD is normal in Cobertura. 16a's reader refused every DOCTYPE;
+  for Cobertura it now lets that one shape through (no internal subset), and never fetches the
+  DTD;
+- "no coverage" after a load failure is expected, so it's not `bad-coverage`;
+- Playwright's browser tests don't measure the app's code: its adapter has no coverage.
+
+**G7** (design/05): diff coverage can be produced inside the containers for the sample app's
+unit and frontend levels, which are the pilot's stacks. Its browser level gives none. Vitest's
+coverage was probed through the adapter; PHPUnit's with the adapter's arguments, but not through
+it, and `--against` not on the sample app: both once MIRAI is refreshed there.
 
 ## J3: not found, doesn't load
 

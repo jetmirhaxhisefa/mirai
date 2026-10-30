@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -18,6 +18,10 @@ import { DOCKER } from '../../src/tests/docker.js';
 // files). The sample app's own images only, never pulled; nothing is pushed anywhere; every
 // container, network and volume of a run is checked gone afterwards.
 //
+// Unit 16b, K1–K4: the k- scenarios ask PHPUnit and Vitest for coverage in the output folder; the
+// w- scenarios settle 16a's two open Playwright cases. Each run's whole output folder is kept in
+// the report folder (<id>-out/).
+//
 // The m- scenarios run the shipped adapters themselves (J2 through MIRAI): the clone's MIRAI is
 // refreshed from this checkout first (mirai init --refresh, committed in the clone), as you'd
 // refresh the sample app.
@@ -26,6 +30,8 @@ import { DOCKER } from '../../src/tests/docker.js';
 
 export const LOCAL_IMAGES = Object.freeze(['mirai-sample/app:dev', 'mirai-sample/frontend:dev', 'mirai-sample/e2e:dev', 'mysql:8.4', 'nginx:1.27-alpine']);
 const OUT = '/mirai/out/junit.xml';
+const COV_XML = '/mirai/out/coverage.xml';
+const VCOV = ['--coverage.enabled', '--coverage.reporter=lcov', '--coverage.reportsDirectory=/mirai/out/coverage'];
 
 // Probe-only test files: passing, failing (an assertion), erroring (a throw), skipped, names
 // that share a prefix or a suffix, names with regex characters, and nesting. The files that don't
@@ -80,6 +86,11 @@ test.describe('probe', () => {
 });
 test('top level', async () => {});
 `,
+  // A config without a junit reporter (w-noreporter), beside the sample app's own.
+  'e2e/playwright.noreporter.config.ts': `import { defineConfig } from '@playwright/test';
+
+export default defineConfig({ testDir: './tests', retries: 0, reporter: 'list' });
+`,
   'e2e/tests/probe-shapes.spec.tsx': `import { test } from '@playwright/test';
 
 test('tsx twin', async () => {});
@@ -110,6 +121,7 @@ class ProbeBrokenTest extends \\PHPUnit\\Framework\\TestCase
 const M = {
   unit: { mirai: 'unit-a', service: 'app', command: ['php', 'artisan', 'test'], adapter: 'phpunit' },
   front: { mirai: 'frontend-a', service: 'frontend', command: ['npm', 'test', '--'], adapter: 'vitest' },
+  e2eNr: { mirai: 'e2e-nr', service: 'playwright', run: 'oneoff', command: ['npx', 'playwright', 'test', '--config', 'playwright.noreporter.config.ts'], adapter: 'playwright', report_root: 'e2e/tests' },
   e2e: { mirai: 'e2e-a', service: 'playwright', run: 'oneoff', command: ['npx', 'playwright', 'test'], adapter: 'playwright', report_root: 'e2e/tests' },
 };
 
@@ -151,6 +163,16 @@ export function scenarios() {
     { id: 'm-e2e-file', j: 'J2', title: 'through the playwright adapter: one file, its .tsx twin not run', ...M.e2e, path: 'e2e/tests/probe-shapes.spec.ts' },
     { id: 'm-e2e-test', j: 'J2', title: 'through the playwright adapter: one test with regex characters by its ID', ...M.e2e, test: 'e2e/tests/probe-shapes.spec.ts::probe › regex (x)+ "q" [y]' },
     { id: 'm-e2e-level', j: 'J1', title: 'through the playwright adapter: the whole level (the smoke test, on a quiet machine)', ...M.e2e },
+    { id: 'k-php', j: 'K1', title: 'PHPUnit: Cobertura coverage of the whole level (pcov)', ...php('--coverage-cobertura', COV_XML) },
+    { id: 'k-php-file', j: 'K3', title: 'PHPUnit: coverage of a one-file run', ...php('--coverage-cobertura', COV_XML, 'tests/Unit/TaskRulesTest.php') },
+    { id: 'k-php-load', j: 'K4', title: 'PHPUnit: coverage when a file doesn\'t parse', broken: 'backend/tests/Unit/ProbeBrokenTest.php', ...php('--coverage-cobertura', COV_XML, 'tests/Unit/ProbeBrokenTest.php') },
+    { id: 'k-vitest', j: 'K1', title: 'Vitest: lcov coverage of the whole level (v8), with failing tests', ...vitest(...VCOV) },
+    { id: 'k-vitest-file', j: 'K3', title: 'Vitest: coverage of a one-file run', ...vitest(...VCOV, 'src/components/TaskList.test.tsx') },
+    { id: 'k-vitest-load', j: 'K4', title: 'Vitest: coverage when a file doesn\'t load', broken: 'frontend/src/probe-broken.test.ts', ...vitest(...VCOV, 'src/probe-broken.test.ts') },
+    { id: 'w-folder', j: 'J2', title: 'through the playwright adapter: a folder', ...M.e2e, path: 'e2e/tests' },
+    { id: 'm-front-coverage', j: 'K4', title: 'through the vitest adapter: coverage of the whole level, which has failing tests (reportOnFailure)', ...M.front, coverage: true },
+    { id: 'm-e2e-noreporter', j: 'J1', title: 'through the playwright adapter: a config without a junit reporter (the adapter\'s --reporter)', ...M.e2eNr, path: 'e2e/tests/probe-shapes.spec.ts' },
+    { id: 'w-noreporter', j: 'J1', title: 'Playwright: a config without a junit reporter, with the variable', ...pw('--config', 'playwright.noreporter.config.ts', 'tests/probe-shapes.spec.ts') },
   ];
 }
 
@@ -198,7 +220,7 @@ export async function runAdapterProbes({ app, workdir, only = null, keep = false
       let r = null;
       let error = null;
       try {
-        r = await runTest({ cwd: root, env, name: s.level ?? levelName(s), path: s.path ?? null, test: s.test ?? null, docker: { socket } });
+        r = await runTest({ cwd: root, env, name: s.level ?? levelName(s), path: s.path ?? null, test: s.test ?? null, coverage: s.coverage === true, docker: { socket } });
       } catch (err) {
         error = { code: err.code, message: err.message };
         r = err.result ?? null;
@@ -208,6 +230,7 @@ export async function runAdapterProbes({ app, workdir, only = null, keep = false
       const junitFile = r ? join(r.dir, 'out', 'junit.xml') : null;
       const junit = junitFile && existsSync(junitFile) ? readFileSync(junitFile, 'utf8') : null;
       if (junit !== null) writeFileSync(join(outDir, `${s.id}.junit.xml`), junit);
+      if (r && existsSync(join(r.dir, 'out'))) cpSync(join(r.dir, 'out'), join(outDir, `${s.id}-out`), { recursive: true });
       const leftovers = [
         ...['ps', 'network', 'volume'].flatMap((k) => docker(...(k === 'ps' ? ['ps', '-aq'] : [k, 'ls', '-q']), '--filter', 'label=mirai.repo').stdout.split(/\s+/).filter(Boolean)),
         ...(r ? ['network', 'volume'].flatMap((k) => docker(k, 'ls', '-q', '--filter', `name=${r.project}`).stdout.split(/\s+/).filter(Boolean)) : []),
@@ -216,7 +239,7 @@ export async function runAdapterProbes({ app, workdir, only = null, keep = false
         id: s.id, j: s.j, title: s.title, command: s.command ?? null, path: s.path ?? null,
         outcome: r?.outcome ?? null, exit_code: r?.exit_code ?? null, error, tail: r?.output?.tail.slice(-3000) ?? null,
         out_files: r?.out_files ?? [], junit_bytes: junit === null ? null : Buffer.byteLength(junit), leftovers,
-        ...(r?.report ? { report: r.report, tests: r.tests, failing: r.failing, failing_total: r.failing_total, test: r.test ?? null, added_args: r.added_args, added_env: r.added_env } : {}),
+        ...(r?.report ? { report: r.report, tests: r.tests, failing: r.failing, failing_total: r.failing_total, test: r.test ?? null, added_args: r.added_args, added_env: r.added_env, coverage: r.coverage ?? null } : {}),
       };
       report.results.push(res);
       writeFileSync(join(outDir, 'adapter-results.json'), `${JSON.stringify(report, null, 2)}\n`);

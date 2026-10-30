@@ -6,6 +6,10 @@
 // that aren't UTF-8, more than XML_LIMITS.depth levels, more than XML_LIMITS.bytes, more than
 // XML_LIMITS.elements elements, and anything not well formed. It reads the bytes it's given and
 // nothing else.
+//
+// `externalDoctype` (unit 16b, for Cobertura files, which may name the Cobertura DTD) lets one
+// DOCTYPE through that only names an external DTD (SYSTEM or PUBLIC, no internal subset): it can
+// declare nothing, and the DTD is never fetched, so an entity it would define is still refused.
 
 // Elements: four per test case at JUnit's case limit (src/tests/junit.js), so a hostile report is
 // refused before it costs much memory.
@@ -42,7 +46,9 @@ function decodeEntities(text, at) {
 // Parses `input` (a Buffer or string) into its root element: { name, attrs, children, text },
 // where `attrs` has no prototype (values with their newlines), `children` are elements only, and
 // `text` is the element's own text and CDATA, joined. Throws XmlError.
-export function parseXml(input, limits = XML_LIMITS) {
+const EXTERNAL_DOCTYPE = /<!DOCTYPE[ \t\r\n]+[A-Za-z_:][-A-Za-z0-9_:.]{0,63}[ \t\r\n]+(?:SYSTEM[ \t\r\n]+(?:"[^"<>]{0,500}"|'[^'<>]{0,500}')|PUBLIC[ \t\r\n]+(?:"[^"<>]{0,500}"|'[^'<>]{0,500}')[ \t\r\n]+(?:"[^"<>]{0,500}"|'[^'<>]{0,500}'))[ \t\r\n]*>/y;
+
+export function parseXml(input, limits = XML_LIMITS, { externalDoctype = false } = {}) {
   const bytes = typeof input === 'string' ? Buffer.byteLength(input) : input.length;
   if (bytes > limits.bytes) throw new XmlError(`the file is larger than ${limits.bytes} bytes`);
   let s;
@@ -112,6 +118,11 @@ export function parseXml(input, limits = XML_LIMITS) {
       i += 9;
       if (!stack.length) throw new XmlError('CDATA outside the root element', i);
       addText(until(']]>', 'a CDATA section'));
+    } else if (externalDoctype && !root && !stack.length && /^<!DOCTYPE/.test(s.slice(i, i + 9))) {
+      EXTERNAL_DOCTYPE.lastIndex = i;
+      if (!EXTERNAL_DOCTYPE.exec(s)) throw new XmlError('a DOCTYPE that does more than name an external DTD', i);
+      i = EXTERNAL_DOCTYPE.lastIndex;
+      externalDoctype = false;
     } else if (s.startsWith('<!', i)) {
       throw new XmlError(/^<!DOCTYPE/i.test(s.slice(i, i + 9)) ? 'a DOCTYPE, which test reports never need' : 'a markup declaration', i);
     } else if (s.startsWith('<?', i)) {

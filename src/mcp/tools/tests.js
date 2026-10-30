@@ -41,6 +41,7 @@ export function inlineResult(r) {
     [r.kind === 'check' ? 'check' : 'level']: r.name,
     path: r.path ?? null,
     ...(r.test ? { test: r.test } : {}),
+    ...(r.coverage ? { coverage: Object.fromEntries(Object.entries(r.coverage).filter(([k]) => ['state', 'problem', 'files', 'lines', 'covered', 'unmapped'].includes(k))) } : {}),
     ...(r.report ? { report: r.report, ...(r.report_problem ? { report_problem: r.report_problem } : {}), tests: r.tests, failing, failing_total: r.failing_total ?? 0 } : {}),
     output_tail: tailText,
     output_truncated: cut || Boolean(r.output?.truncated),
@@ -50,7 +51,7 @@ export function inlineResult(r) {
   };
 }
 
-async function execute({ name, path, test = null }, ctx) {
+async function execute({ name, path, test = null, coverage = false }, ctx) {
   const { policy, sameRepo, stop, clean, signal, note } = ctx;
   if (!sameRepo()) return stop('the repo\'s .git changed since the launch');
   let started = true;
@@ -58,7 +59,7 @@ async function execute({ name, path, test = null }, ctx) {
     let r;
     try {
       r = await (ctx.deps.runTest ?? runTest)({
-        cwd: policy.checkout, env: ctx.env, name, path, test, trust: ctx.trust, by: policy.kind === 'headless' ? 'agent' : 'session', signal, launchId: policy.launch_id ?? null,
+        cwd: policy.checkout, env: ctx.env, name, path, test, coverage, trust: ctx.trust, by: policy.kind === 'headless' ? 'agent' : 'session', signal, launchId: policy.launch_id ?? null,
         onWait: () => note(`waiting for another test run, then ${name}`),
         // The run's turn: .git is checked again before the executor's first git call.
         onTurn: () => {
@@ -79,7 +80,7 @@ async function execute({ name, path, test = null }, ctx) {
     if (err.code === 'repo-changed') return stop(err.message);
     // The after check holds for every way a run ends.
     if (started && !sameRepo()) return stop('the repo\'s .git changed during a test run');
-    const outcome = ['unknown-test', 'bad-path', 'no-adapter', 'unknown-adapter', 'bad-adapter'].includes(err.code) ? 'refused' : 'env-fault';
+    const outcome = ['unknown-test', 'bad-path', 'no-adapter', 'unknown-adapter', 'bad-adapter', 'no-coverage'].includes(err.code) ? 'refused' : 'env-fault';
     return { body: { outcome, code: err.code ?? 'error', message: clean(err.message), ...(err.hint ? { hint: clean(err.hint) } : {}) }, isError: true };
   }
 }
@@ -99,6 +100,7 @@ export const runTests = Object.freeze({
     properties: {
       level: { type: 'string', enum: [...policy.tools.run_tests.levels], description: 'the test level' },
       path: { type: 'string', maxLength: PATH_MAX, pattern: '^[A-Za-z0-9_][A-Za-z0-9_./@-]*$', description: 'optional: one file or folder, relative to the project\'s top' },
+      coverage: { type: 'boolean', description: 'optional: line coverage too (slower; levels whose adapter measures it). The reply has the summary' },
       test: { type: 'string', maxLength: TEST_ID_MAX, description: 'optional, instead of path: one test, as <file>::<test name> with the file relative to the project\'s top and the name as the failing list shows it' },
     },
     required: ['level'],
@@ -108,18 +110,20 @@ export const runTests = Object.freeze({
     const bad = named(args.level, policy.tools.run_tests.levels, 'test level');
     if (bad) return { refused: bad };
     if (args.path !== undefined && args.test !== undefined) return { refused: 'give path or test, not both' };
+    if (args.coverage !== undefined && typeof args.coverage !== 'boolean') return { refused: 'coverage must be true or false' };
+    const coverage = args.coverage === true ? { coverage: true } : {};
     if (args.test !== undefined) {
       try {
         checkTestId(args.test);
       } catch (err) {
         return { refused: err.message };
       }
-      return { args: { name: args.level, path: null, test: args.test } };
+      return { args: { name: args.level, path: null, test: args.test, ...coverage } };
     }
-    if (args.path === undefined) return { args: { name: args.level, path: null } };
+    if (args.path === undefined) return { args: { name: args.level, path: null, ...coverage } };
     if (typeof args.path !== 'string') return { refused: 'path must be a string' };
     try {
-      return { args: { name: args.level, path: checkPathForm(args.path) } };
+      return { args: { name: args.level, path: checkPathForm(args.path), ...coverage } };
     } catch (err) {
       return { refused: err.message };
     }

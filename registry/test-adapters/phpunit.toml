@@ -27,3 +27,10 @@ test = ["--filter", '/::{name:regex}(?: with data set .*)?$/', "{path}"]
 load_output = ['^An error occurred inside PHPUnit\.$']
 # A failure's text starts with "Class::method".
 message_skip = ['^[A-Za-z_\\][A-Za-z0-9_\\]*::[A-Za-z0-9_]']
+
+[coverage]
+# Cobertura, with a coverage driver in the image (pcov or Xdebug) and a <source> in the config.
+# The file names the Cobertura DTD in a DOCTYPE, which MIRAI lets through and never fetches.
+format = "cobertura"
+args = ["--coverage-cobertura", "{coverage}"]
+file = "cobertura.xml"

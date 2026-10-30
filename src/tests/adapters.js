@@ -44,7 +44,7 @@ export function filterName(adapter, name) {
 }
 
 function fill(template, values) {
-  return template.replace(/\{([a-z:]+)\}/g, (whole, key) => {
+  return template.replace(/\{([a-z_:]+)\}/g, (whole, key) => {
     if (!Object.hasOwn(values, key)) throw new Error(`no value for {${key}}`);
     return values[key];
   });
@@ -52,16 +52,18 @@ function fill(template, values) {
 
 // The arguments (appended to the level's command) and environment variables for one run:
 // `report` is the service's path for the report file; `select` is null (the whole level),
-// { path } (a file or folder, the service's path) or { path, name } (one test).
-export function adapterRun(adapter, { report, select = null }) {
+// { path } (a file or folder, the service's path) or { path, name } (one test); `coverage` (unit
+// 16b) is null or the service's path for the coverage folder.
+export function adapterRun(adapter, { report, select = null, coverage = null }) {
   const values = { report };
+  if (coverage !== null) Object.assign(values, { coverage_dir: coverage, coverage: `${coverage}/${adapter.coverage.file}` });
   if (select) Object.assign(values, { path: select.path, 'path:regex': regexEscape(select.path) });
   if (select?.name !== undefined) {
     const n = filterName(adapter, select.name);
     Object.assign(values, { name: n, 'name:regex': regexEscape(n) });
   }
-  const args = (adapter.report.args ?? []).map((t) => fill(t, values));
+  const args = [...(adapter.report.args ?? []), ...(coverage !== null ? adapter.coverage.args ?? [] : [])].map((t) => fill(t, values));
   if (select) args.push(...(select.name === undefined ? adapter.select.file : adapter.select.test).map((t) => fill(t, values)));
-  const env = Object.fromEntries(Object.entries(adapter.report.env ?? {}).map(([k, t]) => [k, fill(t, values)]));
+  const env = Object.fromEntries(Object.entries({ ...adapter.report.env, ...(coverage !== null ? adapter.coverage.env : {}) }).map(([k, t]) => [k, fill(t, values)]));
   return { args, env };
 }

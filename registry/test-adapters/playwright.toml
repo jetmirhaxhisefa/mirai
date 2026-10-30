@@ -1,16 +1,17 @@
 # Playwright Test (unit 16a; seen on 1.64, probes J1–J4 in research/12). Opt-in per level:
 # adapter = "playwright", and report_root = the config's testDir as a project path (such as
-# "e2e/tests"): the report names files relative to it. The project's config must list the junit
-# reporter (reporter: [..., ['junit']]): the variable below only says where it writes.
+# "e2e/tests"): the report names files relative to it.
 kind = "test-adapter"
 schema_version = 1
 name = "playwright"
-description = "Playwright Test (seen on 1.64); its config lists the junit reporter; the level's report_root is its testDir"
+description = "Playwright Test (seen on 1.64); the level's report_root is its testDir"
 
 [report]
 format = "junit"
-# The environment variable wins over the junit reporter's outputFile in the config, and leaves
-# the config's other reporters as they are.
+# The reporters are MIRAI's in its runs, whatever the config lists (a config without junit writes
+# no report: research/12): list for the output, junit for the report, whose file the variable
+# sets. The config's other reporters (html, …) don't run in MIRAI's runs.
+args = ["--reporter=list,junit"]
 env = { PLAYWRIGHT_JUNIT_OUTPUT_FILE = "{report}" }
 # Each <testcase> has the file, relative to testDir, as its classname, and its describe blocks
 # and title joined with " › ".

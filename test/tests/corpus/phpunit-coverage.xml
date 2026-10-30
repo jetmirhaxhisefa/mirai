@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">
+<coverage line-rate="0.88571428571429" branch-rate="0" lines-covered="31" lines-valid="35" branches-covered="0" branches-valid="0" complexity="17" version="0.4" timestamp="1793307106">
+  <sources>
+    <source>/var/www/html/app</source>
+  </sources>
+  <packages>
+    <package name="Http/Controllers/AuthController.php" line-rate="0.69230769230769" branch-rate="0" complexity="4">
+      <classes>
+        <class name="App\Http\Controllers\AuthController" filename="Http/Controllers/AuthController.php" line-rate="0.69230769230769" branch-rate="0" complexity="4">
+          <methods>
+            <method name="login" signature="Request $request" line-rate="1" branch-rate="0" complexity="2">
+              <lines>
+                <line number="14" hits="2"/>
+                <line number="15" hits="2"/>
+                <line number="16" hits="2"/>
+                <line number="17" hits="2"/>
+                <line number="19" hits="2"/>
+                <line number="20" hits="1"/>
+                <line number="23" hits="1"/>
+                <line number="25" hits="1"/>
+              </lines>
+            </method>
+            <method name="logout" signature="Request $request" line-rate="0" branch-rate="0" complexity="1">
+              <lines>
+                <line number="30" hits="0"/>
+                <line number="31" hits="0"/>
+                <line number="32" hits="0"/>
+                <line number="34" hits="0"/>
+              </lines>
+            </method>
+            <method name="user" signature="Request $request" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="39" hits="1"/>
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="14" hits="2"/>
+            <line number="15" hits="2"/>
+            <line number="16" hits="2"/>
+            <line number="17" hits="2"/>
+            <line number="19" hits="2"/>
+            <line number="20" hits="1"/>
+            <line number="23" hits="1"/>
+            <line number="25" hits="1"/>
+            <line number="30" hits="0"/>
+            <line number="31" hits="0"/>
+            <line number="32" hits="0"/>
+            <line number="34" hits="0"/>
+            <line number="39" hits="1"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Http/Controllers/Controller.php" line-rate="0" branch-rate="0" complexity="0">
+      <classes>
+        <class name="App\Http\Controllers\Controller" filename="Http/Controllers/Controller.php" line-rate="0" branch-rate="0" complexity="0">
+          <methods/>
+          <lines/>
+        </class>
+      </classes>
+    </package>
+    <package name="Http/Controllers/TaskController.php" line-rate="1" branch-rate="0" complexity="3">
+      <classes>
+        <class name="App\Http\Controllers\TaskController" filename="Http/Controllers/TaskController.php" line-rate="1" branch-rate="0" complexity="3">
+          <methods>
+            <method name="index" signature="Request $request" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="15" hits="1"/>
+              </lines>
+            </method>
+            <method name="store" signature="StoreTaskRequest $request" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="20" hits="2"/>
+                <line number="22" hits="2"/>
+              </lines>
+            </method>
+            <method name="complete" signature="Task $task" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="27" hits="2"/>
+                <line number="28" hits="1"/>
+                <line number="30" hits="1"/>
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="15" hits="1"/>
+            <line number="20" hits="2"/>
+            <line number="22" hits="2"/>
+            <line number="27" hits="2"/>
+            <line number="28" hits="1"/>
+            <line number="30" hits="1"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Http/Requests/StoreTaskRequest.php" line-rate="1" branch-rate="0" complexity="2">
+      <classes>
+        <class name="App\Http\Requests\StoreTaskRequest" filename="Http/Requests/StoreTaskRequest.php" line-rate="1" branch-rate="0" complexity="2">
+          <methods>
+            <method name="authorize" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="12" hits="4"/>
+              </lines>
+            </method>
+            <method name="rules" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="20" hits="6"/>
+                <line number="21" hits="6"/>
+                <line number="22" hits="6"/>
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="12" hits="4"/>
+            <line number="20" hits="6"/>
+            <line number="21" hits="6"/>
+            <line number="22" hits="6"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Models/Task.php" line-rate="1" branch-rate="0" complexity="3">
+      <classes>
+        <class name="App\Models\Task" filename="Models/Task.php" line-rate="1" branch-rate="0" complexity="3">
+          <methods>
+            <method name="casts" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="24" hits="6"/>
+              </lines>
+            </method>
+            <method name="user" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="32" hits="2"/>
+              </lines>
+            </method>
+            <method name="markDone" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="37" hits="1"/>
+                <line number="38" hits="1"/>
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="24" hits="6"/>
+            <line number="32" hits="2"/>
+            <line number="37" hits="1"/>
+            <line number="38" hits="1"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Models/User.php" line-rate="1" branch-rate="0" complexity="2">
+      <classes>
+        <class name="App\Models\User" filename="Models/User.php" line-rate="1" branch-rate="0" complexity="2">
+          <methods>
+            <method name="tasks" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="27" hits="3"/>
+              </lines>
+            </method>
+            <method name="casts" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="37" hits="9"/>
+                <line number="38" hits="9"/>
+                <line number="39" hits="9"/>
+                <line number="40" hits="9"/>
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="27" hits="3"/>
+            <line number="37" hits="9"/>
+            <line number="38" hits="9"/>
+            <line number="39" hits="9"/>
+            <line number="40" hits="9"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Policies/TaskPolicy.php" line-rate="1" branch-rate="0" complexity="1">
+      <classes>
+        <class name="App\Policies\TaskPolicy" filename="Policies/TaskPolicy.php" line-rate="1" branch-rate="0" complexity="1">
+          <methods>
+            <method name="update" signature="User $user, Task $task" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="12" hits="2"/>
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="12" hits="2"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Providers/AppServiceProvider.php" line-rate="1" branch-rate="0" complexity="2">
+      <classes>
+        <class name="App\Providers\AppServiceProvider" filename="Providers/AppServiceProvider.php" line-rate="1" branch-rate="0" complexity="2">
+          <methods>
+            <method name="register" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="15" hits="14"/>
+              </lines>
+            </method>
+            <method name="boot" signature="" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="23" hits="14"/>
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="15" hits="14"/>
+            <line number="23" hits="14"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>
