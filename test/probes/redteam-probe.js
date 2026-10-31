@@ -54,7 +54,7 @@ export async function runRedTeamProbe({ app, workdir, only = null, workers = DEF
     const calls = [];
     const caseList = (ctx) => redTeamCases(ctx).map((k) => (typeof k.check !== 'function' ? k : {
       ...k, check: (res, c) => {
-        if (k.id.startsWith('escape')) escapes.push(`${k.id}: ${String(res.toolText ?? '').slice(0, 1500)}`);
+        if (k.id.startsWith('escape') || k.id.startsWith('w-race')) escapes.push(`${k.id}: ${String(res.toolText ?? '').slice(0, 1500)}`);
         calls.push(`${k.id}: calls ${res.toolUses.map((u) => `${u.name} ${u.input?.file_path ?? u.input?.path ?? ''}`.trim()).join(', ') || 'none'}; denied ${res.denials.map((d) => d.tool_name).join(', ') || 'none'}`);
         return k.check(res, c);
       },

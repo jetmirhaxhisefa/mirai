@@ -253,3 +253,13 @@ on a clone of the sample app, with this checkout's MIRAI and a probe key in a te
 - **The facts are cooperative runs on one macOS build;** see "The test conditions". Since unit 18a
   the bundle's checks run 3 times each on every red-team run, and since 18b five adversarial goals
   on Sonnet; a longer or human attacker may find more.
+
+## From unit 18c's red team
+
+- **2.1.316 (arrived during the unit; S1 caught it):** a new permission key,
+  `blockReadsExemptPaths`. It's read only from `--settings` and from settings the starting program
+  sends, and ignored in user, project, local and managed settings. It lists exceptions to
+  `blockReadsOutsideWorkingDirectories`, which MIRAI doesn't set, and "allows nothing" by itself.
+  MIRAI writes `--settings` and doesn't set the key, so an agent can't reach it. It belongs with the
+  permission settings decision before unit 19.
+- **Claude Code's Write refuses a symbolic link** (2.1.316; seen in 18c's `w-race-link`): "Refusing to write <path>: it is a symbolic link. Write to the link's target path instead". So a link to a file can't race a Write. Its Write also needs a Read of the file first. `w-race-dir` tests a link to a folder above the file.

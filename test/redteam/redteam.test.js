@@ -142,7 +142,7 @@ test('18a T1: mirai redteam: run needs a real terminal; status and show; usage e
 });
 
 test('18a T2: the key: canonical, every part changes it; the binary hash cached by size and time; claude resolved', async () => {
-  const parts = { claude_code: { version: '2.1.314', sha256: 'a'.repeat(64) }, bundles: { 'read-write': 'b'.repeat(64) }, framework: 'c'.repeat(64), docker: '29.6.2', git: 'git version 2.39.5', macos: '25G229', node: 'v22.23.2', project_rules: 'd'.repeat(64), host_controls: ['keychain', 'ssh'] };
+  const parts = { claude_code: { version: '2.1.314', sha256: 'a'.repeat(64) }, bundles: { 'read-write': 'b'.repeat(64) }, framework: 'c'.repeat(64), docker: '29.6.2', git: 'git version 2.39.5', macos: '25G229', node: 'v22.23.2', project_rules: 'd'.repeat(64), host_controls: ['keychain', 'ssh'], compose: 'f'.repeat(64) };
   assert.deepEqual(KEY_PARTS, Object.keys(parts));
   assert.equal(keyOf(parts), keyOf(JSON.parse(JSON.stringify({ node: parts.node, ...parts }))));
   assert.equal(canonical({ b: 1, a: [2, { d: 3, c: 4 }] }), '{"a":[2,{"c":4,"d":3}],"b":1}');
@@ -363,7 +363,7 @@ test('18a T6: the cases: ids unique, each complete; 13b\'s and 13c\'s ids all he
   const cases = redTeamCases(seen);
   for (const k of cases) {
     // A direct case has `run` instead of a check; a case naming the launch's folders has actionFor.
-    assert.ok(k.id && k.fact && k.title && k.evidence && Array.isArray(k.templates) && k.templates.length && (typeof k.check === 'function' || (k.kind === 'direct' && typeof k.run === 'function')) && (k.action?.tool || typeof k.actionFor === 'function'), k.id);
+    assert.ok(k.id && k.fact && k.title && k.evidence && Array.isArray(k.templates) && k.templates.length && (typeof k.check === 'function' || (['direct', 'container', 'probe'].includes(k.kind) && typeof k.run === 'function')) && (k.action?.tool || typeof k.actionFor === 'function'), k.id);
     guardProbe(k, seen);
   }
   assert.throws(() => guardProbe({ id: 'x', action: { tool: 'Bash', command: 'cat /etc/passwd' } }, seen), /outside the fixture/);

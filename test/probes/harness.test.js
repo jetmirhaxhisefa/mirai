@@ -10,10 +10,10 @@ import { buildFixture, checkWorkdir, removeFixture } from './fixture.js';
 import { g18Check, guardProbe, probeList, strict } from './probes.js';
 import { tmp } from '../store/helpers.js';
 import { DIFF_FLAGS, pinArgs, pinEnv } from '../../src/store/git-pins.js';
-import { buildComposeFixture } from './compose-fixture.js';
-import { dockerProbes, gitProbes, guardDockerProbe, section, writeCompose } from './compose-probes.js';
-import { runDockerProbes } from './docker-probes.js';
-import { classify, MIRAI_STEPS, runGitProbes } from './git-probes.js';
+import { buildComposeFixture } from '../../src/redteam/probes/workspace.js';
+import { dockerProbes, gitProbes, guardDockerProbe, section, writeCompose } from '../../src/redteam/probes/compose-probes.js';
+import { runDockerProbes } from '../../src/redteam/probes/docker.js';
+import { classify, MIRAI_STEPS, runGitProbes } from '../../src/redteam/probes/git.js';
 
 // Unit 13a: the probe harness, checked with a fake `claude` (no subscription used). The real
 // runs are by hand: node test/probes/claude-probes.js --yes.

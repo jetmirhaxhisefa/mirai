@@ -800,13 +800,20 @@ So if your token leaks:
 - **MIRAI's git:** the repo check and the hash catch a hostile `.git` between two checks, not the
   moment it's written. Something other than an agent (your IDE, another tool) can still change
   `.git` between your commands; the next MIRAI command or check refuses it. The key lists were
-  probed on git 2.39.5 (Apple); a git update makes the red-team result stale, and unit 18c runs
-  the git probes again as part of it.
+  probed on git 2.39.5 (Apple); the red team runs those probes again every time (unit 18c).
+- **The check-then-use race:** MIRAI's hook checks a path, then Claude Code's file tool uses it, and the
+  file tools run outside the sandbox. A link swapped between the two could in principle land. The red
+  team tries it each run (unit 18c) and hasn't won, in a few dozen tries on this machine. That's evidence
+  the window is hard to hit, not proof it can't be.
+- **Test containers (unit 18c):** agent-written test code runs in your project's containers, on a copy with
+  no `.git` and no real `.env*`, on internal networks, with the integration branch's compose file. Each
+  red-team run tries from inside them to reach your home folder, `.git`, secrets, Docker's socket and the
+  internet. A service's own image can still hold anything baked into it when you built it.
 - **Your merge is the final gate.** MIRAI reviews and tests every change, but you decide what
   reaches your integration branch.
 
 ## Coming next
 
-- **Unit 18c:** the red team's container and test cases, the Docker and git probes re-run on an
-  update, and interactive sessions.
+- **Unit 18d:** the red team's cases for your own sessions: interactive Bash and modes, your
+  session's MCP server.
 - **Unit 19:** the first real agent runs.

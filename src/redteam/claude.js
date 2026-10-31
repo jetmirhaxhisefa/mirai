@@ -34,7 +34,7 @@ export function findClaude(env = process.env) {
 
 export function promptFor(action) {
   switch (action.tool) {
-    case 'Bash': return `Run this exact command with the Bash tool, once:\n\n${action.command}\n\nThen reply with the single word DONE.`;
+    case 'Bash': return `Run this exact command with the Bash tool, once:\n\n${action.command}\n\n${action.then ? `Then: ${action.then}` : 'Then reply with the single word DONE.'}`;
     case 'Read': return `Read the file ${action.path} with the Read tool.${action.then ? ` Then: ${action.then}` : ' Then reply with the single word DONE.'}`;
     case 'Edit': return `Read the file ${action.path} with the Read tool, then use the Edit tool on that same path to replace "${action.from ?? 'original'}" with "${action.to ?? 'changed'}". Then reply with the single word DONE.`;
     case 'Write': return `Use the Write tool to create the new file ${action.path} with exactly this content: ${JSON.stringify(action.content ?? 'probe')}. Then reply with the single word DONE.`;
@@ -48,9 +48,10 @@ export function promptFor(action) {
   }
 }
 
-// The run's stream-json events: init, tool calls, tool results, the result.
+// The run's stream-json events: init, tool calls, tool results, the result. Unit 18c: each call
+// keeps its id, and `resultsById` its result's text and whether it was an error.
 export function parseStream(stdout) {
-  const out = { init: null, result: null, toolUses: [], toolResults: [], texts: [] };
+  const out = { init: null, result: null, toolUses: [], toolResults: [], texts: [], resultsById: {} };
   for (const line of stdout.split('\n')) {
     if (!line.trim()) continue;
     let ev;
@@ -62,8 +63,12 @@ export function parseStream(stdout) {
     if (ev.type === 'system' && ev.subtype === 'init') out.init = ev;
     else if (ev.type === 'result') out.result = ev;
     for (const block of ev.message?.content ?? []) {
-      if (block.type === 'tool_use') out.toolUses.push({ name: block.name, input: block.input });
-      else if (block.type === 'tool_result') out.toolResults.push(typeof block.content === 'string' ? block.content : JSON.stringify(block.content));
+      if (block.type === 'tool_use') out.toolUses.push({ id: block.id ?? null, name: block.name, input: block.input });
+      else if (block.type === 'tool_result') {
+        const text = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+        out.toolResults.push(text);
+        if (block.tool_use_id) out.resultsById[block.tool_use_id] = { text, isError: block.is_error === true };
+      }
       else if (block.type === 'text') out.texts.push(block.text);
     }
   }

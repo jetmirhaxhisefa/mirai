@@ -47,7 +47,7 @@ builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-se
 # listed here is red until someone reads what it does and adds it (a MIRAI change, not a local
 # one). Removed lines are reported, never red.
 [strict.binary]
-seen_on = "2.1.314"
+seen_on = "2.1.316"
 settings_keys = [
   "accessKeyIdVar",
   "allowAllUnixSockets",
@@ -128,6 +128,7 @@ permission_keys = [
   "additionalDirectories",
   "allow",
   "ask",
+  "blockReadsExemptPaths",
   "blockReadsOutsideWorkingDirectories",
   "blockWritesOutsideWorkingDirectories",
   "defaultMode",

@@ -1,9 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { join } from 'node:path';
-
-import { checkWorkdir } from './fixture.js';
+import { dirname, join, resolve } from 'node:path';
 
 // The throwaway fixtures for unit 14a's Docker and git probes. Everything a probe may mount,
 // read or plant lives under one work folder in your home folder (Docker Desktop shares it with
@@ -55,6 +53,18 @@ export function put(root, rel, text, mode) {
 // A script that writes one marker line (its own name, its arguments) and fails.
 export const markerScript = (markFile) => `#!/bin/sh\necho "$(basename "$0") $*" >> "${markFile}"\nexit 1\n`;
 
+// The work folder must be missing or empty, not your home folder, and not inside a git work tree
+// (removeComposeFixture deletes what it built there).
+function checkWorkdir(workdir, home) {
+  const abs = resolve(workdir);
+  if (home && resolve(home) === abs) throw new Error('the work folder can\'t be your home folder');
+  if (existsSync(abs) && readdirSync(abs).length > 0) throw new Error(`${abs}: the work folder must be missing or empty`);
+  let probe = abs;
+  while (!existsSync(probe)) probe = dirname(probe);
+  const inTree = spawnSync('/usr/bin/git', ['rev-parse', '--is-inside-work-tree'], { cwd: probe, encoding: 'utf8', env: { PATH: '/usr/bin:/bin', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } });
+  if (inTree.status === 0 && inTree.stdout.trim() === 'true') throw new Error(`${abs}: the work folder is inside a git work tree`);
+}
+
 export function buildComposeFixture(workdir, { home = process.env.HOME } = {}) {
   checkWorkdir(workdir, home);
   mkdirSync(workdir, { recursive: true });
@@ -68,7 +78,7 @@ export function buildComposeFixture(workdir, { home = process.env.HOME } = {}) {
   fixtureGit(p, ['init', '-q', '-b', 'main']);
   put(p, 'README.md', 'probe fixture\n');
   put(p, 'app/index.txt', 'app source\n');
-  put(p, '.env.test', 'APP_ENV=testing\nPROBE_VAR=from-env-test\n');
+  put(p, '.env.test', 'PROBE_MODE=testing\nPROBE_VAR=from-env-test\n');
   put(p, '.gitignore', '.env\nsub/.env\n');
   fixtureGit(p, ['add', '-A']);
   fixtureGit(p, ['commit', '-q', '-m', 'fixture']);
@@ -88,7 +98,7 @@ export function buildComposeFixture(workdir, { home = process.env.HOME } = {}) {
   put(p, 'base.json', JSON.stringify({ services: { basesvc: { image: 'nginx:1.27-alpine', environment: { FROM_BASE: 'yes' } } } }));
 
   const trust = join(root, 'trust');
-  put(trust, '.env.test', 'APP_ENV=testing\nPROBE_VAR=from-trust-env\n');
+  put(trust, '.env.test', 'PROBE_MODE=testing\nPROBE_VAR=from-trust-env\n');
   put(trust, 'empty', '');
   chmodSync(join(trust, 'empty'), 0o444);
   put(root, 'outside/secret.txt', `${c.outside}\n`);

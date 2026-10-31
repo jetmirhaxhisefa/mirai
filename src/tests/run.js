@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 import { EXIT } from '../cli/exit-codes.js';
@@ -204,7 +204,7 @@ function pruneRuns(testsDir, keep) {
 
 // Codes that mean a check refused the run; anything else that stops a run is an environment
 // fault, never a failing test.
-const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch', 'bad-path', 'gate-branch', 'gate-dirty', 'repo-changed', 'no-adapter', 'unknown-adapter', 'bad-adapter', 'no-coverage']);
+const REFUSED = new Set(['compose-refused', 'compose-prescan', 'frozen-changed', 'copy-link', 'copy-hardlink', 'copy-type', 'copy-too-large', 'repo-nested', 'repo-config', 'repo-shape', 'repo-lfs', 'no-image', 'no-service', 'inspect-mismatch', 'bad-path', 'gate-branch', 'gate-dirty', 'repo-changed', 'no-adapter', 'unknown-adapter', 'bad-adapter', 'no-coverage']);
 
 // Runs one level or check. For tests and probes: `docker` ({ client, plugins, socket }) instead
 // of Docker Desktop's, and `minuteMs` to shorten the timeout. Unit 14d:
@@ -222,9 +222,16 @@ const REFUSED = new Set(['compose-refused', 'compose-prescan', 'copy-link', 'cop
 // - `launchId`: the launch an agent's run came from, stored in the result;
 // - `test` (unit 16a): one test ID, `<path>::<name>`, instead of `path`; a level with an adapter only;
 // - `coverage` (unit 16b): ask the runner for line coverage too; an adapter with [coverage] only.
+// For the red team only (unit 18c), never reachable from the MCP server, whose tools name every
+// argument they pass:
+// - `store`: { dir, repoId, checkout }, a red-team worker's store instead of the checkout's own;
+// - `redTeam`: { script }: a POSIX sh script run in the level's service instead of its command,
+//   standing in for test code an agent wrote. It's written into the output folder (bound into the
+//   service) and run with the folder as its argument; nothing else about the run changes.
 export async function runTest({ cwd, env, name, path = null, test = null, coverage = false, now = () => new Date(), docker = {}, call = dockerCall, minuteMs = 60_000,
-  trust: givenTrust = null, by = 'you', signal, waitMs = WAIT_MS, onWait = () => {}, onTurn = () => {}, maxParallel = null, gate = null, launchId = null }) {
-  const store = openStore({ cwd, env });
+  trust: givenTrust = null, by = 'you', signal, waitMs = WAIT_MS, onWait = () => {}, onTurn = () => {}, maxParallel = null, gate = null, launchId = null, store: givenStore = null, redTeam = null }) {
+  if (redTeam && (gate || by !== 'agent' || !givenStore || typeof redTeam.script !== 'string')) throw new TestRunError('a red-team script runs only as an unsigned agent run, on a worker\'s store', { code: 'bad-red-team' });
+  const store = givenStore ?? openStore({ cwd, env });
   const trust = givenTrust ?? snapshot({ cwd, env });
   const config = trustedConfig(trust);
   const target = findTarget(config, name);
@@ -275,7 +282,7 @@ export async function runTest({ cwd, env, name, path = null, test = null, covera
     onTurn();
     await sweepStale(setup, call, store.repoId);
     pruneRuns(testsDir, KEEP_TEST_RUNS - 1);
-    return await runLocked({ store, trust, config, target, name, path: testPath, testName: testId?.name ?? null, adapter, coverage, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId });
+    return await runLocked({ store, trust, config, target, name, path: testPath, testName: testId?.name ?? null, adapter, coverage, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId, redTeam });
   } finally {
     slot?.release();
     lock.release();
@@ -285,7 +292,10 @@ export async function runTest({ cwd, env, name, path = null, test = null, covera
 // The signature's context for a test result: what it's for, and the repo.
 export const resultContext = (repoId) => `mirai/test-result/1:${repoId}`;
 
-async function runLocked({ store, trust, config, target, name, path, testName, adapter, coverage, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId }) {
+// The red team's script, in the output folder (unit 18c).
+export const RED_TEAM_SCRIPT = '.mirai-redteam.sh';
+
+async function runLocked({ store, trust, config, target, name, path, testName, adapter, coverage, now, setup, call, minuteMs, composeFiles, envFile, dockerVersion, testsDir, env, by, signal, gate, launchId, redTeam }) {
   const id = testRunId(now());
   const dir = join(testsDir, id);
   ensurePrivateDir(dir);
@@ -303,7 +313,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
     schema_version: 1, id, name, kind: target.kind, service: target.service, command: target.command, path, ...(testName !== null ? { test: `${path}::${testName}` } : {}),
     ...(adapter ? { adapter: target.adapter } : {}), ...(coverage ? { with_coverage: true } : {}), project, docker: dockerVersion,
     started_at: now().toISOString(), base_sha: trust.baseSha, trust_manifest_sha256: trust.manifestSha256 ?? null, by,
-    ...(launchId ? { launch_id: launchId } : {}),
+    ...(launchId ? { launch_id: launchId } : {}), ...(redTeam ? { red_team: true } : {}),
   };
   // Every Docker call of the run itself can be cancelled; cleanup's calls can't.
   const live = async (s2, args, opts = {}) => {
@@ -385,6 +395,17 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
     const frozenText = `${JSON.stringify(tightened, null, 2)}\n`;
     writeFileSync(frozen, frozenText, { mode: 0o600, flag: 'wx' });
     result.frozen_sha256 = createHash('sha256').update(frozenText).digest('hex');
+    // The frozen file is read again before each Compose call that uses it (unit 18c; D-30's
+    // "edited between validation and run"): Compose must run what was checked.
+    const checkFrozen = () => {
+      let seen = null;
+      try {
+        seen = createHash('sha256').update(readFileSync(frozen)).digest('hex');
+      } catch {
+        seen = null;
+      }
+      if (seen !== result.frozen_sha256) throw new TestRunError('the frozen compose file changed after it was checked', { code: 'frozen-changed', hint: 'nothing may write the store; run the tests again' });
+    };
 
     base = compose(frozen);
     if ((await cleanup(setup, call, base, project)).length) throw new TestRunError(`the test project ${project} can't be cleared`, { code: 'cleanup-failed' });
@@ -396,7 +417,11 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
     const extra = adapter
       ? adapterRun(adapter, { report: `${output.replace(/\/+$/, '')}/${REPORT_FILE}`, select: servicePath === null ? null : testName === null ? { path: servicePath } : { path: servicePath, name: testName }, coverage: coverage ? `${output.replace(/\/+$/, '')}/${COVERAGE_DIR}` : null })
       : { args: servicePath ? ['--', servicePath] : [], env: {} };
-    const cmd = [...target.command, ...extra.args];
+    let cmd = [...target.command, ...extra.args];
+    if (redTeam) {
+      writeFileSync(join(outDir, RED_TEAM_SCRIPT), redTeam.script, { mode: 0o644, flag: 'wx' });
+      cmd = ['/bin/sh', `${output.replace(/\/+$/, '')}/${RED_TEAM_SCRIPT}`, output];
+    }
     // What MIRAI added to the level's command, kept with the result.
     result.added_args = extra.args;
     result.added_env = Object.keys(extra.env);
@@ -409,6 +434,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
     const startNow = oneoff ? Object.keys(tightened.services[target.service].depends_on ?? {}) : [target.service];
     let run = null;
     if (startNow.length) {
+      checkFrozen();
       const up = await live(setup, [...base, 'up', '-d', '--wait', '--no-build', '--pull', 'never', ...startNow], { timeout: left() });
       if (up.timedOut) run = up;
       else if (up.status !== 0) {
@@ -424,6 +450,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
       } else await inspectRun(setup, live, project, tightened);
     }
     if (!run && oneoff) {
+      checkFrozen();
       const one = await live(setup, [...base, 'run', '-d', '--no-deps', '--pull', 'never', ...workdir, target.service, ...cmd], { timeout: left() });
       const cid = ids(one).at(-1);
       if (one.timedOut) run = one;
@@ -435,6 +462,7 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
         run = { status: waited.timedOut ? null : Number.parseInt(waited.stdout.trim(), 10), timedOut: waited.timedOut, stdout: logs.stdout, stderr: logs.stderr };
       }
     } else if (!run) {
+      checkFrozen();
       run = await live(setup, [...base, 'exec', '-T', ...workdir, target.service, ...cmd], { timeout: left(), maxBuffer: 64 * 1024 * 1024 });
     }
     const t = tail(clean(`${run.stdout}${run.stderr ? `${run.stdout && !run.stdout.endsWith('\n') ? '\n' : ''}${run.stderr}` : ''}`), OUTPUT_TAIL_BYTES);

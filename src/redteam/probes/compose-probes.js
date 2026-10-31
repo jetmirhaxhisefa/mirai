@@ -1,8 +1,8 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
-import { DIFF_FLAGS } from '../../src/store/git-pins.js';
-import { fixtureGit, put } from './compose-fixture.js';
+import { DIFF_FLAGS } from '../../store/git-pins.js';
+import { fixtureGit, put } from './workspace.js';
 
 // Unit 14a's probe lists as data. Docker probes: a compose file (an object, written as JSON), how
 // it's run, and what counts as a pass. Git probes: one hostile key planted in a fixture repo,

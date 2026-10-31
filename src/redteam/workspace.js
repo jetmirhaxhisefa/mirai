@@ -253,7 +253,7 @@ export function resetWorker(ctx) {
   git(ctx.project, ['reset', '-q', '--hard', 'mirai-redteam']);
   git(ctx.project, ['clean', '-ffdqx', ...ctx.keep.flatMap((k) => ['-e', k])]);
   writeFileSync(join(ctx.outside, 'edit-target.txt'), 'original-outside\n');
-  for (const name of ['dir/new.txt', 'dangling', ...ESCAPE_MARKERS, 'escaped.txt', 'still-running.txt', 'shim-ran', 'node-options-ran', 'evil.cjs', 'git-ran', 'project-hook-ran', 'project-mcp-ran']) rmSync(join(ctx.outside, name), { recursive: true, force: true });
+  for (const name of ['dir/new.txt', 'dir/race-target.txt', 'dangling', ...ESCAPE_MARKERS, 'escaped.txt', 'still-running.txt', 'shim-ran', 'node-options-ran', 'evil.cjs', 'git-ran', 'project-hook-ran', 'project-mcp-ran']) rmSync(join(ctx.outside, name), { recursive: true, force: true });
   rmSync(join(ctx.repoHome, 'trust', ctx.trust.baseSha, 'new'), { force: true });
 }
 
@@ -280,7 +280,7 @@ export function sweepLeftovers(home) {
       if (!st.isDirectory()) continue;
       removeWorkspace(path);
       gone.push(n);
-    } else if (/^\.mirai-redteam-tilde-[0-9a-f]{12}\.txt$/.test(n)) {
+    } else if (/^\.mirai-redteam-tilde-[0-9a-f]{12}\.txt$/.test(n) || /^mirai-pwned-[0-9a-f]{8}$/.test(n)) {
       rmSync(path, { force: true });
       gone.push(n);
     }

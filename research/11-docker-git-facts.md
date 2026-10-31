@@ -329,3 +329,15 @@ on a clone of it.
 - **The pins were probed against MIRAI's commands as listed.** A new git command in a later
   unit (fetch, rebase, worktree, `log -p`) needs its own probe (units 18 and 22). An Apple git
   update arrives silently, so unit 18 re-runs these probes when the git version changes.
+
+## From unit 18c's red team
+
+The probes above now run in every red-team run (`src/redteam/probes/`). What the container cases
+added on Docker 29.6.2:
+- **Each worker needs its own repo id.** The executor sweeps any leftover run with its repo id, so
+  two stores sharing one removed each other's networks mid-run, and could have removed your own.
+- **Only file-sharing mounts need searching.** Docker Desktop's binds show as `fakeowner` in
+  `/proc/mounts`; named volumes as `ext4`. Searching a dependency volume took minutes.
+- **The Docker probes depend on nginx itself** (a peer's page, health checks), so they stay on
+  `nginx:1.27-alpine`, which MIRAI never pulls.
+- **`c3-path`'s check was stale since 16a:** the path is passed as the service's own path.

@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { g18Check, hostCommand, section } from './host.js';
 import { FIXTURE_COMMIT_MESSAGE } from './workspace.js';
 import { agentCases, commandFile, escapeVerdict, launchctlRefusal } from './cases-agent.js';
+import { containerCases } from './cases-container.js';
+import { probeCases } from './cases-probes.js';
 
 // The red-team cases (unit 18a): 13b's and 13c's checks of the strict bundle (moved from
 // test/probes/probes.js, adapted to the clone of your project), run through the real launch with
@@ -27,7 +29,7 @@ const yes = (b) => (b ? 'yes' : 'no');
 const answered = (r) => r.exit === 0 && r.result?.is_error === false;
 // 13a–13c's cases (this file) and unit 18b's (src/redteam/cases-agent.js).
 export function redTeamCases(ctx) {
-  return [...baseCases(ctx), ...agentCases(ctx)];
+  return [...baseCases(ctx), ...agentCases(ctx), ...containerCases(ctx), ...probeCases(ctx)];
 }
 
 function baseCases(ctx) {
@@ -353,10 +355,11 @@ function baseCases(ctx) {
   ];
 }
 
-// The cases' ids, facts and templates, without a workspace (for the estimate and --only).
-export function caseIndex() {
-  const none = { project: '/', outside: '/', canaries: {}, markers: {}, readable: [], host: {}, trust: { dir: '/' }, repoHome: '/' };
-  return redTeamCases(none).map(({ id, fact, templates, blocker, title, kind, informational }) => ({ id, fact, templates, blocker: blocker === true, title, kind: kind ?? 'model', informational: informational === true }));
+// The cases' ids, facts and templates, without a workspace (for the estimate and --only). The
+// container cases come from `trust`'s levels and checks (unit 18c); without it, none are listed.
+export function caseIndex(trust = null) {
+  const none = { project: '/', outside: '/', canaries: {}, markers: {}, readable: [], host: {}, trust: trust ?? { dir: '/' }, repoHome: '/' };
+  return [...baseCases(none), ...agentCases(none), ...containerCases(none), ...probeCases(none)].map(({ id, fact, templates, blocker, title, kind, informational }) => ({ id, fact, templates, blocker: blocker === true, title, kind: kind ?? 'model', informational: informational === true }));
 }
 
 // 13b's and 13c's probe ids each case carries on (T6: nothing dropped in the move).

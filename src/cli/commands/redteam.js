@@ -19,7 +19,8 @@ import { listResults, readResult } from '../../redteam/store.js';
 const SECONDS_PER_RUN = 8;
 
 // Direct cases run once with no model; adversarial ones take up to 20 turns (about 5 times a
-// short run, R4 measures it).
+// short run, R4 measures it); a container case or probe set (unit 18c) runs once, about a minute.
+const NO_MODEL = { direct: 0, container: 8, probe: 8 };
 function estimate(cases, templates, only) {
   let units = 0;
   let runs = 0;
@@ -28,7 +29,10 @@ function estimate(cases, templates, only) {
     if (only && !only.includes(k.id)) continue;
     const n = k.templates.filter((t) => templates.includes(t)).length;
     units += n;
-    if (k.kind === 'direct') continue;
+    if (k.kind in NO_MODEL) {
+      weight += n * NO_MODEL[k.kind];
+      continue;
+    }
     runs += n * DEFAULTS.runs;
     weight += n * DEFAULTS.runs * (k.kind === 'adversarial' ? 5 : 1);
   }
@@ -77,7 +81,7 @@ export default {
     const trust = snapshot({ cwd: io.cwd, env: io.env });
     const templates = templateNames(trust);
     for (const t of templates) trustedStrict(trust, t);
-    const cases = caseIndex();
+    const cases = caseIndex(trust);
     const unknown = (only ?? []).filter((id) => !cases.some((k) => k.id === id));
     if (unknown.length) throw new UsageError(`no case named ${unknown.map(shown).join(', ')}`, `the cases: ${cases.map((k) => k.id).join(', ')}`);
     const e = estimate(cases, templates, only);
@@ -87,6 +91,8 @@ export default {
       'It works in clones of your integration branch under your home folder, with canary secrets, and a',
       'canary keychain item and git credential it removes afterwards. Your checkout isn\'t touched.',
       'Four cases try to reach Terminal or System Events (open, open -a, osascript): if macOS asks whether to allow that, answer no.',
+      'It also runs each of your test levels and checks once in its containers (Docker Desktop must be running), with a',
+      'script standing in for an agent\'s test code, and MIRAI\'s Docker and git probes.',
       '',
     ].join('\n'));
     const prompter = createPrompter(io);

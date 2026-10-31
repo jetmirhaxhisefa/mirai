@@ -5,9 +5,10 @@ import { join } from 'node:path';
 
 import { StoreError } from '../cli/errors.js';
 import { atomicWrite, ensurePrivateDir } from '../store/files.js';
-import { checkDockerRunning, dockerSetup } from '../tests/docker.js';
+import { trustedAdapters } from '../tests/adapters.js';
+import { checkDockerRunning, dockerCall, dockerSetup } from '../tests/docker.js';
 import { canonicalSha256 } from '../launch/strict.js';
-import { trustedStrict } from '../trust/snapshot.js';
+import { trustedConfig, trustedFile, trustedStrict } from '../trust/snapshot.js';
 import { findClaude } from './claude.js';
 import { hostFacts, macos } from './host.js';
 import { projectRuleFiles } from './workspace.js';
@@ -26,9 +27,13 @@ import { projectRuleFiles } from './workspace.js';
 //   checkout has them: whether a launch reads them isn't proven yet (18b), so a change to one
 //   needs a new run (18a review);
 // - the host controls the run could check (a git credential helper, Docker's socket, an
-//   ssh-agent): a result from a shell without SSH_AUTH_SOCK never stands for one with it.
+//   ssh-agent): a result from a shell without SSH_AUTH_SOCK never stands for one with it;
+// - unit 18c: what the container cases ran, from the trust root: the [compose] files and env
+//   file, and the [compose], [testing] and [checks] sections. Image ids are
+//   left out (your choice in 18c's spec): a rebuild would make every result stale, and the cases
+//   test MIRAI's limits, which don't depend on what's in an image.
 
-export const KEY_PARTS = Object.freeze(['claude_code', 'bundles', 'framework', 'docker', 'git', 'macos', 'node', 'project_rules', 'host_controls']);
+export const KEY_PARTS = Object.freeze(['claude_code', 'bundles', 'framework', 'docker', 'git', 'macos', 'node', 'project_rules', 'host_controls', 'compose']);
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const CACHE = 'binary-cache.json';
 
@@ -113,13 +118,34 @@ export function hostControls(hostEnv) {
   return ['keychain', ...(h.credentialHelper ? ['git'] : []), ...(h.dockerSocket ? ['docker'] : []), ...(h.sshAuthSock ? ['ssh'] : [])];
 }
 
+// The engine's version and Compose's: Compose is what resolves and runs the frozen file.
 async function dockerVersionOf(env, docker) {
   try {
-    return await checkDockerRunning(dockerSetup(env, docker));
+    const setup = dockerSetup(env, docker);
+    const engine = await checkDockerRunning(setup);
+    const compose = (await dockerCall(setup, ['compose', 'version', '--short'], { timeout: 30_000 })).stdout.trim();
+    return compose ? `${engine}, Compose ${compose}` : engine;
   } catch (err) {
     if (err.code === 'no-docker' || err.code === 'docker-down') return 'unavailable';
     throw err;
   }
+}
+
+// The trust root's test setup, hashed (unit 18c): `none` with no [compose] section.
+export function composeHash(trust) {
+  const config = trustedConfig(trust);
+  if (!config.compose) return 'none';
+  const files = [...(config.compose.files ?? []), ...(config.compose.env_file ? [config.compose.env_file] : [])];
+  const bytes = {};
+  for (const f of files) {
+    try {
+      bytes[f] = sha256(trustedFile(trust, f));
+    } catch {
+      bytes[f] = 'missing';
+    }
+  }
+  // Test adapters decide how a level runs and how its report is read (18c review).
+  return sha256(canonical({ files: bytes, compose: config.compose, testing: config.testing ?? null, checks: config.checks ?? null, adapters: trustedAdapters(trust) }));
 }
 
 // The key's parts for this machine and trust root. `env`: where MIRAI's store is (the probe's own
@@ -140,5 +166,6 @@ export async function keyParts({ env, hostEnv = env, trust, store, claude = null
     node: process.version,
     project_rules: projectRulesHash(store.checkout),
     host_controls: hostControls(hostEnv),
+    compose: composeHash(trust),
   };
 }

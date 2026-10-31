@@ -14,7 +14,7 @@ import { parseToml } from '../../src/config/toml.js';
 import { main } from '../../src/cli/main.js';
 import { COMMANDS } from '../../src/cli/commands/index.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
-import { guardScenario, scenarios } from '../probes/test-run-probes.js';
+import { guardScenario, scenarios } from '../../src/redteam/probes/test-run.js';
 import { COMPOSE, CONFIG, fakeDocker, gitIn, installed, resolvedApp, tempDir } from './run-fixture.js';
 
 // Unit 14c: the test executor, without Docker (a fake docker records every call). The real
