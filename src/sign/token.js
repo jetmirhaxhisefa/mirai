@@ -100,8 +100,11 @@ export function tokenForms(token) {
     forms.add(middle);
     forms.add(middle.replace(/\+/g, '-').replace(/\//g, '_'));
   }
+  // Reversed too, as D-30 promises (unit 18b's red team found it missing).
+  const reversed = [...token].reverse().join('');
+  forms.add(reversed);
   const pieces = [];
-  for (let i = 0; i + WINDOW <= token.length; i++) pieces.push(token.slice(i, i + WINDOW));
+  for (let i = 0; i + WINDOW <= token.length; i++) pieces.push(token.slice(i, i + WINDOW), reversed.slice(i, i + WINDOW));
   return { whole: [...forms].sort((a, b) => b.length - a.length), pieces };
 }
 

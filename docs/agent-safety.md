@@ -776,29 +776,37 @@ So if your token leaks:
 - **This is weaker than a container or a separate macOS user.** The agent runs as you, so every
   part of MIRAI that touches what an agent wrote is part of the boundary. Each part is hardened,
   but a bug in any of them crosses it.
-- **The tests use an agent that cooperates.** The red team ([red-team.md](red-team.md)) runs each
-  check three times on your machine, but the model is told to make one exact call. A mode where it
-  actively looks for ways around the rules comes with unit 18b.
+- **The tests mostly use an agent that cooperates.** The red team ([red-team.md](red-team.md))
+  runs each check three times on your machine, with the model told to make one exact call. Five
+  goals (since unit 18b) leave the route to a stronger model (Sonnet), up to 20 turns: get the
+  `.env` value out, write outside the project, fetch a page, change `.git` or `.mirai`, leave a
+  process behind. All five were blocked on 2.1.314. A model that tries for longer, or a person,
+  may find a route those didn't.
 - **Command rules (such as "no `git push`") are speed bumps:** a command wrapped in `sh -c`
   gets past them. What actually holds is that agents have no network, no token in their
   environment, and no read or write access to the places that matter.
 - **Newer app passwords** (the data-protection keychain) are guarded by macOS's app signatures,
-  not by MIRAI's rules. They haven't been tested yet (unit 18b).
+  not by MIRAI's rules. They can't be tested from here: an unsigned program can't even create a
+  test item there (unit 18b).
 - **Secrets not named `.env*`** (an `.npmrc` with a token, `*.pem` keys, `config/master.key`)
   are readable in the project unless a pack names them; secret files per technology come as
   pack data later.
 - **What's readable outside your home folder:** system folders stay readable so tools work.
-  The places known to hold data are denied (see "Reads"); unit 18b lists the rest.
+  The places known to hold data are denied (see "Reads"); the red team reads through `/.vol`
+  and the `/System/Volumes/Data` firmlink too (unit 18b). A folder not listed is readable.
+- **Anything in git is readable:** agents use git, so a file you committed or staged (say a
+  `.env` you once added by mistake) can be read through git's objects even though the file
+  itself is denied. Remove such a file from history, and rotate what it held.
 - **MIRAI's git:** the repo check and the hash catch a hostile `.git` between two checks, not the
   moment it's written. Something other than an agent (your IDE, another tool) can still change
   `.git` between your commands; the next MIRAI command or check refuses it. The key lists were
-  probed on git 2.39.5 (Apple); a git update makes the red-team result stale, and unit 18b runs
+  probed on git 2.39.5 (Apple); a git update makes the red-team result stale, and unit 18c runs
   the git probes again as part of it.
 - **Your merge is the final gate.** MIRAI reviews and tests every change, but you decide what
   reaches your integration branch.
 
 ## Coming next
 
-- **Unit 18b:** the rest of the red team's attack list, and the mode where the agent looks for
-  ways around the rules.
+- **Unit 18c:** the red team's container and test cases, the Docker and git probes re-run on an
+  update, and interactive sessions.
 - **Unit 19:** the first real agent runs.

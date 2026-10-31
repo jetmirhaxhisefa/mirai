@@ -14,10 +14,15 @@ const within = (p, d) => p === d || p.startsWith(`${d}/`);
 // have lost sight of part of it), and red for the profile's `(version` and `(deny` lines.
 export function binaryCheck(facts, data) {
   const out = [];
-  for (const [id, mine, known, what] of [
+  // S1 has three parts (the sandbox keys, each settings object's own keys, the permission keys),
+  // reported as one check.
+  const parts = [
     ['S1', facts.settings_keys, data?.settings_keys, 'sandbox settings keys'],
+    ['S1', facts.settings_objects, data?.settings_objects, 'sandbox settings objects'],
+    ['S1', facts.permission_keys, data?.permission_keys, 'permission settings keys'],
     ['S2', facts.profile_rules, data?.profile_rules, 'base sandbox profile rules'],
-  ]) {
+  ];
+  for (const [id, mine, known, what] of parts) {
     if (!Array.isArray(known)) {
       out.push({ id, state: 'unknown', note: `MIRAI's adapter data has no ${what} (a framework copy from before unit 18a: mirai init --refresh)`, added: [], removed: [] });
       continue;
@@ -40,7 +45,12 @@ export function binaryCheck(facts, data) {
       removed,
     });
   }
-  return out;
+  // One S1: the worst of its parts, their notes joined.
+  const rank = { red: 2, unknown: 1, ok: 0 };
+  const s1 = out.filter((x) => x.id === 'S1');
+  const worst = s1.reduce((w, x) => (rank[x.state] > rank[w.state] ? x : w), s1[0]);
+  const merged = { id: 'S1', state: worst.state, note: s1.filter((x) => x.state !== 'ok').map((x) => x.note).join('; ') || s1[0].note.replace('sandbox settings keys', 'sandbox and permission settings'), added: s1.flatMap((x) => x.added), removed: s1.flatMap((x) => x.removed) };
+  return [merged, ...out.filter((x) => x.id !== 'S1')];
 }
 
 // S3: what Claude Code brought into each run (its init events), against the adapter's builtin_*

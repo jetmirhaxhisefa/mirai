@@ -111,8 +111,11 @@ const ADAPTER = {
             seen_on: { type: 'string', pattern: /^\d+\.\d+\.\d+$/, patternHint: 'a Claude Code version such as "2.1.314"' },
             settings_keys: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z_$][\w$]{0,80}$/, patternHint: 'a settings key such as "allowedDomains"' } },
             profile_rules: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^\([^\n]{0,400}$/, patternHint: 'one sandbox profile line, starting with "("' } },
+            // Unit 18b: each settings object's own keys (space-separated), and the permission keys.
+            settings_objects: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z_$][\w$-]{0,80}( [A-Za-z_$][\w$-]{0,80}){0,80}$/, patternHint: 'an object\'s keys, separated by spaces' } },
+            permission_keys: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z_$][\w$]{0,80}$/, patternHint: 'a settings key such as "deny"' } },
           },
-          required: ['seen_on', 'settings_keys', 'profile_rules'],
+          required: ['seen_on', 'settings_keys', 'profile_rules', 'settings_objects', 'permission_keys'],
         },
       },
       required: ['read_write_tools', 'read_only_tools', 'deny_commands', 'deny_tools', 'deny_env', 'builtin_version', 'builtin_plugins', 'builtin_skills', 'builtin_agents'],

@@ -109,6 +109,32 @@ settings_keys = [
   "strictAllowlist",
   "tlsTerminate",
 ]
+# Each settings object's own keys, and the permission settings keys (unit 18b).
+settings_objects = [
+  "accessKeyIdVar secretAccessKeyVar sessionTokenVar",
+  "allowAllUnixSockets allowLocalBinding allowMachLookup allowManagedDomainsOnly allowUnixSockets allowedDomains deniedDomains httpProxyPort socksProxyPort strictAllowlist tlsTerminate",
+  "allowAppleEvents allowNestedUserNamespaces allowUnsandboxedCommands autoAllowBashIfSandboxed bwrapPath credentials enableWeakerNestedSandbox enableWeakerNetworkIsolation enabled excludedCommands failIfUnavailable filesystem ignoreViolations network ripgrep socatPath",
+  "allowManagedReadPathsOnly allowRead allowWrite denyRead denyWrite disabled",
+  "allowPlaintextInject awsPairs envVars files sigv4",
+  "args command",
+  "caCertPath caKeyPath",
+  "code message path",
+  "decode extract injectHosts maskClaims maskDuplicates mode onExtractNoMatch path",
+  "decode extract injectHosts maskClaims mode name onExtractNoMatch",
+  "message",
+  "presigned sigv4a streaming",
+]
+permission_keys = [
+  "additionalDirectories",
+  "allow",
+  "ask",
+  "blockReadsOutsideWorkingDirectories",
+  "blockWritesOutsideWorkingDirectories",
+  "defaultMode",
+  "deny",
+  "disableAutoMode",
+  "disableBypassPermissionsMode",
+]
 profile_rules = [
   "(allow appleevent-send)",
   "(allow distributed-notification-post)",

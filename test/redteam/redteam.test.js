@@ -31,7 +31,7 @@ import { installed, tempDir } from '../tests/run-fixture.js';
 const TOKEN = `sk-ant-oat01-${'Rt7_-q'.repeat(16)}`;
 const STRICT = loadRegistry(new URL('../../registry', import.meta.url).pathname).adapters['claude-code'].strict;
 const HOST = { sweep: () => {}, canaries: () => {}, baseline: () => ({ docker: true, ssh: true, git: true, keychain: true }) };
-const SAME_BINARY = () => ({ settings_keys: [...STRICT.binary.settings_keys], profile_rules: [...STRICT.binary.profile_rules], notes: [] });
+const SAME_BINARY = () => ({ settings_keys: [...STRICT.binary.settings_keys], settings_objects: [...STRICT.binary.settings_objects], permission_keys: [...STRICT.binary.permission_keys], profile_rules: [...STRICT.binary.profile_rules], notes: [] });
 
 // A repo with MIRAI installed, your key committed, a login token, and a stand-in `claude` that
 // only answers --version.
@@ -295,14 +295,18 @@ test('18a T5: the no-model checks: the binary read once by anchor; new keys and 
   assert.equal(twice.profile_rules, null);
   assert.equal(twice.settings_keys, null);
   assert.match(twice.notes.join(' '), /found 2 times/);
-  const known = { seen_on: '2.1.314', settings_keys: ['allowedDomains', 'enabled'], profile_rules: ['(version 1)', '(allow gone)'] };
-  const [s1, s2] = binaryCheck({ settings_keys: ['allowedDomains', 'enabled', 'newKey'], profile_rules: ['(version 1)'], notes: [] }, known);
+  const known = { seen_on: '2.1.314', settings_keys: ['allowedDomains', 'enabled'], settings_objects: ['allowedDomains enabled'], permission_keys: ['allow', 'deny'], profile_rules: ['(version 1)', '(allow gone)'] };
+  const same = { settings_objects: ['allowedDomains enabled'], permission_keys: ['allow', 'deny'] };
+  const [s1, s2] = binaryCheck({ settings_keys: ['allowedDomains', 'enabled', 'newKey'], ...same, profile_rules: ['(version 1)'], notes: [] }, known);
   assert.equal(s1.state, 'red');
   assert.deepEqual(s1.added, ['newKey']);
   assert.equal(s2.state, 'unknown', 'a rule gone: the reader may have lost sight of part of the profile');
   assert.deepEqual(s2.removed, ['(allow gone)']);
-  assert.equal(binaryCheck({ settings_keys: ['allowedDomains', 'enabled'], profile_rules: ['(allow gone)'], notes: [] }, known)[1].state, 'red', 'the (version line gone');
-  assert.ok(binaryCheck({ settings_keys: ['allowedDomains', 'enabled'], profile_rules: ['(version 1)', '(allow gone)'], notes: [] }, known).every((x) => x.state === 'ok'));
+  assert.equal(binaryCheck({ settings_keys: ['allowedDomains', 'enabled'], ...same, profile_rules: ['(allow gone)'], notes: [] }, known)[1].state, 'red', 'the (version line gone');
+  assert.ok(binaryCheck({ settings_keys: ['allowedDomains', 'enabled'], ...same, profile_rules: ['(version 1)', '(allow gone)'], notes: [] }, known).every((x) => x.state === 'ok'));
+  // Unit 18b: a known key moved into another object, and a new permission key, are red.
+  assert.equal(binaryCheck({ settings_keys: ['allowedDomains', 'enabled'], settings_objects: ['allowedDomains', 'enabled'], permission_keys: ['allow', 'deny'], profile_rules: ['(version 1)', '(allow gone)'], notes: [] }, known)[0].state, 'red');
+  assert.equal(binaryCheck({ settings_keys: ['allowedDomains', 'enabled'], ...same, permission_keys: ['allow', 'deny', 'blockWritesOutsideWorkingDirectories'], profile_rules: ['(version 1)', '(allow gone)'], notes: [] }, known)[0].state, 'red');
   assert.ok(binaryCheck({ settings_keys: null, profile_rules: null, notes: ['x'] }, known).every((s) => s.state === 'unknown'));
   assert.ok(binaryCheck(SAME_BINARY(), undefined).every((s) => s.state === 'unknown'));
   // S3.
@@ -345,7 +349,7 @@ test('18a T6: the cases: ids unique, each complete; 13b\'s and 13c\'s ids all he
   const index = caseIndex();
   assert.equal(new Set(index.map((c) => c.id)).size, index.length);
   for (const id of MOVED_IDS) assert.ok(index.some((c) => c.id === id), `${id} is missing`);
-  assert.deepEqual(index.filter((c) => c.blocker).map((c) => c.id).sort(), ['escape-launchctl', 'escape-open', 'escape-osascript', 'g18-default']);
+  assert.deepEqual(index.filter((c) => c.blocker).map((c) => c.id).sort(), ['escape-launchctl', 'escape-open', 'escape-open-app', 'escape-osascript', 'escape-system-events', 'g18-default']);
   // On a real workspace: every case is complete and passes the guard; a case naming a real
   // secret or a path outside is refused.
   const r = repo();
@@ -358,7 +362,8 @@ test('18a T6: the cases: ids unique, each complete; 13b\'s and 13c\'s ids all he
   await runRedTeam(options(r, { launch: f.launch, caseList: spy, only: ['g5-token'], workers: 1, keep: true }));
   const cases = redTeamCases(seen);
   for (const k of cases) {
-    assert.ok(k.id && k.fact && k.title && k.evidence && Array.isArray(k.templates) && k.templates.length && typeof k.check === 'function' && k.action?.tool, k.id);
+    // A direct case has `run` instead of a check; a case naming the launch's folders has actionFor.
+    assert.ok(k.id && k.fact && k.title && k.evidence && Array.isArray(k.templates) && k.templates.length && (typeof k.check === 'function' || (k.kind === 'direct' && typeof k.run === 'function')) && (k.action?.tool || typeof k.actionFor === 'function'), k.id);
     guardProbe(k, seen);
   }
   assert.throws(() => guardProbe({ id: 'x', action: { tool: 'Bash', command: 'cat /etc/passwd' } }, seen), /outside the fixture/);

@@ -34,25 +34,30 @@ function pathsIn(text) {
 
 export function guardProbe(probe, ctx) {
   const where = `probe ${probe.id}`;
-  const a = probe.action;
+  // A case whose call names the launch's own folders gets it at launch time, and is guarded then.
+  const a = probe.action ?? {};
   const allowed = [ctx.root, ctx.host.dockerSocket, ctx.host.sshAuthSock, ctx.host.claude, ctx.host.launcher, '/dev/null', ...(probe.allowPaths ?? [])].filter(Boolean);
   const inside = (p) => allowed.some((root) => p === root || p.startsWith(`${root}/`));
-  const texts = [a.command, a.path, a.ask, a.then, a.pattern, ...Object.values(probe.env ?? {})].filter((t) => typeof t === 'string');
+  const texts = [a.command, a.path, a.ask, a.then, a.pattern, ...(a.input ? [JSON.stringify(a.input)] : []), ...Object.values(probe.env ?? {})].filter((t) => typeof t === 'string');
   // Known secret names count only outside the work folder: a fixture may hold canaries under
   // .config/mirai and a MIRAI home's path on purpose (unit 13c's interactive probes).
   const inFixture = new RegExp(`${ctx.root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\s'"\`;|&()\\]},<>$~]*`, 'g');
+  // A case may name an exact secret-looking path it has reviewed (unit 18b: the canary in
+  // ~/.config/mirai, a folder of your home checked by exit code only); nothing else of it passes.
+  const exact = (probe.allowSecretPaths ?? []).filter(Boolean);
   for (const text of texts) {
-    const masked = text.replace(inFixture, '<fixture>');
+    const masked = exact.reduce((t, p) => t.split(p).join('<reviewed>'), text).replace(inFixture, '<fixture>');
     for (const re of FORBIDDEN) {
-      if (probe.allowVars && re.source === '\\$' && !/\$(?!TMPDIR\b)/.test(text)) continue;
+      if (probe.allowVars && re.source === '\\$' && !/\$(?!TMPDIR\b|\?)/.test(text)) continue;
       // The "~" case names one throwaway file in your home folder, removed by its check.
       if (probe.allowTilde && re.source === '~' && text === `~/${ctx.tildeName}`) continue;
       if (re.test(masked)) throw new Error(`${where}: names a real secret location or expands something (${re})`);
     }
     if (/git\s+credential/.test(text) && !/host=mirai-probe\.invalid/.test(text)) throw new Error(`${where}: git credential for a host other than the canary`);
-    for (const p of pathsIn(text)) if (!inside(p)) throw new Error(`${where}: names ${p}, outside the fixture`);
+    for (const p of pathsIn(text)) if (!inside(p) && !exact.includes(p)) throw new Error(`${where}: names ${p}, outside the fixture`);
   }
-  if (a.path && !(probe.allowTilde && a.path === `~/${ctx.tildeName}`) && !posix.resolve(a.path).startsWith(`${ctx.root}/`)) throw new Error(`${where}: a tool path outside the fixture`);
+  const reviewedPath = (p) => exact.includes(p) || (probe.allowPaths ?? []).some((x) => p === x || p.startsWith(`${x}/`));
+  if (a.path && !(probe.allowTilde && a.path === `~/${ctx.tildeName}`) && !reviewedPath(a.path) && !posix.resolve(a.path).startsWith(`${ctx.root}/`)) throw new Error(`${where}: a tool path outside the fixture`);
   const settings = probe.settings ?? {};
   const allows = [...(settings.permissions?.allow ?? []), ...(settings.sandbox?.filesystem?.allowRead ?? []), ...(settings.sandbox?.filesystem?.allowWrite ?? [])];
   for (const entry of allows) {

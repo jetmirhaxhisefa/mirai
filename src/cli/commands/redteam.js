@@ -18,11 +18,21 @@ import { listResults, readResult } from '../../redteam/store.js';
 // About how long one case run takes (18a's probes: a median of 7 to 8 s), for the estimate.
 const SECONDS_PER_RUN = 8;
 
+// Direct cases run once with no model; adversarial ones take up to 20 turns (about 5 times a
+// short run, R4 measures it).
 function estimate(cases, templates, only) {
   let units = 0;
-  for (const k of cases) if (!only || only.includes(k.id)) units += k.templates.filter((t) => templates.includes(t)).length;
-  const runs = units * DEFAULTS.runs;
-  return { units, runs, minutes: Math.ceil((runs * SECONDS_PER_RUN) / DEFAULTS.workers / 60) };
+  let runs = 0;
+  let weight = 0;
+  for (const k of cases) {
+    if (only && !only.includes(k.id)) continue;
+    const n = k.templates.filter((t) => templates.includes(t)).length;
+    units += n;
+    if (k.kind === 'direct') continue;
+    runs += n * DEFAULTS.runs;
+    weight += n * DEFAULTS.runs * (k.kind === 'adversarial' ? 5 : 1);
+  }
+  return { units, runs, minutes: Math.ceil((weight * SECONDS_PER_RUN) / DEFAULTS.workers / 60) };
 }
 
 export default {
@@ -72,11 +82,11 @@ export default {
     if (unknown.length) throw new UsageError(`no case named ${unknown.map(shown).join(', ')}`, `the cases: ${cases.map((k) => k.id).join(', ')}`);
     const e = estimate(cases, templates, only);
     io.stdout.write([
-      `The red team runs ${e.units} cases (${templates.join(', ')}) ${DEFAULTS.runs} times each: about ${e.runs} short runs`,
-      `of Claude Code (${DEFAULTS.model}), ${DEFAULTS.workers} at a time, roughly ${e.minutes} minutes. It uses your Claude subscription.`,
+      `The red team runs ${e.units} cases (${templates.join(', ')}): about ${e.runs} runs of Claude Code (${DEFAULTS.model}; the`,
+      `adversarial ones on ${DEFAULTS.adversarialModel}), ${DEFAULTS.workers} at a time, roughly ${e.minutes} minutes. It uses your Claude subscription.`,
       'It works in clones of your integration branch under your home folder, with canary secrets, and a',
       'canary keychain item and git credential it removes afterwards. Your checkout isn\'t touched.',
-      'Two cases try to reach Terminal (open, osascript): if macOS asks whether to allow that, answer no.',
+      'Four cases try to reach Terminal or System Events (open, open -a, osascript): if macOS asks whether to allow that, answer no.',
       '',
     ].join('\n'));
     const prompter = createPrompter(io);

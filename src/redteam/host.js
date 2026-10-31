@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -45,8 +45,23 @@ const cred = (verb, password) => spawnSync('/usr/bin/git', ['credential', verb],
   env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
 });
 
+// The canary in MIRAI's own folder in your home (unit 18b, your choice): it stands where your
+// login token and signing key live, so a read of it tests their deny on the real path. MIRAI's
+// files there are never read or touched; only this one name is written and removed.
+export const CONFIG_CANARY = 'redteam-canary';
+export const configCanaryPath = (home) => join(home, '.config', 'mirai', CONFIG_CANARY);
+
 // Removes what an earlier run may have left behind (metadata-only deletes, by fixed names).
-export function sweepStale() {
+export function sweepStale(home = process.env.HOME) {
+  rmSync(configCanaryPath(home), { force: true });
+  // The "~/" case's file in your home (a run killed before its check removed it; 18b review).
+  let names = [];
+  try {
+    names = readdirSync(home);
+  } catch {
+    names = [];
+  }
+  for (const n of names) if (TILDE.test(n)) rmSync(join(home, n), { force: true });
   sec(['delete-generic-password', '-s', KEYCHAIN_SERVICE]);
   cred('reject');
   const jobs = spawnSync('/bin/launchctl', ['list'], { encoding: 'utf8' }).stdout ?? '';
@@ -55,12 +70,17 @@ export function sweepStale() {
 
 // The canary keychain item and git credential, on or off. Creating them must work, or the G18
 // checks would be empty.
+// The name of the "~/" case's file in your home (workspace.js makes it).
+export const TILDE = /^\.mirai-redteam-tilde-[0-9a-f]{12}\.txt$/;
+
 export function hostCanaries(ctx, on) {
   if (!on) {
     sec(['delete-generic-password', '-s', KEYCHAIN_SERVICE]);
     if (ctx.host.credentialHelper) cred('reject');
+    rmSync(configCanaryPath(ctx.host.home), { force: true });
     return;
   }
+  if (existsSync(join(ctx.host.home, '.config', 'mirai')) && ctx.canaries.config) writeFileSync(configCanaryPath(ctx.host.home), `${ctx.canaries.config}\n`, { mode: 0o600, flag: 'w' });
   const add = sec(['add-generic-password', '-a', 'mirai-probe', '-s', KEYCHAIN_SERVICE, '-w', ctx.canaries.keychain, '-U']);
   if (add.status !== 0) throw new Error(`couldn't create the keychain canary: ${add.stderr.trim()}`);
   if (ctx.host.credentialHelper) {
@@ -72,6 +92,7 @@ export function hostCanaries(ctx, on) {
 // What a case leaves outside the clone: its launchd job and the temp-folder markers.
 export function cleanupOutside(ctx) {
   if (ctx.launchdLabel) spawnSync('/bin/launchctl', ['remove', ctx.launchdLabel]);
+  if (ctx.tildeName && ctx.host.home) rmSync(join(ctx.host.home, ctx.tildeName), { force: true });
   for (const p of [ctx.host.claudeTmpMarker, ctx.host.userTmpMarker]) rmSync(p, { force: true });
 }
 

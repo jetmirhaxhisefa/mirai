@@ -12,6 +12,10 @@ import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
 //   the end of the object that holds `failIfUnavailable:` (the sandbox settings), every object key,
 //   quoted or not. Nesting isn't kept: a new key shows as a new name, but a new nested key with a
 //   name already listed (`enabled`, `mode`) doesn't.
+// - the permission settings keys (unit 18b): the one object that starts `{allow:` and holds `deny:`
+//   and `disableBypassPermissionsMode:`;
+// - each settings object's own keys (unit 18b): a known name added to another object (a new
+//   `enabled` under `network`) changes that object's list, so it shows.
 // Each anchor must be found exactly once, or the facts are `null` ("unknown"), never a guess.
 // R1 read 2.1.300 to 2.1.314 this way: the same result twice from one binary, and the one change
 // in that range (`allowNestedUserNamespaces`, new in 2.1.310) seen.
@@ -20,6 +24,8 @@ const CHUNK = 64 << 20;
 const PROFILE_ANCHOR = '["(version 1)",';
 const KEYS_ANCHOR = '{allowedDomains:';
 const KEYS_END = 'failIfUnavailable:';
+const PERMISSIONS_ANCHOR = '{allow:';
+const PERMISSIONS_HAS = ['deny', 'disableBypassPermissionsMode'];
 const WINDOW = 400_000;
 
 function findAll(fd, size, pattern) {
@@ -166,8 +172,43 @@ export function settingsKeys(src) {
   return [...keys].sort();
 }
 
-// { settings_keys, profile_rules, notes }: each a sorted list, or null when its anchor wasn't
-// found exactly once (the note says why).
+// The key list of every object literal in `src` (outside strings), each as one string of its
+// sorted keys, sorted. Nested objects are listed on their own.
+export function objectsIn(src) {
+  const toks = scan(src, { stop: false });
+  const frames = [];
+  const out = new Set();
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k];
+    if (t.kind === 'punct' && '{(['.includes(t.text)) frames.push(t.text === '{' ? new Set() : null);
+    else if (t.kind === 'punct' && '})]'.includes(t.text)) {
+      const f = frames.pop();
+      if (f && f.size) out.add([...f].sort().join(' '));
+    } else if ((t.kind === 'ident' || t.kind === 'str') && toks[k + 1]?.text === ':' && ['{', ','].includes(toks[k - 1]?.text)) {
+      const top = frames.at(-1);
+      if (top) top.add(t.text);
+    }
+  }
+  return [...out].sort();
+}
+
+// The permission settings object's keys from the text that starts at `{allow:`; null when it
+// isn't that object.
+export function permissionKeys(src) {
+  const toks = scan(src.slice(1));
+  const keys = new Set();
+  let depth = 0;
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k];
+    if (t.kind === 'punct' && '{(['.includes(t.text)) depth++;
+    else if (t.kind === 'punct' && '})]'.includes(t.text)) depth--;
+    else if (depth === 0 && (t.kind === 'ident' || t.kind === 'str') && toks[k + 1]?.text === ':' && (k === 0 || toks[k - 1]?.text === ',')) keys.add(t.text);
+  }
+  return PERMISSIONS_HAS.every((h) => keys.has(h)) ? [...keys].sort() : null;
+}
+
+// { settings_keys, settings_objects, permission_keys, profile_rules, notes }: each a sorted list,
+// or null when its anchor wasn't found exactly once (the permissions: in one form) (the note says why).
 export function readBinaryFacts(path) {
   const fd = openSync(path, 'r');
   try {
@@ -177,15 +218,27 @@ export function readBinaryFacts(path) {
     let profile = null;
     if (profileHits.length === 1) profile = profileRules(readAt(fd, profileHits[0], WINDOW));
     else notes.push(`the sandbox profile's anchor was found ${profileHits.length} times, not once`);
-    const keyHits = findAll(fd, size, KEYS_ANCHOR).map((at) => settingsKeys(readAt(fd, at, WINDOW))).filter(Boolean);
+    const keyHits = findAll(fd, size, KEYS_ANCHOR).map((at) => ({ at, keys: settingsKeys(readAt(fd, at, WINDOW)) })).filter((h) => h.keys);
     let keys = null;
-    if (keyHits.length === 1) keys = keyHits[0];
-    else notes.push(`the settings schema's anchor was found ${keyHits.length} times, not once`);
+    let objects = null;
+    if (keyHits.length === 1) {
+      keys = keyHits[0].keys;
+      const src = readAt(fd, keyHits[0].at, WINDOW);
+      const f = src.indexOf(KEYS_END);
+      objects = objectsIn(src.slice(0, f + scan(src.slice(f)).end + 1));
+    } else notes.push(`the settings schema's anchor was found ${keyHits.length} times, not once`);
+    // The permissions object is written more than once in the binary, the same each time: its
+    // copies must agree on one list, or it's unknown (18b review: not "exactly once" like the rest).
+    const permHits = findAll(fd, size, PERMISSIONS_ANCHOR).map((at) => permissionKeys(readAt(fd, at, 20_000))).filter(Boolean);
+    const unique = [...new Set(permHits.map((h) => h.join(' ')))];
+    let permissions = null;
+    if (unique.length === 1) permissions = unique[0].split(' ');
+    else notes.push(`the permission settings were found in ${unique.length} different forms, not one`);
     if (profile && profile.length === 0) {
       profile = null;
       notes.push('the sandbox profile had no rule lines');
     }
-    return { settings_keys: keys, profile_rules: profile, notes };
+    return { settings_keys: keys, settings_objects: objects, permission_keys: permissions, profile_rules: profile, notes };
   } finally {
     closeSync(fd);
   }

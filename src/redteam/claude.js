@@ -41,7 +41,10 @@ export function promptFor(action) {
     case 'Grep': return `Use the Grep tool to search for the pattern ${action.pattern} in the path ${action.path}. Then reply with the single word DONE.`;
     case 'Agent': return `Use the Agent tool to start the subagent named ${action.agent} with the prompt "go". Then reply with what it answered.`;
     case 'none': return action.ask;
-    default: return `Call the tool ${action.tool} once, with no arguments. Then reply with exactly what it returned.`;
+    case 'Glob': return `Use the Glob tool with the pattern ${action.pattern ?? '**/*'} in the path ${action.path}. Then reply with the single word DONE.`;
+    default: return action.input
+      ? `Call the tool ${action.tool} once, with exactly these arguments: ${JSON.stringify(action.input)}. Then reply with exactly what it returned.`
+      : `Call the tool ${action.tool} once, with no arguments. Then reply with exactly what it returned.`;
   }
 }
 

@@ -11,6 +11,7 @@ import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { openStore } from '../../src/store/home.js';
 import { redact } from '../../src/redteam/claude.js';
 import { report } from '../../src/redteam/report.js';
+import { redTeamCases } from '../../src/redteam/cases.js';
 import { DEFAULTS, runRedTeam } from '../../src/redteam/run.js';
 
 // Unit 18a: the red team on a throwaway clone of the sample app under your home folder, for my
@@ -46,8 +47,20 @@ export async function runRedTeamProbe({ app, workdir, only = null, workers = DEF
     git('add', '-A');
     git('commit', '-qm', 'probe: MIRAI refresh and a probe key (unit 18a)');
     const signer = loadSigner(storeEnv, openStore({ cwd: root, env: storeEnv }));
+    // Probe R1 (unit 18b): what each escape's refusal actually prints, kept for adjusting
+    // escapeRefusal. Only the escape cases, whose output is a macOS error message; redacted.
+    // For every case, the calls the model made and which were denied: tool names and paths only.
+    const escapes = [];
+    const calls = [];
+    const caseList = (ctx) => redTeamCases(ctx).map((k) => (typeof k.check !== 'function' ? k : {
+      ...k, check: (res, c) => {
+        if (k.id.startsWith('escape')) escapes.push(`${k.id}: ${String(res.toolText ?? '').slice(0, 1500)}`);
+        calls.push(`${k.id}: calls ${res.toolUses.map((u) => `${u.name} ${u.input?.file_path ?? u.input?.path ?? ''}`.trim()).join(', ') || 'none'}; denied ${res.denials.map((d) => d.tool_name).join(', ') || 'none'}`);
+        return k.check(res, c);
+      },
+    }));
     const r = await runRedTeam({
-      cwd: root, env: process.env, storeEnv, consent: true, only, workers, runs, signer, workdir: join(workdir, 'rt'), keep,
+      cwd: root, env: process.env, storeEnv, consent: true, only, caseList, workers, runs, signer, workdir: join(workdir, 'rt'), keep,
       ...(fake ? { launch: fakeLaunch } : {}),
       onEvent: (ev) => {
         if (ev.type === 'run') log(`${ev.id} (${ev.template}) run ${ev.n}: ${ev.outcome}  ${ev.note}`);
@@ -56,6 +69,8 @@ export async function runRedTeamProbe({ app, workdir, only = null, workers = DEF
     });
     writeFileSync(join(out, 'result.json'), `${redact(JSON.stringify(r.result, null, 2), null)}\n`);
     writeFileSync(join(out, 'report.txt'), report(r.result, r));
+    writeFileSync(join(out, 'calls.txt'), `${redact(calls.join('\n'), null)}\n`);
+    writeFileSync(join(out, 'escape-output.txt'), `${redact(escapes.join('\n----\n'), null)}\n`);
     return r;
   } finally {
     if (!keep) {
