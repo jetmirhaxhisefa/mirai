@@ -8,6 +8,7 @@ import key from './key.js';
 import lint from './lint.js';
 import log from './log.js';
 import protectedCmd from './protected.js';
+import redteam from './redteam.js';
 import render from './render.js';
 import sandbox from './sandbox.js';
 import sessionServer from './session-server.js';
@@ -20,4 +21,4 @@ import version from './version.js';
 // The real command list, fixed in code: a file dropped into this folder does nothing.
 // Later units add their commands here, by name. `help` is added by main.js, because it
 // needs the router itself.
-export const COMMANDS = [approve, baseline, config, detect, drop, init, key, lint, log, protectedCmd, render, sandbox, sessionServer, status, test, token, trust, version];
+export const COMMANDS = [approve, baseline, config, detect, drop, init, key, lint, log, protectedCmd, redteam, render, sandbox, sessionServer, status, test, token, trust, version];

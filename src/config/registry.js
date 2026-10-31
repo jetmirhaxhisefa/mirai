@@ -103,6 +103,17 @@ const ADAPTER = {
         builtin_plugins: NAME_LIST,
         builtin_skills: NAME_LIST,
         builtin_agents: NAME_LIST,
+        // What the binary allows, as seen on `seen_on` (unit 18a): the red-team run reads both from
+        // the installed binary and refuses anything new.
+        binary: {
+          type: 'table',
+          fields: {
+            seen_on: { type: 'string', pattern: /^\d+\.\d+\.\d+$/, patternHint: 'a Claude Code version such as "2.1.314"' },
+            settings_keys: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z_$][\w$]{0,80}$/, patternHint: 'a settings key such as "allowedDomains"' } },
+            profile_rules: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^\([^\n]{0,400}$/, patternHint: 'one sandbox profile line, starting with "("' } },
+          },
+          required: ['seen_on', 'settings_keys', 'profile_rules'],
+        },
       },
       required: ['read_write_tools', 'read_only_tools', 'deny_commands', 'deny_tools', 'deny_env', 'builtin_version', 'builtin_plugins', 'builtin_skills', 'builtin_agents'],
       check(value, path, report) {

@@ -31,8 +31,9 @@ import { FRAMEWORK_PARTS, PACKAGE_ROOT } from '../install/parts.js';
 const FRAMEWORK = '.mirai/framework';
 const OUTSIDE = new Set(['init', '--version', '--help', '-h', 'help', undefined]);
 const SELF = new Set(['init', 'update', 'token']);
-// Commands that sign or start agents: they need a committed copy, (A).
-const NEEDS_COMMITTED = new Set(['approve', 'drop', 'key', 'run', 'agent', 'handover', 'unpark', 'resume']);
+// Commands that sign or start agents: they need a committed copy, (A). `redteam` signs a result
+// that names the committed framework (18a review).
+const NEEDS_COMMITTED = new Set(['approve', 'drop', 'key', 'run', 'agent', 'handover', 'unpark', 'resume', 'redteam']);
 const LAUNCHER_VERSION = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8')).version;
 const REPO_ID = /^[a-z0-9][a-z0-9._-]{0,80}-[0-9a-f]{12}$/;
 const CACHE = 'launcher.json';

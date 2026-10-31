@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -90,6 +90,14 @@ export const MIRAI_STEPS = Object.freeze([
   ['changedLines', (root, env) => mirai.changedLines(root, 'main', null, env)],
   ['branchRefs', (root, env) => mirai.branchRefs(root, env)],
   ['commitMessages', (root, env) => mirai.commitMessages(root, 'side', env)],
+  ['cloneTo', (root, env) => {
+    const dest = `${root}-clone`;
+    try {
+      mirai.cloneTo(root, dest, 'main', env);
+    } finally {
+      rmSync(dest, { recursive: true, force: true });
+    }
+  }],
 ]);
 const REFUSALS = new Set(['repo-config', 'repo-shape', 'repo-nested', 'repo-lfs', 'git-file']);
 

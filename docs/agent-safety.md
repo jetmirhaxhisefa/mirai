@@ -248,8 +248,9 @@ What the tests found, on Claude Code 2.1.310 and macOS 26.7:
   exists (unit 13c).
 - The rendered bundle itself passes the same tests (unit 13b).
 
-The tests are re-run after every Claude Code update (unit 18), because each fact holds for the
-version it was seen on.
+The rendered bundle's tests are now the red team ([red-team.md](red-team.md), unit 18a): `mirai
+redteam run` runs them again on your machine, three times each, against your project's own rules,
+because each fact holds only for the version it was seen on.
 
 ### Tests run in containers (units 14a–14d)
 
@@ -766,35 +767,38 @@ So if your token leaks:
 
 1. Once per machine: `claude setup-token`, then `mirai token set`, in your own terminal.
 2. Renew the token about once a year (`mirai token status` reminds you).
-3. Before trusting agent runs after a Claude Code update: let the red-team checks pass
-   (unit 18).
+3. After any update to Claude Code, macOS, Docker, git or Node: `mirai redteam run`, until
+   `mirai redteam status` says green ([red-team.md](red-team.md)). Unattended agent launches
+   wait for it.
 
 ## The limits of all this (honest residual risk)
 
 - **This is weaker than a container or a separate macOS user.** The agent runs as you, so every
   part of MIRAI that touches what an agent wrote is part of the boundary. Each part is hardened,
   but a bug in any of them crosses it.
-- **The tests were one run each, with an agent that cooperated,** on one macOS build. Unit 18
-  runs them several times, including a mode where the agent actively looks for ways around the
-  rules.
+- **The tests use an agent that cooperates.** The red team ([red-team.md](red-team.md)) runs each
+  check three times on your machine, but the model is told to make one exact call. A mode where it
+  actively looks for ways around the rules comes with unit 18b.
 - **Command rules (such as "no `git push`") are speed bumps:** a command wrapped in `sh -c`
   gets past them. What actually holds is that agents have no network, no token in their
   environment, and no read or write access to the places that matter.
 - **Newer app passwords** (the data-protection keychain) are guarded by macOS's app signatures,
-  not by MIRAI's rules. They haven't been tested yet (unit 18).
+  not by MIRAI's rules. They haven't been tested yet (unit 18b).
 - **Secrets not named `.env*`** (an `.npmrc` with a token, `*.pem` keys, `config/master.key`)
   are readable in the project unless a pack names them; secret files per technology come as
   pack data later.
 - **What's readable outside your home folder:** system folders stay readable so tools work.
-  The places known to hold data are denied (see "Reads"); unit 18 lists the rest.
+  The places known to hold data are denied (see "Reads"); unit 18b lists the rest.
 - **MIRAI's git:** the repo check and the hash catch a hostile `.git` between two checks, not the
   moment it's written. Something other than an agent (your IDE, another tool) can still change
   `.git` between your commands; the next MIRAI command or check refuses it. The key lists were
-  probed on git 2.39.5 (Apple); a git update needs the probes again (unit 18).
+  probed on git 2.39.5 (Apple); a git update makes the red-team result stale, and unit 18b runs
+  the git probes again as part of it.
 - **Your merge is the final gate.** MIRAI reviews and tests every change, but you decide what
   reaches your integration branch.
 
 ## Coming next
 
-- **Unit 18:** the red-team suite, re-run after every update.
+- **Unit 18b:** the rest of the red team's attack list, and the mode where the agent looks for
+  ways around the rules.
 - **Unit 19:** the first real agent runs.

@@ -21,7 +21,7 @@ import { parseDiff } from '../tests/diff.js';
 // Calls used: `rev-parse`, `rev-list`, `config --file`, (unit 06) `ls-tree` / `cat-file`,
 // (unit 07b) `ls-files`, (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff
 // --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files, (unit 16b) `diff -U0`,
-// (unit 17a) `for-each-ref` and `log`. A new call needs its own probe (test/probes/git-probes.js
+// (unit 17a) `for-each-ref` and `log`, (unit 18a) `clone`. A new call needs its own probe (test/probes/git-probes.js
 // --mirai).
 
 const TIMEOUT_MS = 10_000;
@@ -424,6 +424,18 @@ export function commitMessages(root, ref, env, { max = 200 } = {}) {
 export function commitOf(root, ref, env) {
   const r = git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], env);
   return r.ok && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(r.out) ? r.out : null;
+}
+
+// A copy of the checkout's `branch` in `dest` (unit 18a: the red-team runner's own clone), with
+// no work tree yet: `--no-local`, so objects are copied through git's transport, never hard-linked
+// or read as files; no hooks run, no checkout, and the clone gets no config from `root`. The
+// repo check runs on `root` first, as for every call.
+export function cloneTo(root, dest, branch, env) {
+  checkGuards(root);
+  checkRepo(root, env);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$/.test(branch) || branch.includes('..')) throw new StoreError('not a branch name', { code: 'bad-branch' });
+  const r = exec('/', ['--no-replace-objects', ...pinArgs(), 'clone', '--quiet', '--no-local', '--no-hardlinks', '--no-checkout', '--single-branch', '--branch', branch, '--', root, dest], pinEnv(), { timeout: 600_000 });
+  if (!r.ok) throw new StoreError(`git clone of ${branch} failed`, { code: 'git-failed' });
 }
 
 // The best common ancestor of two commits, or null (unit 12: a change is measured from where its

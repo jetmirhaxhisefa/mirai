@@ -180,13 +180,45 @@ temporary `CLAUDE_CONFIG_DIR`, never your real config; S2–S4 with Haiku):
   `~/.claude.json` and `~/.claude/settings*.json`: a count, never printed or stored; 0 before and
   after every run.
 
+**From unit 18a's red team** (Claude Code **2.1.314**, macOS 25G229, Docker 29.6.2, git 2.39.5,
+Node v22.23.2, Haiku). The runs are the red-team library driven by `test/probes/redteam-probe.js`
+on a clone of the sample app, with this checkout's MIRAI and a probe key in a temporary home, not
+`mirai redteam run` in your own checkout (that's the dogfood run):
+- **R1, the binary with no model:** a native build carries a readable copy of its JavaScript.
+  The sandbox settings schema (59 key names, from the object holding `allowedDomains` to the one
+  holding `failIfUnavailable`) and the base macOS sandbox profile (127 rule lines, from the array
+  starting `"(version 1)"` to the end of the function that writes it, the conditional and later
+  pushed rules included) are each found once, read the same twice, and are **identical in 2.1.312
+  and 2.1.314**. Across 2.1.300 to 2.1.314: `allowNestedUserNamespaces` is new in 2.1.310, and in
+  2.1.312 the two `localhost` rules for local binding (`network-bind`, `network-inbound`) became one
+  built from a port (`(local ip "*:${…}")`). The first reader stopped at the array's end and missed
+  16 rules, the network ones among them (18a review). MIRAI's adapter data now lists both
+  (`[strict.binary]`), and every red-team run compares the installed binary with it.
+- **`allowGitConfig` isn't a settings key** in 2.1.310 to 2.1.314: it belongs to the bundled sandbox
+  runtime's own config, where it defaults to false. 13b writes `filesystem.allowGitConfig: false`,
+  which is harmless; the list of settings keys above (from 13a) named it by mistake.
+- **The escape cases** pass when no marker appears after a wait; which layer refused (the
+  sandbox, AppleEvents, Launch Services) is in each run's note since the review, not before.
+- **13b's and 13c's bundle checks all hold on 2.1.314,** through the real `prepareLaunch` with your
+  project's templates: 43 cases (39 of 13b–13c's, plus 4 for the read-only template), **3 runs
+  each, 130 runs, all passing**, the host baseline reaching the keychain, git credentials, Docker
+  and the ssh-agent outside the sandbox. The built-in skills, agents and plugins are those listed
+  for 2.1.310.
+- **Four launches at once** (each with its own config, launch and scratch folders) don't
+  interfere. A case run takes 7 to 8 s (median; at most 20 s); the suite about 4.5 minutes on 4
+  workers.
+- **A `~/` path in the prompt** is often written out in full by the model; both spellings count as
+  the call.
+
 ## Residual risk this adds to research/09 §7
 
 - **The data-protection keychain** (newer app passwords) is reached through `securityd`'s XPC
-  service and guarded by app signatures, not by the file deny. Not probed; unit 18.
+  service and guarded by app signatures, not by the file deny. Not probed; unit 18b.
 - **Other services the base sandbox profile allows** (Launch Services, distributed
   notifications, power management, directory services). The escape probes found no way out
-  through `open`, `osascript` or `launchctl`; unit 18 diffs the profile's allowed services and
-  the settings schema in every new Claude Code binary, and anything new needs review.
+  through `open`, `osascript` or `launchctl`. Since unit 18a every red-team run reads the
+  profile's rules and the settings schema from the installed binary; anything new is red until it's
+  reviewed and listed in MIRAI's adapter data.
 - **Command deny rules are speed bumps:** `sh -c` and other wrappers get past them.
-- **The facts are single, cooperative runs on one macOS build;** see "The test conditions".
+- **The facts are cooperative runs on one macOS build;** see "The test conditions". Since unit 18a
+  the bundle's checks run 3 times each on every red-team run; the adversarial mode is unit 18b.
