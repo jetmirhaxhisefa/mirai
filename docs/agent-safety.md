@@ -898,6 +898,47 @@ at the start of the run. **Your own sessions get none of these.** Probed under `
 refused. Under
 bypass nobody is approving, so that's all that stands there. Unit 18e tried the rest: see "What holds in your sessions".
 
+## Starting an agent (unit 19a)
+
+```
+mirai agent run --mode read-write|read-only --prompt-file <file> [--tier light|standard|deep] [--item <id>] [--max-turns <n>]
+```
+
+In your terminal, in this checkout, using your subscription. Skills will reach it through MIRAI's server later (unit 19c).
+
+**It refuses to start unless:**
+- the red team is **green** for that template, on exactly what's installed now. Any change (Claude Code, MIRAI, Docker, your project's rule files) makes the result stale, and you run it again;
+- a **blocker** ever seen on this Claude Code and macOS has your decision: a later green doesn't clear one by itself. Read it (`mirai redteam show <key>`), and if you accept it, `mirai redteam accept-blocker <key> --note <why>`, signed;
+- your **tree is clean**, so what the agent changes in tracked and new files shows in `git status` (ignored files don't);
+- no other MIRAI run is going, in any project; and the trust root still hashes as it should.
+
+A green result is only as good as your signing key: your own session could read the key and forge one ("What holds in your sessions"). So watch each run until roadmap row 29b is done.
+
+**While it runs:**
+- It starts the exact binary the red team tested, with auto-update off, so a night's update can't change it.
+- The token goes down a pipe at fd 3, and is closed. Bash can't read it there (probed).
+- Every init event is checked against what MIRAI launched, the model included, and any difference ends the run. So does silence for two minutes.
+- The agent is told to send long output to a file in `$TMPDIR` and page it with Bash. Long output is otherwise cut to a preview, and the hook refuses a Read of the saved copy. An agent found the true last line of a 60,000-line output this way (probed).
+
+**When it ends,** by itself, by its time limit or by your Ctrl-C (a second Ctrl-C skips the wait for cleanup):
+- Its processes are ended. Killing its process group isn't enough, as background jobs get their own and often detach within a moment (probed). So MIRAI follows its process tree during the run, and also ends a new orphan working in the launch's own scratch folder.
+- **A new orphan working in your checkout is named and left alone,** and the run isn't ok: it may be the agent's, or something of yours started in the project during the run, such as a dev server or a git daemon. Any other new orphan is only listed, since it may be yours, leaving out programs under system folders, `/Library` and `/Applications`.
+- A process of the agent's that outlives this, or a `ps` that fails, means the run isn't ok.
+- `.git` is compared with before; a change fails the run.
+- One line goes in the run log: model, turns, tokens, minutes, the outcome, what outlived it, the launch's hashes and the token's fingerprint. Usage share is "unknown" until unit 20. The whole stream, with the token removed, stays in the store (`agent-runs/`, last 50).
+- **A run is ok only with a checked start and a real success result.** No init event, a different one, any action before it, no result, or an error result is not ok. A verdict file an agent wrote means nothing. Unit 19a doesn't read verdicts at all: structured verdicts come with the reviewers.
+- An ok run ends `finished`; any other ends `stopped`.
+
+**If `mirai` itself dies,** its agent keeps running, in its own session, until the next `mirai agent run`. That one finds the record first, ends that agent if it's still the same process, kills its leftovers in the scratch folder, names any in your checkout, and closes the old run as stopped. `.git` isn't compared for the crashed run, and it says so: look at your tree.
+
+**Exit codes:** 0 ok; 1 the agent failed; 4 refused, or the run wasn't what MIRAI launched; 5 something around it failed, such as a token to renew; 130 stopped.
+
+**Known limits:**
+- **A process that detaches can outlive the run.** A plain `nohup … &` often gets away before MIRAI sees it. If it's working in your checkout it's named, and the run isn't ok. After `cd /` it isn't even that: it's at most one line among other new orphans. MIRAI can't tell whose it is, because macOS hides another process's environment (`ps -E` and `sysctl` both tried). It has no token or network, and `.git` stays denied, but it keeps its write access to your project, so it could change files after the run. Units 21 and 22 must allow for it: a worktree per launch, where killing is safe, and a re-check after the commit. The red team records it each run (`l-cd`).
+- **Your first real launch is the first test of a real green result with a real launch.** The end-to-end probe stubbed the gate, since a clone has no result; the refusal was shown only for "no result". Stale, a Docker mismatch and an accepted blocker are shown by unit tests.
+- **A long MCP reply:** MIRAI's server returns the last 32 KiB of a test run, so an earlier first failure isn't in the reply. Getting the full evidence is unit 24's.
+- **If the hook passes its timeout, a Read goes ahead.** Writes need the hook's yes, so they're refused, secrets too. Past the timeout, a Read of a hard link to `.env` returned the secret (probed). That link needs someone other than the agent to make it during the run. Tried from an agent alone, all refused: `ln`, `mv` and `cp` of `.env`, renaming its folder, a symbolic link, `.ENV`, and `.env` with a trailing space, past the timeout where it applied. A `..` path wasn't tried past it. An agent's own load (24 busy loops) didn't make the real hook miss its 30 seconds in one try; that's one try, not a proof, and a hook that crashes for another reason would also let a Read through. The hook now checks a fingerprint of the trust root (about 15 ms for 218 files), not every file's hash. Your decision in 19a: not a blocker. The red team records it each run.
+
 ## Coming next
 
-- **Unit 19:** the first real agent runs.
+- **Units 19b and 19c:** write scope, depth guard, tiers and the verifier ladder; then the broker's way in, and sessions.

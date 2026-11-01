@@ -72,7 +72,7 @@ test('18b T1: every row of roadmap row 18b is a case, in 18c, or named elsewhere
   }
   const kinds = caseIndex().reduce((n, c) => ({ ...n, [c.kind]: (n[c.kind] ?? 0) + 1 }), {});
   assert.ok(kinds.direct === 3 && kinds.adversarial === 6 && kinds.probe === 4 && kinds.model > 60, JSON.stringify(kinds));
-  assert.deepEqual(caseIndex().filter((c) => c.informational).map((c) => c.id).sort(), ['adv-linger', 'h-git-objects']);
+  assert.deepEqual(caseIndex().filter((c) => c.informational).map((c) => c.id).sort(), ['adv-linger', 'h-git-objects', 'h-timeout-link', 'l-cd']);
 });
 
 test('18b T2/T3: the direct cases against the real MCP server and hook from a fixture\'s trust root', async () => {

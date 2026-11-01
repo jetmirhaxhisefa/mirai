@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
 import { createPrompter, requireTty } from '../tty.js';
@@ -8,7 +12,9 @@ import { caseIndex } from '../../redteam/cases.js';
 import { templateNames } from '../../redteam/key.js';
 import { DEFAULTS, redTeamStatus, runRedTeam } from '../../redteam/run.js';
 import { NEXT, partsText, report, SESSION_NEXT, sessionReport } from '../../redteam/report.js';
-import { listResults, readResult, SESSIONS } from '../../redteam/store.js';
+import { listBlockers, listResults, readDecision, readResult, SESSIONS, writeDecision } from '../../redteam/store.js';
+import { loadSigner } from '../../sign/signer.js';
+import { PACKAGE_ROOT } from '../../install/parts.js';
 import { runSessions, sessionEstimate, sessionStatus } from '../../redteam/sessions.js';
 
 // mirai redteam run [--only <id,…>] | status | show [<key>] (unit 18a). `run` is yours alone: it
@@ -43,10 +49,11 @@ function estimate(cases, templates, only) {
 export default {
   name: 'redteam',
   summary: 'Run the red-team checks that every unattended agent launch needs, or show where they stand',
-  usage: 'mirai redteam run [--sessions] [--only <id,…>] | mirai redteam status [--sessions] | mirai redteam show [--sessions] [<key>]',
+  usage: 'mirai redteam run [--sessions] [--only <id,…>] | mirai redteam status [--sessions] | mirai redteam show [--sessions] [<key or blocker id>] | mirai redteam accept-blocker <id> --note <why>',
   positionals: { min: 1, max: 2 },
   options: {
     only: { type: 'string', description: 'run only these cases (comma-separated ids); a partial run is reported, never recorded' },
+    note: { type: 'string', description: 'with accept-blocker: why you accept it' },
     sessions: { type: 'boolean', description: 'the cases for your own Claude Code sessions (they never gate a launch)' },
   },
   async run(args, io) {
@@ -54,9 +61,15 @@ export default {
     const only = args.values.only !== undefined ? args.values.only.split(',').map((s) => s.trim()).filter(Boolean) : null;
     if (action !== 'run' && only) throw new UsageError('--only is for run');
     if (args.values.sessions) return sessions(action, arg, only, io);
+    if (action === 'accept-blocker') return acceptBlocker(arg, args.values.note, io);
 
     if (action === 'show') {
       const store = openStore({ cwd: io.cwd, env: io.env });
+      const held = listBlockers(store).find((b) => b.id === arg);
+      if (held?.result) {
+        io.stdout.write(report(held.result));
+        return EXIT.OK;
+      }
       const keys = listResults(store);
       if (arg !== undefined && !/^[0-9a-f]{12,64}$/.test(arg)) throw new UsageError(`${shown(arg)} isn't a result key`, 'give at least 12 characters of one (mirai redteam status shows the current one)');
       const key = arg === undefined ? keys[0] : keys.find((k) => k.startsWith(arg));
@@ -72,17 +85,22 @@ export default {
       const s = await redTeamStatus({ cwd: io.cwd, env: io.env, ...(io.docker ? { dockerVersion: io.docker.version } : {}), ...(io.claude ? { claude: io.claude } : {}) });
       const lines = [`red team: ${s.state}${s.result && s.state !== 'stale' ? ` (${s.result.created_at})` : ''}`, '', `this machine now (key ${s.key.slice(0, 16)}):`, ...partsText(s.parts)];
       if (s.state === 'stale') lines.push('', `changed since the last ${s.result.state === 'green' ? 'green ' : ''}result: ${s.changed.join(', ')}`);
+      const accepted = s.blocker_seen ? readDecision(openStore({ cwd: io.cwd, env: io.env }), s.blocker_seen.id) : null;
+      if (s.blocker_seen && !accepted) lines.push('', `launches are refused until you decide: read it (mirai redteam show ${s.blocker_seen.id}), then mirai redteam accept-blocker ${s.blocker_seen.id} --note <why>`);
       if (s.blocker_seen && s.state !== 'blocker') lines.push('', `a red-team run on this Claude Code and macOS found a blocker (${s.blocker_seen.created_at}): V1's condition was met once; see mirai redteam show ${s.blocker_seen.key.slice(0, 12)}`);
       lines.push('', `next: ${NEXT[s.state]}`, '');
       lines.push(await sessionLine(io), '');
       io.stdout.write(lines.join('\n'));
-      return s.state === 'green' ? EXIT.OK : EXIT.NEEDS_HUMAN;
+      return s.state === 'green' && (!s.blocker_seen || accepted) ? EXIT.OK : EXIT.NEEDS_HUMAN;
     }
     if (action !== 'run') throw new UsageError(`unknown action ${shown(action)}`, 'see: mirai redteam --help');
     if (arg !== undefined) throw new UsageError('run takes no argument; use --only <id,…>');
 
     requireTty(io, 'mirai redteam run');
     const trust = snapshot({ cwd: io.cwd, env: io.env });
+    // A result speaks for the trust root's code, so that's the code that must run (18c's note).
+    const differs = differsFromTrust(trust);
+    if (differs) throw new UsageError(`this MIRAI isn't the trust root's copy (${shown(differs)} differs)`, 'run it through the launcher, from the integration branch\'s commit');
     const templates = templateNames(trust);
     for (const t of templates) trustedStrict(trust, t);
     const cases = caseIndex(trust);
@@ -139,6 +157,35 @@ async function sessionLine(io) {
   } catch {
     return 'your own sessions (never gates a launch): unknown';
   }
+}
+
+// Compares the running code with the trust root's framework copy: the first file that differs, or null.
+function differsFromTrust(trust) {
+  const prefix = 'tree/.mirai/framework/';
+  const listed = (trust.manifest?.files ?? []).filter((f) => f.path.startsWith(prefix));
+  if (!listed.length) return 'the trust root\'s framework';
+  for (const f of listed) {
+    let bytes;
+    try {
+      bytes = readFileSync(join(PACKAGE_ROOT, f.path.slice(prefix.length)));
+    } catch {
+      return f.path.slice(prefix.length);
+    }
+    if (createHash('sha256').update(bytes).digest('hex') !== f.sha256) return f.path.slice(prefix.length);
+  }
+  return null;
+}
+
+async function acceptBlocker(arg, note, io) {
+  requireTty(io, 'mirai redteam accept-blocker');
+  if (!/^[0-9a-f]{24}$/.test(arg ?? '')) throw new UsageError('name the blocker\'s id', 'mirai redteam status shows it');
+  if (!note || !/\S/.test(note) || note.length > 500) throw new UsageError('--note says why you accept it, in one line');
+  const store = openStore({ cwd: io.cwd, env: io.env });
+  const blocker = listBlockers(store).find((b) => b.id === arg);
+  if (!blocker) throw new UsageError(`${shown(arg)} isn't a blocker on record here`, 'see: mirai redteam status');
+  writeDecision(store, blocker.id, note, loadSigner(io.env, store));
+  io.stdout.write(`recorded, signed: you accept the blocker of ${blocker.created_at}. Launches may go ahead once a current result is green.\n`);
+  return EXIT.OK;
 }
 
 async function sessions(action, arg, only, io) {

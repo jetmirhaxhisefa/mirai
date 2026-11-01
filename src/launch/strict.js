@@ -12,6 +12,7 @@ import { checkPrivateDir, ensurePrivateDir } from '../store/files.js';
 import { LOG_TYPES } from '../store/journal.js';
 import { repoGuard } from '../store/repo-state.js';
 import { protectionRules } from '../trust/protected.js';
+import { trustFingerprint } from '../trust/verify.js';
 import { readToken } from '../sign/token.js';
 import { expand } from '../util/glob.js';
 import { HOOKED_TOOLS, hookPolicy, policyText, WRITE_TOOLS } from './hook.js';
@@ -471,7 +472,7 @@ export function launchFacts({ trust, checkout, env, launchDir, scratchDir, mirai
 }
 
 // The hook's policy for one launch, from the same facts as the settings.
-export function launchPolicy(template, facts, trust) {
+export function launchPolicy(template, facts, trust, fingerprint = null) {
   const co = facts.checkout;
   const { readable } = readableEnv(template, facts.tracked ?? []);
   const configDir = join(facts.home, '.config', 'mirai');
@@ -483,7 +484,7 @@ export function launchPolicy(template, facts, trust) {
     hooksPaths: facts.hooksPaths ?? [],
     readableEnv: readable.map((p) => join(co, p)),
     protectedFiles: protectedFiles(template, facts),
-    trust: { dir: facts.trustDir, manifestSha256: trust.manifestSha256 },
+    trust: { dir: facts.trustDir, manifestSha256: trust.manifestSha256, fingerprint: fingerprint ?? trustFingerprint(facts.trustDir) },
     tokenFile: join(configDir, 'claude-token'),
     secrets: template.secrets,
   });
@@ -503,7 +504,7 @@ export function launchPolicy(template, facts, trust) {
 // input/files/ for the agent to read (its plan and the like); their paths are on
 // `plan.inputs`. `probe` is for the probes only ({ home, dockerSocket }): their fixture's MIRAI
 // home sits under a temporary HOME; it requires `miraiHomeDir`, which only they pass.
-export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, id = null, miraiHomeDir = null, probe = null, item = null, inputs = {} }) {
+export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, id = null, miraiHomeDir = null, probe = null, item = null, inputs = {}, fingerprint = null }) {
   if (probe && !miraiHomeDir) throw new StrictError('probe settings are for the probes only', { code: 'bad-probe' });
   if (item !== null && !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/.test(item)) throw new StrictError('the launch\'s item isn\'t a ticket or document id', { code: 'bad-item' });
   const inputFiles = checkInputs(inputs);
@@ -542,7 +543,7 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
     // The hook's policy first, read-only in input/; the settings carry its hash (unit 13c).
     const hookScript = join(facts.trustDir, 'tree', '.mirai', 'framework', 'bin', 'hook.js');
     if (!existsSync(hookScript)) throw new StrictError('the trust root has no hook (a framework copy from before unit 13c)', { code: 'no-hook', hint: 'run: mirai init --refresh, and commit it' });
-    const policy = launchPolicy(template, facts, trust);
+    const policy = launchPolicy(template, facts, trust, fingerprint);
     const policyFile = join(facts.launchDir, 'input', 'hook-policy.json');
     const policyBody = policyText(policy);
     writeReadOnly(policyFile, policyBody);

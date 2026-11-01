@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -17,6 +18,8 @@ import { changedParts, keyOf } from './key.js';
 // escape), `incomplete` (inconclusive cases, unknown checks, or the run stopped). redTeamStatus
 // adds `stale` (results exist, none for the current key) and `none`.
 
+const blockerId = (r) => createHash('sha256').update(`${r.key}\n${r.created_at}`).digest('hex').slice(0, 24);
+const blockerContext = (repoId) => `mirai/redteam-blocker/1:${repoId}`;
 export const KEEP_RESULTS = 20;
 export const RESULT_SCHEMA_VERSION = 1;
 export const RESULT_FOLDER = 'redteam';
@@ -43,6 +46,14 @@ export function writeResult(store, result, signer, { now = () => new Date(), kin
   ensurePrivateDir(dir);
   const signed = signObject(result, signer, { context: kind.context(store.repoId), now });
   atomicWrite(resultPath(store, result.key, kind), `${JSON.stringify(signed, null, 2)}\n`);
+  // A blocker stays on record whatever happens to its result: a later green under the same key
+  // overwrites that, and old results rotate out (unit 19a).
+  if (kind === HEADLESS && result.state === 'blocker') {
+    ensurePrivateDir(join(store.dir, RESULT_FOLDER, 'blockers'));
+    const id = blockerId(result);
+    const record = signObject({ id, key: result.key, created_at: result.created_at, claude_code: result.parts?.claude_code?.sha256 ?? null, macos: result.parts?.macos ?? null, result }, signer, { context: blockerContext(store.repoId), now });
+    atomicWrite(join(store.dir, RESULT_FOLDER, 'blockers', `${id}.json`), `${JSON.stringify(record, null, 2)}\n`);
+  }
   const all = listResults(store, kind);
   for (const old of all.slice(KEEP_RESULTS)) rmSync(join(dir, `${old}.json`), { force: true });
   return signed;
@@ -96,8 +107,22 @@ export function statusFor(store, parts, { keys = null } = {}) {
     }
   }
   const same = (r) => r.parts?.claude_code?.sha256 === parts.claude_code?.sha256 && r.parts?.macos === parts.macos;
-  const blocker = others.find((r) => r.state === 'blocker' && same(r));
-  const blocker_seen = blocker ? { key: blocker.key, created_at: blocker.created_at } : null;
+  const blockers = listBlockers(store, { keys }).filter((b) => b.claude_code === parts.claude_code?.sha256 && b.macos === parts.macos);
+  // A blocker result from before these records (or under the current key) counts the same.
+  const known = new Set(blockers.map((b) => b.id));
+  let current = null;
+  try {
+    current = readResult(store, key, { keys });
+  } catch {
+    // the read below says so
+  }
+  for (const r of [...others, ...(current ? [current] : [])]) {
+    if (r.state === 'blocker' && same(r) && !known.has(blockerId(r))) blockers.push({ id: blockerId(r), key: r.key, created_at: r.created_at });
+  }
+  blockers.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  // The newest with no decision of yours, else the newest: status shows it either way.
+  const blocker = blockers.find((b) => !readDecision(store, b.id, { keys })) ?? blockers[0] ?? null;
+  const blocker_seen = blocker ? { id: blocker.id, key: blocker.key, created_at: blocker.created_at } : null;
   const result = readResult(store, key, { keys });
   if (result) return { state: result.state, key, parts, result, changed: [], blocker_seen };
   if (others.length) {
@@ -105,4 +130,55 @@ export function statusFor(store, parts, { keys = null } = {}) {
     return { state: 'stale', key, parts, result: others[0], changed: changedParts(ref.parts, parts), blocker_seen };
   }
   return { state: 'none', key, parts, result: null, changed: [], blocker_seen };
+}
+
+// The blockers on record, verified, newest first.
+export function listBlockers(store, { keys = null } = {}) {
+  const dir = join(store.dir, RESULT_FOLDER, 'blockers');
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const verifying = keys ?? branchKeys(store.checkout, store.branch, store.gitEnv);
+  // One that can't be read or verified is refused, as a result is: never read as "no blocker".
+  return names.filter((n) => /^[0-9a-f]{24}\.json$/.test(n)).map((n) => {
+    const bad = (why) => new StoreError(`the blocker record ${n.slice(0, 12)} ${why}`, { code: 'redteam-invalid', hint: 'look at it, then remove it yourself if you know why' });
+    let value;
+    try {
+      value = parseJsonStrict(String(readPrivateFile(join(dir, n), { maxBytes: 16 * 1024 * 1024 })));
+    } catch (err) {
+      throw bad(`can't be read: ${err.message}`);
+    }
+    if (!verifySigned(value, verifying, { context: blockerContext(store.repoId) }).ok || `${value.id}.json` !== n) throw bad('doesn\'t verify');
+    return value;
+  }).sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+// Your decision on a blocker (V1; unit 19a): a later green doesn't clear one by itself, so a launch
+// refuses until you've signed that you've read this result and accept it.
+const decisionContext = (repoId) => `mirai/redteam-decision/1:${repoId}`;
+const decisionPath = (store, id) => {
+  if (!/^[0-9a-f]{24}$/.test(id)) throw new StoreError('not a blocker id', { code: 'bad-key' });
+  return join(store.dir, RESULT_FOLDER, 'decisions', `${id}.json`);
+};
+export function writeDecision(store, id, note, signer, { now = () => new Date() } = {}) {
+  ensurePrivateDir(join(store.dir, RESULT_FOLDER));
+  ensurePrivateDir(join(store.dir, RESULT_FOLDER, 'decisions'));
+  const signed = signObject({ id, note, decided_at: now().toISOString() }, signer, { context: decisionContext(store.repoId), now });
+  atomicWrite(decisionPath(store, id), `${JSON.stringify(signed, null, 2)}\n`);
+  return signed;
+}
+// The signed decision on a blocker, or null; one that doesn't verify counts for nothing.
+export function readDecision(store, id, { keys = null } = {}) {
+  const text = readPrivateFile(decisionPath(store, id), { optional: true, maxBytes: 64 * 1024 });
+  if (text === null) return null;
+  try {
+    const value = parseJsonStrict(String(text));
+    const check = verifySigned(value, keys ?? branchKeys(store.checkout, store.branch, store.gitEnv), { context: decisionContext(store.repoId) });
+    return check.ok && value.id === id ? value : null;
+  } catch {
+    return null;
+  }
 }

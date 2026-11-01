@@ -2,7 +2,7 @@ import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import { verifyTrustRoot } from '../trust/verify.js';
+import { trustFingerprint, verifyTrustRoot } from '../trust/verify.js';
 import { matches } from '../util/glob.js';
 import { containsToken, readTokenAt } from '../sign/token.js';
 import { parseJsonStrict } from '../findings/schema.js';
@@ -21,7 +21,7 @@ import { parseJsonStrict } from '../findings/schema.js';
 // refused unless the hook allows it (a hook that fails to run refuses too; 13c's probe). For
 // reads Claude Code needs no permission inside the project, so the hook can only add refusals.
 // The policy comes from the launch's read-only input folder, checked against its hash; the trust
-// root the hook runs from is hashed again on every call.
+// root the hook runs from is checked again on every call, by its fingerprint (unit 19a).
 
 export const POLICY_SCHEMA = 'mirai-hook-policy/1';
 export const READ_TOOLS = Object.freeze(['Read', 'Glob', 'Grep']);
@@ -210,7 +210,11 @@ export function runHook({ policyFile, policySha, stdin }) {
     // The hook can't vouch for its own code (it runs it); the sandbox's write deny on trust/ is
     // the guard for that. This check catches a change to the rest of the trust root.
     if (!policy.trust) return { allow: false, reason: 'the hook policy names no trust root' };
-    verifyTrustRoot(policy.trust);
+    // The launch hashed the whole trust root; here, its fingerprint (unit 19a: a call that takes
+    // seconds can pass the hook's timeout, and a Read then goes ahead unchecked).
+    if (policy.trust.fingerprint) {
+      if (trustFingerprint(policy.trust.dir) !== policy.trust.fingerprint) return { allow: false, reason: 'the trust root changed since the launch started' };
+    } else verifyTrustRoot(policy.trust);
     let call;
     try {
       call = JSON.parse(stdin);

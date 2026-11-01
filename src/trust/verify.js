@@ -85,3 +85,15 @@ export function verifyTrustRoot({ dir, manifestSha256 }) {
   }
   return { dir, baseSha: manifest.base_sha, branch: manifest.branch, manifest, manifestSha256 };
 }
+
+// What every file in a trust root looks like on disk: name, size, inode and times, hashed (unit
+// 19a). Taken right after a full verify, it lets the hook, called before every file tool call, see
+// any later change without hashing every file: a write changes the ctime, which can't be set back
+// by hand. Comparing takes milliseconds where hashing took about 2.4 s a call (18b).
+export function trustFingerprint(dir) {
+  const lines = filesUnder(dir, '.').map((p) => {
+    const st = lstatSync(join(dir, p));
+    return `${p}:${st.mode}:${st.size}:${st.ino}:${st.mtimeMs}:${st.ctimeMs}`;
+  });
+  return sha256(`${lines.join('\n')}\n`);
+}

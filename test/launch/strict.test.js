@@ -16,6 +16,7 @@ import { readPolicy } from '../../src/mcp/server.js';
 import { writeToken } from '../../src/sign/token.js';
 import { main } from '../../src/cli/main.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
+import { trustFingerprint } from '../../src/trust/verify.js';
 
 // Unit 13b: the strict bundle.
 
@@ -281,7 +282,7 @@ test('T5, T6: the launch: production layout, a private folder, read-only input, 
   const trustReal = realpathSync(trust.dir);
   assert.equal(hook.hooks[0].command, `/usr/bin/env -i "HOME=${realpathSync(r.env.HOME)}" "PATH=/usr/bin:/bin" "${realpathSync(process.execPath)}" "${join(trustReal, 'tree', '.mirai', 'framework', 'bin', 'hook.js')}" "${policyFile}" ${execFileSync('shasum', ['-a', '256'], { input: policyText }).toString().split(' ')[0]}`);
   const policy = JSON.parse(policyText);
-  assert.deepEqual(policy.trust, { dir: trustReal, manifestSha256: trust.manifestSha256 });
+  assert.deepEqual(policy.trust, { dir: trustReal, manifestSha256: trust.manifestSha256, fingerprint: trustFingerprint(trustReal) });
   assert.ok(policy.protectedInodes.some(([, , p]) => p === join(plan.cwd, '.env')));
   assert.ok(!policyText.includes(TOKEN));
   assert.ok(policy.secrets.length >= 5);

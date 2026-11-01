@@ -14,7 +14,7 @@ import { appendLine, checkPrivateDir, ensurePrivateDir, jsonLine, lastJsonLine, 
 // from day one. It lives only in the store and is never committed (U3, Q9).
 // This file imports nothing from the journal, so the journal can write run lines in one step.
 
-export const RUN_LOG_SCHEMA_VERSION = 1;
+export const RUN_LOG_SCHEMA_VERSION = 2;
 export const RUN_ID = /^r-\d{8}-\d{6}-[0-9a-f]{4}$/;
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/@-]{0,127}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -57,6 +57,14 @@ export const RUN_EVENTS = Object.freeze({
     // report one.
     cost_usd: { type: 'number', min: 0 },
     verdict: { type: 'enum', values: ['pass', 'fail', 'blocked', 'needs-human', 'error'] },
+    // How it ended (unit 19a): an outcome says more than the verdict, and what outlived it.
+    outcome: { type: 'enum', values: ['ok', 'agent-failed', 'refused', 'env-fault', 'killed'] },
+    survivors: count,
+    unproven: count,
+    // What ran (unit 19a; 13b's note): the launch's hashes and the token's fingerprint, never the token.
+    settings_sha256: { type: 'string', pattern: /^[0-9a-f]{64}$/, patternHint: 'a sha256' },
+    canonical_sha256: { type: 'string', pattern: /^[0-9a-f]{64}$/, patternHint: 'a sha256' },
+    token_fingerprint: { type: 'string', pattern: /^[0-9a-f]{12}$/, patternHint: 'a token fingerprint' },
   },
   checks: {
     // The setting (auto/on/off) and what it resolved to for this ticket (D-23).
@@ -98,7 +106,7 @@ export const RUN_EVENTS = Object.freeze({
 });
 const OPTIONAL = {
   finding: ['symbol', 'line', 'basis_ref', 'downgraded'],
-  agent_run: ['rung', 'cost_usd', 'limit_share'],
+  agent_run: ['rung', 'cost_usd', 'limit_share', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };
 // Rules across fields, per event.
 const CHECKS = {
