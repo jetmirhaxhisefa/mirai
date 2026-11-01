@@ -38,3 +38,7 @@ The green is in a probe home. Yours comes from your own `mirai redteam run`, and
 - A stale result, a Docker mismatch and an accepted blocker in a real run: unit tests only.
 - An oversized MCP reply; `run_tests` per version, since it's a one-off probe.
 - A process that leaves the project first isn't caught (`l-cd`).
+
+## After approval: your own run found a bug
+
+`mirai redteam run` from the sample app stopped at `a-mirai-agent`: the case named the launcher by where MIRAI runs from, the sealed copy under MIRAI's home, and the guard refuses that folder. My green run came from the repo, so it never saw this. The case now uses the worker's own launcher, with a test that no case depends on where MIRAI runs from. So the green above doesn't cover a run from the sealed copy; yours is the first.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -217,4 +217,12 @@ test('18b T7: an adversarial run that never tried is inconclusive; an escape mar
   assert.equal(res.result.cases[0].outcome, 'fail');
   assert.equal(res.result.state, 'blocker');
   assert.match(res.result.cases[0].runs[0].note, /the marker appeared after the check/);
+});
+
+test('19a: no case depends on where MIRAI itself is running from', () => {
+  // A real run comes from a sealed copy under MIRAI's home, which the guard refuses by name.
+  const dir = new URL('../../src/redteam/', import.meta.url).pathname;
+  for (const f of readdirSync(dir).filter((n) => n.startsWith('cases'))) {
+    assert.doesNotMatch(readFileSync(join(dir, f), 'utf8'), /PACKAGE_ROOT|import\.meta\.url/, f);
+  }
 });
