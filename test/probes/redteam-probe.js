@@ -29,7 +29,7 @@ import { DEFAULTS, runRedTeam } from '../../src/redteam/run.js';
 
 const fakeLaunch = async () => ({ exit: 1, stdout: '', stderr: 'fake: no model', timedOut: false });
 
-export async function runRedTeamProbe({ app, workdir, only = null, workers = DEFAULTS.workers, runs = DEFAULTS.runs, fake = false, keep = false, log = () => {} }) {
+export async function runRedTeamProbe({ app, workdir, only = null, workers = DEFAULTS.workers, runs = DEFAULTS.runs, fake = false, keep = false, log = () => {}, cases = redTeamCases }) {
   const root = join(workdir, 'repo');
   const home = join(workdir, 'home');
   const out = join(workdir, 'out');
@@ -52,7 +52,7 @@ export async function runRedTeamProbe({ app, workdir, only = null, workers = DEF
     // For every case, the calls the model made and which were denied: tool names and paths only.
     const escapes = [];
     const calls = [];
-    const caseList = (ctx) => redTeamCases(ctx).map((k) => (typeof k.check !== 'function' ? k : {
+    const caseList = (ctx) => cases(ctx).map((k) => (typeof k.check !== 'function' ? k : {
       ...k, check: (res, c) => {
         if (k.id.startsWith('escape') || k.id.startsWith('w-race')) escapes.push(`${k.id}: ${String(res.toolText ?? '').slice(0, 1500)}`);
         calls.push(`${k.id}: calls ${res.toolUses.map((u) => `${u.name} ${u.input?.file_path ?? u.input?.path ?? ''}`.trim()).join(', ') || 'none'}; denied ${res.denials.map((d) => d.tool_name).join(', ') || 'none'}`);

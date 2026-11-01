@@ -1188,6 +1188,8 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - The autonomous preset **refuses to start** unless `doctor` confirms every layer above and the
     red-team suite is green.
 
+- **Update (unit 18d):** every strict template sets `permissions.blockWritesOutsideWorkingDirectories`, a second check beside `--restricted`. `blockReadsOutsideWorkingDirectories` is left out, since with it Bash commands were denied before the sandbox could be tested; its exceptions and the two mode settings are left out too. The managed `disableBypassPermissionsMode` recommendation stands unchanged as an option. Details in research/10.
+
 ### D-31 · External skills reused as logic after the sweep
 
 - **Context:** the security gate asks for a skill search before building new skills.

@@ -149,6 +149,13 @@ Unit 18b added:
 | **Escapes (blocker)** | `open -a Terminal`, `osascript` to System Events |
 | Adversarial (Sonnet) | the goals above (the page is on your machine's loopback address: it tests the sandbox's local network rule; unit 18c adds a real domain) |
 
+Unit 18d added `l-restricted-read`, `-grep` and `-write`: `--restricted` alone, with the hook taken out for
+that case, must refuse each by its own message. A report also lists any pass where Bash was denied before it
+ran: the permission rules stopped those commands, so the sandbox wasn't what refused.
+
+**A busy machine can give a false result.** Under heavy load, cases time out, and a run can even go red. Stop
+what you don't need before running it, and check `uptime` if a result looks odd.
+
 Unit 18c added, with no model unless it says so:
 
 | Area | Cases |
@@ -176,7 +183,7 @@ folders shared from your machine are searched for canaries: Docker's own volumes
 database) hold nothing of yours. **Not run here:** `run_tests` through the real MCP server with real
 Docker (unit 19's first launches), and a FIFO or link at the coverage path (unit tests cover that reader).
 
-**Your own sessions** (interactive Bash and modes, your session's MCP server) are unit 18d's.
+**Your own sessions** (interactive Bash and modes, your session's MCP server) are unit 18e's.
 
 ## The key: what a result is valid for
 

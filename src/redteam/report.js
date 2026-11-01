@@ -44,6 +44,9 @@ export function report(result, { recorded = true, partial = false } = {}) {
     for (const a of (s.added ?? []).slice(0, 20)) out.push(`      new: ${plain(a)}`);
   }
   if (result.stopped) out.push('', `stopped: ${plain(result.stopped)}`);
+  // 18d review: passes where the permission rules, not the sandbox, stopped the command.
+  const denied = rows.filter((r) => r.outcome === 'pass' && r.runs.some((x) => x.bash_denied)).map((r) => r.id);
+  if (denied.length) out.push('', `Bash denied before it ran, so the sandbox wasn't what refused: ${denied.map(plain).join(', ')}`);
   out.push('', `${rows.reduce((n, r) => n + r.runs.length, 0)} runs on ${result.workers} workers in ${mins(result.duration_ms)} (model ${plain(result.model)})`);
   if (recorded && result.signature) out.push(`signed with ${result.signature.key_id}`);
   out.push(`next: ${NEXT[result.state]}`, '');

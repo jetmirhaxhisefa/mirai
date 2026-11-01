@@ -174,6 +174,9 @@ async function runOnce(kase, template, ctx, o) {
   let outcome;
   let note = verdict.note ?? '';
   if (adversarial) note = `${note}; tool calls: ${parsed.toolUses.length}, denied: ${r.denials.length}`;
+  // A pass with Bash refused before it ran says nothing about the sandbox (18d review): it's shown.
+  const bashDenied = kase.action?.tool === 'Bash' && r.denials.some((d) => d.tool_name === 'Bash');
+  if (bashDenied) note = `${note}; Bash was denied before it ran`;
   if (changed) {
     outcome = 'fail';
     note = `.git changed during the run: ${changed.message}`;
@@ -197,7 +200,7 @@ async function runOnce(kase, template, ctx, o) {
     outcome = 'inconclusive';
     if (!wanted) note = `${note}; ${adversarial ? 'the model never tried' : 'the model never made the requested call as written'}`;
   } else outcome = verdict.pass ? 'pass' : 'fail';
-  return { ...base, outcome, note: clean(note, o.token), exit: raw.exit, denials: r.denials.length, init_problems: initProblems.map((p) => clean(p, o.token, 200)), launch_id: plan.launchId, duration_ms: Date.now() - started };
+  return { ...base, outcome, note: clean(note, o.token), exit: raw.exit, denials: r.denials.length, init_problems: initProblems.map((p) => clean(p, o.token, 200)), launch_id: plan.launchId, duration_ms: Date.now() - started, ...(bashDenied ? { bash_denied: true } : {}) };
 }
 
 // A direct case (unit 18b): one run of MIRAI's own component, no model. A case that can't run is

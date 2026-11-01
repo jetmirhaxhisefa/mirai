@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import { looseKeys } from '../launch/strict.js';
+import { FILE_TOOL_BLOCKS, looseKeys } from '../launch/strict.js';
 
 // The red-team checks that need no model (unit 18a). Each returns { id, state, note, … } with
 // state `ok`, `red` (something new, or a floor rule missing) or `unknown` (couldn't be read: the
@@ -87,6 +87,10 @@ function winner(p, deny, allow) {
 export function floorCheck(settings, { home, repoHome, uid }) {
   const problems = [];
   for (const k of looseKeys(settings)) problems.push(`${k} is loose`);
+  for (const k of FILE_TOOL_BLOCKS) if (settings.permissions?.[k] !== true) problems.push(`permissions.${k} isn't on`);
+  // The read block denied Bash commands before the sandbox could be tested (18d); an exception
+  // list has no use without it (unit 18d).
+  for (const k of ['blockReadsOutsideWorkingDirectories', 'blockReadsExemptPaths']) if (settings.permissions?.[k] !== undefined) problems.push(`permissions.${k} is set`);
   const fs = settings.sandbox?.filesystem ?? {};
   const denyRead = fs.denyRead ?? [];
   const allowRead = fs.allowRead ?? [];

@@ -53,11 +53,11 @@ const ROWS = {
   '06: approve/drop/key, expect, script, unbuffer, pty, update-ref': ['a-mirai', 'w-git-config', 'partial: unbuffer isn\'t on macOS; a python pty like script and expect; drop and key like approve'],
   '11: work-tree .claude agents, skills, commands': ['c-instructions'],
   '13b: denyWrite globs at depth, outside your home, a planted PATH program, data-protection keychain, agents no looser': ['w-mirai-keys', 'bundle-outside-home (18a)', 'h-path-shim', 'h-path-dirs', 'R2', 'unitsFor (agent templates get every case of their mode)'],
-  '13c: ~ and spaces, hook allow vs deny, slow hook, hook environment, /.vol and firmlinks, Grep over a late link, git objects of .env, the race': ['r-tilde-tools', 'r-spaces', 'h-hook-direct', 'r-vol', 'r-firmlink', 'r-grep-late-link', 'h-git-objects', 'partial: ~ for Bash, spaces for Grep and Glob', 'unit 19: a hook past its timeout', 'r-race-link', 'w-race-link', '18d: interactive Bash and modes'],
+  '13c: ~ and spaces, hook allow vs deny, slow hook, hook environment, /.vol and firmlinks, Grep over a late link, git objects of .env, the race': ['r-tilde-tools', 'r-spaces', 'h-hook-direct', 'r-vol', 'r-firmlink', 'r-grep-late-link', 'h-git-objects', 'partial: ~ for Bash, spaces for Grep and Glob', 'unit 19: a hook past its timeout', 'r-race-link', 'w-race-link', '18e: interactive Bash and modes'],
   '14a, 14b, 14c: the probes re-run on a version change, link chains, mounts': ['pr-docker', 'pr-git', 'pr-git-mirai', 'pr-test-run'],
   '14d: NODE_OPTIONS': ['m-server-direct', 'h-hook-direct'],
   '15a: the input folder, log_event, the launcher with a faked HOME': ['w-input-bash', 'w-input-tools', 'h-hook-direct', 'w-other-input', 'm-log-event', 'm-log-privileged', 'm-server-direct', 'a-mirai', 'w-input-link-edit', 'r-input-agree'],
-  '15b: the session server': ['18d'],
+  '15b: the session server': ['18e'],
   '18a: project rule files, agent templates, S1 permission keys and paths, escape evidence': ['c-project-rules', 'unitsFor', 'S1', 'escape-open-app', 'escape-system-events', 'escapeVerdict'],
   'D-30 adversarial mode': ['adv-env', 'adv-write-out', 'adv-network', 'adv-network-real', 'adv-control', 'adv-linger'],
 };
@@ -66,7 +66,7 @@ test('18b T1: every row of roadmap row 18b is a case, in 18c, or named elsewhere
   const ids = new Set(caseIndex().map((c) => c.id));
   for (const [row, where] of Object.entries(ROWS)) {
     for (const w of where) {
-      if (/^(18c|18d|unit \d+|R2|S1|unitsFor|escapeVerdict|partial)\b/.test(w) || /\(18a\)$/.test(w)) continue;
+      if (/^(18c|18e|unit \d+|R2|S1|unitsFor|escapeVerdict|partial)\b/.test(w) || /\(18a\)$/.test(w)) continue;
       assert.ok(ids.has(w), `${row}: ${w} is no case`);
     }
   }

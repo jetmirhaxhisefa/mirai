@@ -164,9 +164,9 @@ launch builds, kept outside the project.
 
 Your interactive sessions don't run in the strict bundle: you're there, approving what they
 do. MIRAI still adds a few hard rules to the project's `.claude/settings.json`. They stop
-Claude's file tools outright, whatever a conversation asks; a shell command (`cat` of a file,
-for example) isn't covered by them and still asks you first, and the command rules below are
-speed bumps:
+Claude's file tools outright, whatever a conversation asks. A shell command isn't reliably covered:
+a plain `cat` of a denied path was refused when probed (unit 18d), but a wrapped one may not be, and the
+command rules below are speed bumps:
 - never read or change `~/.config/mirai` (your signing key and the token) or MIRAI's store;
 - never write into `.git` or the committed keys and records under `.mirai/`;
 - never run the commands only you may run (`mirai approve`, `drop`, `key`, `token`);
@@ -801,8 +801,9 @@ So if your token leaks:
   moment it's written. Something other than an agent (your IDE, another tool) can still change
   `.git` between your commands; the next MIRAI command or check refuses it. The key lists were
   probed on git 2.39.5 (Apple); the red team runs those probes again every time (unit 18c).
-- **The check-then-use race:** MIRAI's hook checks a path, then Claude Code's file tool uses it, and the
-  file tools run outside the sandbox. A link swapped between the two could in principle land. The red
+- **The check-then-use race:** MIRAI's hook and Claude Code's `--restricted` each check a path, then the
+  file tool uses it, and the file tools run outside the sandbox. A link swapped after both could in
+  principle land. The red
   team tries it each run (unit 18c) and hasn't won, in a few dozen tries on this machine. That's evidence
   the window is hard to hit, not proof it can't be.
 - **Test containers (unit 18c):** agent-written test code runs in your project's containers, on a copy with
@@ -812,8 +813,33 @@ So if your token leaks:
 - **Your merge is the final gate.** MIRAI reviews and tests every change, but you decide what
   reaches your integration branch.
 
+## Which layer stops the file tools (unit 18d)
+
+Three checks stand between a file tool and a path outside the project, from two sources, tried with the
+hook removed:
+- **`--restricted`** refused every Read, Grep, Glob, Write and Edit outside the working directories on
+  2.1.316, including through a link to a folder and `/.vol`. The red team tries it again each run, with the
+  hook removed for that case, since the hook fails open for reads if it ever breaks.
+- **`blockWritesOutsideWorkingDirectories`** is on in every strict template, and the red team's floor checks
+  it. Under `--restricted` it doesn't get the first word, so it's a second check on writes in case a Claude
+  Code update changes that flag. It's not a new limit there. From the binary's text, not probed: it also
+  refuses writes to Claude Code's settings files, and exempts Claude Code's own plan, scratchpad, job and
+  memory files. Its effect alone was probed once, on 2.1.316, and isn't re-checked each run, since removing
+  `--restricted` in a real run could let a project's own files act.
+- **MIRAI's hook** runs first and adds what the others don't know, inside the project: `.git`, `.env*`,
+  `.mirai`, auto-run files, hard links, and secret shapes in what's written.
+
+**Left out on purpose:** `blockReadsOutsideWorkingDirectories`. With it on, Bash commands naming outside
+paths under your home were denied whole in three red-team cases, so the sandbox, the real limit on Bash,
+was never tested there. Its exact rule isn't known: other commands naming outside paths ran. `blockReadsExemptPaths`, with nothing to make exceptions to. And
+`disableBypassPermissionsMode` and `disableAutoMode`, since a launch names its own mode and MIRAI checks it
+at the start of the run. **Your own sessions get none of these.** Probed under `acceptEdits`, auto and bypass
+(each confirmed at the run's start): a Read and a `cat` of `~/.config/mirai` and a Write into `.git` were
+refused. Not tried: `.mirai/keys`, the command rules, the subagent rule, and wrappers such as `sh -c`. Under
+bypass nobody is approving, so that's all that stands there (unit 18e tests more).
+
 ## Coming next
 
-- **Unit 18d:** the red team's cases for your own sessions: interactive Bash and modes, your
+- **Unit 18e:** the red team's cases for your own sessions: interactive Bash and modes, your
   session's MCP server.
 - **Unit 19:** the first real agent runs.

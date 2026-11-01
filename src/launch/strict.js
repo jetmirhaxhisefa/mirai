@@ -42,6 +42,10 @@ import { HOOKED_TOOLS, hookPolicy, policyText, WRITE_TOOLS } from './hook.js';
 //   launch folder.
 
 export const STRICT_SCHEMA = 'mirai-strict/4';
+// Claude Code's own refusal of file-tool writes outside the working directories, in every mode (unit
+// 18d). The read block stays off: with it, Bash commands naming outside paths were denied whole, so the
+// red team's G18 and escape cases never tested the sandbox (research/10; its exact rule isn't known).
+export const FILE_TOOL_BLOCKS = Object.freeze(['blockWritesOutsideWorkingDirectories']);
 // A test call waits at most 30 minutes for its turn (one deadline for the repo's turn and a
 // machine slot), runs at most 240, and cleans up: 6 hours leaves room.
 export const MCP_TOOL_TIMEOUT_MS = 6 * 3600 * 1000;
@@ -262,7 +266,9 @@ export function renderStrict(template, facts) {
 
   if (typeof facts.hookCommand !== 'string' || facts.hookCommand === '') throw new StrictError('the settings need the hook command', { code: 'no-hook' });
   return {
-    permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t)), ...mcpTools(template)], deny: [...new Set(deny)] },
+    // Unit 18d: a second check beside --restricted, in Claude Code's own code. Under --restricted
+    // it never gets the first word (R1), but a Claude Code update could change that flag unseen.
+    permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t)), ...mcpTools(template)], deny: [...new Set(deny)], ...Object.fromEntries(FILE_TOOL_BLOCKS.map((k) => [k, true])) },
     hooks: { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
     sandbox: {
       enabled: true,

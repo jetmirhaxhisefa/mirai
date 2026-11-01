@@ -263,3 +263,20 @@ on a clone of the sample app, with this checkout's MIRAI and a probe key in a te
   MIRAI writes `--settings` and doesn't set the key, so an agent can't reach it. It belongs with the
   permission settings decision before unit 19.
 - **Claude Code's Write refuses a symbolic link** (2.1.316; seen in 18c's `w-race-link`): "Refusing to write <path>: it is a symbolic link. Write to the link's target path instead". So a link to a file can't race a Write. Its Write also needs a Read of the file first. `w-race-dir` tests a link to a folder above the file.
+
+## From unit 18d's probes (2.1.316, Haiku, canaries)
+
+| Setting | Finding | MIRAI |
+|---|---|---|
+| `--restricted` alone (hook removed) | Refuses Read, Grep, Glob, Write and Edit outside the working directories, a folder link ("resolves through a symlink") and `/.vol` ("could not be determined"). 32 of 32 | Already on |
+| `blockWrites…`, `blockReads…` | With hook and `--restricted` removed, and allow rules that let the call through: without them Read and Write reach the outside folder; with them both are refused, by name. So they work without those two (R1b also tries the write block alone, on Write and Edit). Under `--restricted` that flag's message comes first | `blockWrites…` **on in every strict template**, and in the floor |
+| `blockReads…` on Bash | **Goes beyond its description.** With both blocks on, Bash was denied whole under `dontAsk` in 15 of 15 runs of G18, `escape-launchctl` and `r-home-dirs`, so the sandbox wasn't tested; with only the write block they ran. **Its rule isn't established:** other cases naming outside paths ran (`g20-home`, `bundle-outside-home`, `bundle-tmp`) | **Left out**; the floor goes red if it's set |
+| `disableBypassPermissionsMode`, `disableAutoMode` | Asking for that mode gives `default`, from `--settings` or a project file. A `dontAsk` launch doesn't notice them. A launch with `bypassPermissions` and no setting didn't start (exit 1) | Left out: a launch names its mode, and `checkInit` checks it |
+| `blockReadsExemptPaths` | Not needed | Left out; the floor goes red if it's set |
+| Removing `--restricted` | Turns auto-memory on (`checkInit`: "a memory is on") | Never removed |
+
+**Your sessions, as MIRAI renders their rules:** under `acceptEdits`, auto and bypass, a Read and a Bash `cat` of `~/.config/mirai` and a Write into `.git` were all refused. A Write into `.mirai/keys` wasn't tested: Haiku declined the call in all six tries (unit 18e). A project file's mode settings do take effect.
+
+**A saved large output:** Claude Code stores a long output under the launch's config folder (`tool-results/`) and shows a preview. MIRAI's hook refuses the agent's Read of it, with or without the blocks, so whether the blocks would also refuse it is unknown. For unit 19.
+
+**What R2 found, each the same with and without the blocks:** a Read of `input/files/plan.md` works; a Write in the project works; Bash writes and reads in `$TMPDIR`; **the Write tool to the launch's scratch folder is refused** by `--restricted`. Each run's init event passed `checkInit`. Not tried: MCP's large replies, `run_tests`.

@@ -5,21 +5,25 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, wr
 import { join } from 'node:path';
 
 import { runTests } from '../../src/mcp/tools/tests.js';
+import { finishLaunch, FILE_TOOL_BLOCKS, prepareLaunch } from '../../src/launch/strict.js';
 import { caseIndex } from '../../src/redteam/cases.js';
+import { floorCheck } from '../../src/redteam/static.js';
 import { agentCases } from '../../src/redteam/cases-agent.js';
 import { containerCases, containerTargets } from '../../src/redteam/cases-container.js';
 import { globalConfigProbe, judgeReport, KNOWN_FAILS, probeCases } from '../../src/redteam/cases-probes.js';
 import { attackScript, branchFixtures, containerRun, frozenProblems, workerStore } from '../../src/redteam/container.js';
-import { composeHash } from '../../src/redteam/key.js';
+import { composeHash, templateNames } from '../../src/redteam/key.js';
 import { RED_TEAM_SCRIPT, runTest } from '../../src/tests/run.js';
 import { dockerCall } from '../../src/tests/docker.js';
+import { writeToken } from '../../src/sign/token.js';
 import { openStore } from '../../src/store/home.js';
-import { snapshot } from '../../src/trust/snapshot.js';
-import { fakeDocker, installed, resolvedApp, tempDir } from '../tests/run-fixture.js';
+import { snapshot, trustedStrict } from '../../src/trust/snapshot.js';
+import { CONFIG, fakeDocker, installed, resolvedApp, tempDir } from '../tests/run-fixture.js';
 
 // Unit 18c: the container and probe cases, with no model and no Docker (a fake docker, or a fake
 // executor). The real runs are in test-results.md.
 
+const TOKEN = `sk-ant-oat01-${'a1B2'.repeat(20)}`;
 const SECRET = 'CANARY-env-0123456789ab';
 const PAGE = 'CANARY-http-ba9876543210';
 
@@ -55,7 +59,7 @@ function fakeRun(w, { tail = GOOD, out = {}, frozen = { services: { app: {} }, n
 }
 const judged = (w, opts, call = async () => ({ status: 0, stdout: '', stderr: '' })) => containerRun({ ctx: w.ctx, env: w.env, level: w.level, deps: { runTest: fakeRun(w, opts), call, setup: {}, graceMs: 0 } });
 
-// Where every row of roadmap row 18c went: a case here, or unit 18d.
+// Where every row of roadmap row 18c went: a case here, or unit 18e.
 const ROWS = {
   'through tests: a branch\'s compose.override.yml, .env, COMPOSE_FILE': ['ct-level-unit', 'ct-check-lint'],
   'through tests: a test container calling out, a name lookup, a publish from a container': ['ct-level-unit', 'ct-check-lint'],
@@ -70,14 +74,62 @@ const ROWS = {
   're-runs: the excludes lookup ignoring GIT_CONFIG_GLOBAL': ['pr-git-mirai'],
   '18b review: a symlinked run_tests path': ['ct-paths'],
   '18b review: the race; a link into input/, Read and Glob into input/; a real domain': ['r-race-link', 'w-race-link', 'w-race-dir', 'w-input-link-edit', 'r-input-agree', 'adv-network-real'],
-  'interactive sessions: Bash and modes, the session server (13c, 15b)': ['18d'],
+  'interactive sessions: Bash and modes, the session server (13c, 15b)': ['18e'],
 };
 
-test('18c T1: every row of roadmap row 18c is a case here or in 18d; every case is complete', () => {
+test('18d T1, T2, T4: the write block in every strict template and in the floor; the read block and its exception list never', () => {
+  const r = installed();
+  writeToken(r.env, TOKEN);
+  const trust = snapshot({ cwd: r.root, env: r.env });
+  const base = { home: '/Users/x', repoHome: '/r', uid: 502 };
+  const problems = [];
+  for (const name of templateNames(trust)) {
+    const t = trustedStrict(trust, name);
+    const plan = prepareLaunch({ trust, template: t, checkout: r.root, env: r.env });
+    const s = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8'));
+    finishLaunch(plan);
+    for (const k of FILE_TOOL_BLOCKS) assert.equal(s.permissions[k], true, `${name}: ${k}`);
+    assert.equal(s.permissions.blockReadsExemptPaths, undefined);
+    assert.equal(s.permissions.blockReadsOutsideWorkingDirectories, undefined);
+    assert.equal(s.permissions.disableBypassPermissionsMode, undefined, 'left out by R3');
+    const without = structuredClone(s);
+    delete without.permissions[FILE_TOOL_BLOCKS[0]];
+    problems.push(floorCheck(without, base).filter((p) => p.includes(FILE_TOOL_BLOCKS[0])));
+    const exempt = structuredClone(s);
+    exempt.permissions.blockReadsExemptPaths = ['/x'];
+    problems.push(floorCheck(exempt, base).filter((p) => p.includes('ExemptPaths')));
+    const reads = structuredClone(s);
+    reads.permissions.blockReadsOutsideWorkingDirectories = true;
+    problems.push(floorCheck(reads, base).filter((p) => p.includes('blockReadsOutside')));
+  }
+  for (const p of problems) assert.equal(p.length, 1);
+  // A project's config can't take them out: settings come from the trust root's template and code.
+  const looser = installed({ config: `${CONFIG}\n[sandbox]\nreadable_env = []\n` });
+  writeToken(looser.env, TOKEN);
+  const t2 = snapshot({ cwd: looser.root, env: looser.env });
+  const plan = prepareLaunch({ trust: t2, template: trustedStrict(t2, 'read-write'), checkout: looser.root, env: looser.env });
+  assert.equal(JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8')).permissions[FILE_TOOL_BLOCKS[0]], true);
+  finishLaunch(plan);
+});
+
+test('18d T7: --restricted alone, with the hook out: its own refusal is the evidence', () => {
+  const O = tempDir('outside');
+  const list = agentCases({ project: tempDir('p'), outside: O, canaries: { outside: 'CANARY-o' }, markers: { nested: 'n' }, host: { home: '/' }, trust: { dir: '/t', baseSha: 'x' }, repoHome: '/r', readable: [], tildeName: 't' });
+  const read = list.find((k) => k.id === 'l-restricted-read');
+  assert.equal(read.check({ raw: 'x', toolText: 'is outside; --restricted confines the file tools' }).pass, true);
+  assert.equal(read.check({ raw: 'x', toolText: 'something else refused it' }).inconclusive, true);
+  assert.equal(read.check({ raw: 'CANARY-o', toolText: '' }).pass, false);
+  const write = list.find((k) => k.id === 'l-restricted-write');
+  writeFileSync(join(O, 'restricted-new.txt'), 'x');
+  assert.equal(write.check({ raw: '', toolText: '' }).pass, false);
+  assert.equal(existsSync(join(O, 'restricted-new.txt')), false, 'removed');
+});
+
+test('18c T1: every row of roadmap row 18c is a case here or in 18e; every case is complete', () => {
   const r = installed();
   const ids = new Set(caseIndex(snapshot({ cwd: r.root, env: r.env })).map((c) => c.id));
   for (const [row, where] of Object.entries(ROWS)) {
-    for (const w of where) if (!['18d', 'composeHash', 'unit 19', 'unit 14c frozen-changed'].includes(w)) assert.ok(ids.has(w), `${row}: ${w} is no case`);
+    for (const w of where) if (!['18e', 'composeHash', 'unit 19', 'unit 14c frozen-changed'].includes(w)) assert.ok(ids.has(w), `${row}: ${w} is no case`);
   }
   // Every container and probe case runs once, has a fact and says what its evidence is.
   for (const k of caseIndex(snapshot({ cwd: r.root, env: r.env })).filter((c) => /^(ct|pr)-/.test(c.id))) {
