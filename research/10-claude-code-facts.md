@@ -280,3 +280,48 @@ on a clone of the sample app, with this checkout's MIRAI and a probe key in a te
 **A saved large output:** Claude Code stores a long output under the launch's config folder (`tool-results/`) and shows a preview. MIRAI's hook refuses the agent's Read of it, with or without the blocks, so whether the blocks would also refuse it is unknown. For unit 19.
 
 **What R2 found, each the same with and without the blocks:** a Read of `input/files/plan.md` works; a Write in the project works; Bash writes and reads in `$TMPDIR`; **the Write tool to the launch's scratch folder is refused** by `--restricted`. Each run's init event passed `checkInit`. Not tried: MCP's large replies, `run_tests`.
+
+## From unit 18e's probes (your own sessions; Claude Code 2.1.316, Haiku, fake home, temporary config)
+
+**The rules, as MIRAI renders them, in a session's `claude -p`:**
+| Attempt | Result |
+|---|---|
+| Read and Write on `~/.config/mirai` and the store; Write on `.git`, `.mirai/keys`, `.mirai/records`; Edit on `.mirai/keys` (first real try of `.mirai/keys`) | Refused in bypass and default; the main ones in `acceptEdits` and auto, and Read in plan: "denied by your permission settings" |
+| The same Read from a general-purpose subagent | Refused, on the subagent's own Read |
+| `cat`, `cat ~/…`, `F=…; cat "$F"`, `base64 -i` | Refused: "Permission to use Bash with command … has been denied" |
+| `cd … && cat` | Refused: "cat from '…' was blocked by a deny rule" (it follows the `cd`) |
+| `echo x > .git/hooks/…`, `> .mirai/keys/…`, `cp`, `tee` | Refused: Read/Edit rules reach simple Bash commands and redirects |
+| `sh -c`, `bash -c`, `cat $(echo …)`, `perl -ne print` | **Got through: the canary came back** |
+| `sh -c 'echo x > .mirai/keys/…'` | **Got through** |
+| `mirai approve`, `env mirai …`, a full path, `cd . && mirai …`; plain `drop`, `key`, `token` | Refused by the `Bash(mirai …)` rules |
+| `sh -c 'mirai approve …'` | **The rule didn't stop it;** the real-terminal check did |
+| `… \| script -q /dev/null mirai approve …` | Refused by the rule |
+| The same inside `sh -c` | **Signed a fixture ticket with a fixture key, no human** |
+| `Agent(mirai-probe)`, a planted agent | Refused by name: "denied by permission rule 'Agent(mirai-probe)' from projectSettings" |
+
+**Refusals that aren't MIRAI's:** with MIRAI's rules removed, a Write into `.git` in default and `acceptEdits` is still refused: "Claude requested permissions to edit … which is a sensitive file". In bypass and auto it goes through. In auto, `sh -c 'cat …'` was refused 3 of 3: "denied by the Claude Code auto mode classifier … judged this action dangerous".
+
+**The real-terminal check.** `isTTY` is all it asks. Under `/usr/bin/script`, with input paced by `sleep` (closed input is refused as no answer), `mirai approve` signs. Unit 06's limit, now shown from a session's Bash with no extra tools.
+
+**One real interactive session (Claude Code under `script`, one prompt):** its Bash commands have no terminal: stdin and stdout aren't terminals, and `/dev/tty` doesn't open. So a plain `mirai approve` can't reach you for an answer; a wrapper has to make its own terminal.
+
+**A branch you've checked out (a trusted folder):**
+| What it adds | Result |
+|---|---|
+| `.mcp.json` `mirai`, with `enableAllProjectMcpServers` or `enabledMcpjsonServers`, no allow rule, no registration | Loaded, its tool not granted under `-p`: a real session would ask you |
+| The same in bypass | **Its tool runs** |
+| The same plus a committed allow rule | **Its tool runs** |
+| The same with your local registration | Your local server answers |
+| `.claude/settings.json` without the denies | **The read goes through** |
+| A `SessionStart` hook | **It runs,** under `-p`; an interactive session may show a notice, not tested |
+| No denies in the branch, but denies in your `settings.local.json` or your user-level settings | Refused: a branch can't remove those |
+
+**The session server, no model:**
+- `lint` on a committed link, by name: `bad-path`, inside or outside the docs root. Lint echoes an unknown document type, so a plain copy is the control that shows a leak would be seen.
+- `log_event`: six privileged types and five forged fields refused; three secret shapes and the token (its reversed form too) refused with code `secret`; six kinds of terminal and bidi text refused. Two sessions flooding: exactly 200 lines.
+- `mirai log` stores terminal text as it is; no command prints a note's text yet, and `status --json` is clean.
+- One server, the trust root changed between two calls: `trust-tampered`. A policy edited under its old hash: exit 2. Rewritten under a new hash: it runs (`checkPolicy` caps `max_events` at 1000).
+- Through `script`: `approve`, `drop` and `token clear` complete. `mirai key` isn't tried (roadmap row 18e).
+- A public key committed on the local integration branch is in `branchKeys`.
+
+**Not shown:** a model trying to find a way (left out: no sandbox), and what a person approves when asked. A registry with no agents has no `Agent(...)` deny, so the case plants one.

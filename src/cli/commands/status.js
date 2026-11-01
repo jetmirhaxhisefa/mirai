@@ -1,7 +1,7 @@
 import { EXIT } from '../exit-codes.js';
 import { StatusError, StoreError, UsageError } from '../errors.js';
 import { deriveTicketState } from '../../status/derive.js';
-import { escapeInvisible, shown } from '../../status/text.js';
+import { escapeInvisible, plain, shown } from '../../status/text.js';
 import { TICKET_ID } from '../../status/ticket-file.js';
 import { openStore } from '../../store/home.js';
 import { allTicketFacts, readJournal, ticketsInJournal } from '../../store/journal.js';
@@ -9,6 +9,7 @@ import { checkStatusAgainstJournal, readTicketStatus, ticketsInStore } from '../
 import { loadSigningKey } from '../../sign/keys.js';
 import { readHeartbeat, readRunState } from '../../store/run.js';
 import { runLockHolder } from '../../store/global.js';
+import { sessionSettingsWarnings } from '../../store/session-settings.js';
 
 // mirai status [<ticket>] [--json] (unit 05a, moved from unit 04). Reads the ticket status
 // files and the journal from the store, and shows each ticket's effective state: derived from
@@ -66,7 +67,7 @@ export default {
     const lock = lockInfo(store, runLockHolder(io.env));
 
     if (args.values.json) {
-      const out = { repo_id: store.repoId, torn_lines: torn, run, global_lock: lock, tickets: rows };
+      const out = { repo_id: store.repoId, torn_lines: torn, run, global_lock: lock, session_settings: sessionSettingsWarnings(store), tickets: rows };
       if (only !== undefined) out.events = events.filter((e) => e.ticket === only);
       io.stdout.write(`${escapeInvisible(JSON.stringify(out, null, 2))}\n`);
       return failed ? EXIT.BLOCKED : EXIT.OK;
@@ -75,6 +76,7 @@ export default {
     io.stdout.write(`repo: ${store.repoId}\n`);
     io.stdout.write(`${runLine(run)}\n`);
     io.stdout.write(`global lock: ${lockLine(lock)}\n`);
+    for (const w of sessionSettingsWarnings(store)) io.stdout.write(`warning: ${plain(w)}\n`);
     if (torn > 0) io.stdout.write('warning: the journal ends with a half-written line (a crash); it was skipped\n');
     if (rows.length === 0) io.stdout.write('\nno tickets yet\n');
     else io.stdout.write('\n');

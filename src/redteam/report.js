@@ -1,9 +1,8 @@
-import { escapeInvisible } from '../status/text.js';
+import { plain } from '../status/text.js';
 
 // The red-team result as text (unit 18a): per case, the passes; for a failure, what decided it;
 // then the no-model checks, the state and what to do. Every value is escaped for the terminal.
 
-const plain = (text) => escapeInvisible(String(text ?? '').replace(/[\x00-\x1f\x7f]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`));
 const mins = (ms) => `${Math.floor(ms / 60000)} min ${Math.round((ms % 60000) / 1000)} s`;
 
 export const NEXT = Object.freeze({
@@ -50,5 +49,42 @@ export function report(result, { recorded = true, partial = false } = {}) {
   out.push('', `${rows.reduce((n, r) => n + r.runs.length, 0)} runs on ${result.workers} workers in ${mins(result.duration_ms)} (model ${plain(result.model)})`);
   if (recorded && result.signature) out.push(`signed with ${result.signature.key_id}`);
   out.push(`next: ${NEXT[result.state]}`, '');
+  return out.join('\n');
+}
+
+export const SESSION_NEXT = Object.freeze({
+  green: 'no promise is broken; read the known limits above. This never gates a launch',
+  red: 'a promise in docs/agent-safety.md doesn\'t hold: each failure above needs a fix, or a decision to change the promise',
+  incomplete: 'not usable: run it again (mirai redteam run --sessions)',
+  stale: 'something changed since the last result: run it again (mirai redteam run --sessions)',
+  none: 'there is no result for your sessions here yet: mirai redteam run --sessions',
+});
+
+// Your sessions' result (unit 18e): what's promised and holds, what's known to get through, and
+// what can't be shown by these runs.
+export function sessionReport(result, { recorded = true, partial = false } = {}) {
+  const rows = result.cases ?? [];
+  const out = [`red team, your sessions: ${result.state.toUpperCase()}${partial ? ' (a partial run: reported, not recorded; a case without its control proves less)' : ''}`, ''];
+  const section = (title, list) => {
+    if (!list.length) return;
+    out.push(`${title} (${list.length}):`);
+    for (const r of list) {
+      out.push(`  ${plain(r.id)}: ${plain(r.title)}`);
+      if (r.outcome !== 'holds' && r.outcome !== 'known-limit') out.push(`      ${plain((r.runs.find((x) => x.run === 'through') ?? r.runs.at(-1))?.note ?? '')}`);
+    }
+    out.push('');
+  };
+  const ordinary = rows.filter((r) => !r.controls);
+  section('FAILED, a promise doesn\'t hold', ordinary.filter((r) => r.outcome === 'failed'));
+  section('inconclusive', rows.filter((r) => r.outcome === 'inconclusive' || r.outcome === 'not-run'));
+  section('known limits: these get through', ordinary.filter((r) => r.outcome === 'known-limit'));
+  const better = ordinary.filter((r) => r.outcome === 'holds' && r.expect === 'limit');
+  section('refused today, though nothing promises it', better);
+  out.push(`promises that hold: ${ordinary.filter((r) => r.outcome === 'holds' && r.expect === 'holds').length}; controls that behaved: ${rows.filter((r) => r.controls && r.outcome === 'known-limit').length}`, '');
+  out.push('Not shown by these runs: exact commands on Haiku aren\'t an attacker (no creative attacks, on purpose: no sandbox here), and `claude -p` shows the rules, not what you\'d approve when asked.', '');
+  if (result.stopped) out.push(`stopped: ${plain(result.stopped)}`, '');
+  out.push(`${rows.reduce((n, r) => n + r.runs.length, 0)} runs in ${mins(result.duration_ms)} (Claude Code ${plain(result.parts?.claude_code?.version)})`);
+  if (recorded && result.signature) out.push(`signed with ${result.signature.key_id}`);
+  out.push(`next: ${SESSION_NEXT[result.state]}`, '');
   return out.join('\n');
 }

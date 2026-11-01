@@ -7,8 +7,9 @@ import { snapshot, trustedStrict } from '../../trust/snapshot.js';
 import { caseIndex } from '../../redteam/cases.js';
 import { templateNames } from '../../redteam/key.js';
 import { DEFAULTS, redTeamStatus, runRedTeam } from '../../redteam/run.js';
-import { NEXT, partsText, report } from '../../redteam/report.js';
-import { listResults, readResult } from '../../redteam/store.js';
+import { NEXT, partsText, report, SESSION_NEXT, sessionReport } from '../../redteam/report.js';
+import { listResults, readResult, SESSIONS } from '../../redteam/store.js';
+import { runSessions, sessionEstimate, sessionStatus } from '../../redteam/sessions.js';
 
 // mirai redteam run [--only <id,…>] | status | show [<key>] (unit 18a). `run` is yours alone: it
 // needs a real terminal and your yes, since it uses your Claude subscription; agents can't run
@@ -42,15 +43,17 @@ function estimate(cases, templates, only) {
 export default {
   name: 'redteam',
   summary: 'Run the red-team checks that every unattended agent launch needs, or show where they stand',
-  usage: 'mirai redteam run [--only <id,…>] | mirai redteam status | mirai redteam show [<key>]',
+  usage: 'mirai redteam run [--sessions] [--only <id,…>] | mirai redteam status [--sessions] | mirai redteam show [--sessions] [<key>]',
   positionals: { min: 1, max: 2 },
   options: {
     only: { type: 'string', description: 'run only these cases (comma-separated ids); a partial run is reported, never recorded' },
+    sessions: { type: 'boolean', description: 'the cases for your own Claude Code sessions (they never gate a launch)' },
   },
   async run(args, io) {
     const [action, arg] = args.positionals;
     const only = args.values.only !== undefined ? args.values.only.split(',').map((s) => s.trim()).filter(Boolean) : null;
     if (action !== 'run' && only) throw new UsageError('--only is for run');
+    if (args.values.sessions) return sessions(action, arg, only, io);
 
     if (action === 'show') {
       const store = openStore({ cwd: io.cwd, env: io.env });
@@ -71,6 +74,7 @@ export default {
       if (s.state === 'stale') lines.push('', `changed since the last ${s.result.state === 'green' ? 'green ' : ''}result: ${s.changed.join(', ')}`);
       if (s.blocker_seen && s.state !== 'blocker') lines.push('', `a red-team run on this Claude Code and macOS found a blocker (${s.blocker_seen.created_at}): V1's condition was met once; see mirai redteam show ${s.blocker_seen.key.slice(0, 12)}`);
       lines.push('', `next: ${NEXT[s.state]}`, '');
+      lines.push(await sessionLine(io), '');
       io.stdout.write(lines.join('\n'));
       return s.state === 'green' ? EXIT.OK : EXIT.NEEDS_HUMAN;
     }
@@ -124,3 +128,72 @@ export default {
     }
   },
 };
+
+// One line in the main status: your sessions' suite is its own command, so it's easy to forget.
+async function sessionLine(io) {
+  try {
+    const s = await sessionStatus({ cwd: io.cwd, env: io.env, ...(io.claude ? { claude: io.claude } : {}) });
+    const limits = s.result?.cases?.filter((k) => !k.controls && k.outcome === 'known-limit').length ?? 0;
+    const said = s.state === 'green' ? `no promise broken, ${limits} known limits (mirai redteam show --sessions)` : s.state === 'red' || s.state === 'incomplete' ? s.state : `${s.state}; mirai redteam run --sessions`;
+    return `your own sessions (never gates a launch): ${said}`;
+  } catch {
+    return 'your own sessions (never gates a launch): unknown';
+  }
+}
+
+async function sessions(action, arg, only, io) {
+  if (action === 'show') {
+    const store = openStore({ cwd: io.cwd, env: io.env });
+    const keys = listResults(store, SESSIONS);
+    if (arg !== undefined && !/^[0-9a-f]{12,64}$/.test(arg)) throw new UsageError(`${shown(arg)} isn't a result key`);
+    const key = arg === undefined ? keys[0] : keys.find((k) => k.startsWith(arg));
+    if (!key) {
+      io.stdout.write(arg === undefined ? `no result here yet; ${SESSION_NEXT.none}\n` : `no result ${arg}\n`);
+      return EXIT.FAILURE;
+    }
+    io.stdout.write(sessionReport(readResult(store, key, { kind: SESSIONS })));
+    return EXIT.OK;
+  }
+  if (action === 'status') {
+    if (arg !== undefined) throw new UsageError('status takes no argument');
+    const s = await sessionStatus({ cwd: io.cwd, env: io.env, ...(io.claude ? { claude: io.claude } : {}) });
+    io.stdout.write(`red team, your sessions: ${s.state}${s.result && s.state !== 'stale' ? ` (${s.result.created_at})` : ''}\n${s.state === 'stale' ? `changed: ${s.changed.join(', ')}\n` : ''}next: ${SESSION_NEXT[s.state]}\n`);
+    return s.state === 'green' ? EXIT.OK : EXIT.NEEDS_HUMAN;
+  }
+  if (action !== 'run') throw new UsageError(`unknown action ${shown(action)}`, 'see: mirai redteam --help');
+  if (arg !== undefined) throw new UsageError('run takes no argument; use --only <id,…>');
+  requireTty(io, 'mirai redteam run --sessions');
+  const e = sessionEstimate(only);
+  if (only && !e.cases) throw new UsageError(`no case named ${only.map(shown).join(', ')}`);
+  io.stdout.write([
+    `This runs ${e.cases} cases about your own sessions: about ${e.runs} runs of Claude Code (haiku), roughly ${e.minutes} minutes. It uses your Claude subscription.`,
+    'These runs have NO sandbox, some in bypass mode, as your user. Each is one exact command, on a clone under your home folder,',
+    'with a fake home and a temporary Claude Code config; your real key and config aren\'t used. It never affects a launch.',
+    '',
+  ].join('\n'));
+  const prompter = createPrompter(io);
+  let answer;
+  try {
+    answer = await prompter.ask('Run it now? [y/N] ');
+  } finally {
+    prompter.close();
+  }
+  if (!/^y(es)?$/i.test(answer)) {
+    io.stdout.write('nothing was run\n');
+    return EXIT.OK;
+  }
+  const abort = new AbortController();
+  const onInt = () => abort.abort();
+  const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  for (const sig of SIGNALS) process.on(sig, onInt);
+  try {
+    const { result, recorded, partial } = await runSessions({
+      cwd: io.cwd, env: io.env, consent: true, only, signal: abort.signal,
+      onEvent: (ev) => { if (ev.type === 'run') io.stderr.write(`${ev.id}: ${ev.run}\n`); },
+    });
+    io.stdout.write(sessionReport(result, { recorded, partial }));
+    return result.state === 'green' && recorded ? EXIT.OK : EXIT.NEEDS_HUMAN;
+  } finally {
+    for (const sig of SIGNALS) process.removeListener(sig, onInt);
+  }
+}

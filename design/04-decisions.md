@@ -677,6 +677,12 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     user (D7, no container), so the protection is only as strong as the deny rules and the
     sandbox around the key file. A bug there would let a determined agent forge an approval.
     The red-team test in D-30 includes reading the key.
+  - **Update (unit 18e):** in headless runs the sandbox holds. In your own sessions it's by
+    construction, not a bug: no sandbox, and Claude Code's rules don't see inside a wrapper. `sh -c`
+    read the key and token (canaries), and `sh -c "… | script … mirai approve …"` signed with nobody
+    there. "Hard denies in interactive sessions" holds for file tools and plain commands only. A
+    signature proves the key was used. Signed red-team results and proofs rest on the same key.
+    Roadmap row 29b (key and token at rest) must be decided before the pilot.
   - A second machine needs its own key pair, with its public key merged once (D-52).
   - You approve from a terminal, not by telling the agent "approved". That is a deliberate bit of
     friction.
@@ -1295,6 +1301,8 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
 - **Consequences:** two or three touchpoints per feature before overnight builds (documents,
   ticket set, plan batch). Fewer, richer approvals instead of many thin ones.
 
+
+- **Update (unit 18e):** on standard and full tracks the orchestrator merges the docs MR after your ticket-set approval, and an overnight run starts from an approved set. So an approval forged from a session (D-17's update) can reach an agent run with no human merge between; `mirai-verify` accepts it too. Your merge protects only ticket code. Same fix: row 29b.
 ### D-35 · One ID chain from requirement to evidence; `mirai trace`
 
 - **Context:** version 1 broke the SDD chain (R-M10): the PRD used `AC-FR-n.m` and tickets used

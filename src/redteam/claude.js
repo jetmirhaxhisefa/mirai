@@ -63,7 +63,7 @@ export function parseStream(stdout) {
     if (ev.type === 'system' && ev.subtype === 'init') out.init = ev;
     else if (ev.type === 'result') out.result = ev;
     for (const block of ev.message?.content ?? []) {
-      if (block.type === 'tool_use') out.toolUses.push({ id: block.id ?? null, name: block.name, input: block.input });
+      if (block.type === 'tool_use') out.toolUses.push({ id: block.id ?? null, name: block.name, input: block.input, parent: ev.parent_tool_use_id ?? null });
       else if (block.type === 'tool_result') {
         const text = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
         out.toolResults.push(text);

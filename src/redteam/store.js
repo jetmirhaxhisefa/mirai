@@ -9,8 +9,8 @@ import { branchKeys } from '../sign/keys.js';
 import { changedParts, keyOf } from './key.js';
 
 // Red-team results (unit 18a): `<store>/redteam/<key>.json`, one per key (src/redteam/key.js),
-// signed with your key, so a result can't be written or edited by anything but `mirai redteam
-// run`; agents can't reach the store at all. The last KEEP_RESULTS are kept.
+// signed with your key, so a result can't be written or edited by anything without that key:
+// agents can't reach the store or the key, though your own unsandboxed session could (unit 18e). The last KEEP_RESULTS are kept.
 //
 // States: `green` (every case passed its runs, and the no-model checks hold), `red` (a case
 // failed, or a check found something new), `blocker` (a case of V1's condition failed: G18 or an
@@ -25,26 +25,32 @@ const KEY = /^[0-9a-f]{64}$/;
 
 export const resultContext = (repoId) => `mirai/redteam/1:${repoId}`;
 
-export function resultPath(store, key) {
+// Unit 18e's own results for your sessions sit in a folder of their own, under their own signing
+// context, so one can never stand for a headless result.
+export const SESSIONS = Object.freeze({ folder: join(RESULT_FOLDER, 'sessions'), context: (repoId) => `mirai/redteam-sessions/1:${repoId}` });
+const HEADLESS = Object.freeze({ folder: RESULT_FOLDER, context: resultContext });
+
+export function resultPath(store, key, kind = HEADLESS) {
   if (!KEY.test(key)) throw new StoreError('not a red-team key', { code: 'bad-key' });
-  return join(store.dir, RESULT_FOLDER, `${key}.json`);
+  return join(store.dir, kind.folder, `${key}.json`);
 }
 
 // Signs and writes a result; keeps the last KEEP_RESULTS. Returns the signed object.
-export function writeResult(store, result, signer, { now = () => new Date() } = {}) {
+export function writeResult(store, result, signer, { now = () => new Date(), kind = HEADLESS } = {}) {
   if (keyOf(result.parts) !== result.key) throw new StoreError('the result\'s key doesn\'t match its parts', { code: 'bad-key' });
-  const dir = join(store.dir, RESULT_FOLDER);
+  ensurePrivateDir(join(store.dir, RESULT_FOLDER));
+  const dir = join(store.dir, kind.folder);
   ensurePrivateDir(dir);
-  const signed = signObject(result, signer, { context: resultContext(store.repoId), now });
-  atomicWrite(resultPath(store, result.key), `${JSON.stringify(signed, null, 2)}\n`);
-  const all = listResults(store);
+  const signed = signObject(result, signer, { context: kind.context(store.repoId), now });
+  atomicWrite(resultPath(store, result.key, kind), `${JSON.stringify(signed, null, 2)}\n`);
+  const all = listResults(store, kind);
   for (const old of all.slice(KEEP_RESULTS)) rmSync(join(dir, `${old}.json`), { force: true });
   return signed;
 }
 
 // The keys of stored results, newest first.
-export function listResults(store) {
-  const dir = join(store.dir, RESULT_FOLDER);
+export function listResults(store, kind = HEADLESS) {
+  const dir = join(store.dir, kind.folder);
   let names;
   try {
     names = readdirSync(dir);
@@ -57,17 +63,17 @@ export function listResults(store) {
 // The result for `key`, checked: null when there is none; one that doesn't verify with the
 // integration branch's keys, or that names another key, is refused (`redteam-invalid`), never
 // read as "none".
-export function readResult(store, key, { keys = null } = {}) {
-  const text = readPrivateFile(resultPath(store, key), { optional: true, maxBytes: 16 * 1024 * 1024 });
+export function readResult(store, key, { keys = null, kind = HEADLESS } = {}) {
+  const text = readPrivateFile(resultPath(store, key, kind), { optional: true, maxBytes: 16 * 1024 * 1024 });
   if (text === null) return null;
-  const bad = (why) => new StoreError(`the red-team result ${key.slice(0, 12)} ${why}`, { code: 'redteam-invalid', hint: 'run it again: mirai redteam run' });
+  const bad = (why) => new StoreError(`the red-team result ${key.slice(0, 12)} ${why}`, { code: 'redteam-invalid', hint: kind === SESSIONS ? 'run it again: mirai redteam run --sessions' : 'run it again: mirai redteam run' });
   let value;
   try {
     value = parseJsonStrict(String(text));
   } catch (err) {
     throw bad(`can't be read: ${err.message}`);
   }
-  const check = verifySigned(value, keys ?? branchKeys(store.checkout, store.branch, store.gitEnv), { context: resultContext(store.repoId) });
+  const check = verifySigned(value, keys ?? branchKeys(store.checkout, store.branch, store.gitEnv), { context: kind.context(store.repoId) });
   if (!check.ok) throw bad(`doesn't verify: ${check.reason}`);
   if (value.key !== key || keyOf(value.parts) !== key || value.schema_version !== RESULT_SCHEMA_VERSION || !STATES.includes(value.state)) throw bad('isn\'t for that key');
   return value;

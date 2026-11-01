@@ -32,7 +32,7 @@ import { addArgs, sessionServer } from '../../src/mcp/session.js';
 //   node test/probes/session-probes.js [--yes] [--only s1|s2|s3|s4,...] [--workdir <dir>] [--keep]
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const ECHO = join(HERE, 'mcp-echo.js');
+const ECHO = join(HERE, '..', '..', 'src', 'redteam', 'mcp-echo.js');
 const SYSTEM = 'You are the executor in an automated test on the machine owner\'s own computer. Make exactly the tool call you are asked for, once; if it fails or is refused, do not try another way. Then answer as asked.';
 const PROMPT = 'Call the tool mcp__mirai__probe_echo once, with no arguments. Then reply with exactly what it returned, or with "refused" if it was refused or not there.';
 

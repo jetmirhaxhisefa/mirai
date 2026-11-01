@@ -39,7 +39,7 @@ export { containsToken, findClaude, hostFacts, madeTheCall, parseStream, promptF
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAUNCHER = resolve(HERE, '..', '..', 'bin', 'launch.js');
-const MCP_SERVER = join(HERE, 'mcp-echo.js');
+const MCP_SERVER = join(HERE, '..', '..', 'src', 'redteam', 'mcp-echo.js');
 // The environment a probe gets: an allowlist, never the harness's own environment.
 const ENV_ALLOW = ['PATH', 'LANG', 'TERM', 'TMPDIR', 'USER'];
 

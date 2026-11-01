@@ -26,11 +26,24 @@ export function prepared(ctx, template, env, inputs = {}) {
 // must carry over).
 export async function callServer(plan, calls, { env = {}, timeoutMs = 20_000 } = {}) {
   const mcp = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'mcp.json'), 'utf8')).mcpServers.mirai;
-  const child = spawn(mcp.command, mcp.args, { env: { ...env, ...(mcp.env ?? {}) }, cwd: plan.cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+  return callEntry(mcp, calls, { env, timeoutMs, cwd: plan.cwd });
+}
+
+// The same for any server entry: a launch's, or a session's registration (unit 18e).
+// `after(i)`: runs once call i has its answer, before the next is sent (a tamper mid-session).
+export async function callEntry(mcp, calls, { env = {}, timeoutMs = 20_000, cwd, after = null }) {
+  const child = spawn(mcp.command, mcp.args, { env: { ...env, ...(mcp.env ?? {}) }, cwd, stdio: ['pipe', 'pipe', 'pipe'] });
   let out = '';
   let stderr = '';
   child.stdout.on('data', (d) => (out += d));
   child.stderr.on('data', (d) => (stderr += d));
+  // A server that can't start, or dies mid-write, is an answer for the case to judge, not a crash.
+  let spawnFailed = false;
+  child.on('error', (err) => {
+    spawnFailed = true;
+    stderr += err.message;
+  });
+  child.stdin.on('error', () => {});
   const replies = () => out.split('\n').filter(Boolean).flatMap((l) => {
     try {
       return [JSON.parse(l)];
@@ -41,12 +54,20 @@ export async function callServer(plan, calls, { env = {}, timeoutMs = 20_000 } =
   const send = (msg) => child.stdin.write(`${JSON.stringify(msg)}\n`);
   send({ jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: PROTOCOL, capabilities: {} } });
   send({ jsonrpc: '2.0', method: 'notifications/initialized' });
-  calls.forEach((c, i) => send({ jsonrpc: '2.0', id: i + 1, method: 'tools/call', params: { name: c.name, arguments: c.arguments } }));
+  const call = (c, i) => send({ jsonrpc: '2.0', id: i + 1, method: 'tools/call', params: { name: c.name, arguments: c.arguments } });
   const deadline = Date.now() + timeoutMs;
-  while (replies().filter((m) => m.id >= 1).length < calls.length && Date.now() < deadline && child.exitCode === null) await new Promise((done) => setTimeout(done, 25));
+  if (after) {
+    for (const [i, c] of calls.entries()) {
+      call(c, i);
+      while (!replies().some((m) => m.id === i + 1) && Date.now() < deadline && child.exitCode === null && !spawnFailed) await new Promise((done) => setTimeout(done, 25));
+      after(i);
+    }
+  } else calls.forEach(call);
+  while (replies().filter((m) => m.id >= 1).length < calls.length && Date.now() < deadline && child.exitCode === null && !spawnFailed) await new Promise((done) => setTimeout(done, 25));
   child.stdin.end();
   const exit = await new Promise((done) => {
-    if (child.exitCode !== null) done(child.exitCode);
+    if (spawnFailed) done(-1);
+    else if (child.exitCode !== null) done(child.exitCode);
     else child.on('close', (code) => done(code));
     setTimeout(() => child.kill('SIGKILL'), 5000).unref();
   });

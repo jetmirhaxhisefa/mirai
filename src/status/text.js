@@ -18,3 +18,6 @@ const u4 = (n) => `\\u${n.toString(16).padStart(4, '0')}`;
 export function escapeInvisible(text) {
   return text.replace(INVISIBLE, (c) => (c.length === 1 ? u4(c.charCodeAt(0)) : u4(c.charCodeAt(0)) + u4(c.charCodeAt(1))));
 }
+
+// For a whole line of someone else's text: control characters too, shown not acted on, nothing cut.
+export const plain = (text) => escapeInvisible(String(text ?? '').replace(/[\x00-\x1f\x7f]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`));

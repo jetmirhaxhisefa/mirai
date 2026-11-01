@@ -1,8 +1,10 @@
 # Signing in MIRAI
 
 Some moves only you may make: approving a ticket, dropping one, resuming a stopped run,
-unparking. MIRAI signs each of them with a key only you hold, so it can tell your decisions
-apart from anything else that writes a file (decision D-17).
+unparking. MIRAI signs each of them with a key on your machine, so it can tell your decisions
+apart from anything else that writes a file (decision D-17). A signature proves your key was
+used, not that you were there: see "What it does and doesn't protect" and unit 18e's limits in
+`docs/agent-safety.md`.
 
 ## Set up (once per machine, once per repo)
 
@@ -26,7 +28,8 @@ apart from anything else that writes a file (decision D-17).
   - asks you to type the ticket key to confirm;
   - signs your decision over the file's exact bytes.
 - `mirai drop <ticket>`: the same confirmation, then a signed move to `dropped`.
-- Both run only in a real terminal; a piped or agent-run command is refused.
+- Both need a terminal; a piped or headless agent-run command is refused. A process that makes its
+  own terminal isn't (below).
 
 ## Plan approvals (unit 08b; recorded by the plan gate, unit 21)
 
@@ -67,8 +70,10 @@ away from three things:
 - **Git's own files.** Locally, "committed on the integration branch" means "on your local
   branch". A process that can move that ref could make its own key look committed.
 
-The deny rules and the sandbox (units 13 and 18) close those paths for agents. The final check is
-CI, against the remote's base commit (unit 54).
+The deny rules and the sandbox (units 13 and 18) close those paths for headless agents. Your own
+sessions have no sandbox, and a wrapped command there read the key and signed through `script`
+(unit 18e, probed); roadmap row 29b is the fix. The final check for code is CI, against the
+remote's base commit (unit 54), but a stolen key's signature passes it.
 
 A signature's time is written by the signer. Someone who holds a revoked key could backdate a
 signature: revocation stops later use, not a stolen key used with an old date. CI can also

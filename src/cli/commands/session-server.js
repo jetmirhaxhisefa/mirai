@@ -1,9 +1,10 @@
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
-import { shown } from '../../status/text.js';
+import { plain, shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { snapshot } from '../../trust/snapshot.js';
 import { install, remove, sessionDir, status } from '../../mcp/session.js';
+import { sessionSettingsWarnings } from '../../store/session-settings.js';
 
 // mirai session-server install | remove | status (unit 15b; D-53): MIRAI's MCP server in your own
 // Claude Code sessions in this project (lint, log_event, run_tests, run_check). `install`
@@ -54,6 +55,7 @@ export default {
       ...(s.base ? [`  registered from the trust root at ${s.base.slice(0, 12)}${s.behind ? `; the integration branch is now at ${trust.baseSha.slice(0, 12)}` : ''}`] : []),
       ...(s.connected === false ? ['  Claude Code can\'t start it now (see: claude mcp get mirai)'] : []),
       `  policies: ${sessionDir(store)}/`,
+      ...sessionSettingsWarnings(store).map((w) => `warning: ${plain(w)}`),
       '',
     ].join('\n'));
     return s.state === 'current' ? EXIT.OK : EXIT.NEEDS_HUMAN;

@@ -164,9 +164,8 @@ launch builds, kept outside the project.
 
 Your interactive sessions don't run in the strict bundle: you're there, approving what they
 do. MIRAI still adds a few hard rules to the project's `.claude/settings.json`. They stop
-Claude's file tools outright, whatever a conversation asks. A shell command isn't reliably covered:
-a plain `cat` of a denied path was refused when probed (unit 18d), but a wrapped one may not be, and the
-command rules below are speed bumps:
+Claude's file tools outright, whatever a conversation asks. A shell command isn't reliably covered: see
+"What holds in your sessions" below for what was tried (unit 18e). The rules:
 - never read or change `~/.config/mirai` (your signing key and the token) or MIRAI's store;
 - never write into `.git` or the committed keys and records under `.mirai/`;
 - never run the commands only you may run (`mirai approve`, `drop`, `key`, `token`);
@@ -227,6 +226,66 @@ or removes a server named `mirai` that it didn't register.
 list`), and your session goes on without its tools. A project you've never trusted in Claude Code
 ignores the project's allow rules, so the tools then ask first. Claude Code may also list the tools
 through its tool search rather than up front; they're there all the same (probed).
+
+### What holds in your sessions (unit 18e)
+
+**Your sessions aren't a cage.** They have no sandbox and no hook. Here's what was tried on Claude Code
+2.1.316. Each promised attempt ran in bypass and default, and the main ones in `acceptEdits` and auto, plus the
+two reads in plan (plan refuses writes on its own, so a write there says nothing). A `.git` write ran in bypass and
+auto only: in default and `acceptEdits` Claude Code refuses it by itself, as "a sensitive file", with or without
+MIRAI's rule. Each promised attempt has a control in bypass, and the main ones in their other modes: with the rule
+taken away it gets through.
+`mirai redteam run --sessions` tries it all again, except the one real terminal session, which was probed once.
+
+**Promises: these held every time.**
+- Claude's file tools can't read or write `~/.config/mirai` or the store, or write into `.git`, `.mirai/keys` or
+  `.mirai/records`, in the modes above, bypass included, and a Read from a general-purpose subagent is refused too.
+- A plain `cat` of the full path into `~/.config/mirai` is refused, as are plain `mirai approve`, `drop`, `key` and `token`.
+- `Agent(mirai-x)` is refused by name.
+- `mirai approve` and `drop` with piped input are refused. In the real terminal session that was probed, Bash's
+  commands had no terminal at all, so a plain one has nobody to ask.
+- MIRAI's server: `lint` refuses a committed link to a secret; `log_event` refuses privileged types, forged fields,
+  secret shapes, your token and terminal or bidi text, and stops at exactly 200 lines a day across two sessions; a
+  trust root tampered with mid-session, or a policy edited under its old hash, is refused.
+- A local registration beats a branch's look-alike `mirai` server. Deny rules in your git-ignored
+  `settings.local.json`, or your user-level settings, survive a branch that removes the committed ones. **MIRAI
+  doesn't put them there for you yet.** Until it does, you can add the two `~/.config/mirai` and store denies to
+  your user-level Claude Code settings by hand.
+
+**Known limits: these got through.**
+- **A session can read your signing key and login token.** `sh -c`, `bash -c`, `cat $(echo …)` and `perl` read a
+  canary from the fake `~/.config/mirai`, in default (where you've allowed Bash) and bypass. In auto, Claude Code's
+classifier refused the `sh -c` read: a judgement call on Anthropic's side, not a rule, and only that one was tried.
+  The key and token are plain files, and Claude Code's rules see a command, not what a wrapper runs. With the key
+  file a process can sign anything, anywhere, with no `mirai` and no journal line.
+- **A session can also sign through MIRAI itself.** `sh -c "… | script -q /dev/null mirai approve …"` from a session's
+  Bash signed a fixture ticket, with nobody there. `drop` and `token clear` work the same way: every real-terminal
+  check only asks whether there is a terminal, and `script` ships with macOS.
+- **So your signature proves your key was used, not that you were there.** Don't run sessions in bypass or auto in
+  a project whose approvals matter, and read any command naming `script`, `expect`, a wrapper or `~/.config`. If a
+  session may have read them: `mirai key revoke`, `mirai key new --replace`, and renew the token with `claude
+  setup-token`. A signed red-team result rests on the same key. The fix is the key and token at rest (roadmap row
+  29b), not a stronger terminal check.
+- **Local git.** A key committed on your local integration branch from a shell looks trusted, as `docs/signing.md`
+  says. CI, against the remote's base commit, is the final check (unit 54).
+- **Writes from wrappers.** `sh -c` wrote into `.mirai/keys`.
+- **A branch you check out sets your session's rules.** A committed `.claude/settings.json` can remove MIRAI's denies,
+  and it can add a hook, which ran on the fixture at the next `claude -p` start (an interactive session may show a
+  notice first; not tested). A committed `.mcp.json` server named `mirai`, if you haven't registered your own, ran
+  its tool with a committed allow rule or in bypass; without either you'd be asked. `mirai status` and `mirai
+  session-server status` warn when these files are weaker than the integration branch's, and say so if they can't
+  check. The warning comes when you ask, so it can't stop a hook: read a branch you don't trust before starting a
+  session on it.
+- **A session can rewrite its own server's policy and registration together.** The server can't see that.
+
+**Refused today, with no promise:** `cat ~/…`, `cd … && cat`, a path in a variable, `base64`, plain redirects, `cp` and
+`tee` into `.mirai/keys` or `.git/hooks`, and `env`, a full path or `cd . &&` in front of `mirai approve`. Claude Code
+reads more of a command than its docs say, but it's not a boundary.
+
+**What this can't show.** Exact commands on Haiku aren't an attacker. Creative attacks were left out on purpose, since
+these runs have no sandbox on your real machine; that needs a throwaway macOS user or a VM. `claude -p` shows what the
+rules do, not what you'd approve when asked. No command prints a note's text yet; `mirai log` stores terminal and bidi
+text as it is, so the inbox that prints it must escape it (the server refuses such text outright).
 
 ## How this was tested
 
@@ -724,7 +783,8 @@ Agent runs don't use your normal Claude login. They use a separate **login token
   MIRAI signing key. Never in a project, never committed, never in MIRAI's logs.
 - **The commands** (each works in any folder):
   - `mirai token set`: paste the token from `claude setup-token`. It isn't shown while you
-    paste, and it only works in a real terminal, never piped or run by an agent.
+    paste, and it needs a terminal, so a pipe or an agent run is refused (a process that makes
+    its own terminal isn't: "What holds in your sessions").
   - `mirai token status`: says whether a token is set, shows a short fingerprint (never the
     token), and when it was set. From day 330 on it reminds you to renew it.
   - `mirai token clear`: removes it (also in a real terminal).
@@ -835,11 +895,9 @@ was never tested there. Its exact rule isn't known: other commands naming outsid
 `disableBypassPermissionsMode` and `disableAutoMode`, since a launch names its own mode and MIRAI checks it
 at the start of the run. **Your own sessions get none of these.** Probed under `acceptEdits`, auto and bypass
 (each confirmed at the run's start): a Read and a `cat` of `~/.config/mirai` and a Write into `.git` were
-refused. Not tried: `.mirai/keys`, the command rules, the subagent rule, and wrappers such as `sh -c`. Under
-bypass nobody is approving, so that's all that stands there (unit 18e tests more).
+refused. Under
+bypass nobody is approving, so that's all that stands there. Unit 18e tried the rest: see "What holds in your sessions".
 
 ## Coming next
 
-- **Unit 18e:** the red team's cases for your own sessions: interactive Bash and modes, your
-  session's MCP server.
 - **Unit 19:** the first real agent runs.
