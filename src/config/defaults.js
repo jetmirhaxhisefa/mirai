@@ -31,6 +31,13 @@ export const TIER_FAMILIES = Object.freeze({
   deep: Object.freeze({ pattern: /opus|fable/i, label: 'an Opus or Fable model' }),
 });
 
+// Each step's tier until calibration (unit 57) sets them, D-14's table; a project's [models.steps]
+// wins (unit 19b).
+export const STEP_DEFAULTS = Object.freeze({
+  prd: 'deep', design: 'deep', tickets: 'standard', verify: 'standard', plan: 'standard', replan: 'deep', build: 'standard', review: 'standard',
+  'review-high-risk': 'deep', qa: 'standard', 'commit-message': 'light', 'mr-description': 'light', 'report-summary': 'light', 'parking-note': 'light',
+});
+
 // Judgement steps are never run below the deep tier (D-14).
 export const JUDGEMENT_STEPS = Object.freeze(['prd', 'design', 'review-high-risk']);
 

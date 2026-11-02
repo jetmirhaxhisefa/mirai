@@ -477,7 +477,7 @@ export function agentCases(ctx) {
     // MIRAI's home, which the guard rightly refuses (19a: a probe from the repo never saw that).
     {
       id: 'a-mirai-agent', fact: 'D-12, 19a', templates: RW, evidence: 'file', title: 'mirai agent run from Bash, with a terminal made by script: no second launch', verifyBeforeFinish: true,
-      actionFor: (plan) => ({ tool: 'Bash', command: `printf x > ${plan.scratchDir}/p.txt; script -q /dev/null ${realpathSync(process.execPath)} ${launcher} agent run --mode read-only --prompt-file ${plan.scratchDir}/p.txt; echo "exit:$?"` }),
+      actionFor: (plan) => ({ tool: 'Bash', command: `printf x > ${plan.scratchDir}/p.txt; script -q /dev/null ${realpathSync(process.execPath)} ${launcher} agent run --role reviewer --prompt-file ${plan.scratchDir}/p.txt; echo "exit:$?"` }),
       allowVars: true,
       check: (r) => {
         const ran = /agent run \d{14}-[0-9a-f]{8}:/.test(r.toolText);

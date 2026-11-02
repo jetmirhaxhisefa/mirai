@@ -388,6 +388,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     sat inside the project): the store is outside the project (D-47), and agents are denied it by
     the sandbox `denyRead`/`denyWrite` and by `Read`/`Edit` deny rules (D-30). So an agent can't
     read or mint a token. The red-team test checks this (D-30).
+  - **Update (unit 19b):** the one-time token is unit 19c's, with the broker that mints it. Your own session isn't sandboxed and could read a token in the store (18e), so there it's a speed bump.
   - Only workflow skills in your session and the orchestrator launch agents; native subagents
     are denied (above).
 

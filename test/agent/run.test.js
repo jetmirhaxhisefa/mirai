@@ -46,7 +46,7 @@ function claudeWith(body) {
   return path;
 }
 const okBody = `echo '${INIT}'; echo '${RESULT}'`;
-const run = (f, o = {}) => runAgent({ cwd: f.root, env: f.env, mode: 'read-write', prompt: 'do it', claude: claudeWith(okBody), status: green, check: noInitProblems, ...o });
+const run = (f, o = {}) => runAgent({ cwd: f.root, env: f.env, role: 'author', prompt: 'do it', claude: claudeWith(okBody), status: green, check: noInitProblems, ...o });
 
 test('T1: each red-team state refuses with its own code; a blocker seen needs your signed decision', async () => {
   const store = {};
@@ -132,7 +132,7 @@ test('T7: one run-log line with every field; the prompt and rules reach the laun
     ({ args } = o);
     return runInGroup(c, o, x);
   };
-  const r = await run(f, { launch, tier: 'light', item: 'PROJ-1', maxTurns: 7 });
+  const r = await run(f, { launch, tier: 'deep', item: 'PROJ-1', maxTurns: 7 });
   assert.equal(r.outcome, 'ok');
   assert.equal(r.text, 'done');
   assert.equal(args[args.indexOf('--max-turns') + 1], '7');
@@ -143,7 +143,7 @@ test('T7: one run-log line with every field; the prompt and rules reach the laun
   const line = (lines.lines ?? lines).find((l) => l.event === 'agent_run');
   assert.equal(line.launch_id, r.launchId);
   assert.equal(line.item, 'PROJ-1');
-  assert.equal(line.tier, 'light');
+  assert.equal(line.tier, 'deep');
   assert.equal(line.turns, 2);
   assert.equal(line.tokens_out, 6);
   assert.equal(line.limit_share_source, 'unknown');
@@ -156,7 +156,7 @@ test('T8: a dirty tree and a non-terminal refuse', async () => {
   writeFileSync(join(f.root, 'dirty.txt'), 'x');
   await assert.rejects(run(f), (e) => e.code === 'dirty-tree');
   let err = '';
-  const code = await main(['agent', 'run', '--mode', 'read-only', '--prompt-file', 'x'], { cwd: f.root, env: f.env, stdin: { isTTY: false }, stdout: { write() {}, isTTY: false }, stderr: { write: (t) => { err += t; } } });
+  const code = await main(['agent', 'run', '--role', 'reviewer', '--prompt-file', 'x'], { cwd: f.root, env: f.env, stdin: { isTTY: false }, stdout: { write() {}, isTTY: false }, stderr: { write: (t) => { err += t; } } });
   assert.equal(code, EXIT.NEEDS_HUMAN);
   assert.match(err, /real terminal/);
 });
@@ -227,7 +227,7 @@ test('review: an interrupt before the start, a survivor, a crash', async () => {
   const stub = claudeWith(`echo x > left-behind.txt; echo '${INIT}'; exec sleep ${word}`);
   const script = join(realpathSync(tempDir()), 'crash.mjs');
   const here = new URL('../../src/agent/run.js', import.meta.url).href;
-  writeFileSync(script, `import { runAgent } from ${JSON.stringify(here)};\nawait runAgent({ cwd: ${JSON.stringify(f.root)}, env: ${JSON.stringify(f.env)}, mode: 'read-write', prompt: 'x', claude: ${JSON.stringify(stub)}, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [], timeoutMs: 120000 });\n`);
+  writeFileSync(script, `import { runAgent } from ${JSON.stringify(here)};\nawait runAgent({ cwd: ${JSON.stringify(f.root)}, env: ${JSON.stringify(f.env)}, role: 'author', prompt: 'x', claude: ${JSON.stringify(stub)}, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [], timeoutMs: 120000 });\n`);
   const crashing = spawn(process.execPath, [script], { stdio: 'ignore' });
   const alive = async () => (await processTable()).some((p) => p.command === `sleep ${word}`);
   for (let i = 0; i < 100 && !(await alive()); i++) await new Promise((d) => setTimeout(d, 200));

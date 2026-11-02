@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
 import { join, isAbsolute, sep } from 'node:path';
 
 import { ConfigError } from '../cli/errors.js';
+import { STEPS } from './defaults.js';
 import { readConfigFile } from './load.js';
 import { validate } from './schema.js';
 import { deepFreeze } from '../util/freeze.js';
@@ -730,6 +731,39 @@ const INSTRUCTION_FLAGS = {
   required: ['kind', 'schema_version', 'name', 'files', 'patterns'],
 };
 
+// Roles (unit 19b): what a run may change, and the step it is. An agent definition names one
+// (unit 21). A project adds its own in .mirai/custom/roles/, read from the trust root.
+const ROLE = {
+  type: 'table',
+  fields: {
+    kind: { type: 'enum', values: ['role'] },
+    schema_version: { type: 'integer', min: 1, max: 1 },
+    name: { type: 'string', pattern: NAME, patternHint: 'for example "reviewer"' },
+    description: AGENT_DESCRIPTION,
+    mode: { type: 'enum', values: ['read-write', 'read-only'] },
+    step: { type: 'enum', values: STEPS },
+    may_write: {
+      type: 'table',
+      fields: {
+        paths: { type: 'array', items: { type: 'string', pattern: /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\\s]+$/, patternHint: 'a relative glob inside the repo, without ".."' } },
+        // Ignored files it may change, such as a build folder: none by default (unit 19b).
+        ignored: { type: 'array', items: { type: 'string', pattern: /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\\s]+$/, patternHint: 'a relative glob inside the repo, without ".."' } },
+      },
+      required: ['paths'],
+    },
+  },
+  required: ['kind', 'schema_version', 'name', 'description', 'mode', 'step', 'may_write'],
+  check(value, path, report) {
+    if (value.mode === 'read-only' && ((value.may_write?.paths?.length ?? 0) > 0 || (value.may_write?.ignored?.length ?? 0) > 0)) report('may_write', 'a read-only role can\'t write anything', undefined, 'read-only');
+    for (const key of ['paths', 'ignored']) {
+      for (const [i, g] of (value.may_write?.[key] ?? []).entries()) {
+        const bad = globProblem(g.startsWith('!') ? g.slice(1) : g);
+        if (bad) report(`may_write.${key}[${i}]`, `may_write.${key}[${i}]: ${bad}`, undefined, 'glob');
+      }
+    }
+  },
+};
+
 const KINDS = [
   { folder: 'agents', kind: 'agent', bucket: 'agents', schema: AGENT, refs: ['prompt'] },
   { folder: 'document-types', kind: 'document-type', bucket: 'documentTypes', schema: DOCUMENT_TYPE, refs: ['template', 'checklist'] },
@@ -739,6 +773,7 @@ const KINDS = [
   { folder: 'test-adapters', kind: 'test-adapter', bucket: 'testAdapters', schema: TEST_ADAPTER, refs: [] },
   { folder: 'stacks', kind: 'stack', bucket: 'stacks', schema: STACK, refs: [] },
   { folder: 'instruction-flags', kind: 'instruction-flags', bucket: 'instructionFlags', schema: INSTRUCTION_FLAGS, refs: [] },
+  { folder: 'roles', kind: 'role', bucket: 'roles', schema: ROLE, refs: [] },
 ];
 
 // Loads and checks every definition under `dir`. Returns frozen `{ dir, agents, documentTypes,
@@ -747,7 +782,7 @@ const KINDS = [
 // listing every problem. `dir` lets the lint read a type's template (unit 08a).
 export function loadRegistry(dir) {
   const problems = [];
-  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, secrets: {}, testAdapters: {}, stacks: {}, instructionFlags: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
+  const out = { dir, agents: {}, documentTypes: {}, adapters: {}, protectedPaths: {}, secrets: {}, testAdapters: {}, stacks: {}, instructionFlags: {}, roles: {}, skills: {}, agentFiles: {}, adapterFiles: {} };
   for (const spec of KINDS) {
     for (const { name, value, source } of loadFolder(dir, spec, problems, out[spec.bucket])) {
       out[spec.bucket][name] = value;
@@ -824,6 +859,9 @@ export const loadCustomTestAdapters = (dir, core = {}) => loadCustom(dir, 'test-
 
 // A project's own stacks (unit 17a): `<dir>/stacks/*.toml`, as its test adapters are.
 export const loadCustomStacks = (dir, core = {}) => loadCustom(dir, 'stack', core);
+
+// A project's own roles (unit 19b): `<dir>/roles/*.toml`, as its stacks are.
+export const loadCustomRoles = (dir, core = {}) => loadCustom(dir, 'role', core);
 
 function loadCustom(dir, kind, core) {
   const problems = [];

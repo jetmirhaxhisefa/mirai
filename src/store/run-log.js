@@ -14,7 +14,7 @@ import { appendLine, checkPrivateDir, ensurePrivateDir, jsonLine, lastJsonLine, 
 // from day one. It lives only in the store and is never committed (U3, Q9).
 // This file imports nothing from the journal, so the journal can write run lines in one step.
 
-export const RUN_LOG_SCHEMA_VERSION = 2;
+export const RUN_LOG_SCHEMA_VERSION = 3;
 export const RUN_ID = /^r-\d{8}-\d{6}-[0-9a-f]{4}$/;
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/@-]{0,127}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -57,6 +57,12 @@ export const RUN_EVENTS = Object.freeze({
     // report one.
     cost_usd: { type: 'number', min: 0 },
     verdict: { type: 'enum', values: ['pass', 'fail', 'blocked', 'needs-human', 'error'] },
+    // Why this tier, the model the run reported, and what it changed outside its role (unit 19b).
+    tier_reason: { type: 'string', pattern: /^[^\u0000-\u001f\u007f]{1,300}$/, patternHint: 'one line' },
+    model_used: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._:@/\[\]-]{0,127}$/, patternHint: 'a model id' },
+    scope_violations: count,
+    // Cached input, apart from tokens_in (unit 19b).
+    tokens_cached: count,
     // How it ended (unit 19a): an outcome says more than the verdict, and what outlived it.
     outcome: { type: 'enum', values: ['ok', 'agent-failed', 'refused', 'env-fault', 'killed'] },
     survivors: count,
@@ -106,7 +112,7 @@ export const RUN_EVENTS = Object.freeze({
 });
 const OPTIONAL = {
   finding: ['symbol', 'line', 'basis_ref', 'downgraded'],
-  agent_run: ['rung', 'cost_usd', 'limit_share', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
+  agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };
 // Rules across fields, per event.
 const CHECKS = {

@@ -346,3 +346,10 @@ on a clone of the sample app, with this checkout's MIRAI and a probe key in a te
 **`ps`'s `lstart`** follows the locale: `LC_ALL=C` for parsing. **`DISABLE_AUTOUPDATER=1`:** both templates start as expected.
 
 **Read-side, from an agent alone (after the review):** `.ENV`: refused by Claude Code's rule ("denied by your permission settings"), past the timeout and on time, so its case folding covers it. `.env ` with a trailing space, past the timeout: the same. `mv .env`, `mv sub`, `cp .env`: "Operation not permitted" from the sandbox. 24 busy loops started from sandboxed Bash, then a Write: the real hook answered in time, in a 22 s run, load 40 (one try); all 24 were killed at the end. A `..` path wasn't tried past the timeout (the probe guard forbids it).
+
+## From unit 19b's probes (2.1.316)
+
+- **Read-only Bash:** MIRAI's read-only template has no Bash (by its schema) ("No such tool available: Bash ... disabled for this session, in subagents as well as here"), so a read-only run can't change files by any route MIRAI offers.
+- **Ignored files:** a read-write run's Bash wrote `node_modules/.bin/b1-tool` (exit 0); git doesn't show it. Stat-walking the sample app's 8,952 ignored files: about 0.5 s.
+- **Each tier's model through the real launch check:** `claude-sonnet-5-5` and `claude-opus-5-5` both reported their configured ids; Haiku did in 19a. Fable wasn't tried (not a default tier model).
+- **Tokens:** Claude Code reports cached input apart (`cache_read_input_tokens`, `cache_creation_input_tokens`); 19a's log counted only `input_tokens`, so your first run showed 156. 19b logs them apart, as `tokens_cached`.

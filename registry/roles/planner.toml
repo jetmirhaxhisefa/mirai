@@ -1,0 +1,10 @@
+# A role (unit 19b): what a run may change, and its step. Stack-neutral; unit 21 refines these.
+kind = "role"
+schema_version = 1
+name = "planner"
+description = "Writes a plan, which MIRAI stores from its output; changes nothing in the project"
+mode = "read-only"
+step = "plan"
+
+[may_write]
+paths = []

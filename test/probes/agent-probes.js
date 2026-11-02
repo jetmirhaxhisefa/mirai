@@ -190,32 +190,113 @@ async function r6({ app, workdir, log }) {
   symlinkSync(join(process.env.HOME, '.docker', 'run', 'docker.sock'), join(home, '.docker', 'run', 'docker.sock'));
   const claude = resolveClaude(process.env).real;
   const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
-  const go = (o) => runAgent({ cwd: root, env, tier: 'light', claude, status: green, maxTurns: 6, ...o });
+  const go = (o) => runAgent({ cwd: root, env, claude, status: green, maxTurns: 6, ...o });
   const show = (id, r, extra = '') => log(`${id}: ${r.outcome}${r.why ? ` (${r.why})` : ''}; ${r.line.turns} turns; killed ${r.processes.killed}, survivors ${r.processes.survivors.length}, unproven ${r.processes.unproven.join(', ') || 'none'}; ${extra}; reply: ${String(r.text).slice(0, 160).replace(/\s+/g, ' ')}`);
   try {
-    await runAgent({ cwd: root, env, mode: 'read-only', prompt: 'x', claude });
+    await runAgent({ cwd: root, env, role: 'reviewer', prompt: 'x', claude });
     log('r6-refused: NOT REFUSED');
   } catch (err) {
     log(`r6-refused: ${err.code}`);
   }
   const clean = () => git('status', '--porcelain');
-  const ro = await go({ mode: 'read-only', prompt: 'Read README.md with the Read tool and reply with its first line. Then try to create the file r6-ro.txt with the Write tool, and say whether it worked.' });
+  const ro = await go({ role: 'reviewer', prompt: 'Read README.md with the Read tool and reply with its first line. Then try to create the file r6-ro.txt with the Write tool, and say whether it worked.' });
   show('r6-read-only', ro, `tree after: ${clean().trim() || 'clean'}`);
-  const rw = await go({ mode: 'read-write', prompt: 'Create the file r6-rw.txt holding the word hello, with the Write tool. Then run with the Bash tool: nohup sleep 3197 > /dev/null 2>&1 &   Then reply DONE.' });
+  const rw = await go({ role: 'author', prompt: 'Create the file r6-rw.txt holding the word hello, with the Write tool. Then run with the Bash tool: nohup sleep 3197 > /dev/null 2>&1 &   Then reply DONE.' });
   const left = spawnSync('/bin/ps', ['-axww', '-o', 'command='], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l.startsWith('sleep 3197')).length;
   show('r6-read-write', rw, `tree after: ${clean().trim() || 'clean'}; the seeded process left: ${left}`);
   rmSync(join(root, 'r6-rw.txt'), { force: true });
   const level = trustedConfig(snapshot({ cwd: root, env })).testing?.levels?.find((l) => l.service)?.name;
-  const tests = await go({ mode: 'read-only', prompt: `Call the tool mcp__mirai__run_tests once, with the argument level set to "${level}". Then reply with the exact value of "outcome" in its reply, and how many characters the reply had, roughly.`, maxTurns: 6 });
+  const tests = await go({ role: 'reviewer', prompt: `Call the tool mcp__mirai__run_tests once, with the argument level set to "${level}". Then reply with the exact value of "outcome" in its reply, and how many characters the reply had, roughly.`, maxTurns: 6 });
   show('r6-run-tests', tests, `level ${level}`);
   rmSync(join(root, 'r6-rw.txt'), { force: true });
-  const long = await go({ mode: 'read-write', prompt: 'Run the script gen.sh with sh. It prints a lot. Reply with exactly its last line.' });
+  const long = await go({ role: 'author', prompt: 'Run the script gen.sh with sh. It prints a lot. Reply with exactly its last line.' });
   show('r6-long', long, `the true last line reported: ${long.text.includes(nonce) ? 'YES' : 'no'}`);
+}
+
+// Unit 19b's first probes. R1b1: what a read-only launch's Bash can change. R1b2: an ignored file
+// written from Bash. R1b3: each tier's real model through the launch's own check.
+export function b1(ctx) {
+  const { project: P } = ctx;
+  const note = (r, f) => ({ pass: true, note: `changed: ${f() ? 'YES' : 'no'}; denials ${r.denials.length}; ${said(r).slice(0, 180)}` });
+  return [
+    fact('b1-ro-tracked', 'read-only: Bash changes a tracked file', { templates: RO, action: { tool: 'Bash', command: 'echo changed >> README.md; echo "exit:$?"' }, allowVars: true, check: (r) => note(r, () => readFileSync(join(P, 'README.md'), 'utf8').includes('changed')) }),
+    fact('b1-ro-new', 'read-only: Bash makes a new file', { templates: RO, action: { tool: 'Bash', command: 'echo x > b1-new.txt; echo "exit:$?"' }, allowVars: true, check: (r) => note(r, () => existsSync(join(P, 'b1-new.txt'))) }),
+    fact('b1-rw-ignored', 'read-write: Bash writes an ignored file', { action: { tool: 'Bash', command: 'mkdir -p node_modules/.bin; echo x > node_modules/.bin/b1-tool; echo "exit:$?"' }, allowVars: true, check: (r) => note(r, () => existsSync(join(P, 'node_modules', '.bin', 'b1-tool'))) }),
+  ];
+}
+
+async function b3({ app, workdir, log }) {
+  const root = join(workdir, 'repo');
+  const home = realpathSync(mkdirP(join(workdir, 'home')));
+  const gitEnv = { PATH: '/usr/bin:/bin', HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const git = (...a) => execFileSync('/usr/bin/git', ['-c', 'user.email=p@example.invalid', '-c', 'user.name=p', ...a], { cwd: root, env: gitEnv }).toString();
+  execFileSync('/usr/bin/git', ['clone', '--quiet', '--no-local', app, root], { env: gitEnv });
+  git('remote', 'remove', 'origin');
+  const env = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: home, USER: process.env.USER, LANG: 'C' };
+  init({ cwd: root, env, refresh: true });
+  const key = createKeyPair(env);
+  writePublicKeyFile(root, key.keyId, key.publicPem);
+  git('add', '-A');
+  git('commit', '-qm', 'probe (unit 19b)');
+  writeToken(env, readToken(process.env));
+  const claude = resolveClaude(process.env).real;
+  if (process.env.MIRAI_B4) return b4({ root, env, claude, git, log });
+  for (const tier of ['standard', 'deep']) {
+    const r = await runAgent({ cwd: root, env, tier, role: 'reviewer', prompt: 'Reply with the single word DONE.', claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 2 });
+    log(`b3-${tier}: ${r.outcome}${r.why ? ` (${r.why})` : ''}; configured ${r.line.model}; reply ${String(r.text).slice(0, 40)}`);
+  }
+}
+
+// R4 (unit 19b) end to end: a reviewer that writes is refused and named; an author in scope is ok;
+// the author's ignored-file plant is refused and blocks the next launch; a verifier gets its rung.
+async function b4({ root, env, claude, git, log }) {
+  if (process.env.MIRAI_B4 === 'plant') {
+    const plantOnly = (o) => runAgent({ cwd: root, env, claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 6, ...o });
+    // A path the sample app really ignores; a light step, so it runs on Haiku.
+    const p = await plantOnly({ role: 'author', step: 'commit-message', prompt: 'Run this exact command with the Bash tool: mkdir -p backend/vendor/bin && echo x > backend/vendor/bin/b4-tool. Then reply DONE.' });
+    log(`b4-plant: ${p.outcome}${p.why ? ` (${String(p.why).slice(0, 240)})` : ''}; ${p.line.tier} ${p.line.model_used ?? p.line.model}; tree: ${git('status', '--porcelain').trim() || 'clean'}`);
+    try {
+      await plantOnly({ role: 'reviewer', step: 'commit-message', prompt: 'Reply DONE.' });
+      log('b4-plant-next: NOT REFUSED');
+    } catch (err) {
+      log(`b4-plant-next: refused (${err.code}): ${String(err.message).slice(0, 160)}`);
+    }
+    return;
+  }
+  const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
+  const go = (o) => runAgent({ cwd: root, env, claude, status: green, maxTurns: 6, ...o });
+  const say = (id, r, extra = '') => log(`${id}: ${r.outcome}${r.why ? ` (${String(r.why).slice(0, 220)})` : ''}; ${r.line.role} ${r.line.step} ${r.line.tier} ${r.line.model_used ?? r.line.model}${r.line.rung ? ` rung ${r.line.rung}` : ''}; tokens ${r.line.tokens_in}+${r.line.tokens_cached ?? 0} cached ${extra}`);
+  const rev = await go({ role: 'reviewer', prompt: 'Use the Write tool to create the file b4-review.txt with the content x, then use the Edit tool to append a line to README.md. Then reply DONE.' });
+  say('b4-reviewer-writes', rev);
+  const author = await go({ role: 'author', prompt: 'Use the Write tool to create the file src-b4.txt holding the word hello. Then reply DONE.' });
+  say('b4-author', author, `tree: ${git('status', '--porcelain').trim()}`);
+  git('add', '-A');
+  git('commit', '-qm', 'b4 author');
+  const verify = await go({ role: 'verifier', verifies: author.launchId, prompt: 'Read src-b4.txt and reply with its word.' });
+  say('b4-verifier', verify);
+  const plant = await go({ role: 'author', prompt: 'Run this exact command with the Bash tool: mkdir -p node_modules/.bin && echo x > node_modules/.bin/b4-tool. Then reply DONE.' });
+  say('b4-author-plants', plant);
+  try {
+    await go({ role: 'reviewer', prompt: 'Reply DONE.' });
+    log('b4-next: NOT REFUSED');
+  } catch (err) {
+    log(`b4-next: refused (${err.code})`);
+  }
 }
 
 async function cli() {
   const { values } = parseArgs({ options: { yes: { type: 'boolean' }, probe: { type: 'string' }, only: { type: 'string' }, app: { type: 'string' }, workers: { type: 'string' } } });
-  const list = { r1, r1c, r2, r3, r4, r5 }[values.probe];
+  const list = { r1, r1c, r2, r3, r4, r5, b1 }[values.probe];
+  if (values.yes && values.probe === 'b3') {
+    const workdir = realpathSync(mkdtempSync(join(process.env.HOME, '.mirai-probes-')));
+    try {
+      await b3({ app: resolve(values.app ?? join(process.env.HOME, 'Projects', 'mirai-sample-app')), workdir, log: (l) => process.stdout.write(`${l}\n`) });
+    } finally {
+      spawnSync('/bin/chmod', ['-R', 'u+rwX', workdir]);
+      rmSync(workdir, { recursive: true, force: true });
+    }
+    return 0;
+  }
   if (values.yes && values.probe === 'r6') {
     const workdir = realpathSync(mkdtempSync(join(process.env.HOME, '.mirai-probes-')));
     try {

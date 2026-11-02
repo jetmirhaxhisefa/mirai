@@ -1,0 +1,10 @@
+# A role (unit 19b): what a run may change, and its step. Stack-neutral; unit 21 refines these.
+kind = "role"
+schema_version = 1
+name = "author"
+description = "Writes the change: anything in the project MIRAI doesn't protect outright"
+mode = "read-write"
+step = "build"
+
+[may_write]
+paths = ["**"]

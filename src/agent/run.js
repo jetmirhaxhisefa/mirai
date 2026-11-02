@@ -17,10 +17,13 @@ import { acquireRunLock } from '../store/global.js';
 import { workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { withSeq } from '../store/journal.js';
+import { readRunLog, runIds } from '../store/run-log.js';
 import { newRunId, readRunState, startRun, writeHeartbeat, writeRunState } from '../store/run.js';
 import { snapshot, trustedConfig, trustedStrict } from '../trust/snapshot.js';
 import { trustFingerprint, verifyTrustRoot } from '../trust/verify.js';
 import { cwdsUnder, processTable, runInGroup } from './process.js';
+import { checkIgnoredCheckable, checkNothingHidden, checkPendingIgnored, findRole, IGNORED_ENTRY_BUDGET, ignoredState, recordPendingIgnored, scopeViolations, trustedRoles } from './scope.js';
+import { familyNote, pickTier, pickVerifier } from './tiers.js';
 
 // One agent run (unit 19a; D-12): the checks, the process, the end, the log. MIRAI's whole cage is in
 // prepareLaunch; this decides whether to start at all, watches the first event, and leaves a true
@@ -51,9 +54,37 @@ function keepStream(store, launchId, text, token) {
   const dir = join(store.dir, 'agent-runs');
   ensurePrivateDir(dir);
   atomicWrite(join(dir, `${launchId}.jsonl`), redact(text, token));
-  const all = readdirSync(dir).map((n) => ({ n, t: statSync(join(dir, n)).mtimeMs })).sort((a, b) => b.t - a.t);
-  for (const old of all.slice(KEEP_STREAMS)) rmSync(join(dir, old.n), { force: true });
+  // Streams only, each with its evidence: the markers are kept.
+  const all = readdirSync(dir).filter((n) => n.endsWith('.jsonl')).map((n) => ({ n, t: statSync(join(dir, n)).mtimeMs })).sort((a, b) => b.t - a.t);
+  for (const old of all.slice(KEEP_STREAMS)) {
+    rmSync(join(dir, old.n), { force: true });
+    rmSync(join(dir, old.n.replace(/\.jsonl$/, '.scope.json')), { force: true });
+  }
 }
+
+// The author launch's model and tier (the verifier ladder needs them), newest logs first; an
+// unreadable log is passed over; refused if there's no such launch.
+function authorRun(store, launchId) {
+  const skipped = [];
+  for (const id of runIds(store).slice().reverse()) {
+    let lines;
+    try {
+      ({ lines } = readRunLog(store, id));
+    } catch {
+      skipped.push(id);
+      continue;
+    }
+    const found = lines.find((l) => l.event === 'agent_run' && l.launch_id === launchId);
+    if (found) return { model: found.model_used ?? found.model, tier: found.tier };
+  }
+  throw Object.assign(new UsageError(`no agent run ${JSON.stringify(String(launchId).slice(0, 40))} in this repo's log${skipped.length ? ` (${skipped.length} log(s) couldn't be read, such as ${skipped[0]})` : ''}`), { code: 'unknown-launch' });
+}
+
+// A model id as the log takes it: whatever Claude Code reported, made safe, so the line always writes.
+const modelId = (m) => {
+  const s = String(m).replace(/[^A-Za-z0-9._:@/[\]-]/g, '_').slice(0, 128);
+  return /^[A-Za-z0-9]/.test(s) ? s : `x${s.slice(0, 127)}`;
+};
 
 // The run log takes only clean numbers: a run's work must never be lost to an odd one in its stream.
 const count = (v) => (Number.isSafeInteger(v) && v >= 0 ? v : 0);
@@ -113,7 +144,7 @@ function recordAgent(store, plan, pid) {
 }
 
 // Returns { outcome, why, launchId, text, processes, line, tookOver }. Throws for a launch it refuses.
-export async function runAgent({ cwd, env, mode, tier = 'standard', prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function runAgent({ cwd, env, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
@@ -128,24 +159,38 @@ export async function runAgent({ cwd, env, mode, tier = 'standard', prompt, item
     tookOver = await takeOver(store);
     stopped();
     const trust = snapshot({ cwd, env });
+    const role = findRole(trustedRoles(trust), roleName);
+    const mode = role.mode;
     const template = trustedStrict(trust, mode);
     const config = trustedConfig(trust);
     const c = resolveClaude(env, claude);
-    const model = config.models?.[tier];
-    if (!model) throw new UsageError(`no model for the tier ${tier} in the trust root's config`);
+    const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
+    let model = config.models?.[picked.tier];
+    let rung = null;
+    if (verifies) {
+      if (role.mode !== 'read-only') throw new UsageError(`--verifies is for a role that checks work; ${role.name} changes it`);
+      const author = authorRun(store, verifies);
+      const v = pickVerifier({ config, tier: picked.tier, authorModel: author.model, authorTier: author.tier });
+      ({ model, rung } = v);
+      if (v.tier !== picked.tier) Object.assign(picked, { tier: v.tier, why: `${picked.why}; up to ${v.tier}, the author's tier` });
+    }
+    if (!model) throw new UsageError(`no model for the tier ${picked.tier} in the trust root's config`);
     if (!MODEL.test(model)) throw new UsageError(`the model ${JSON.stringify(model.slice(0, 40))} isn't a plain model id`);
     const changes = workTreeChanges(store.checkout, store.gitEnv);
     if (changes.length) throw refuse(`the work tree has ${changes.length} uncommitted change(s), so what an agent changes couldn't be told apart`, 'dirty-tree', 'commit or stash them first');
+    checkNothingHidden(store.checkout, store.gitEnv);
+    checkPendingIgnored(store);
+    checkIgnoredCheckable(ignoredState(store.checkout, store.gitEnv));
     checkRedTeam(await status({ cwd, env, trust, template, claude }), store);
     stopped();
     startRun(store, { runId, preset: config.preset, plan, now });
-    return await launchAndLog({ store, env, trust, template, c, model, runId, mode, tier, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
+    return await launchAndLog({ store, env, trust, template, c, model, runId, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
   } finally {
     release();
   }
 }
 
-async function launchAndLog({ store, env, trust, template, c, model, runId, mode, tier, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
+async function launchAndLog({ store, env, trust, template, c, model, runId, mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';
@@ -167,6 +212,9 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, mode
       }
     }, 60_000);
     beat.unref();
+    // The ignored files as they are right before the start: the tree is clean, so a change after is
+    // the run's, or something else's that ran meanwhile (the refusal says both).
+    const before = ignoredState(store.checkout, store.gitEnv);
     const started = Date.now();
     let unsafe = null;
     let health = false;
@@ -219,6 +267,13 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, mode
       repoChanged = err.message;
     }
     finished = true;
+    // What the run changed, against its role: after its processes have ended.
+    let scope;
+    try {
+      scope = scopeViolations({ root: store.checkout, env: store.gitEnv, role, before });
+    } catch (err) {
+      scope = { violations: [], partial: true, failed: err.message };
+    }
     const parsed = parseStream(raw.stdout);
     keepStream(store, launchId, `${raw.stdout}\n`, token);
     const tokenLeaked = containsToken(`${raw.stdout}\n${raw.stderr}`, token);
@@ -231,8 +286,11 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, mode
     let why = null;
     if (repoChanged) [outcome, why] = ['refused', repoChanged];
     else if (tokenLeaked) [outcome, why] = ['refused', 'the login token appeared in the run\'s output'];
+    else if (scope.violations.length) [outcome, why] = ['refused', `these changed during the run, by the agent or something else, and the ${role.name} role may not change them (left as they are; the full list is in the store): ${scope.violations.slice(0, 20).join(', ')}${scope.violations.length > 20 ? ` and ${scope.violations.length - 20} more` : ''}`];
     else if (health) [outcome, why] = ['env-fault', `a part of the launch wasn't ready: ${unsafe.join('; ')}`];
     else if (unsafe?.length) [outcome, why] = ['refused', `the run wasn't what MIRAI launched: ${unsafe.join('; ')} (load ${loadavg()[0].toFixed(0)})`];
+    else if (scope.failed) [outcome, why] = ['env-fault', `what it changed couldn't be checked: ${scope.failed}`];
+    else if (scope.partial) [outcome, why] = ['env-fault', `there are more than ${IGNORED_ENTRY_BUDGET} ignored files, so not every change could be checked`];
     else if (raw.killedBy === 'interrupted') [outcome, why] = ['killed', 'stopped by you'];
     else if (raw.killedBy === 'no-init') [outcome, why] = ['env-fault', 'Claude Code said nothing to check in time'];
     else if (raw.timedOut) [outcome, why] = ['killed', 'it ran past its time limit'];
@@ -246,14 +304,23 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, mode
     if (outcome === 'ok') endState = 'finished';
     const usage = parsed.result?.usage ?? {};
     const line = {
-      item: item ?? 'run', event: 'agent_run', launch_id: launchId, step: mode === 'read-only' ? 'review' : 'build', role: `agent-${mode}`, round: 1, tier, model,
-      tokens_in: count(usage.input_tokens), tokens_out: count(usage.output_tokens), turns: count(parsed.result?.num_turns), minutes: Math.round((Date.now() - started) / 600) / 100,
+      item: item ?? 'run', event: 'agent_run', launch_id: launchId, step, role: role.name, round: 1, tier, model, tier_reason: tierWhy.slice(0, 300), ...(rung ? { rung } : {}), ...(parsed.init?.model ? { model_used: modelId(parsed.init.model) } : {}), scope_violations: scope.violations.length,
+      // Cached input apart, as Claude Code reports it: it's most of a run's input.
+      tokens_in: count(usage.input_tokens), tokens_cached: count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens), tokens_out: count(usage.output_tokens), turns: count(parsed.result?.num_turns), minutes: Math.round((Date.now() - started) / 600) / 100,
       limit_share_source: 'unknown', verdict: outcome === 'ok' ? 'pass' : outcome === 'agent-failed' ? 'fail' : 'error', outcome, survivors: survivors.length + suspects.length, unproven: unproven.length,
       settings_sha256: hashes.settings, canonical_sha256: hashes.canonical, token_fingerprint: tokenFingerprint(token),
       ...(Number.isFinite(parsed.result?.total_cost_usd) && parsed.result.total_cost_usd >= 0 ? { cost_usd: parsed.result.total_cost_usd } : {}),
     };
     withSeq(store, ({ take, runLine }) => runLine(runId, take(), line));
-    return { outcome, why, launchId, text, processes: raw.processes, line, tookOver };
+    // After the log line, and never at its cost: the whole list, for you and unit 22, and a marker
+    // so a planted ignored file can't pass on the next launch.
+    try {
+      if (scope.violations.length || scope.ignored?.length) atomicWrite(join(store.dir, 'agent-runs', `${launchId}.scope.json`), `${JSON.stringify({ role: role.name, violations: scope.violations, ignored_changed: scope.ignored ?? [], partial: scope.partial })}\n`);
+      recordPendingIgnored(store, scope.ignoredViolations ?? []);
+    } catch {
+      // the outcome above already names them
+    }
+    return { outcome, why, launchId, text, processes: raw.processes, line, tookOver, scope, family: familyNote(tier, parsed.init?.model ?? model) };
   } finally {
     clearInterval(beat);
     rmSync(join(store.dir, 'agent-runs', 'current.json'), { force: true });

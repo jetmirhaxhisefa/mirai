@@ -164,6 +164,8 @@ export const CONFIG_SCHEMA = {
         light: { type: 'string' },
         standard: { type: 'string' },
         deep: { type: 'string' },
+        // The verifier ladder's rung 2 (D-14, unit 19b): a different model of a comparable tier.
+        alternates: { type: 'table', fields: { light: { type: 'string' }, standard: { type: 'string' }, deep: { type: 'string' } } },
         steps: {
           type: 'table',
           fields: Object.fromEntries(STEPS.map((step) => [step, tier])),

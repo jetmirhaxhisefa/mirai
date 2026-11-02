@@ -1,0 +1,10 @@
+# A role (unit 19b): what a run may change, and its step. Stack-neutral; unit 21 refines these.
+kind = "role"
+schema_version = 1
+name = "reviewer"
+description = "Reads and judges; changes nothing"
+mode = "read-only"
+step = "review"
+
+[may_write]
+paths = []

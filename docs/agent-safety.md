@@ -901,10 +901,10 @@ bypass nobody is approving, so that's all that stands there. Unit 18e tried the 
 ## Starting an agent (unit 19a)
 
 ```
-mirai agent run --mode read-write|read-only --prompt-file <file> [--tier light|standard|deep] [--item <id>] [--max-turns <n>]
+mirai agent run --role <role> --prompt-file <file> [--step <step>] [--risk high] [--size L] [--tier <tier>] [--verifies <launch id>] [--item <id>] [--max-turns <n>]
 ```
 
-In your terminal, in this checkout, using your subscription. Skills will reach it through MIRAI's server later (unit 19c).
+In your terminal, in this checkout, using your subscription. Skills will reach it through MIRAI's server later (unit 19c). Which model runs, and what each role may change, is in `docs/model-tiers.md` (unit 19b): a change outside the role refuses the run.
 
 **It refuses to start unless:**
 - the red team is **green** for that template, on exactly what's installed now. Any change (Claude Code, MIRAI, Docker, your project's rule files) makes the result stale, and you run it again;
