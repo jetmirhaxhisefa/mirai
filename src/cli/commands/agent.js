@@ -62,6 +62,8 @@ export default {
       const r = await runAgent({ cwd: io.cwd, env: io.env, launchToken, role, step, risk: args.values.risk ?? null, size: args.values.size ?? null, tier, verifies, item, prompt, maxTurns: turns, signal: abort.signal, hardSignal: hard.signal, plan: planFrom(io.env), ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) });
       if (r.text) io.stdout.write(`${plain(r.text).replace(/\\u000a/g, '\n')}\n`);
       io.stdout.write(`\nagent run ${r.launchId}: ${r.outcome}${r.why ? `: ${plain(r.why)}` : ''}\n  ${r.line.role} (${r.line.step}): ${r.line.tier}, ${plain(r.line.model_used ?? r.line.model)}${r.line.rung ? `, verifier rung ${r.line.rung}` : ''}; ${plain(r.line.tier_reason)}\n  ${r.line.turns} turns, ${r.line.minutes} min, ${r.line.tokens_in + r.line.tokens_out} tokens; stream kept in the store\n`);
+      if (r.line.limit_share_source === 'measured') io.stdout.write(`  your weekly usage: this run used about ${r.line.limit_share}% (measured by Claude Code)\n`);
+      else io.stdout.write('  note: this run\'s stream had no usage reading, so its share of your limit is unknown; if that keeps happening, Claude Code has stopped sending it, and overnight runs will refuse new tickets\n');
       if (r.family) io.stdout.write(`  note: ${plain(r.family)} (D-58)\n`);
       if (r.tookOver) io.stdout.write(`  note: ${plain(r.tookOver)}\n`);
       if (r.processes.survivors.length) io.stdout.write(`  WARNING: ${r.processes.survivors.length} of its processes outlived the end: ${r.processes.survivors.join(', ')}\n`);

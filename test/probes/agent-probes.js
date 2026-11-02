@@ -8,6 +8,8 @@ import { parseArgs } from 'node:util';
 
 import { mintLaunchToken } from '../../src/agent/requests.js';
 import { runAgent } from '../../src/agent/run.js';
+import { openStore } from '../../src/store/home.js';
+const openStoreFor = (cwd, env) => openStore({ cwd, env });
 import { snapshot, trustedConfig } from '../../src/trust/snapshot.js';
 import { init } from '../../src/install/init.js';
 import { resolveClaude } from '../../src/redteam/key.js';
@@ -251,6 +253,17 @@ async function b3({ app, workdir, log }) {
 // R4 (unit 19b) end to end: a reviewer that writes is refused and named; an author in scope is ok;
 // the author's ignored-file plant is refused and blocks the next launch; a verifier gets its rung.
 async function b4({ root, env, claude, git, log }) {
+  if (process.env.MIRAI_B4 === 'usage') {
+    // Unit 20's R1: where the rate_limit_event sits in each stream, and what it carries.
+    for (let i = 1; i <= 3; i++) {
+      const r = await runAgent({ launchToken: mintLaunchToken(), cwd: root, env, claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 3, role: 'reviewer', step: 'commit-message', prompt: 'Reply with the single word DONE.' });
+      const stream = readFileSync(join(openStoreFor(root, env).dir, 'agent-runs', `${r.launchId}.jsonl`), 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      const where = stream.map((e, n) => (e.type === 'rate_limit_event' ? `#${n}/${stream.length}` : null)).filter(Boolean);
+      const windows = stream.filter((e) => e.type === 'rate_limit_event').map((e) => JSON.stringify(e.rate_limit_info.unifiedWindows ?? {}) + ` status=${e.rate_limit_info.status}`);
+      log(`usage-${i}: ${r.outcome}; events at ${where.join(',') || 'none'} (types: ${stream.map((e) => e.type).join(' ')}); ${windows.join(' | ')}; share ${r.line.limit_share ?? 'unknown'} (${r.line.limit_share_source})`);
+    }
+    return;
+  }
   if (process.env.MIRAI_B4 === 'plant') {
     const plantOnly = (o) => runAgent({ launchToken: mintLaunchToken(), cwd: root, env, claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 6, ...o });
     // A path the sample app really ignores; a light step, so it runs on Haiku.

@@ -353,3 +353,9 @@ on a clone of the sample app, with this checkout's MIRAI and a probe key in a te
 - **Ignored files:** a read-write run's Bash wrote `node_modules/.bin/b1-tool` (exit 0); git doesn't show it. Stat-walking the sample app's 8,952 ignored files: about 0.5 s.
 - **Each tier's model through the real launch check:** `claude-sonnet-5-5` and `claude-opus-5-5` both reported their configured ids; Haiku did in 19a. Fable wasn't tried (not a default tier model).
 - **Tokens:** Claude Code reports cached input apart (`cache_read_input_tokens`, `cache_creation_input_tokens`); 19a's log counted only `input_tokens`, so your first run showed 156. 19b logs them apart, as `tokens_cached`.
+
+## Usage in the stream (unit 20; 2.1.316)
+
+Every `stream-json` run seen so far carries a `rate_limit_event`: `{"status":"allowed","resetsAt":…,"rateLimitType":"seven_day","unifiedWindows":{"seven_day":{"utilization":0.11,"resetsAt":…,"status":"allowed"}}}`. `utilization` is 0 to 1, in hundredths. Undocumented. The result event also has `total_cost_usd` and `usage` with `cache_read_input_tokens` and `cache_creation_input_tokens` apart.
+
+**R1 (unit 20), 3 one-turn Haiku launches:** one `rate_limit_event` per stream, after the first assistant message and before the result (`system assistant rate_limit_event result`); only the `seven_day` window; utilization stayed at 0.12 across all three, so a one-turn run reads as a share of 0. So the reading describes usage up to the first answer, not the run's end: a launch's measured share runs from the last reading before it to its first answer, and its tail is booked to the next launch. Across a night the shares still add up to the readings' change. Whether a longer run gets more than one event is not known yet.

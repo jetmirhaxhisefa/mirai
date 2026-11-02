@@ -31,7 +31,10 @@ export function ensureGlobal(env) {
   return g;
 }
 
-// Appends one ledger line. Every line is a delta, a percent of the weekly limit:
+// Appends one ledger line. Every line is a delta, a percent of the weekly limit. Since unit 20,
+// each agent launch writes one `run` line with its measured share, and those are the only lines:
+// a ticket's share is the sum of its launches (its loop counters keep that), so nothing counts twice.
+// The older plan for `ticket` lines stays in the schema, unused:
 // - `kind: "ticket"`: a finished ticket's share, with its `ticket`;
 // - `kind: "run"`: the run's overhead since its last line (planning, reports, work between
 //   tickets), written at each ticket boundary and at the end, so the cap check before the next

@@ -61,10 +61,13 @@ export const RUN_EVENTS = Object.freeze({
     tier_reason: { type: 'string', pattern: /^[^\u0000-\u001f\u007f]{1,300}$/, patternHint: 'one line' },
     model_used: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._:@/\[\]-]{0,127}$/, patternHint: 'a model id' },
     scope_violations: count,
+    // A usage limit that stopped the run (unit 20): its window and when it resets, for unit 28.
+    limit_window: { type: 'string', pattern: /^[a-z_]{1,32}$/, patternHint: 'a usage window' },
+    resets_at: { type: 'string', pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/, patternHint: 'a UTC time' },
     // Cached input, apart from tokens_in (unit 19b).
     tokens_cached: count,
     // How it ended (unit 19a): an outcome says more than the verdict, and what outlived it.
-    outcome: { type: 'enum', values: ['ok', 'agent-failed', 'refused', 'env-fault', 'killed'] },
+    outcome: { type: 'enum', values: ['ok', 'agent-failed', 'refused', 'env-fault', 'usage-limit', 'killed'] },
     survivors: count,
     unproven: count,
     // What ran (unit 19a; 13b's note): the launch's hashes and the token's fingerprint, never the token.
@@ -116,7 +119,7 @@ export const RUN_EVENTS = Object.freeze({
 const OPTIONAL = {
   finding: ['symbol', 'line', 'basis_ref', 'downgraded'],
   session_ended: ['note'],
-  agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
+  agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };
 // Rules across fields, per event.
 const CHECKS = {

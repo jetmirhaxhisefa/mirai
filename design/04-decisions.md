@@ -1978,6 +1978,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   `[subscription]` or `[usage]` in `.mirai/config.toml`.
 - **Consequences:** projects never need usage caps. The 15% pass mark in D-38 now means "all of
   your MIRAI runs together".
+- **Update (unit 20):** usage is measured from Claude Code's `rate_limit_event` (weekly `utilization`). "A night" is the last 12 hours of MIRAI's measured use, across runs and repos; the week is MIRAI's use since the weekly window began; the reserve is checked against the latest reading, whatever used it. Each launch's share is one ledger line, the only kind written. Anything unknown refuses an unattended run.
 
 ### D-58 · Any model may be mapped to a tier; MIRAI shows which model runs judgement work
 

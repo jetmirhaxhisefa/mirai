@@ -40,7 +40,7 @@ export const DOCUMENT = machine('document', {
 });
 
 // Why a ticket is parked (D-07: `blocked` always carries one).
-export const PARK_REASONS = Object.freeze(['cap', 'budget', 'repeat', 'no-progress', 'environment', 'rebase-conflict', 'bad-plan']);
+export const PARK_REASONS = Object.freeze(['cap', 'budget', 'repeat', 'no-progress', 'environment', 'rebase-conflict', 'bad-plan', 'scope']);
 
 // Why a ticket goes back to planning: you rejected the plan, or the same failure repeated
 // (a bad plan). The orchestrator gets one re-plan per ticket, whatever the reason.

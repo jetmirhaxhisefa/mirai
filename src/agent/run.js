@@ -13,7 +13,8 @@ import { HEALTH, redTeamStatus } from '../redteam/run.js';
 import { readDecision } from '../redteam/store.js';
 import { tokenFingerprint } from '../sign/token.js';
 import { atomicWrite, ensurePrivateDir } from '../store/files.js';
-import { acquireRunLock, runLockHolder } from '../store/global.js';
+import { acquireRunLock, appendUsage, runLockHolder } from '../store/global.js';
+import { freshReading, latestWeekly, rateLimits, recordReadings, usageLimit } from '../loop/ledger.js';
 import { workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { withSeq } from '../store/journal.js';
@@ -30,11 +31,15 @@ import { familyNote, pickTier, pickVerifier } from './tiers.js';
 // prepareLaunch; this decides whether to start at all, watches the first event, and leaves a true
 // record. A verdict is what the run's own stream says: a file an agent wrote means nothing (R2-C1).
 
-export const OUTCOME_EXIT = Object.freeze({ ok: EXIT.OK, 'agent-failed': EXIT.FAILURE, refused: EXIT.BLOCKED, 'env-fault': EXIT.NEEDS_HUMAN, killed: EXIT.INTERRUPTED });
+export const OUTCOME_EXIT = Object.freeze({ ok: EXIT.OK, 'agent-failed': EXIT.FAILURE, refused: EXIT.BLOCKED, 'env-fault': EXIT.NEEDS_HUMAN, 'usage-limit': EXIT.NEEDS_HUMAN, killed: EXIT.INTERRUPTED });
 export const DEFAULT_MAX_TURNS = 40;
 export const INIT_DEADLINE_MS = 120_000;
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
 const KEEP_STREAMS = 50;
+// How old the reading before a launch may be to count as its baseline (unit 20).
+const BASELINE_MS = 30 * 60_000;
+// The same weekly window, allowing for a reset time reported a minute apart.
+const sameWindow = (a, b) => Boolean(a && b) && Math.abs((a.resets_at ?? 0) - (b.resets_at ?? 0)) <= 120;
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 
 // Told to every agent (18d, 19a's R3): a long output is cut to a preview, and MIRAI's hook refuses a
@@ -203,10 +208,10 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   checkRedTeam(await status({ cwd, env, trust, template, claude }), store);
   stopped();
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
-  return await launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
+  return await launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
 }
 
-async function launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
+async function launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';
@@ -231,6 +236,15 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
     // The ignored files as they are right before the start: the tree is clean, so a change after is
     // the run's, or something else's that ran meanwhile (the refusal says both).
     const before = ignoredState(store.checkout, store.gitEnv);
+    // The last weekly usage reading before the start (unit 20), for this launch's measured share.
+    // A broken readings file costs only precision, never the launch.
+    let usageBefore = null;
+    try {
+      usageBefore = latestWeekly(env);
+    } catch {
+      usageBefore = null;
+    }
+    const launchedAt = Date.now();
     const started = Date.now();
     let unsafe = null;
     let health = false;
@@ -294,6 +308,26 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
     keepStream(store, launchId, `${raw.stdout}\n`, token);
     const tokenLeaked = containsToken(`${raw.stdout}\n${raw.stderr}`, token);
     const text = redact(String(parsed.result?.result ?? ''), token);
+    // Your usage, as Claude Code reported it in this stream (unit 20): kept globally, and a usage
+    // limit is a pause for the run, never an agent's failure.
+    const readings = rateLimits(raw.stdout);
+    try {
+      recordReadings(env, readings, { repoId: store.repoId, runId });
+    } catch {
+      // a reading lost costs only precision
+    }
+    // Only a limit the stream ends on: a window rejected along the way isn't what stopped the run.
+    const lastReading = readings.at(-1);
+    const limited = lastReading && usageLimit([lastReading]) ? lastReading : null;
+    // A launch's share: the stream's own readings when it has two, else the last reading before
+    // the launch, but only a fresh one of the same weekly window (19a's first run: one event per
+    // stream). Anything else is unknown: never a day of other use booked as this launch's. It still
+    // includes whatever else used the subscription at the same time.
+    const weekly = readings.filter((r) => r.window === 'seven_day' && typeof r.utilization === 'number');
+    const weeklyAfter = weekly.at(-1) ?? null;
+    const baseline = weekly.length > 1 ? weekly[0]
+      : usageBefore && freshReading(usageBefore, launchedAt) && launchedAt - Date.parse(usageBefore.ts) < BASELINE_MS && sameWindow(usageBefore, weeklyAfter) ? usageBefore : null;
+    const share = baseline && weeklyAfter ? Math.max(0, Math.round((weeklyAfter.utilization - baseline.utilization) * 10000) / 100) : null;
     const succeeded = raw.exit === 0 && parsed.result?.type === 'result' && parsed.result.subtype === 'success' && parsed.result.is_error === false;
     // Only a run that failed: an agent's own text may well mention a 401.
     const needsRenewal = !succeeded && /\b401\b|authentication_error|invalid.{0,20}token/i.test(`${raw.stderr}\n${parsed.result?.is_error ? text : ''}`);
@@ -312,6 +346,9 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
     else if (raw.timedOut) [outcome, why] = ['killed', 'it ran past its time limit'];
     else if (needsRenewal) [outcome, why] = ['env-fault', 'the login token was refused: renew it (claude setup-token, then mirai token set)'];
     else if (!parsed.init || unsafe === null) [outcome, why] = ['env-fault', `Claude Code never gave an init event to check (exit ${raw.exit})`];
+    // A limit that stopped the run is a pause for the run, not the agent's failure; one reported on a
+    // run that succeeded changes nothing about it.
+    else if (limited && !succeeded && parsed.result?.subtype !== 'error_max_turns') [outcome, why] = ['usage-limit', `your ${limited.window.replace('_', '-')} usage limit was reached${limited.resets_at ? `; it resets at ${new Date(limited.resets_at * 1000).toISOString()}` : ''}`];
     else if (!succeeded) [outcome, why] = ['agent-failed', redact(String(parsed.result?.subtype ?? `exit ${raw.exit}, no result`), token)];
     else if (survivors.length) [outcome, why] = ['refused', `${survivors.length} of its processes outlived the end`];
     else if (suspects.length) [outcome, why] = ['refused', `a new process is working in your project, and may be the agent's (${suspects.join(', ')}): check it, and any change it makes`];
@@ -323,11 +360,23 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
       item: item ?? 'run', event: 'agent_run', launch_id: launchId, step, role: role.name, round: 1, tier, model, tier_reason: tierWhy.slice(0, 300), ...(rung ? { rung } : {}), ...(parsed.init?.model ? { model_used: modelId(parsed.init.model) } : {}), scope_violations: scope.violations.length,
       // Cached input apart, as Claude Code reports it: it's most of a run's input.
       tokens_in: count(usage.input_tokens), tokens_cached: count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens), tokens_out: count(usage.output_tokens), turns: count(parsed.result?.num_turns), minutes: Math.round((Date.now() - started) / 600) / 100,
-      limit_share_source: 'unknown', verdict: outcome === 'ok' ? 'pass' : outcome === 'agent-failed' ? 'fail' : 'error', outcome, survivors: survivors.length + suspects.length, unproven: unproven.length,
+      ...(share === null ? { limit_share_source: 'unknown' } : { limit_share: share, limit_share_source: 'measured' }), ...(limited ? { limit_window: limited.window, ...(limited.resets_at ? { resets_at: new Date(limited.resets_at * 1000).toISOString() } : {}) } : {}), verdict: outcome === 'ok' ? 'pass' : outcome === 'agent-failed' ? 'fail' : 'error', outcome, survivors: survivors.length + suspects.length, unproven: unproven.length,
       settings_sha256: hashes.settings, canonical_sha256: hashes.canonical, token_fingerprint: tokenFingerprint(token),
       ...(Number.isFinite(parsed.result?.total_cost_usd) && parsed.result.total_cost_usd >= 0 ? { cost_usd: parsed.result.total_cost_usd } : {}),
     };
-    withSeq(store, ({ take, runLine }) => runLine(runId, take(), line));
+    const seq = withSeq(store, ({ take, runLine }) => {
+      const n = take();
+      runLine(runId, n, line);
+      return n;
+    });
+    // The global ledger's delta, once per line (05b: never counted twice).
+    if (share !== null) {
+      try {
+        appendUsage(env, { repoId: store.repoId, runId, plan, limitShare: share, kind: 'run', uptoSeq: seq });
+      } catch {
+        // the run log has it
+      }
+    }
     // After the log line, and never at its cost: the whole list, for you and unit 22, and a marker
     // so a planted ignored file can't pass on the next launch.
     try {
@@ -336,7 +385,11 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
     } catch {
       // the outcome above already names them
     }
-    return { outcome, why, launchId, text, processes: raw.processes, line, tookOver, scope, family: familyNote(tier, parsed.init?.model ?? model) };
+    // Whether a round spent on this launch may be given back (unit 20): only a fault decided before
+    // the agent could act, or a usage limit. A fault found in what the agent did (its scope, its
+    // processes) keeps the round, so an agent can't buy a free one.
+    const refundable = outcome === 'usage-limit' || (outcome === 'env-fault' && (health || raw.killedBy === 'no-init' || !parsed.init || unsafe === null || needsRenewal));
+    return { outcome, why, launchId, text, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
   } finally {
     clearInterval(beat);
     rmSync(join(store.dir, 'agent-runs', 'current.json'), { force: true });

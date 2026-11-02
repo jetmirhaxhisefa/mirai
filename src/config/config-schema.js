@@ -8,7 +8,7 @@ import { allowEntryProblem } from './git-repo-keys.js';
 // What each layer may set, as key paths. Personal settings never live in a shared repo
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
-  project: ['schema_version', 'preset', 'git.integration_branch', 'git.branch_pattern', 'git.trailer', 'models.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
+  project: ['schema_version', 'preset', 'git.integration_branch', 'git.branch_pattern', 'git.trailer', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'tests.max_parallel'],
@@ -179,6 +179,18 @@ export const CONFIG_SCHEMA = {
         },
       },
     },
+    // The loop guard's caps (unit 20; D-18). Turns, tokens and minutes stay unset until calibration.
+    loop: {
+      type: 'table',
+      fields: {
+        rounds: { type: 'integer', min: 1, max: 10 },
+        rounds_high_risk: { type: 'integer', min: 1, max: 10 },
+        breaker: { type: 'integer', min: 1, max: 20 },
+        ticket_turns: { type: 'integer', min: 1 },
+        ticket_tokens: { type: 'integer', min: 1 },
+        ticket_minutes: { type: 'integer', min: 1 },
+      },
+    },
     testing: {
       type: 'table',
       fields: {
@@ -278,6 +290,8 @@ export const CONFIG_SCHEMA = {
         night_max: { type: 'integer', min: 0, max: 100 },
         week_max: { type: 'integer', min: 0, max: 100 },
         reserve: { type: 'integer', min: 0, max: 100 },
+        // The next ticket's share until a run has measured one (unit 20).
+        ticket_estimate: { type: 'integer', min: 0, max: 100 },
       },
       check(value, path, report) {
         if (Number.isInteger(value.night_max) && Number.isInteger(value.week_max) && value.night_max > value.week_max) {
