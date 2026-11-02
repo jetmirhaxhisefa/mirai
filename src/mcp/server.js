@@ -84,6 +84,11 @@ export function checkPolicy(p) {
   const { run_tests: rt, run_check: rc, log_event: le } = p.tools;
   if (rt !== undefined && !names(rt?.levels)) throw new PolicyError('the policy\'s run_tests needs its levels');
   if (rc !== undefined && !names(rc?.checks)) throw new PolicyError('the policy\'s run_check needs its checks');
+  const empty = (v) => v === undefined || (v !== null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
+  if (!empty(p.tools.agent_status) || !empty(p.tools.session_start) || !empty(p.tools.session_end)) throw new PolicyError('the policy\'s agent_status and session tools take no settings');
+  if (p.tools.start_agent !== undefined && (!abs(p.tools.start_agent?.claude) || Object.keys(p.tools.start_agent).length !== 1)) throw new PolicyError('the policy\'s start_agent needs claude\'s path');
+  const needsStore = ['start_agent', 'agent_status', 'session_start', 'session_end'].filter((t) => p.tools[t] !== undefined);
+  if (needsStore.length && (!abs(p.store?.dir) || !REPO_ID.test(p.store?.repo_id ?? ''))) throw new PolicyError(`the policy's ${needsStore[0]} needs the store`);
   if (p.tools.lint !== undefined && (p.tools.lint === null || typeof p.tools.lint !== 'object' || Object.keys(p.tools.lint).length)) throw new PolicyError('the policy\'s lint takes no settings');
   if (le !== undefined) {
     if (!names(le?.types) || le.types.some((t) => !LOG_TYPES.includes(t)) || !count(le.max_events, 1000) || !count(le.max_message, 4096)) {

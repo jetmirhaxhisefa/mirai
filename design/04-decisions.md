@@ -388,6 +388,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     sat inside the project): the store is outside the project (D-47), and agents are denied it by
     the sandbox `denyRead`/`denyWrite` and by `Read`/`Edit` deny rules (D-30). So an agent can't
     read or mint a token. The red-team test checks this (D-30).
+  - **Update (unit 19c):** built: a token minted in-process by your terminal, MIRAI's server (sent to its worker down a pipe, a request record holding only its hash, claimed once) or the orchestrator; `runAgent` refuses without one. A speed bump against anything running as you without a sandbox (your session, a branch's hook or look-alike server), as stated. The token is consumed in the worker process, not the broker's.
   - **Update (unit 19b):** the one-time token is unit 19c's, with the broker that mints it. Your own session isn't sandboxed and could read a token in the store (18e), so there it's a speed bump.
   - Only workflow skills in your session and the orchestrator launch agents; native subagents
     are denied (above).
@@ -1878,7 +1879,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     broker verbs" is a convention MIRAI's skills follow, not something your session enforces; the
     broker's checks guard against what a branch contains, not against your session.
   - Whether a nested `claude -p` started by an MCP server outside the sandbox gets its own fresh
-    sandbox is UNVERIFIED (G24) and tested before supervised launches rely on it.
+    sandbox is G30 (unit 19c; it was filed as G24, which is another question).
 - **Where each verb is built** (split on 2026-10-28): unit 15a builds the server's tools as
   data, `log_event` (journal lines `by: "agent"` with their launch, filed under the launch's
   item, secret shapes and the token refused) and the per-launch input folder; `template_gap`
@@ -1890,6 +1891,8 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   `session_start`/`session_end` come with unit 19, which builds `mirai agent run`; `trace` with
   unit 43.
 
+
+- **Update (unit 19c):** `start_agent` and `agent_status` are on your session's server, with no allow rule, so Claude Code asks you each time; the launch runs in a detached worker from the trust root, through the same `runAgent` as your terminal. `session_start`/`session_end` give authoring a run id, without the run lock. Your session's journal lines keep their registration id; a session's run id is in the run log only.
 ### D-54 · `.git` and auto-run config are protected and integrity-checked
 
 - **Context:** round 3 found `.git/` still writable from Bash and from test containers. Code

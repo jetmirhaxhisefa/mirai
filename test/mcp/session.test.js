@@ -111,7 +111,7 @@ test('15b T1: the interactive kind: lint, log_event and the test tools; no launc
   const { policy, policyFile, policySha256 } = sessionServer({ store: r.store, trust: r.trust, env: r.env });
   assert.equal(readPolicy(policyFile, policySha256).kind, 'interactive');
   const list = toolList(policy);
-  assert.deepEqual(list.map((t) => t.name), ['run_tests', 'log_event', 'lint']);
+  assert.deepEqual(list.map((t) => t.name), ['run_tests', 'log_event', 'lint', 'agent_status', 'session_start', 'session_end']);
   assert.match(list.find((t) => t.name === 'log_event').description, /as your session's/);
   assert.deepEqual(policy.tools.log_event.max_events, SESSION_LOG_CAPS.max_events);
   for (const k of ['repo_state', 'launch_id', 'launch_dir', 'item']) assert.equal(policy[k], undefined, k);
@@ -119,7 +119,7 @@ test('15b T1: the interactive kind: lint, log_event and the test tools; no launc
   assert.throws(() => checkPolicy({ ...policy, launch_id: '20261029120000-0123abcd' }), /isn't one this server reads/);
   assert.throws(() => checkPolicy({ ...policy, registration_id: 'nope' }), /isn't one this server reads/);
   const headless = { ...policy, kind: 'headless', registration_id: undefined, state_dir: undefined, repo_state: 'a'.repeat(64), launch_id: '20261029120000-0123abcd', launch_dir: r.root, item: null };
-  assert.throws(() => checkPolicy(headless), (err) => err instanceof PolicyError && /a headless server never has \(lint\)/.test(err.message));
+  assert.throws(() => checkPolicy(headless), (err) => err instanceof PolicyError && /a headless server never has \(lint, agent_status, session_start, session_end\)/.test(err.message));
   // .git changing (your commits) never stops it; a test run is your session's, unsigned.
   let seen;
   const h = harness(policy, { repoState: () => { throw new Error('no .git check in a session'); }, runTest: async (o) => { seen = o; return { id: 't-1', name: 'unit', kind: 'level', outcome: 'pass', exit_code: 0, duration_ms: 1, output: { tail: '' }, tree: { hash: 'f'.repeat(64) } }; } });
@@ -128,7 +128,7 @@ test('15b T1: the interactive kind: lint, log_event and the test tools; no launc
   assert.equal((await h.call('run_tests', { level: 'unit' })).outcome, 'pass');
   assert.deepEqual([seen.by, seen.launchId], ['session', null]);
   // The allow rules MIRAI adds are the table's interactive tools.
-  assert.deepEqual(sessionToolNames(), ['mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint']);
+  assert.deepEqual(sessionToolNames(), ['mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'mcp__mirai__agent_status', 'mcp__mirai__session_start', 'mcp__mirai__session_end'], 'start_agent asks you each time (19c)');
 });
 
 test('15b T2: lint: the path form, the trust root\'s rules not the work tree\'s, results inline and escaped, nothing written', async () => {
@@ -358,10 +358,10 @@ test('15b T7: the allow rules: in your git-ignored settings.local.json, never th
   writeFileSync(join(b.root, LOCAL_SETTINGS), `${JSON.stringify({ theme: 'dark', permissions: { allow: ['Bash(make)', 'mcp__mirai__lint'] } })}\n`);
   assert.equal(install({ store: b.store, trust: b.trust, env: envB }).note, null);
   const local = () => JSON.parse(readFileSync(join(b.root, LOCAL_SETTINGS), 'utf8'));
-  assert.deepEqual(local().permissions.allow, ['Bash(make)', 'mcp__mirai__lint', 'mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event']);
+  assert.deepEqual(local().permissions.allow, ['Bash(make)', 'mcp__mirai__lint', 'mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__agent_status', 'mcp__mirai__session_start', 'mcp__mirai__session_end']);
   assert.equal(local().theme, 'dark');
   install({ store: b.store, trust: b.trust, env: envB });
-  assert.equal(local().permissions.allow.length, 5, 'not idempotent');
+  assert.equal(local().permissions.allow.length, 8, 'not idempotent');
   remove({ store: b.store, env: envB });
   assert.deepEqual(local().permissions.allow, ['Bash(make)', 'mcp__mirai__lint'], 'your own entries were taken out');
   // The committed settings have none of them.
@@ -402,7 +402,7 @@ test('15b T9: the registered entry starts MIRAI\'s server as Claude Code would, 
   child.stdin.end();
   await new Promise((done) => child.on('close', done));
   const by = Object.fromEntries(replies().map((m) => [m.id, m]));
-  assert.deepEqual(by[2].result.tools.map((t) => t.name), ['log_event', 'lint']);
+  assert.deepEqual(by[2].result.tools.map((t) => t.name), ['log_event', 'lint', 'agent_status', 'session_start', 'session_end']);
   const logged = JSON.parse(by[3].result.content[0].text);
   assert.equal(logged.logged, 'note');
   assert.equal(readJournal(r.store).events.find((e) => e.seq === logged.seq).registration_id, policy.registration_id);

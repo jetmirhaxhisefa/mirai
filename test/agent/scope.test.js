@@ -4,6 +4,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { changedPaths, checkIgnoredCheckable, findRole, ignoredState, scopeViolations, trustedRoles } from '../../src/agent/scope.js';
+import { mintLaunchToken } from '../../src/agent/requests.js';
 import { runAgent } from '../../src/agent/run.js';
 import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { writeToken } from '../../src/sign/token.js';
@@ -39,7 +40,7 @@ function claudeWith(body) {
   writeFileSync(path, `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "2.1.316 (Claude Code)"; exit 0; fi\n${body}\necho '${INIT}'; echo '${RESULT}'\n`, { mode: 0o755 });
   return path;
 }
-const run = (f, role, body) => runAgent({ cwd: f.root, env: f.env, role, prompt: 'x', claude: claudeWith(body), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
+const run = (f, role, body) => runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role, prompt: 'x', claude: claudeWith(body), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
 
 test('T1: a reviewer that changes a tracked, a new or an ignored file is refused, each named; nothing is undone', async () => {
   const f = repo();
@@ -118,22 +119,22 @@ test('T3: renames, odd names and links can\'t hide a change', () => {
 test('T6: the log line carries role, step, tier, reason, rung and model; a verifier of the same model is rung 3; a role only in the work tree counts for nothing', async () => {
   const f = repo();
   const author = await run(f, 'author', 'true');
-  const verify = await runAgent({ cwd: f.root, env: f.env, role: 'verifier', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
+  const verify = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'verifier', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
   assert.equal(verify.outcome, 'ok');
   assert.equal(verify.line.step, 'verify');
   assert.equal(verify.line.rung, 3, 'no different model configured');
   assert.equal(verify.line.model, author.line.model);
   assert.match(verify.line.tier_reason, /verify: standard/);
-  await assert.rejects(runAgent({ cwd: f.root, env: f.env, role: 'verifier', verifies: '20990101000000-deadbeef', prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), (e) => e.code === 'unknown-launch');
-  const high = await runAgent({ cwd: f.root, env: f.env, role: 'reviewer', risk: 'high', prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
+  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'verifier', verifies: '20990101000000-deadbeef', prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), (e) => e.code === 'unknown-launch');
+  const high = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'reviewer', risk: 'high', prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
   assert.equal(high.line.tier, 'deep', 'a high-risk review is deep');
   assert.equal(high.line.step, 'review-high-risk');
-  await assert.rejects(runAgent({ cwd: f.root, env: f.env, role: 'author', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), /changes it/);
+  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), /changes it/);
   // A role added on a branch, not on the integration branch, isn't known.
   mkdirSync(join(f.root, '.mirai', 'custom', 'roles'), { recursive: true });
   writeFileSync(join(f.root, '.mirai', 'custom', 'roles', 'anything.toml'), 'kind = "role"\nschema_version = 1\nname = "anything"\ndescription = "x"\nmode = "read-write"\nstep = "build"\n\n[may_write]\npaths = ["**"]\n');
   f.git('checkout', '-q', '-b', 'side');
   f.git('add', '-A');
   f.git('commit', '-qm', 'a role on a branch');
-  await assert.rejects(runAgent({ cwd: f.root, env: f.env, role: 'anything', prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), (e) => e.code === 'unknown-role');
+  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'anything', prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), (e) => e.code === 'unknown-role');
 });

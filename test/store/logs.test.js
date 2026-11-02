@@ -67,7 +67,7 @@ test('T11: run log: a line with tier, model and limit_share validates; bad lines
   // A finding keeps bulky text out of the line, by reference.
   buildRunLine(run.run_id, 9, { item: 'T-1', event: 'finding', id: 'F-1', round: 2, severity: 'should-fix', category: 'security', downgraded: true, file: 'src/a.js', line: 42, symbol: 'save', basis_ref: 'AC-12.3', fingerprint: 'a'.repeat(64), text_ref: { ref: 'tickets/T-1/review-r1.md', sha256: 'b'.repeat(64) } });
 
-  assert.deepEqual(Object.keys(RUN_EVENTS), ['run_started', 'run_state', 'agent_run', 'checks', 'finding', 'finding_outcome', 'template_gap', 'run_finished']);
+  assert.deepEqual(Object.keys(RUN_EVENTS), ['run_started', 'run_state', 'agent_run', 'checks', 'finding', 'finding_outcome', 'template_gap', 'session_started', 'session_ended', 'run_finished']);
 
   // limit_share: measured or entered by hand (D-38), or left out when unknown.
   buildRunLine(run.run_id, 9, launched({ limit_share_source: 'manual' }));

@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, symlinkSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,7 +8,7 @@ import { createKeyPair, keyPaths, writePublicKeyFile } from '../sign/keys.js';
 import { openStore } from '../store/home.js';
 import { snapshot } from '../trust/snapshot.js';
 import { sessionServer } from '../mcp/session.js';
-import { containsToken, madeTheCall, parseStream, promptFor, redact, runClaude, SYSTEM } from './claude.js';
+import { containsToken, findClaude, madeTheCall, parseStream, promptFor, redact, runClaude, SYSTEM } from './claude.js';
 
 // The red team's cases for your own sessions (unit 18e). These run with no sandbox, as your user,
 // so every run gets a fixture under a work folder in your home: a clone of the integration branch,
@@ -47,6 +47,10 @@ export function buildSessionFixture({ workdir, checkout, branch }) {
   const env = { PATH: `${bin}:/usr/bin:/bin`, HOME: realHome };
   // The `mirai` a session in this project would find.
   writeFileSync(join(bin, 'mirai'), `#!/bin/sh\nexec ${JSON.stringify(realpathSync(process.execPath))} ${JSON.stringify(LAUNCHER)} "$@"\n`, { mode: 0o755 });
+  // Your claude, for the server's start_agent (unit 19c); a launch from a fixture is refused by the
+  // red-team gate, since a fixture has no result, so nothing reaches a model.
+  const realClaude = findClaude(process.env);
+  if (realClaude) symlinkSync(realpathSync(realClaude), join(bin, 'claude'));
   init({ cwd: realRoot, env, refresh: true });
   const key = createKeyPair(env, { label: 'session-fixture' });
   writePublicKeyFile(realRoot, key.keyId, key.publicPem);

@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
+import { mintLaunchToken } from '../../src/agent/requests.js';
 import { runAgent } from '../../src/agent/run.js';
 import { snapshot, trustedConfig } from '../../src/trust/snapshot.js';
 import { init } from '../../src/install/init.js';
@@ -190,10 +191,10 @@ async function r6({ app, workdir, log }) {
   symlinkSync(join(process.env.HOME, '.docker', 'run', 'docker.sock'), join(home, '.docker', 'run', 'docker.sock'));
   const claude = resolveClaude(process.env).real;
   const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
-  const go = (o) => runAgent({ cwd: root, env, claude, status: green, maxTurns: 6, ...o });
+  const go = (o) => runAgent({ launchToken: mintLaunchToken(), cwd: root, env, claude, status: green, maxTurns: 6, ...o });
   const show = (id, r, extra = '') => log(`${id}: ${r.outcome}${r.why ? ` (${r.why})` : ''}; ${r.line.turns} turns; killed ${r.processes.killed}, survivors ${r.processes.survivors.length}, unproven ${r.processes.unproven.join(', ') || 'none'}; ${extra}; reply: ${String(r.text).slice(0, 160).replace(/\s+/g, ' ')}`);
   try {
-    await runAgent({ cwd: root, env, role: 'reviewer', prompt: 'x', claude });
+    await runAgent({ launchToken: mintLaunchToken(), cwd: root, env, role: 'reviewer', prompt: 'x', claude });
     log('r6-refused: NOT REFUSED');
   } catch (err) {
     log(`r6-refused: ${err.code}`);
@@ -242,7 +243,7 @@ async function b3({ app, workdir, log }) {
   const claude = resolveClaude(process.env).real;
   if (process.env.MIRAI_B4) return b4({ root, env, claude, git, log });
   for (const tier of ['standard', 'deep']) {
-    const r = await runAgent({ cwd: root, env, tier, role: 'reviewer', prompt: 'Reply with the single word DONE.', claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 2 });
+    const r = await runAgent({ launchToken: mintLaunchToken(), cwd: root, env, tier, role: 'reviewer', prompt: 'Reply with the single word DONE.', claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 2 });
     log(`b3-${tier}: ${r.outcome}${r.why ? ` (${r.why})` : ''}; configured ${r.line.model}; reply ${String(r.text).slice(0, 40)}`);
   }
 }
@@ -251,7 +252,7 @@ async function b3({ app, workdir, log }) {
 // the author's ignored-file plant is refused and blocks the next launch; a verifier gets its rung.
 async function b4({ root, env, claude, git, log }) {
   if (process.env.MIRAI_B4 === 'plant') {
-    const plantOnly = (o) => runAgent({ cwd: root, env, claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 6, ...o });
+    const plantOnly = (o) => runAgent({ launchToken: mintLaunchToken(), cwd: root, env, claude, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), maxTurns: 6, ...o });
     // A path the sample app really ignores; a light step, so it runs on Haiku.
     const p = await plantOnly({ role: 'author', step: 'commit-message', prompt: 'Run this exact command with the Bash tool: mkdir -p backend/vendor/bin && echo x > backend/vendor/bin/b4-tool. Then reply DONE.' });
     log(`b4-plant: ${p.outcome}${p.why ? ` (${String(p.why).slice(0, 240)})` : ''}; ${p.line.tier} ${p.line.model_used ?? p.line.model}; tree: ${git('status', '--porcelain').trim() || 'clean'}`);
@@ -264,7 +265,7 @@ async function b4({ root, env, claude, git, log }) {
     return;
   }
   const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
-  const go = (o) => runAgent({ cwd: root, env, claude, status: green, maxTurns: 6, ...o });
+  const go = (o) => runAgent({ launchToken: mintLaunchToken(), cwd: root, env, claude, status: green, maxTurns: 6, ...o });
   const say = (id, r, extra = '') => log(`${id}: ${r.outcome}${r.why ? ` (${String(r.why).slice(0, 220)})` : ''}; ${r.line.role} ${r.line.step} ${r.line.tier} ${r.line.model_used ?? r.line.model}${r.line.rung ? ` rung ${r.line.rung}` : ''}; tokens ${r.line.tokens_in}+${r.line.tokens_cached ?? 0} cached ${extra}`);
   const rev = await go({ role: 'reviewer', prompt: 'Use the Write tool to create the file b4-review.txt with the content x, then use the Edit tool to append a line to README.md. Then reply DONE.' });
   say('b4-reviewer-writes', rev);

@@ -100,7 +100,7 @@ test('15a T1: tools as data: tools/list comes from the table and the policy; a t
     assert.ok(Object.isFrozen(t), t.name);
   }
   assert.deepEqual(TOOLS.map((t) => [t.name, t.exclusive, [...t.contexts]]), [['run_tests', true, ['headless', 'interactive']], ['run_check', true, ['headless', 'interactive']],
-    ['log_event', false, ['headless', 'interactive']], ['lint', false, ['interactive']]]);
+    ['log_event', false, ['headless', 'interactive']], ['lint', false, ['interactive']], ['start_agent', false, ['interactive']], ['agent_status', false, ['interactive']], ['session_start', false, ['interactive']], ['session_end', false, ['interactive']]]);
   const all = policyFor();
   assert.deepEqual(toolList(all).map((t) => t.name), ['run_tests', 'run_check', 'log_event']);
   const log = toolList(all).find((t) => t.name === 'log_event');
@@ -286,7 +286,7 @@ test('15a T6: policy 2: its hash, its shape, the caps; a policy 1 is refused wit
     [{ item: '../x' }, /isn't one this server reads/],
     [{ item: undefined }, /isn't one this server reads/],
     [{ tools: null }, /isn't one this server reads/],
-    [{ tools: { ...p.tools, start_agent: {} } }, /tools this server doesn't have \(start_agent\)/],
+    [{ tools: { ...p.tools, start_agent: {} } }, /a headless server never has \(start_agent\)/],
     [{ tools: { run_tests: { levels: [] } } }, /run_tests needs its levels/],
     [{ tools: { run_check: {} } }, /run_check needs its checks/],
     [{ tools: { log_event: { ...le, types: ['note', 'approval'] } } }, /log_event needs types agents may log/],

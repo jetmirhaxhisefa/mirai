@@ -13,7 +13,7 @@ import { HEALTH, redTeamStatus } from '../redteam/run.js';
 import { readDecision } from '../redteam/store.js';
 import { tokenFingerprint } from '../sign/token.js';
 import { atomicWrite, ensurePrivateDir } from '../store/files.js';
-import { acquireRunLock } from '../store/global.js';
+import { acquireRunLock, runLockHolder } from '../store/global.js';
 import { workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { withSeq } from '../store/journal.js';
@@ -22,6 +22,7 @@ import { newRunId, readRunState, startRun, writeHeartbeat, writeRunState } from 
 import { snapshot, trustedConfig, trustedStrict } from '../trust/snapshot.js';
 import { trustFingerprint, verifyTrustRoot } from '../trust/verify.js';
 import { cwdsUnder, processTable, runInGroup } from './process.js';
+import { checkLaunchToken, spendLaunchToken } from './requests.js';
 import { checkIgnoredCheckable, checkNothingHidden, checkPendingIgnored, findRole, IGNORED_ENTRY_BUDGET, ignoredState, recordPendingIgnored, scopeViolations, trustedRoles } from './scope.js';
 import { familyNote, pickTier, pickVerifier } from './tiers.js';
 
@@ -144,53 +145,68 @@ function recordAgent(store, plan, pid) {
 }
 
 // Returns { outcome, why, launchId, text, processes, line, tookOver }. Throws for a launch it refuses.
-export async function runAgent({ cwd, env, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
-  const stopped = () => {
-    if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
-  };
-  stopped();
+// `launchToken`: a one-time token minted in this process (unit 19c; D-14): your terminal, MIRAI's
+// server's worker, or the orchestrator.
+export async function runAgent(options) {
+  const { cwd, env, signal = null, launchToken } = options;
+  // Checked here, spent by launchInRun: no path launches without one.
+  checkLaunchToken(launchToken);
+  if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   const store = openStore({ cwd, env });
   // The lock first: a crashed run is taken over with nothing else able to start, and before the
   // checks, so its agent isn't left running because the tree it dirtied is refused.
   const runId = newRunId();
   const { release } = acquireRunLock(store, runId, env);
-  let tookOver = null;
   try {
-    tookOver = await takeOver(store);
-    stopped();
-    const trust = snapshot({ cwd, env });
-    const role = findRole(trustedRoles(trust), roleName);
-    const mode = role.mode;
-    const template = trustedStrict(trust, mode);
-    const config = trustedConfig(trust);
-    const c = resolveClaude(env, claude);
-    const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
-    let model = config.models?.[picked.tier];
-    let rung = null;
-    if (verifies) {
-      if (role.mode !== 'read-only') throw new UsageError(`--verifies is for a role that checks work; ${role.name} changes it`);
-      const author = authorRun(store, verifies);
-      const v = pickVerifier({ config, tier: picked.tier, authorModel: author.model, authorTier: author.tier });
-      ({ model, rung } = v);
-      if (v.tier !== picked.tier) Object.assign(picked, { tier: v.tier, why: `${picked.why}; up to ${v.tier}, the author's tier` });
-    }
-    if (!model) throw new UsageError(`no model for the tier ${picked.tier} in the trust root's config`);
-    if (!MODEL.test(model)) throw new UsageError(`the model ${JSON.stringify(model.slice(0, 40))} isn't a plain model id`);
-    const changes = workTreeChanges(store.checkout, store.gitEnv);
-    if (changes.length) throw refuse(`the work tree has ${changes.length} uncommitted change(s), so what an agent changes couldn't be told apart`, 'dirty-tree', 'commit or stash them first');
-    checkNothingHidden(store.checkout, store.gitEnv);
-    checkPendingIgnored(store);
-    checkIgnoredCheckable(ignoredState(store.checkout, store.gitEnv));
-    checkRedTeam(await status({ cwd, env, trust, template, claude }), store);
-    stopped();
-    startRun(store, { runId, preset: config.preset, plan, now });
-    return await launchAndLog({ store, env, trust, template, c, model, runId, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
+    const tookOver = await takeOver(store);
+    return await launchInRun({ ...options, store, runId, startRun: true, tookOver, ownsRun: true });
   } finally {
     release();
   }
 }
 
-async function launchAndLog({ store, env, trust, template, c, model, runId, mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
+// One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
+// every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+  const stopped = () => {
+    if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
+  };
+  spendLaunchToken(launchToken);
+  const store = given ?? openStore({ cwd, env });
+  // The caller holds the run lock for this run: a launch never runs beside another.
+  const holder = runLockHolder(env);
+  if (!holder || holder.run_id !== runId || holder.pid !== process.pid || holder.repo_id !== store.repoId) throw refuse('a launch needs the run lock for its run, held by this process', 'no-run-lock');
+  stopped();
+  const trust = snapshot({ cwd, env });
+  const role = findRole(trustedRoles(trust), roleName);
+  const mode = role.mode;
+  const template = trustedStrict(trust, mode);
+  const config = trustedConfig(trust);
+  const c = resolveClaude(env, claude);
+  const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
+  let model = config.models?.[picked.tier];
+  let rung = null;
+  if (verifies) {
+    if (role.mode !== 'read-only') throw new UsageError(`--verifies is for a role that checks work; ${role.name} changes it`);
+    const author = authorRun(store, verifies);
+    const v = pickVerifier({ config, tier: picked.tier, authorModel: author.model, authorTier: author.tier });
+    ({ model, rung } = v);
+    if (v.tier !== picked.tier) Object.assign(picked, { tier: v.tier, why: `${picked.why}; up to ${v.tier}, the author's tier` });
+  }
+  if (!model) throw new UsageError(`no model for the tier ${picked.tier} in the trust root's config`);
+  if (!MODEL.test(model)) throw new UsageError(`the model ${JSON.stringify(model.slice(0, 40))} isn't a plain model id`);
+  const changes = workTreeChanges(store.checkout, store.gitEnv);
+  if (changes.length) throw refuse(`the work tree has ${changes.length} uncommitted change(s), so what an agent changes couldn't be told apart`, 'dirty-tree', 'commit or stash them first');
+  checkNothingHidden(store.checkout, store.gitEnv);
+  checkPendingIgnored(store);
+  checkIgnoredCheckable(ignoredState(store.checkout, store.gitEnv));
+  checkRedTeam(await status({ cwd, env, trust, template, claude }), store);
+  stopped();
+  if (begin) startRun(store, { runId, preset: config.preset, plan, now });
+  return await launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
+}
+
+async function launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';
@@ -331,6 +347,7 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, mode
         // the launch never ran, or the throw above says why
       }
     }
-    writeRunState(store, endState, { clear: true });
+    // Only the run's owner ends it: inside unit 28's run, the next launch carries on (19c review).
+    if (ownsRun) writeRunState(store, endState, { clear: true });
   }
 }

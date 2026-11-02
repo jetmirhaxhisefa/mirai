@@ -15,7 +15,12 @@ const LABEL = /mirai-probe-[0-9a-f]{12}/g;
 
 // What the host has: the docker socket, the ssh-agent socket, a credential helper, and the
 // temp-folder markers' paths.
-export function hostFacts(env = process.env) {
+function launchdSshSock() {
+  const out = spawnSync('/bin/launchctl', ['getenv', 'SSH_AUTH_SOCK'], { encoding: 'utf8', timeout: 5000 }).stdout?.trim();
+  return out || null;
+}
+
+export function hostFacts(env = process.env, { launchd = launchdSshSock } = {}) {
   const home = env.HOME;
   const dockerSocket = [join(home, '.docker', 'run', 'docker.sock'), '/var/run/docker.sock'].find((p) => existsSync(p)) ?? null;
   const helper = spawnSync('/usr/bin/git', ['config', '--get', 'credential.helper'], { encoding: 'utf8', env, cwd: '/' }).stdout?.trim();
@@ -25,7 +30,10 @@ export function hostFacts(env = process.env) {
     libraryDir: join(home, 'Library'),
     keychainDir: join(home, 'Library', 'Keychains'),
     dockerSocket,
-    sshAuthSock: env.SSH_AUTH_SOCK || null,
+    // From launchd when the environment has none (unit 19c): MIRAI's server starts its worker with
+    // an empty environment, and a result from your terminal must still stand for it. Only whether
+    // there's an agent counts in the key, not which: a shell pointing at another agent matches too.
+    sshAuthSock: env.SSH_AUTH_SOCK || launchd(),
     credentialHelper: helper || null,
     claudeTmpMarker: join('/private/tmp', `claude-${process.getuid()}`, marker),
     userTmpMarker: join(realpathSync(tmpdir()), marker),

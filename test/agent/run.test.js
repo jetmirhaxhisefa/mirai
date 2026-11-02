@@ -5,6 +5,7 @@ import { readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from '
 import { join } from 'node:path';
 
 import { checkRedTeam, runAgent, LONG_OUTPUTS } from '../../src/agent/run.js';
+import { mintLaunchToken } from '../../src/agent/requests.js';
 import { endProcesses, processTable, runInGroup, Tracker } from '../../src/agent/process.js';
 import { keyOf } from '../../src/redteam/key.js';
 import { RESULT_SCHEMA_VERSION, statusFor, writeDecision, writeResult } from '../../src/redteam/store.js';
@@ -46,7 +47,7 @@ function claudeWith(body) {
   return path;
 }
 const okBody = `echo '${INIT}'; echo '${RESULT}'`;
-const run = (f, o = {}) => runAgent({ cwd: f.root, env: f.env, role: 'author', prompt: 'do it', claude: claudeWith(okBody), status: green, check: noInitProblems, ...o });
+const run = (f, o = {}) => runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', prompt: 'do it', claude: claudeWith(okBody), status: green, check: noInitProblems, ...o });
 
 test('T1: each red-team state refuses with its own code; a blocker seen needs your signed decision', async () => {
   const store = {};
@@ -227,7 +228,7 @@ test('review: an interrupt before the start, a survivor, a crash', async () => {
   const stub = claudeWith(`echo x > left-behind.txt; echo '${INIT}'; exec sleep ${word}`);
   const script = join(realpathSync(tempDir()), 'crash.mjs');
   const here = new URL('../../src/agent/run.js', import.meta.url).href;
-  writeFileSync(script, `import { runAgent } from ${JSON.stringify(here)};\nawait runAgent({ cwd: ${JSON.stringify(f.root)}, env: ${JSON.stringify(f.env)}, role: 'author', prompt: 'x', claude: ${JSON.stringify(stub)}, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [], timeoutMs: 120000 });\n`);
+  writeFileSync(script, `import { runAgent } from ${JSON.stringify(here)};\nimport { mintLaunchToken } from ${JSON.stringify(here.replace('run.js', 'requests.js'))};\nawait runAgent({ launchToken: mintLaunchToken(), cwd: ${JSON.stringify(f.root)}, env: ${JSON.stringify(f.env)}, role: 'author', prompt: 'x', claude: ${JSON.stringify(stub)}, status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [], timeoutMs: 120000 });\n`);
   const crashing = spawn(process.execPath, [script], { stdio: 'ignore' });
   const alive = async () => (await processTable()).some((p) => p.command === `sleep ${word}`);
   for (let i = 0; i < 100 && !(await alive()); i++) await new Promise((d) => setTimeout(d, 200));

@@ -107,11 +107,15 @@ export const RUN_EVENTS = Object.freeze({
     outcome: { type: 'enum', values: ['fixed', 'disputed'] },
   },
   template_gap: { template: text, section: text, message: text },
+  // Your authoring session's run id (unit 19c): its start, with the skill, and its end.
+  session_started: { skill: { type: 'string', pattern: /^[a-z][a-z0-9-]{0,63}$/, patternHint: 'a skill name' } },
+  session_ended: { note: { type: 'string', pattern: /^[^\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]{1,500}$/, patternHint: 'one line' } },
   // The run's whole share. (The usage ledger holds the same total as deltas: global.js.)
   run_finished: { tickets_done: count, tickets_parked: count, limit_share: share },
 });
 const OPTIONAL = {
   finding: ['symbol', 'line', 'basis_ref', 'downgraded'],
+  session_ended: ['note'],
   agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };
 // Rules across fields, per event.

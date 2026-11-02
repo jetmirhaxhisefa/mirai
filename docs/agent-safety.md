@@ -184,8 +184,7 @@ git).
 Your sessions can use the same MCP server agents use, with four tools: `lint` (MIRAI's document
 checks), `log_event` (a note or a template gap in the journal), and `run_tests` and `run_check`
 (the project's tests and checks in their containers). Workflow skills call these, so a skill works
-the same in your session and in an agent run. Later (unit 19) this server is also how a skill
-starts an agent, so the skill never handles the launch token.
+the same in your session and in an agent run. Since unit 19c this server is also how a skill starts an agent, so the skill never handles the launch token.
 
 **How it's set up, and only if you choose to:** `mirai session-server install` registers the
 server with Claude Code's own CLI at **local scope**: in your Claude Code config, for this project
@@ -226,6 +225,25 @@ or removes a server named `mirai` that it didn't register.
 list`), and your session goes on without its tools. A project you've never trusted in Claude Code
 ignores the project's allow rules, so the tools then ask first. Claude Code may also list the tools
 through its tool search rather than up front; they're there all the same (probed).
+
+### Starting agents from your session (unit 19c)
+
+With `mirai session-server install`, your session's MIRAI server also offers:
+- **`start_agent(role, prompt, item?, step?, risk?, size?, verifies?)`:** starts one agent exactly as `mirai agent run` does, with every check: the red-team gate, a clean tree, the role's scope, the run lock. It answers at once with a request id. The agent runs in a separate worker, in a session of its own, meant to keep going if you close yours (probed in R2).
+- **`agent_status(request)`:** queued, running, lost or done, and when done the outcome, why, the model, and the end of its reply (32 Ki characters, after escaping).
+- **`session_start(skill, item?)` and `session_end(id, note?)`:** a run id for your authoring, logged like a run's. They don't take the run lock. From your terminal: `mirai session start --skill <name>` and `mirai session end <id>`.
+
+**Claude Code asks you before each `start_agent`,** unless an allow rule covers it: install adds rules for the other tools, not this one, because each launch spends your subscription and acts in your checkout. A rule for `mcp__mirai__start_agent`, `mcp__mirai__*` or `mcp__mirai` in your user settings, the project's committed settings or your local file would skip the question, and so do bypass and auto. `mirai session-server status` says which of those three files has such a rule; it doesn't look at your mode or at managed settings.
+
+**`agent_status`'s reply is untrusted.** It's in `reply_untrusted`: what an agent said from inside the cage, which a branch may have steered. Before, that text reached you at a terminal; now it reaches a model in your session that has Bash. Skills treat it as data (unit 21).
+
+**Stopping a launch you started from a session:** `agent_status` shows the worker's pid; `kill <pid>` ends the agent with a grace for cleanup, and a second `kill` ends it at once, as Ctrl-C does for `mirai agent run`. A worker that died, or never got going, shows as `lost` (its pid and start time are kept, so a reused pid doesn't fool it); the next launch takes over its run.
+
+**Session run ids:** a start and an end line in the run log, not a run like `mirai run`'s. One session is open per repo at a time, across your windows and your terminal: a second `session_start` closes the first, and says so to the second. Your notes keep their registration id, not the session's run id; reports match them by time (units 29, 56).
+
+**The one-time launch token (D-12's recursion guard).** Every launch needs one, from your terminal (after its terminal check), from MIRAI's server (one per `start_agent`, sent to its worker down a pipe, only its hash kept, used once by the worker), or from the orchestrator later. Every way to launch spends one, `launchInRun` included.
+- **What it stops:** a sandboxed agent, which has no `start_agent` and can't reach the store, and any MIRAI code that would launch without going through one of those three.
+- **What it doesn't:** anything running as you without a sandbox. That's your own session, which could read the store or drive `mirai agent run` through `script`, and a branch's hook or look-alike `mirai` server (18e), which could write a request and start the worker itself. If you haven't registered MIRAI's server, a look-alike could also answer a skill's `start_agent` and `agent_status` with made-up results, so skills check the registration first (unit 21).
 
 ### What holds in your sessions (unit 18e)
 

@@ -55,7 +55,10 @@ export const sessionDir = (store) => join(store.repoHome, 'session');
 
 // The tools your session's server offers, as Claude Code names them: the interactive entries of
 // the tool table.
-export const sessionToolNames = () => TOOLS.filter((t) => t.contexts.includes('interactive')).map((t) => `mcp__${SERVER_NAME}__${t.name}`);
+// The allow rules install adds: every interactive tool but start_agent, so Claude Code asks you
+// before each launch (unit 19c, your choice).
+export const NEEDS_YOUR_YES = Object.freeze(['start_agent']);
+export const sessionToolNames = () => TOOLS.filter((t) => t.contexts.includes('interactive') && !NEEDS_YOUR_YES.includes(t.name)).map((t) => `mcp__${SERVER_NAME}__${t.name}`);
 
 // The registration's id: made once per repo, kept. Every session of yours on this repo shares it
 // (and its daily cap); unit 19's session runs get their own run ids next to it.
@@ -110,6 +113,10 @@ export function sessionServer({ store, trust, env, write = true }) {
   const tools = mcpPolicyTools(trustedStrict(trust, MODES[0]));
   if (tools.log_event) Object.assign(tools.log_event, SESSION_LOG_CAPS);
   tools.lint = {};
+  // Unit 19c: starting agents and session run ids. The worker needs claude's path, as found now.
+  const claude = findClaude(env, checkout);
+  if (claude) tools.start_agent = { claude };
+  Object.assign(tools, { agent_status: {}, session_start: {}, session_end: {} });
   const dir = sessionDir(store);
   ensurePrivateDir(dir);
   ensurePrivateDir(join(dir, 'state'));
@@ -298,4 +305,23 @@ export function status({ store, env, trust = null, run, timeout }) {
     same = want.args.every((a) => now.out.includes(a));
   }
   return { state: same && !behind && connected ? 'current' : 'stale', base, behind, connected };
+}
+
+// Whether any allow rule you'd hit would let start_agent run without asking (unit 19c): your user
+// settings, the project's committed settings and your git-ignored local file. Names only: each file
+// is searched for the rule, nothing else read out. Returns the files that have one.
+export function startAgentAllowedIn(store, env) {
+  const files = [join(env.HOME ?? '', '.claude', 'settings.json'), join(store.checkout, '.claude', 'settings.json'), join(store.checkout, LOCAL_SETTINGS)];
+  const covers = (rule) => rule === 'mcp__mirai' || rule === 'mcp__mirai__*' || rule === 'mcp__mirai__start_agent';
+  return files.filter((f) => {
+    try {
+      // A plain file only, and small: a branch controls the committed one (a link to /dev/zero).
+      const st = lstatSync(f);
+      if (!st.isFile() || st.size > 256 * 1024) return false;
+      const v = JSON.parse(readFileSync(f, 'utf8'));
+      return Array.isArray(v?.permissions?.allow) && v.permissions.allow.some((r) => typeof r === 'string' && covers(r));
+    } catch {
+      return false;
+    }
+  });
 }

@@ -8,6 +8,7 @@ import { globalConfigPath } from '../../config/load.js';
 import { STEPS } from '../../config/defaults.js';
 import { plain, shown } from '../../status/text.js';
 import { DEFAULT_MAX_TURNS, OUTCOME_EXIT, runAgent } from '../../agent/run.js';
+import { mintLaunchToken } from '../../agent/requests.js';
 
 // mirai agent run --role <role> --prompt-file <file> [--step s] [--risk high] [--size L] [--tier t]
 // [--verifies <launch>] [--item id] [--max-turns n] (units 19a, 19b; D-12, D-14). Starts one agent, unattended, in this checkout, in MIRAI's
@@ -33,6 +34,8 @@ export default {
     const [action] = args.positionals;
     if (action !== 'run') throw new UsageError(`unknown action ${shown(action)}`, 'see: mirai agent --help');
     requireTty(io, 'mirai agent run');
+    // Your terminal is one of the three places a launch token comes from (unit 19c; D-14).
+    const launchToken = mintLaunchToken();
     const { role, step = null, tier = null, item = null, verifies = null } = args.values;
     if (!role) throw new UsageError('--role names what the run may change', 'for example --role reviewer');
     if (tier !== null && !['light', 'standard', 'deep'].includes(tier)) throw new UsageError('--tier is light, standard or deep');
@@ -56,7 +59,7 @@ export default {
     const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
     for (const sig of SIGNALS) process.on(sig, onInt);
     try {
-      const r = await runAgent({ cwd: io.cwd, env: io.env, role, step, risk: args.values.risk ?? null, size: args.values.size ?? null, tier, verifies, item, prompt, maxTurns: turns, signal: abort.signal, hardSignal: hard.signal, plan: planFrom(io.env), ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) });
+      const r = await runAgent({ cwd: io.cwd, env: io.env, launchToken, role, step, risk: args.values.risk ?? null, size: args.values.size ?? null, tier, verifies, item, prompt, maxTurns: turns, signal: abort.signal, hardSignal: hard.signal, plan: planFrom(io.env), ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) });
       if (r.text) io.stdout.write(`${plain(r.text).replace(/\\u000a/g, '\n')}\n`);
       io.stdout.write(`\nagent run ${r.launchId}: ${r.outcome}${r.why ? `: ${plain(r.why)}` : ''}\n  ${r.line.role} (${r.line.step}): ${r.line.tier}, ${plain(r.line.model_used ?? r.line.model)}${r.line.rung ? `, verifier rung ${r.line.rung}` : ''}; ${plain(r.line.tier_reason)}\n  ${r.line.turns} turns, ${r.line.minutes} min, ${r.line.tokens_in + r.line.tokens_out} tokens; stream kept in the store\n`);
       if (r.family) io.stdout.write(`  note: ${plain(r.family)} (D-58)\n`);
