@@ -4,7 +4,7 @@ import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
 import { shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
-import { snapshot, trustedStrict } from '../../trust/snapshot.js';
+import { snapshot, trustedRegistry, trustedStrict } from '../../trust/snapshot.js';
 import { canonicalSha256, expectedInit, launchArgs, launchFacts, mcpPolicyTools, MODES, readableEnv, renderStrict } from '../../launch/strict.js';
 
 // mirai sandbox show [<agent> | --mode read-write|read-only] (unit 13b). Prints the settings an
@@ -25,10 +25,15 @@ export default {
     const mode = args.values.mode;
     if (agent && mode) throw new UsageError('give an agent or --mode, not both', 'see: mirai sandbox --help');
     if (mode !== undefined && !MODES.includes(mode)) throw new UsageError(`--mode is read-write or read-only, not ${shown(mode)}`, 'see: mirai sandbox --help');
-    const name = agent ?? mode ?? 'read-write';
-
     const store = openStore({ cwd: io.cwd, env: io.env });
     const trust = snapshot({ cwd: io.cwd, env: io.env });
+    // An agent runs under its role's mode (unit 21a): its definition adds only its prompt.
+    let name = mode ?? 'read-write';
+    if (agent) {
+      const registry = trustedRegistry(trust);
+      if (!Object.hasOwn(registry.agents, agent)) throw new UsageError(`there's no agent ${shown(agent)}; agents: ${Object.keys(registry.agents).sort().join(', ') || 'none'}`, 'see: mirai sandbox --help');
+      name = registry.roles[registry.agents[agent].role].mode;
+    }
     const template = trustedStrict(trust, name);
     const launchDir = join(store.repoHome, 'launches', 'EXAMPLE');
     const facts = launchFacts({ trust, checkout: store.checkout, env: io.env, launchDir, scratchDir: '/private/tmp/mirai-EXAMPLE0', template });
@@ -39,10 +44,10 @@ export default {
     const tools = mcpPolicyTools(template);
     const wired = Object.keys(tools).length > 0;
     const { refused } = readableEnv(template, facts.tracked);
-    const flags = launchArgs({ template, settingsFile: join(launchDir, 'input', 'settings.json'), agentsJson: template.agent ? '<the agent from the trust root>' : null, mcpConfig: wired ? join(launchDir, 'input', 'mcp.json') : null });
+    const flags = launchArgs({ template, settingsFile: join(launchDir, 'input', 'settings.json'), agentsJson: agent ? '<the agent from the trust root>' : null, agent: agent ?? null, mcpConfig: wired ? join(launchDir, 'input', 'mcp.json') : null });
     const expected = expectedInit(template);
     io.stdout.write([
-      `${template.agent ? `agent ${template.agent}` : `mode ${template.mode}`} (${template.mode}), from the trust root at ${trust.baseSha.slice(0, 12)}`,
+      `${agent ? `agent ${agent}, ` : ''}mode ${template.mode}, from the trust root at ${trust.baseSha.slice(0, 12)}`,
       '',
       'launch:',
       `  claude -p <prompt> ${flags.map((f) => (/[\s"<>]/.test(f) ? JSON.stringify(f) : f)).join(' ')}`,

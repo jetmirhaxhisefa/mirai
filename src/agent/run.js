@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 import { MiraiError, UsageError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
-import { checkInit, finishLaunch, prepareLaunch, removeLaunch } from '../launch/strict.js';
+import { checkInit, expectedInit, finishLaunch, prepareLaunch, removeLaunch } from '../launch/strict.js';
 import { containsToken, parseStream, redact } from '../redteam/claude.js';
 import { resolveClaude } from '../redteam/key.js';
 import { HEALTH, redTeamStatus } from '../redteam/run.js';
@@ -20,7 +20,8 @@ import { openStore } from '../store/home.js';
 import { withSeq } from '../store/journal.js';
 import { readRunLog, runIds } from '../store/run-log.js';
 import { newRunId, readRunState, startRun, writeHeartbeat, writeRunState } from '../store/run.js';
-import { snapshot, trustedConfig, trustedStrict } from '../trust/snapshot.js';
+import { snapshot, trustedConfig, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
+import { agentsJson as renderAgentsJson } from '../adapters/claude-code.js';
 import { trustFingerprint, verifyTrustRoot } from '../trust/verify.js';
 import { cwdsUnder, processTable, runInGroup } from './process.js';
 import { checkLaunchToken, spendLaunchToken } from './requests.js';
@@ -142,6 +143,31 @@ async function takeOver(store) {
   return `an earlier run (${state.run_id}) had crashed: ${notes.join('; ')}. Its result is unknown, and .git wasn't compared for it: look at your tree`;
 }
 
+// Claude Code's own tool for a structured result: --json-schema adds it to the init event (21a's R1).
+export const STRUCTURED_TOOL = 'StructuredOutput';
+// The tools a launch's init event must show: the template's, MIRAI's MCP tools, and the
+// structured-output tool when a schema is passed.
+export const launchTools = (template, { structured = false } = {}) => [...expectedInit(template).tools, ...(structured ? [STRUCTURED_TOOL] : [])].sort();
+
+// Whether an agent may run under a role: its own, or a read-only one; and a read-only agent never
+// under a role that may write (21a review: its own narrowing holds at the launch too).
+export function checkAgentRole(def, role) {
+  if (role.name !== def.role && role.mode !== 'read-only') throw refuse(`${def.name} is an ${def.role} agent: it may run as ${def.role} or under a read-only role, not as ${role.name}`, 'agent-role');
+  if (def.read_only === true && role.mode !== 'read-only') throw refuse(`${def.name} is read-only: it can't run as ${role.name}, which may write`, 'agent-read-only');
+}
+
+// An agent's definition for this launch (unit 21a), from the trust root only: a branch's copy counts
+// for nothing. It launches under its own role or a read-only one (Kai's plan step, as planner),
+// never a role that may change more. Returns { name, json }.
+export function agentFor(trust, name, role, template, { structured = false } = {}) {
+  const registry = trustedRegistry(trust);
+  if (!Object.hasOwn(registry.agents, name)) throw Object.assign(new UsageError(`there's no agent ${JSON.stringify(String(name).slice(0, 40))}; agents: ${Object.keys(registry.agents).sort().join(', ') || 'none'}`), { code: 'unknown-agent' });
+  const def = registry.agents[name];
+  checkAgentRole(def, role);
+  const prompt = readFileSync(join(registry.dir, def.prompt));
+  return { name, json: renderAgentsJson(def, prompt, launchTools(template, { structured })) };
+}
+
 function recordAgent(store, plan, pid) {
   const dir = join(store.dir, 'agent-runs');
   ensurePrivateDir(dir);
@@ -157,14 +183,20 @@ export async function runAgent(options) {
   // Checked here, spent by launchInRun: no path launches without one.
   checkLaunchToken(launchToken);
   if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
+  return await withRun({ cwd, env }, ({ store, runId, tookOver }) => launchInRun({ ...options, store, runId, startRun: true, tookOver, ownsRun: true }));
+}
+
+// A run of one or more launches (runAgent's, and `mirai plan`'s): `fn({ store, runId, tookOver })`
+// with the run lock held. The lock first: a crashed run is taken over with nothing else able to
+// start, and before the checks, so its agent isn't left running because the tree it dirtied is
+// refused.
+export async function withRun({ cwd, env }, fn) {
   const store = openStore({ cwd, env });
-  // The lock first: a crashed run is taken over with nothing else able to start, and before the
-  // checks, so its agent isn't left running because the tree it dirtied is refused.
   const runId = newRunId();
   const { release } = acquireRunLock(store, runId, env);
   try {
     const tookOver = await takeOver(store);
-    return await launchInRun({ ...options, store, runId, startRun: true, tookOver, ownsRun: true });
+    return await fn({ store, runId, tookOver });
   } finally {
     release();
   }
@@ -172,7 +204,7 @@ export async function runAgent(options) {
 
 // One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
 // every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
-export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
@@ -183,10 +215,14 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   if (!holder || holder.run_id !== runId || holder.pid !== process.pid || holder.repo_id !== store.repoId) throw refuse('a launch needs the run lock for its run, held by this process', 'no-run-lock');
   stopped();
   const trust = snapshot({ cwd, env });
+  // A caller that read inputs from one commit launches on that same commit (21a review): the
+  // integration branch may have moved in between.
+  if (expectBase !== null && trust.baseSha !== expectBase) throw refuse(`the integration branch moved (${expectBase.slice(0, 12)} → ${trust.baseSha.slice(0, 12)}) since this launch's inputs were read`, 'base-moved', 'run it again');
   const role = findRole(trustedRoles(trust), roleName);
   const mode = role.mode;
   const template = trustedStrict(trust, mode);
   const config = trustedConfig(trust);
+  const agentDef = agent === null ? null : agentFor(trust, agent, role, template, { structured: jsonSchema !== null });
   const c = resolveClaude(env, claude);
   const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
   let model = config.models?.[picked.tier];
@@ -208,10 +244,10 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   checkRedTeam(await status({ cwd, env, trust, template, claude }), store);
   stopped();
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
-  return await launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
+  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
 }
 
-async function launchAndLog({ store, env, trust, template, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
+async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';
@@ -221,8 +257,9 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
     // while this hashes shows up at the hook's first call.
     const fingerprint = trustFingerprint(trust.dir);
     verifyTrustRoot(trust);
-    launched = prepareLaunch({ trust, template, checkout: store.checkout, env, item, inputs, fingerprint });
+    launched = prepareLaunch({ trust, template, checkout: store.checkout, env, item, inputs, fingerprint, ...(agentDef ? { agentsJson: agentDef.json, agent: agentDef.name } : {}) });
     launched.expectedInit.model = model;
+    if (jsonSchema) launched.expectedInit.tools = launchTools(template, { structured: true });
     if (createHash('sha256').update(readFileSync(join(launched.launchDir, 'input', 'settings.json'))).digest('hex') !== launched.settingsSha256) throw refuse('the launch\'s settings changed before it started', 'settings-changed');
     writeHeartbeat(store, { runId });
     beat = setInterval(() => {
@@ -276,7 +313,8 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
       }
     };
     // After `--`, so a prompt that looks like a flag can't be one.
-    const args = ['-p', '--max-turns', String(maxTurns), '--model', model, '--append-system-prompt', LONG_OUTPUTS, ...launched.args, '--', prompt];
+    // A structured result (unit 21a): Claude Code checks the answer against the schema.
+    const args = ['-p', '--max-turns', String(maxTurns), '--model', model, '--append-system-prompt', LONG_OUTPUTS, ...(jsonSchema ? ['--json-schema', JSON.stringify(jsonSchema)] : []), ...launched.args, '--', prompt];
     const raw = await launch(c.real, { args, env: { ...launched.env, DISABLE_AUTOUPDATER: '1' }, cwd: launched.cwd, fdToken: launched.fds[3] }, {
       signal, hardAbort: hardSignal, onLine, timeoutMs, killRoots: [launched.scratchDir], reportRoots: [launched.cwd],
       onStart: (pid, kill) => {
@@ -357,7 +395,7 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
     if (outcome === 'ok') endState = 'finished';
     const usage = parsed.result?.usage ?? {};
     const line = {
-      item: item ?? 'run', event: 'agent_run', launch_id: launchId, step, role: role.name, round: 1, tier, model, tier_reason: tierWhy.slice(0, 300), ...(rung ? { rung } : {}), ...(parsed.init?.model ? { model_used: modelId(parsed.init.model) } : {}), scope_violations: scope.violations.length,
+      item: item ?? 'run', event: 'agent_run', launch_id: launchId, step, role: role.name, ...(agentDef ? { agent: agentDef.name } : {}), round: 1, tier, model, tier_reason: tierWhy.slice(0, 300), ...(rung ? { rung } : {}), ...(parsed.init?.model ? { model_used: modelId(parsed.init.model) } : {}), scope_violations: scope.violations.length,
       // Cached input apart, as Claude Code reports it: it's most of a run's input.
       tokens_in: count(usage.input_tokens), tokens_cached: count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens), tokens_out: count(usage.output_tokens), turns: count(parsed.result?.num_turns), minutes: Math.round((Date.now() - started) / 600) / 100,
       ...(share === null ? { limit_share_source: 'unknown' } : { limit_share: share, limit_share_source: 'measured' }), ...(limited ? { limit_window: limited.window, ...(limited.resets_at ? { resets_at: new Date(limited.resets_at * 1000).toISOString() } : {}) } : {}), verdict: outcome === 'ok' ? 'pass' : outcome === 'agent-failed' ? 'fail' : 'error', outcome, survivors: survivors.length + suspects.length, unproven: unproven.length,
@@ -389,7 +427,9 @@ async function launchAndLog({ store, env, trust, template, c, model, runId, owns
     // the agent could act, or a usage limit. A fault found in what the agent did (its scope, its
     // processes) keeps the round, so an agent can't buy a free one.
     const refundable = outcome === 'usage-limit' || (outcome === 'env-fault' && (health || raw.killedBy === 'no-init' || !parsed.init || unsafe === null || needsRenewal));
-    return { outcome, why, launchId, text, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
+    // The run's structured output, as its own stream reported it (never a file it wrote).
+    const structured = parsed.result?.structured_output ?? null;
+    return { outcome, why, launchId, text, structured, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
   } finally {
     clearInterval(beat);
     rmSync(join(store.dir, 'agent-runs', 'current.json'), { force: true });

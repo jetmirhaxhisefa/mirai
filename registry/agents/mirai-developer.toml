@@ -1,0 +1,13 @@
+# Kai, MIRAI's developer agent (unit 21a; D-37). One agent, two jobs by step: the plan, launched
+# with the planner role (read-only; MIRAI stores the plan from its output), and the build (21b),
+# with its own role, author. Every launch passes the template's tools and the step's model.
+kind = "agent"
+schema_version = 1
+name = "mirai-developer"
+role = "author"
+description = "Kai: plans one ticket, then builds it from the approved plan"
+read_only = false
+prompt = "agents/mirai-developer.md"
+
+[tools]
+allowed = ["Bash", "Read", "Edit", "Write", "Glob", "Grep"]

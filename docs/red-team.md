@@ -48,7 +48,8 @@ isn't one of MIRAI's tools.
 ## What it does
 
 1. **Builds your trust root** as every launch does, and takes its strict templates (today
-   `read-write` and `read-only`; one per agent later).
+   `read-write` and `read-only`). Agents have none of their own (unit 21a): a launch takes its
+   role's mode, and an agent's definition adds only its prompt, with the template's tools.
 2. **Reads the Claude Code binary, with no model:**
    - **S1:** the sandbox settings keys its settings schema takes;
    - **S2:** the rules of the base sandbox profile it writes for every sandboxed command.
@@ -80,8 +81,7 @@ isn't one of MIRAI's tools.
    socket and your ssh-agent, where you have them), or a "blocked" inside the sandbox would prove
    nothing. The canaries are removed at the end.
 5. **Runs every case through the real launch** (`prepareLaunch`, the token on fd 3), the way unit
-   19 will start an agent, under **every template of the case's mode** (an agent's template gets
-   all of its mode's cases). A case passes when **3 runs pass**. Three kinds:
+   19 will start an agent, under **the template of the case's mode**. A case passes when **3 runs pass**. Three kinds:
    - **model:** Haiku is told to make one exact call;
    - **direct:** MIRAI's own MCP server and hook from the launch, driven with no model; run once,
      since a model adds nothing to whether they refuse a call;

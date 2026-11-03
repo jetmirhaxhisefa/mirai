@@ -159,7 +159,8 @@ function fingerprint(abs, budget = { files: 10_000 }) {
 // needsYou }. `needsYou` is true when an auto-run path or an undeclared protected path is
 // touched: units 20 and 23 park the ticket in autonomous mode and stop the run in supervised
 // mode (D-15). `declared`: the paths the approved plan said it would touch (R3-M2); `actor`:
-// the agent's registry role, for rules with an exception (E2E tests are `qa`'s).
+// the launch's role, a ROLE's name (unit 21a: an agent runs as its role or a narrower one), for
+// rules with an exception (E2E tests are the `qa` role's).
 export function classify({ change, rules: { rules, scripts }, declared = [], actor }) {
   const imported = new Set();
   for (const side of ['base', 'head']) {

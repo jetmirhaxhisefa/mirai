@@ -448,6 +448,10 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
 - **Consequences:**
   - Agent definitions carry a default tier instead of a free "model role" (D-37).
   - A misplaced default shows up in the metrics as extra rounds, and calibration corrects it.
+  - **Update (unit 21a):** agent definitions carry no tier of their own. An agent names a role, the
+    role names its step, and the step's tier is picked at each launch (unit 19b's `pickTier`). The
+    model in an agent's interactive file is its role's step default. Kai's plan step runs on
+    `standard`.
 
 ### D-15 · Hard gates in git hooks and CI; tool hooks are fast feedback
 
@@ -1358,6 +1362,15 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - **agents:** role, `may write` scope, allowed tools, default model tier (D-14). Allowed tools
     use **Claude Code's tool names** (`Read`, `Grep`, `Edit`, `Bash`, `mcp__<server>__<tool>`);
     the Codex and Cursor renderers translate or drop them (decided 2026-10-24, unit 11).
+  - **Update (unit 21a):** an agent's `role` names a ROLE (unit 19b), checked across kinds, and the
+    agent may only narrow it: a read-only role's agent is read-only (and never runs a role that may
+    write), and its own `may_write` is refused until a launch applies it. Its tools are its mode's
+    template's. `default_tier` is gone (D-14's update). An agent has no strict template
+    of its own: a launch takes its role's mode, and the definition, from the trust root, adds only
+    its prompt through `--agents`, with that template's tools. A launch may run an agent under its
+    own role or a read-only one (Kai plans as `planner`). `prepareLaunch` takes only one shape of
+    definition (description, prompt, the launch's tools, model `inherit`): an agent needing more
+    tools or servers needs a mode of its own, red-teamed.
 - **The lock marks every file with one of three marks** (R2-M12, R3-M13, AR3-13):
   - **`framework`:** copied from MIRAI, 3-way merged on `update`, contributable;
   - **`rendered`:** generated from framework + config + custom (the `.claude/` files, the

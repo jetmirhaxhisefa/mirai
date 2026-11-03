@@ -34,6 +34,17 @@ export function renderAgent(def, prompt, model) {
   return Buffer.concat([Buffer.from(head, 'utf8'), prompt]);
 }
 
+// An agent's definition for a headless launch's --agents (unit 21a): its description and prompt
+// from the trust root, the launch's own tools (`tools`: the template's, MIRAI's MCP tools and, with
+// a schema, Claude Code's StructuredOutput; never the definition's own, since a launch's role may
+// be narrower than the agent's: 21a's R1 showed --agent narrows the init tools to this list), and
+// the launch's model (`inherit`: the launch passes --model). Nothing else: no hooks, MCP servers
+// or permission mode of its own.
+export function agentsJson(def, prompt, tools) {
+  const text = Buffer.isBuffer(prompt) ? prompt.toString('utf8') : String(prompt);
+  return JSON.stringify({ [def.name]: { description: `${def.description} ${AGENT_NOTE}`, prompt: text, tools: [...tools], model: 'inherit' } });
+}
+
 // Where a bundle file goes in the work tree.
 export function interactivePath(profile, bundlePath) {
   return placed(profile.interactive, bundlePath);

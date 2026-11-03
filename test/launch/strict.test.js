@@ -93,7 +93,7 @@ const FACTS = {
 const within = (p, dir) => p === dir || p.startsWith(`${dir}/`);
 const template = (config = { compose: { env_file: '.env.test' } }, mode = 'read-write') => strictTemplate({ registry: loadRegistry(REPO), config, mode });
 
-test('T1: the trust root holds one machine-free template per access mode and per agent', () => {
+test('T1: the trust root holds one machine-free template per access mode', () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
   assert.equal(trust.manifest.format, 5); // 5 since unit 15a (the templates' `mcp` field)
@@ -104,12 +104,10 @@ test('T1: the trust root holds one machine-free template per access mode and per
     assert.ok(!JSON.stringify(t).includes(r.env.HOME) && !JSON.stringify(t).includes(r.root), 'a machine path in a template');
   }
   assert.throws(() => trustedStrict(trust, 'nobody'), /no strict template/);
-  // An agent's template follows its definition.
+  // An agent has no template of its own (unit 21a): it runs under its role's mode.
   const templates = strictTemplates({ registry: registryWithAgent(), config: trustedConfig(trust) });
-  const agent = templates.get('mirai-fixture-reviewer');
-  assert.equal(agent.mode, 'read-only');
-  assert.deepEqual(agent.tools, ['Glob', 'Grep', 'Read']);
-  assert.equal(agent.agent, 'mirai-fixture-reviewer');
+  assert.deepEqual([...templates.keys()], ['read-write', 'read-only']);
+  assert.ok(!trust.manifest.files.some((f) => f.path === 'strict/mirai-developer.json'));
   // A format-1 snapshot is built again.
   const manifestPath = join(trust.dir, 'manifest.json');
   const old = JSON.parse(readFileSync(manifestPath, 'utf8'));

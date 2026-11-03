@@ -66,6 +66,8 @@ export const RUN_EVENTS = Object.freeze({
     resets_at: { type: 'string', pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/, patternHint: 'a UTC time' },
     // Cached input, apart from tokens_in (unit 19b).
     tokens_cached: count,
+    // The agent definition the launch ran (unit 21a), when it had one.
+    agent: { type: 'string', pattern: /^mirai-[a-z0-9-]{1,64}$/, patternHint: 'an agent name' },
     // How it ended (unit 19a): an outcome says more than the verdict, and what outlived it.
     outcome: { type: 'enum', values: ['ok', 'agent-failed', 'refused', 'env-fault', 'usage-limit', 'killed'] },
     survivors: count,
@@ -119,7 +121,7 @@ export const RUN_EVENTS = Object.freeze({
 const OPTIONAL = {
   finding: ['symbol', 'line', 'basis_ref', 'downgraded'],
   session_ended: ['note'],
-  agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
+  agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'agent', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };
 // Rules across fields, per event.
 const CHECKS = {

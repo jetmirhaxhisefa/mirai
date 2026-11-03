@@ -75,8 +75,8 @@ export function stateOf({ cases: all, checks, stopped }) {
   return 'green';
 }
 
-// The units: each case under every template of each access mode it names (unit 18b: an agent's
-// template gets every case of its mode). A mode no template has is `skipped`.
+// The units: each case under every template of each access mode it names (one per mode since unit
+// 21a: an agent runs under its role's mode). A mode no template has is `skipped`.
 export function unitsFor(cases, templates, only = null) {
   const units = [];
   const skipped = [];

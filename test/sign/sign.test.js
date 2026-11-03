@@ -255,9 +255,12 @@ test('T7 + T8: approve needs a real terminal; it asks, signs the approval and th
   const status = readTicketStatus(store, 'T-12').status;
   assert.deepEqual([status.state, status.written_by, status.seq], ['ready-for-dev', 'human', events[2].seq]);
 
-  // Not draft any more: approving again is refused (exit 4).
+  // Ready-for-dev already: approving again (as merged, unit 21a) signs a new line and moves nothing.
   r = await run(['approve', 'T-12', '--file', file], { cwd: repo, env }, { answers: ['a', 'T-12'] });
-  assert.equal(r.code, EXIT.BLOCKED);
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.match(r.out, /approved again: T-12/);
+  assert.deepEqual(readTicketStatus(store, 'T-12').status.seq, status.seq, 'no new status');
+  assert.equal(readJournal(store).events.filter((e) => e.type === 'approval').length, 3);
   // A bad answer writes nothing.
   ticketFile(repo, 'T-14', '# T-14\n');
   r = await run(['approve', 'T-14', '--file', 'tickets/T-14.md'], { cwd: repo, env }, { answers: ['yes'] });

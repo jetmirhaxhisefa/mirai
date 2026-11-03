@@ -86,30 +86,22 @@ class StrictError extends MiraiError {
 
 const merge = (floor, data) => [...new Set([...floor, ...(data ?? [])])];
 
-// The template for one agent (by its registry definition) or one access mode. `registry` and
-// `config` are the trust root's.
-export function strictTemplate({ registry, config, agent, mode }) {
+// The template for one access mode. `registry` and `config` are the trust root's. An agent's
+// definition has no template of its own (unit 21a): a launch takes its role's mode, and the
+// definition adds only its prompt through --agents, with this template's tools.
+export function strictTemplate({ registry, config, mode }) {
   const profile = registry.adapters[ADAPTER]?.strict;
   if (!profile) throw new StrictError('this MIRAI copy has no strict bundle rules', { code: 'no-strict', hint: 'run: mirai init --refresh, and commit it' });
-  let tools;
-  let readOnly;
-  if (agent) {
-    const def = registry.agents[agent];
-    if (!def) throw new StrictError(`there is no agent named ${agent}`, { code: 'no-agent' });
-    tools = [...def.tools.allowed];
-    readOnly = def.read_only === true;
-  } else {
-    if (!MODES.includes(mode)) throw new StrictError(`the mode is read-write or read-only, not ${mode}`, { code: 'bad-mode', exitCode: EXIT.USAGE });
-    readOnly = mode === 'read-only';
-    tools = [...(readOnly ? profile.read_only_tools : profile.read_write_tools)];
-  }
+  if (!MODES.includes(mode)) throw new StrictError(`the mode is read-write or read-only, not ${mode}`, { code: 'bad-mode', exitCode: EXIT.USAGE });
+  const readOnly = mode === 'read-only';
+  const tools = [...(readOnly ? profile.read_only_tools : profile.read_write_tools)];
   const rules = protectionRules(registry, config).rules;
   const writeDenied = rules.filter((r) => r.class === 'auto-run' || WRITE_DENIED_RULES.includes(r.name)).flatMap((r) => r.paths);
   const readable = [...(config.compose?.env_file ? [config.compose.env_file] : []), ...(config.sandbox?.readable_env ?? [])];
   return {
     schema: STRICT_SCHEMA,
-    name: agent ?? mode,
-    agent: agent ?? null,
+    name: mode,
+    agent: null,
     mode: readOnly ? 'read-only' : 'read-write',
     tools: [...new Set(tools)].sort(),
     deny_tools: merge(MIN_DENY_TOOLS, profile.deny_tools),
@@ -130,11 +122,10 @@ export function strictTemplate({ registry, config, agent, mode }) {
 
 export const templateText = (t) => `${JSON.stringify(t, null, 2)}\n`;
 
-// The templates a trust root holds: one per agent and one per access mode.
+// The templates a trust root holds: one per access mode.
 export function strictTemplates({ registry, config }) {
   const out = new Map();
   for (const mode of MODES) out.set(mode, strictTemplate({ registry, config, mode }));
-  for (const agent of Object.keys(registry.agents).sort()) out.set(agent, strictTemplate({ registry, config, agent }));
   return out;
 }
 
@@ -345,13 +336,14 @@ export function launchEnv({ env, launchDir, scratchDir, configHome, gitconfig, c
 // `inputDir`: the launch's input/files/, when it has files. --restricted confines the file tools
 // to the working directory, so the agent's Read reaches them only through --add-dir (unit 15a's
 // b2 probes); the settings write-deny it.
-export function launchArgs({ template, settingsFile, agentsJson, mcpConfig = null, inputDir = null }) {
+// `agentsJson` and `agent`: an agent's definition and its name (unit 21a), or neither.
+export function launchArgs({ template, settingsFile, agentsJson, agent = null, mcpConfig = null, inputDir = null }) {
   return [
     '--restricted', '--tools', template.tools.join(','),
     '--settings', settingsFile,
     ...(inputDir ? ['--add-dir', inputDir] : []),
     '--strict-mcp-config', ...(mcpConfig ? ['--mcp-config', mcpConfig] : []),
-    ...(agentsJson ? ['--agents', agentsJson, '--agent', template.agent] : []),
+    ...(agentsJson ? ['--agents', agentsJson, '--agent', agent] : []),
     '--permission-mode', 'dontAsk', '--output-format', 'stream-json', '--verbose',
   ];
 }
@@ -378,7 +370,7 @@ const CANONICAL = Object.freeze({
 export const canonicalSha256 = (template) => sha256(JSON.stringify({
   settings: renderStrict(template, CANONICAL),
   mcp: template.mcp ?? null,
-  args: [null, `${CANONICAL.launchDir}/input/files`].map((inputDir) => launchArgs({ template, settingsFile: `${CANONICAL.launchDir}/input/settings.json`, agentsJson: template.agent ? '<agents>' : null, mcpConfig: `${CANONICAL.launchDir}/input/mcp.json`, inputDir })),
+  args: [null, `${CANONICAL.launchDir}/input/files`].map((inputDir) => launchArgs({ template, settingsFile: `${CANONICAL.launchDir}/input/settings.json`, agentsJson: null, mcpConfig: `${CANONICAL.launchDir}/input/mcp.json`, inputDir })),
 }));
 
 function writeReadOnly(path, text) {
@@ -495,7 +487,8 @@ export function launchPolicy(template, facts, trust, fingerprint = null) {
 // folder), its short scratch folder (/private/tmp/mirai-<8 hex>), the settings, the flags, the
 // environment and the token for fd 3.
 // `trust`: an open, verified trust root; `template`: its strict template (read with
-// trustedStrict); `agentsJson`: the agent's definition for --agents (unit 19). A launch that
+// trustedStrict); `agentsJson` and `agent`: the agent's definition for --agents and its name, both
+// or neither (unit 21a; the init check then expects that agent loaded). A launch that
 // fails half-way leaves nothing behind. The token is on `plan.fds[3]`, which isn't enumerable,
 // so logging the plan can't print it.
 // MIRAI's MCP server is wired for every launch (unit 15a: log_event; the test tools when the
@@ -504,8 +497,10 @@ export function launchPolicy(template, facts, trust, fingerprint = null) {
 // input/files/ for the agent to read (its plan and the like); their paths are on
 // `plan.inputs`. `probe` is for the probes only ({ home, dockerSocket }): their fixture's MIRAI
 // home sits under a temporary HOME; it requires `miraiHomeDir`, which only they pass.
-export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, id = null, miraiHomeDir = null, probe = null, item = null, inputs = {}, fingerprint = null }) {
+export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, agent = null, id = null, miraiHomeDir = null, probe = null, item = null, inputs = {}, fingerprint = null }) {
   if (probe && !miraiHomeDir) throw new StrictError('probe settings are for the probes only', { code: 'bad-probe' });
+  if (Boolean(agentsJson) !== Boolean(agent) || (agent !== null && !/^mirai-[a-z0-9-]+$/.test(agent))) throw new StrictError('an agent launch needs both its definition and its name', { code: 'bad-agent' });
+  if (agentsJson) checkAgentsJson(agentsJson, agent, template);
   if (item !== null && !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/.test(item)) throw new StrictError('the launch\'s item isn\'t a ticket or document id', { code: 'bad-item' });
   const inputFiles = checkInputs(inputs);
   if (typeof trust?.manifestSha256 !== 'string') throw new StrictError('the launch needs a verified trust root (its manifest hash)', { code: 'no-trust' });
@@ -593,12 +588,12 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
       launchDir: facts.launchDir,
       scratchDir,
       cwd: facts.checkout,
-      args: launchArgs({ template, settingsFile, agentsJson, mcpConfig, inputDir }),
+      args: launchArgs({ template, settingsFile, agentsJson, agent, mcpConfig, inputDir }),
       env: launchEnv({ env, launchDir: facts.launchDir, scratchDir, configHome: join(facts.launchDir, 'claude-config'), gitconfig, checkout: facts.checkout, miraiHome: facts.miraiHome }),
       settingsSha256: sha256(settingsText),
       templateSha256: listed?.sha256 ?? sha256(templateText(template)),
       canonicalSha256: canonicalSha256(template),
-      expectedInit: expectedInit(template, { cwd: facts.checkout, additionalDirectories: inputDir ? [inputDir] : [] }),
+      expectedInit: { ...expectedInit(template, { cwd: facts.checkout, additionalDirectories: inputDir ? [inputDir] : [] }), agent },
       inputs: inputPaths,
     };
     Object.defineProperty(plan, 'fds', { value: Object.freeze({ 3: token }), enumerable: false });
@@ -609,6 +604,28 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
     removeLaunch(launchDir, scratchDir);
     throw err;
   }
+}
+
+// The red team tests the mode templates, never an agent's definition (unit 21a), so a launch takes
+// only the one shape that can't widen what the template allows: one agent, by name, with a
+// description, a prompt, the launch's own tools (StructuredOutput too, for a schema) and the
+// launch's model. Anything more (hooks, MCP servers, a permission mode, other tools) would need a
+// mode of its own, red-teamed, not a field here.
+export const AGENT_FIELDS = Object.freeze(['description', 'model', 'prompt', 'tools']);
+function checkAgentsJson(json, agent, template) {
+  let value;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    value = null;
+  }
+  const def = value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 1 ? value[agent] : null;
+  const allowed = expectedInit(template).tools;
+  const tools = Array.isArray(def?.tools) ? [...def.tools].sort() : null;
+  const sameTools = tools && (JSON.stringify(tools) === JSON.stringify(allowed) || JSON.stringify(tools) === JSON.stringify([...allowed, 'StructuredOutput'].sort()));
+  const ok = def && typeof def === 'object' && JSON.stringify(Object.keys(def).sort()) === JSON.stringify(AGENT_FIELDS)
+    && typeof def.description === 'string' && typeof def.prompt === 'string' && def.model === 'inherit' && sameTools;
+  if (!ok) throw new StrictError(`the agent definition for ${agent} isn't the one shape a launch takes (one agent: description, prompt, the launch's tools, model inherit)`, { code: 'bad-agent' });
 }
 
 // After the agent's process group is gone: checks that `.git` is as it was before the launch

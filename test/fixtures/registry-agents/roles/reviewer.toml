@@ -1,0 +1,10 @@
+# A fixture role for the adapter tests (unit 21a: an agent names a role).
+kind = "role"
+schema_version = 1
+name = "reviewer"
+description = "Reviews one change; writes nothing."
+mode = "read-only"
+step = "review"
+
+[may_write]
+paths = []

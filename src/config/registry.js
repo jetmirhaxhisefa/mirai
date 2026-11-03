@@ -37,10 +37,10 @@ const AGENT = {
     kind: { type: 'enum', values: ['agent'] },
     schema_version: { type: 'integer', min: 1, max: 1 },
     name: { type: 'string', pattern: /^mirai-[a-z0-9-]+$/, patternHint: 'for example "mirai-developer"' },
-    role: { type: 'string', pattern: NAME, patternHint: 'for example "developer"' },
+    // A role's name (unit 21a): what its runs may change and its step, which picks the tier.
+    role: { type: 'string', pattern: NAME, patternHint: 'for example "author"' },
     // What the agent is for, in one line: tools list agents by it (unit 11).
     description: AGENT_DESCRIPTION,
-    default_tier: { type: 'enum', values: ['light', 'standard', 'deep'] },
     read_only: { type: 'boolean' },
     prompt: mdPath,
     may_write: {
@@ -54,7 +54,7 @@ const AGENT = {
     },
     tools: { type: 'table', fields: { allowed: { type: 'array', items: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9_-]*$/ } } }, required: ['allowed'] },
   },
-  required: ['kind', 'schema_version', 'name', 'role', 'description', 'default_tier', 'read_only', 'prompt', 'tools'],
+  required: ['kind', 'schema_version', 'name', 'role', 'description', 'read_only', 'prompt', 'tools'],
   check(value, path, report) {
     if (value.read_only === true && (value.may_write?.paths?.length ?? 0) > 0) {
       report('may_write.paths', 'a read-only agent can\'t have may_write.paths', undefined, 'read-only');
@@ -791,11 +791,40 @@ export function loadRegistry(dir) {
     }
   }
   loadSkills(dir, out.skills, problems);
+  problems.push(...agentRoleProblems(out));
   if (problems.length > 0) {
     const n = problems.length;
     throw new ConfigError(`${n} problem${n === 1 ? '' : 's'} in the registry`, { errors: problems });
   }
   return deepFreeze(out);
+}
+
+// Agents name roles (unit 21a): the role must exist, and an agent may only narrow it, never widen
+// it: a read-only role's agent is read-only (and a read-only agent runs only read-only roles,
+// checked at the launch); its own may_write is refused until a launch applies it; its tools are
+// its mode's, as the tool profile lists them (the launch passes its own, D-37).
+function agentRoleProblems(out) {
+  const problems = [];
+  const profile = Object.values(out.adapters).find((a) => a.strict)?.strict ?? null;
+  for (const [name, def] of Object.entries(out.agents)) {
+    const source = out.agentFiles[name];
+    const problem = (path, reason) => problems.push({ code: 'role', source, line: 1, column: 1, path, reason });
+    const role = Object.hasOwn(out.roles, def.role) ? out.roles[def.role] : null;
+    if (!role) {
+      problem('role', `role names a role that doesn't exist (roles: ${Object.keys(out.roles).sort().join(', ') || 'none'})`);
+      continue;
+    }
+    if (role.mode === 'read-only' && def.read_only !== true) problem('read_only', `the ${role.name} role is read-only, so its agent must be too`);
+    // An agent's own may_write isn't applied at a launch yet (the scope check takes the role's), so
+    // it's refused rather than trusted: narrow with a role of its own (21a review).
+    if ((def.may_write?.paths?.length ?? 0) > 0) problem('may_write.paths', `an agent's own may_write isn't applied yet; give it a narrower role instead of narrowing the ${role.name} role here`);
+    if (profile) {
+      const mode = def.read_only === true ? profile.read_only_tools : profile.read_write_tools;
+      const same = def.tools.allowed.length === mode.length && mode.every((t) => def.tools.allowed.includes(t));
+      if (!same) problem('tools.allowed', `tools.allowed must be the ${def.read_only === true ? 'read-only' : 'read-write'} template's tools (${mode.join(', ')})`);
+    }
+  }
+  return problems;
 }
 
 // One kind's definitions in `dir`/<folder>: [{ name, value, source }], each checked; problems

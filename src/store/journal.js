@@ -69,8 +69,10 @@ export const EVENT_TYPES = Object.freeze({
     human: true,
     fields: {
       item: f.ticket,
-      kind: { type: 'enum', values: ['ticket'] },
-      path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo' },
+      // A plan (unit 21a): `path` is its place in the store, `content_hash` its approvalHash (08b),
+      // or, for a rejected plan with no frozen block, the hash of its whole text.
+      kind: { type: 'enum', values: ['ticket', 'plan'] },
+      path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo (a ticket) or in the store (a plan)' },
       content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
       decision: { type: 'enum', values: ['accepted', 'edited', 'rejected'] },
       reason: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },

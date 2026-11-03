@@ -249,14 +249,15 @@ test('T10: readConfigFile: symlinks, size, encoding', () => {
 // A registry folder with one agent and one document type, plus their .md files.
 function registry(overrides = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'mirai-reg-'));
-  for (const sub of ['agents', 'document-types', 'prompts', 'templates']) mkdirSync(join(dir, sub));
+  for (const sub of ['agents', 'document-types', 'prompts', 'templates', 'roles']) mkdirSync(join(dir, sub));
+  writeFileSync(join(dir, 'roles', 'developer.toml'), overrides.role ?? ['kind = "role"', 'schema_version = 1', 'name = "developer"', 'description = "Writes the change."', 'mode = "read-write"', 'step = "build"', '[may_write]', 'paths = ["**"]', ''].join('\n'));
   writeFileSync(join(dir, 'prompts', 'developer.md'), '# Developer\n');
   writeFileSync(join(dir, 'templates', 'prd.md'), '# PRD\n');
   writeFileSync(join(dir, 'templates', 'prd-checklist.md'), '# Checklist\n');
   writeFileSync(join(dir, 'agents', 'developer.toml'), overrides.agent ?? [
     'kind = "agent"', 'schema_version = 1', 'name = "mirai-developer"', 'role = "developer"',
-    'description = "Plans and builds one ticket."', 'default_tier = "standard"', 'read_only = false', 'prompt = "prompts/developer.md"',
-    '[may_write]', 'paths = ["src/**", "tests/**"]', '[tools]', 'allowed = ["Read", "Edit", "mcp__mirai__run_tests"]', '',
+    'description = "Plans and builds one ticket."', 'read_only = false', 'prompt = "prompts/developer.md"',
+    '[tools]', 'allowed = ["Read", "Edit", "mcp__mirai__run_tests"]', '',
   ].join('\n'));
   writeFileSync(join(dir, 'document-types', 'prd.toml'), overrides.doc ?? [
     'kind = "document-type"', 'schema_version = 1', 'name = "prd"',
@@ -281,18 +282,26 @@ function registryProblems(dir) {
 
 test('T11: the registry loads valid definitions and refuses bad ones', () => {
   const reg = loadRegistry(registry());
-  assert.equal(reg.agents['mirai-developer'].default_tier, 'standard');
+  assert.equal(reg.agents['mirai-developer'].role, 'developer');
   assert.equal(reg.documentTypes.prd.states.initial, 'draft');
   assert.ok(Object.isFrozen(reg.agents['mirai-developer']));
 
-  const agent = (extra) => ['kind = "agent"', 'schema_version = 1', 'name = "mirai-developer"', 'role = "developer"', 'description = "Plans and builds one ticket."', 'default_tier = "standard"', ...(extra.some((e) => e.startsWith('read_only')) ? [] : ['read_only = false']), ...extra, ''].join('\n');
-  assert.match(registryProblems(registry({ agent: ['kind = "agent"', 'schema_version = 1', 'name = "mirai-x"', 'role = "x"', 'default_tier = "light"', 'prompt = "prompts/developer.md"', ''].join('\n') })), /read_only is required/);
+  const agent = (extra) => ['kind = "agent"', 'schema_version = 1', 'name = "mirai-developer"', 'role = "developer"', 'description = "Plans and builds one ticket."', ...(extra.some((e) => e.startsWith('read_only')) ? [] : ['read_only = false']), ...extra, ''].join('\n');
+  assert.match(registryProblems(registry({ agent: ['kind = "agent"', 'schema_version = 1', 'name = "mirai-x"', 'role = "x"', 'prompt = "prompts/developer.md"', ''].join('\n') })), /read_only is required/);
   assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/developer.md"', '[may_write]', 'paths = ["../outside/**"]']) })), /may_write\.paths\[0\] is not valid/);
   assert.match(registryProblems(registry({ agent: agent(['prompt = "../outside.md"']) })), /prompt must stay inside the registry folder/);
   assert.match(registryProblems(registry({ agent: agent(['prompt = "/etc/passwd.md"']) })), /prompt must stay inside the registry folder/);
   assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/missing.md"']) })), /prompt points to a file that does not exist/);
   assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/developer.md"', 'read_only = true', '[may_write]', 'paths = ["src/**"]']) })), /read-only agent/);
-  assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/developer.md"', 'default_tier = "huge"']) })), /already defined|default_tier/);
+  assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/developer.md"', 'default_tier = "standard"']) })), /default_tier/);
+
+  // Unit 21a T1: an agent names a role that exists, and only narrows it.
+  assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/developer.md"', '[tools]', 'allowed = ["Read"]']).replace('role = "developer"', 'role = "nobody"') })), /role names a role that doesn't exist/);
+  const readOnlyRole = ['kind = "role"', 'schema_version = 1', 'name = "developer"', 'description = "Reads."', 'mode = "read-only"', 'step = "review"', '[may_write]', 'paths = []', ''].join('\n');
+  assert.match(registryProblems(registry({ role: readOnlyRole })), /the developer role is read-only, so its agent must be too/);
+  // An agent's own may_write isn't applied at a launch yet, so it's refused (21a review).
+  assert.match(registryProblems(registry({ agent: agent(['prompt = "prompts/developer.md"', '[may_write]', 'paths = ["src/**"]', '[tools]', 'allowed = ["Read"]']) })), /an agent's own may_write isn't applied yet/);
+  assert.equal(loadRegistry(registry({ agent: agent(['prompt = "prompts/developer.md"', '[tools]', 'allowed = ["Read"]']) })).agents['mirai-developer'].role, 'developer');
 
   const linked = registry();
   const outside = mkdtempSync(join(tmpdir(), 'mirai-out-'));
@@ -318,7 +327,7 @@ test('T11: the registry loads valid definitions and refuses bad ones', () => {
   assert.match(orphan, /states\.names\[1\] can't be reached/);
   assert.ok(!orphan.includes('orphan'), 'state names are not echoed');
 
-  const wrongKind = registry({ agent: ['kind = "document-type"', 'schema_version = 1', 'name = "mirai-x"', 'role = "x"', 'default_tier = "light"', 'prompt = "prompts/developer.md"', ''].join('\n') });
+  const wrongKind = registry({ agent: ['kind = "document-type"', 'schema_version = 1', 'name = "mirai-x"', 'role = "x"', 'prompt = "prompts/developer.md"', ''].join('\n') });
   assert.match(registryProblems(wrongKind), /kind must be one of: agent/);
 });
 

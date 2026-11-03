@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
+import { STEP_DEFAULTS } from '../config/defaults.js';
 import { sha256 } from '../install/lock.js';
 
 // The launch bundle (unit 11; D-12, R2-M12): MIRAI's skills and agents for one tool, rendered
@@ -26,9 +27,13 @@ export function buildBundle(registry, { models, renderAgent }) {
     }
   }
   for (const def of Object.values(registry.agents)) {
-    const model = models[def.default_tier];
+    // The tier of its role's step (unit 21a; D-14): the file's model is a default, and every
+    // launch picks its own (unit 19b's pickTier).
+    const step = registry.roles[def.role].step;
+    const tier = Object.hasOwn(models.steps ?? {}, step) ? models.steps[step] : STEP_DEFAULTS[step];
+    const model = models[tier];
     if (typeof model !== 'string' || !MODEL.test(model)) {
-      throw new MiraiError(`[models] ${def.default_tier} is not a model name MIRAI can write into ${def.name}'s file`, EXIT.CONFIG);
+      throw new MiraiError(`[models] ${tier} (the ${step} step's tier) is not a model name MIRAI can write into ${def.name}'s file`, EXIT.CONFIG);
     }
     const prompt = readFileSync(join(registry.dir, def.prompt));
     files.push({ path: `agents/${def.name}.md`, bytes: renderAgent(def, prompt, model), from: [registry.agentFiles[def.name], def.prompt, 'config'] });
