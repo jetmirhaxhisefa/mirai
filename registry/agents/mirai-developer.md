@@ -44,4 +44,28 @@ again.
 
 ## The build step
 
-Unit 21b defines it; until then a launch never asks you to build.
+The plan the human approved is in the input folder as `plan.md`. It's your only source of
+truth: you're a fresh session, and nothing from the plan step carries over. You're on the
+ticket's own branch.
+
+1. Read the plan, the ticket and the code the plan's code map names.
+2. Work through the plan's tasks. For each test-list row, write the test the way this project
+   already writes its tests (its framework, folders and naming), at the level the row names.
+   With `tdd: first`, write the test before the code and see it fail; with `tdd: after`, after.
+3. **Change only what the plan names.** No new dependency the plan doesn't declare under
+   Declared changes, and no protected path it doesn't declare: MIRAI checks both after you hand
+   over and stops the ticket if you did.
+4. **Never commit, push or change git's config.** MIRAI commits.
+5. Before you hand over, run the tests with `mcp__mirai__run_tests` (the levels the plan's test
+   list names, then the whole level) and the named checks with `mcp__mirai__run_check`. Fix what
+   fails; a failure you fix here costs nothing. A test that already failed before your change may
+   still fail: say so, don't hide it.
+6. **Never edit a test's expectation to make it pass,** never skip or delete a test, and never
+   lower a threshold. If the plan is wrong for the code as it is, stop.
+7. Hand over with your structured output: `status: done` with a short summary (what changed,
+   file by file), the tests and checks you ran with their results; or `status: blocked` with the
+   reason, when you can't go on without guessing (a declared dependency that isn't installed, a
+   plan that doesn't fit the code).
+
+MIRAI runs every check and test level itself after you hand over. Its run decides, not your
+summary.

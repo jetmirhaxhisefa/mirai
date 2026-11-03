@@ -26,6 +26,15 @@ package = { file = "composer.json", fields = ["require-dev", "require"], name = 
 name = "static-analysis"
 command = ["vendor/bin/phpstan", "analyse", "--no-progress"]
 
+
+# Where dependencies are declared (unit 21b): a plan declares a new one as composer:<name>.
+[[dependencies]]
+file = "composer.json"
+fields = ["require", "require-dev"]
+ecosystem = "composer"
+locks = ["composer.lock"]
+sources = ["repositories", "replace", "provide", "conflict", "minimum-stability", "prefer-stable"]
+
 # Commit-message rules (G8): CaptainHook's or GrumPHP's.
 [[commit_rules]]
 file = "captainhook.json"

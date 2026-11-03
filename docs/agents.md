@@ -40,7 +40,7 @@ A launch may run an agent under its own role or under a read-only one. That's ho
 Kai's role is `author`. Kai does two jobs, one per step:
 
 - **Plan** (unit 21a): launched as `planner`, so it can't change anything. It reads the ticket and the code, and returns a plan.
-- **Build** (unit 21b): launched as `author`, from the plan you approved.
+- **Build** (unit 21b): launched as `author`, from the plan you approved (see below).
 
 ## The input folder
 
@@ -89,6 +89,66 @@ Automatic approval is unit 28's. Until then, every plan waits for you.
 - **Rejected:** the line, with your reason. The ticket goes back to `ready-for-dev`, and that counts as its one re-plan. A rejection by you also uses up the orchestrator's one re-plan (loop rule L4), so a later repeat parks the ticket. You can always reject again. Each new plan is one round on (round 2, 3, …): every plan you rejected and the orchestrator's re-plan count. A plan launch cut short doesn't.
 
 **An edit after approval is caught.** Change the frozen block, the declared changes or a key field, and the approval no longer verifies. The build (unit 21b) refuses the plan until you approve it again. The sections Kai keeps up during the build (code map, tasks, logs) may change.
+
+## The build step: `mirai build <ticket>`
+
+The ticket must be `in-progress`, with a plan whose approval verifies as it is now. The build uses exactly the text that was verified. The ticket on the integration branch must still be the file you approved.
+
+1. **The checks:** your usage, the loop guard (a build session isn't a round), and every launch check from unit 19.
+2. **The branch.** The build runs on the ticket's own branch, named by `[git] branch_pattern` (`feature/{ticket}-{slug}`, with the slug from the ticket's title). MIRAI makes it from the integration branch's commit and switches your clean checkout to it. An existing branch is used only while it has no commits of its own, since nothing commits before unit 22.
+3. **The launch:**
+   - Kai runs as `author`, on the `build` step's tier: `standard`, one up for a high-risk ticket or size `L`.
+   - It gets at most 150 turns and 60 minutes.
+   - Its inputs are `plan.md`, the ticket, the project's conventions and `index.json`. The plan is its only source of truth.
+4. **Kai's own gate.** Kai runs the tests and checks through MIRAI's server before it hands over, and fixes what fails. That costs no round.
+5. **The handover** comes from the run's structured output only: `done` with a summary, or `blocked` with the reason. A file Kai writes is never it.
+6. **MIRAI's checks, in order.** Each stops the ticket with the reason and leaves the files as they are:
+   1. **The launch's own checks:** `.git`, processes, the token, and the `author` role's scope.
+   2. **A path that runs by itself** (hooks, MIRAI's own files) **parks the ticket** (`scope`), declared or not (D-15).
+   3. **Protected paths:** one the plan didn't declare needs you. A manifest whose only change is declared dependencies (it's otherwise exactly as it was) counts as declared, so a planned `npm:left-pad` doesn't trip node's protected `package.json`. **Its lock file never counts:** the plan declares `package-lock.json` or `composer.lock` as a protected path, so a rewritten lock is always seen.
+   4. **Dependencies:** the manifests are stack data (`[[dependencies]]` in `registry/stacks/`: `package.json` for npm, `composer.json` for composer). These need you:
+      - a name added or a spec changed (a version, a URL, an alias) that the plan didn't declare as `<ecosystem>:<name>`;
+      - any change to the keys that say where dependencies come from (`overrides`, composer's `repositories`);
+      - any change to the scripts the named checks run (a `lint` script turned into `true` checks nothing);
+      - a manifest MIRAI can't read.
+   5. **A stack with no dependency data:** a changed marker (`pyproject.toml`, `go.mod`, `Cargo.toml`, `Gemfile`) needs you. Its dependencies can't be checked yet, and MIRAI says so rather than passing it.
+   6. **Deleted files:** a file deleted that the plan's code map doesn't mark `remove` needs you.
+   7. **MIRAI's own test run:** every named check and test level, through the test executor, on the work tree as Kai left it, judged against your baseline for the branch's base commit (`docs/test-baseline.md`). Nothing new may break, and:
+      - **with no baseline, it's `unknown`, never green, even when every run passed;**
+      - a baseline that doesn't verify stops the build;
+      - a level that ran fewer tests, or skipped more, than at baseline is `unknown`. This guards against a deleted or skipped test until unit 23's floor guard;
+      - a run that can't be judged (Docker down, a timeout) is `unknown`.
+
+      These runs are recorded as `by: build`, never signed. A signed gate result tests a commit, which comes with units 22 and 25.
+7. **The outcome:**
+   - **All green:** the ticket moves to `in-review`. The changes stay uncommitted on the branch.
+   - **A new failure:** the ticket stays `in-progress` (21c's fix round).
+   - **Blocked, or stopped for you:** the ticket stays `in-progress`, with the reason.
+   - **Parked:** the ticket is `blocked`, `scope`. Look, then `mirai unpark`.
+
+   **Every outcome after the launch** is kept in `<store>/tickets/<ticket>/build.json`: the outcome, the reason, the handover, MIRAI's checks and a fingerprint of the tree.
+
+**After `needs-you` because of the environment** (no baseline, Docker down, a timeout): fix that outside the tree, then run `mirai build <ticket> --recheck`. It runs MIRAI's checks again, with no agent, and only on exactly the tree the build left. It checks, in order:
+- the same branch and commit;
+- the same approved plan;
+- no file git is told to look past;
+- the same fingerprint, which covers file contents, modes, and ignored files under protected paths.
+
+A tree you changed is refused before anything runs.
+
+**What a recheck can't fix:**
+- **A baseline that can never compare a level.** A level with no test adapter that already fails (the sample app's `unit` before its adapter lines) gives `no-ids`, so every build needs you there. Commit the levels' `adapter = "…"` lines on the integration branch, then record its baseline. The build's own base commit needs that baseline, so start the ticket again from the new commit.
+- **Your baseline refreshing by itself** at the start of a run (D-45) isn't built yet.
+- **A flaky test isn't re-run** yet (design/01 §8).
+
+**After `handed-over`, until unit 22:** the changes are uncommitted, so any other ticket's build refuses the dirty tree. Look at the diff yourself (`git diff` on the ticket branch). Don't commit by hand: a branch with commits of its own is refused by the next build.
+
+**Installing a dependency isn't built yet.** Agents have no network in the sandbox. If the plan declares a dependency that isn't installed, Kai stops `blocked`. To go on:
+1. add the dependency to the manifest yourself, on the integration branch, and commit it;
+2. record the baseline for that commit (`mirai baseline`);
+3. start the ticket again: `mirai unpark` or a re-plan, then `mirai build`.
+
+This contradicts D-48 ("installed from the integration branch's manifests"), which can't hold a dependency that's new. That's recorded as open.
 
 ## What isn't proven yet
 

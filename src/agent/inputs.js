@@ -70,7 +70,9 @@ export function ticketAcs(ticket) {
 // { inputs: { name: text }, index, ticket: { id, path, fm, text, bytes }, commit }. `config`: the trust
 // root's; `store`: where sibling plans are; `template`: the plan template's text.
 // `approved(id)`: whether a sibling's plan carries your approval; only those are given.
-export function planInputs({ root, env, commit, ticketId, config, store, template, limits = INPUT_LIMITS, approved = () => false }) {
+// `plan` (unit 21b, the build): the approved plan's verified text. Then the inputs are the plan,
+// the sole source of truth (design/01 §7), the ticket and the conventions only.
+export function planInputs({ root, env, commit, ticketId, config, store, template = '', limits = INPUT_LIMITS, approved = () => false, plan = null }) {
   const docsRoot = config.docs?.root ?? 'docs/mirai';
   const docs = documentsAt(root, commit, docsRoot, env);
   const byId = (id) => docs.filter((d) => d.fm && sameKey(d.fm.id, id));
@@ -88,8 +90,9 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
     for (let i = 2; wanted.some((w) => w.name === n); i++) n = name.replace(/\.md$/, `-${i}.md`);
     wanted.push({ name: n, path, why, text });
   };
+  if (plan !== null) want('plan.md', `store: tickets/${ticket.fm.id}/plan.md`, 'the approved plan: the sole source of truth', plan);
   want('ticket.md', ticket.path, 'the ticket', ticket.text);
-  want('plan-template.md', 'MIRAI: templates/plan.md', 'the plan template to fill', template);
+  if (plan === null) want('plan-template.md', 'MIRAI: templates/plan.md', 'the plan template to fill', template);
   const missing = [];
   const fm = ticket.fm;
   for (const key of ['epic', 'governed_by', 'covers_fr', 'covers_ac']) {
@@ -98,17 +101,18 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
     for (const b of bad) missing.push({ id: String(b).slice(0, 80), why: `the ticket's ${key} holds something that isn't an id` });
   }
   const epicId = typeof fm.epic === 'string' && DOC_ID.test(fm.epic) ? fm.epic : null;
-  if (epicId) {
+  const forPlan = plan === null;
+  if (forPlan && epicId) {
     const epic = byId(epicId)[0];
     if (epic) want('epic.md', epic.path, `its epic, ${epicId}`, epic.text);
     else missing.push({ id: epicId, why: 'its epic is not on the integration branch' });
   }
-  for (const adr of ids(fm.governed_by).filter((x) => DOC_ID.test(x))) {
+  for (const adr of forPlan ? ids(fm.governed_by).filter((x) => DOC_ID.test(x)) : []) {
     const d = byId(adr)[0];
     if (d) want(fileName('adr', adr), d.path, `governed_by ${adr}`, d.text);
     else missing.push({ id: adr, why: 'governed_by names a document that is not on the integration branch' });
   }
-  for (const ref of [...ids(fm.covers_fr).filter((x) => DOC_ID.test(x)), ...ids(fm.covers_ac).filter((x) => AC_ID.test(x))]) {
+  for (const ref of forPlan ? [...ids(fm.covers_fr).filter((x) => DOC_ID.test(x)), ...ids(fm.covers_ac).filter((x) => AC_ID.test(x))] : []) {
     const word = new RegExp(`(^|[^A-Za-z0-9-])${escapeRe(ref)}($|[^A-Za-z0-9])`);
     const d = docs.find((x) => x !== ticket && x.fm && !TICKET_TYPES.includes(x.fm.type) && x.fm.type !== 'plan' && word.test(x.text));
     if (d) want(fileName('doc', d.fm.id ?? d.path), d.path, `defines ${ref}`, d.text);
@@ -122,7 +126,7 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
       if (bytes) want(fileName('conventions', name.replace(/\.md$/, '')), name, 'the project\'s conventions', bytes.toString('utf8'));
     }
   }
-  if (epicId) {
+  if (forPlan && epicId) {
     // Only ids that are store folder names (an id comes from a document, not from MIRAI), and only
     // plans you approved: a rejected or parked one is no example.
     const siblings = docs.filter((d) => d !== ticket && d.fm && TICKET_TYPES.includes(d.fm.type) && sameKey(d.fm.epic, epicId) && TICKET_ID.test(d.fm.id ?? '')).map((d) => d.fm.id).sort();
@@ -146,7 +150,7 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
   for (const w of wanted) {
     const size = Buffer.byteLength(w.text);
     if (given.length + 1 >= limits.files || bytes + size + reserve > limits.bytes) {
-      if (w.name === 'ticket.md' || w.name === 'plan-template.md') throw fail(`the ticket's inputs are larger than a launch takes (${limits.bytes / 1024 / 1024} MiB)`, 'inputs-too-large');
+      if (['ticket.md', 'plan-template.md', 'plan.md'].includes(w.name)) throw fail(`the ticket's inputs are larger than a launch takes (${limits.bytes / 1024 / 1024} MiB)`, 'inputs-too-large');
       leftOut.push({ path: w.path, why: `over the input cap (${limits.files} files, ${limits.bytes / 1024 / 1024} MiB)`, bytes: size });
       continue;
     }

@@ -188,10 +188,10 @@ export function lintPlan(text, { registry, config, ticket }) {
 // callers only, the ways a launch is stopped (signals, time limits) and the hooks the tests and
 // the CLI's own test io use (the binary, the red-team status, the init check); never its role,
 // agent, inputs, prompt or token (LAUNCH_OPTIONS). `launch` is for the tests.
-const LAUNCH_OPTIONS = ['signal', 'hardSignal', 'claude', 'status', 'check', 'timeoutMs', 'initDeadlineMs'];
+export const LAUNCH_OPTIONS = ['signal', 'hardSignal', 'claude', 'status', 'check', 'timeoutMs', 'initDeadlineMs'];
 
 // The ticket's last approval in the journal (unit 06), and how many times you rejected its plan.
-function ticketRecord(store, ticket, keys) {
+export function ticketRecord(store, ticket, keys) {
   const { events } = readJournal(store, { keys });
   const mine = events.filter((e) => e.type === 'approval' && sameKey(e.item, ticket));
   const approved = mine.filter((e) => e.kind === 'ticket' && e.decision !== 'rejected').at(-1) ?? null;

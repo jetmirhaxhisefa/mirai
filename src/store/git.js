@@ -438,6 +438,23 @@ export function cloneTo(root, dest, branch, env) {
   if (!r.ok) throw new StoreError(`git clone of ${branch} failed`, { code: 'git-failed' });
 }
 
+// Switches the checkout to `branch` at commit `start` (unit 21b, a ticket's branch): created
+// there, or moved there when the caller has checked it holds no commits of its own. Pinned as every
+// call, so no hook runs. Throws when git refuses (a change in the tree it would overwrite).
+export const BRANCH_NAME = /^(?!.*\.\.)(?!.*\/\/)(?!.*\.lock(?:\/|$))(?!.*\/$)[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$/;
+export function switchBranch(root, branch, start, env) {
+  if (!BRANCH_NAME.test(branch)) throw new StoreError(`${JSON.stringify(branch.slice(0, 60))} isn't a branch name MIRAI uses`, { code: 'bad-branch' });
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(start)) throw new StoreError('not a commit id', { code: 'bad-branch' });
+  const r = git(root, ['switch', '--quiet', '--no-guess', '-C', branch, start], env);
+  if (!r.ok) throw new StoreError(`git couldn't switch to ${branch}`, { code: 'git-failed' });
+}
+
+// The number of commits reachable from `to` and not from `from`, or null.
+export function commitsBetween(root, from, to, env) {
+  const r = git(root, ['rev-list', '--count', `${from}..${to}`], env);
+  return r.ok && /^\d+$/.test(r.out) ? Number(r.out) : null;
+}
+
 // The best common ancestor of two commits, or null (unit 12: a change is measured from where its
 // branch left the base, so later commits on the base don't count as the branch's).
 export function mergeBase(root, a, b, env) {

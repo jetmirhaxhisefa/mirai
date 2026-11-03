@@ -678,6 +678,25 @@ const STACK = {
         },
       },
     },
+    // Where a stack's dependencies are declared (unit 21b; R3-C2): a JSON manifest, the keys whose
+    // objects name one dependency each, and the ecosystem a plan declares them under
+    // (`<ecosystem>:<name>`). `locks`: the lock files a change to them is named beside.
+    dependencies: {
+      type: 'array',
+      items: {
+        type: 'table',
+        fields: {
+          file: JSON_NAME,
+          fields: { type: 'array', minItems: 1, items: JSON_KEY },
+          ecosystem: { type: 'string', pattern: /^[a-z][a-z0-9-]{0,31}$/, patternHint: 'an ecosystem such as "npm"' },
+          locks: { type: 'array', items: FILE_NAME },
+          // Keys that change where dependencies come from (overrides, repositories): any change is
+          // a dependency change (21b review).
+          sources: { type: 'array', items: JSON_KEY },
+        },
+        required: ['file', 'fields', 'ecosystem'],
+      },
+    },
     // Files that hold a commit-message rule (for G8), with an optional word the file must contain.
     commit_rules: {
       type: 'array',

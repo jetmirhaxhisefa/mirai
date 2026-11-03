@@ -85,7 +85,8 @@ export const RUN_EVENTS = Object.freeze({
     tests: { type: 'table', fields: { passed: count, failed: count, skipped: count }, required: ['passed', 'failed', 'skipped'] },
     named: {
       type: 'array',
-      items: { type: 'table', fields: { name, result: { type: 'enum', values: ['pass', 'fail', 'skip'] } }, required: ['name', 'result'] },
+      // `unknown` (unit 21b): a run that can't be judged against the baseline (none, an environment fault).
+      items: { type: 'table', fields: { name, result: { type: 'enum', values: ['pass', 'fail', 'skip', 'unknown'] } }, required: ['name', 'result'] },
       uniqueBy: 'name',
     },
   },
@@ -121,6 +122,8 @@ export const RUN_EVENTS = Object.freeze({
 const OPTIONAL = {
   finding: ['symbol', 'line', 'basis_ref', 'downgraded'],
   session_ended: ['note'],
+  // What tdd resolved to is unit 23's to record (its red check); until then MIRAI can't tell.
+  checks: ['tdd_applied'],
   agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'agent', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };
 // Rules across fields, per event.

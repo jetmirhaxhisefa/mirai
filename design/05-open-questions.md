@@ -157,6 +157,20 @@ They were raised in `research/04` §6:
   and `mirai clean` (unit 69, Q9). Structured metrics data is kept, but it's small and never
   loaded by agents.
 
+- **A new dependency has no way in yet (from unit 21b's review).** D-48 says the orchestrator
+  installs "from the integration branch's manifests", which can't hold a dependency a plan adds.
+  Agents have no network. Until a broker verb installs a declared dependency, you add it on the
+  integration branch yourself and record its baseline (`docs/agents.md`). Which unit owns the
+  verb is open.
+- **A level that can never be compared (from unit 21b's R2).** A level with no test adapter that
+  already fails at baseline (`no-ids`) can't tell a new failure from a known one, so every build
+  needs you there. `mirai baseline` and `mirai doctor` should warn about such a level. The
+  baseline isn't refreshed at the start of a run yet (D-45), and a flaky test isn't re-run
+  (design/01 §8): both matter from 21c's fix rounds on.
+- **Dependency data covers JSON manifests only (unit 21b).** npm and composer are described.
+  Python (PEP 621 lists, Poetry), Go, Cargo and Gemfile need formats beyond JSON keys, and until
+  then a changed marker of those stacks needs you rather than passing unchecked.
+
 ## G. Facts to settle by test (UNVERIFIED)
 
 Each is settled in the unit named, before anything depends on it. G6–G8 come from the follow-up
