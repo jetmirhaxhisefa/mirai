@@ -121,12 +121,55 @@ The ticket must be `in-progress`, with a plan whose approval verifies as it is n
 
       These runs are recorded as `by: build`, never signed. A signed gate result tests a commit, which comes with units 22 and 25.
 7. **The outcome:**
-   - **All green:** the ticket moves to `in-review`. The changes stay uncommitted on the branch.
+   - **All green:** the ticket moves to `in-review`, with MIRAI's commit on the branch (unit 22).
    - **A new failure:** the ticket stays `in-progress` (21c's fix round).
    - **Blocked, or stopped for you:** the ticket stays `in-progress`, with the reason.
    - **Parked:** the ticket is `blocked`, `scope`. Look, then `mirai unpark`.
 
    **Every outcome after the launch** is kept in `<store>/tickets/<ticket>/build.json`: the outcome, the reason, the handover, MIRAI's checks and a fingerprint of the tree.
+
+## MIRAI's commits (unit 22)
+
+MIRAI alone commits on its branches, with pinned git: no hook runs, nothing signs, and no git config of yours is read.
+
+- **Every commit has the trailer** (`Mirai-Ticket: <id>`, from `[git] trailer`).
+- **It credits you as author:** `[git] author_name` and `author_email` in your personal file, `~/.config/mirai/config.toml`. Without them MIRAI refuses rather than guessing.
+- **It names MIRAI as committer** (`MIRAI <mirai@localhost>`, or `[git] committer_email` there).
+- **The subject is MIRAI's own words** (`PMT-31: build from the approved plan`). Kai's summary goes in the body, cleaned.
+
+**G8:** where `mirai detect` saw your history follow Conventional Commits, the subject is `feat(PMT-31): …`. Where it found a commit-message rule MIRAI can't run (commitlint, a `commit-msg` hook), the first commit refuses until you set `[git] commit_format = "plain"` or `"conventional"` in `.mirai/config.toml`. A rule on the code host is unit 39's.
+
+**When MIRAI commits:**
+1. **A new ticket branch's first commit** is its signed record, `.mirai/records/<ticket>/branch.json` (`docs/signing.md`). The branch is then registered in the store with that commit.
+2. **A build's handover that passed the safety checks:** the launch's own checks, protected paths, dependencies and deleted files. That holds whatever the test run said. The commit records what Kai produced; `build.json` and, from unit 25, the signed proofs say whether it passed.
+3. **Never after a safety stop.** Those files stay uncommitted for you.
+
+**Right after each commit the tree must be clean.** Anything still writing to the project is refused.
+
+**An existing branch** is used only when its record verifies (the first commit after its base, unchanged since) and every commit after it is MIRAI's: the trailer and MIRAI's committer. That check is a convention, not proof: anyone can set a committer email. The proof comes from the signed records of units 25 and 26.
+
+**Checkpoints:** before every step, a ref at the commit the step starts from, `refs/mirai/checkpoints/<ticket>/<n>`, listed in `<store>/tickets/<ticket>/checkpoints.json`. The first one, the branch record's commit, is the ticket's `baseline_revision` for unit 23's red check. Refs are only ever created, never moved, and never pushed.
+
+**`mirai discard <ticket>`,** in your terminal with the ticket's key typed back, throws the last step away:
+- the branch goes back to its last checkpoint;
+- new files git sees are removed;
+- ignored files under protected paths that changed are listed, never deleted.
+
+**With uncommitted changes in the tree, it removes those only.** The step's commit stays, so a launch cut short can't make it throw away a step that was already checked. Run it again on the clean tree to go back to the checkpoint.
+
+It holds the run lock, so it never runs under a live build. It also refuses while a crashed run's leftover process may still be writing. It's refused unless the ticket is `in-progress` and you're on its branch, and only to a checkpoint in that branch's history. The ticket stays `in-progress`.
+
+**Right before each commit, MIRAI looks at the tree again.** If anything changed since its checks (a leftover process, an editor), it refuses. What's committed is exactly what was checked.
+
+**A repo's own git config can't change who MIRAI's commits name.** The identity is passed in the environment, which beats every config file, and read back after the commit. `[git] committer_email` is a project setting, so every machine, CI and the push checks agree on MIRAI's address.
+
+**A build may never touch `.mirai/records/` or `.mirai/keys/`,** declared or not: the ticket parks.
+
+**What reaches the integration branch:**
+- when a ticket's MR merges, its record (`.mirai/records/<ticket>/`) goes with it;
+- so does every MIRAI commit, failing steps included, unless the merge squashes them.
+
+Units 26 and 46 settle the push checks and the merge policy for that (`design/07`).
 
 **After `needs-you` because of the environment** (no baseline, Docker down, a timeout): fix that outside the tree, then run `mirai build <ticket> --recheck`. It runs MIRAI's checks again, with no agent, and only on exactly the tree the build left. It checks, in order:
 - the same branch and commit;
@@ -141,7 +184,7 @@ A tree you changed is refused before anything runs.
 - **Your baseline refreshing by itself** at the start of a run (D-45) isn't built yet.
 - **A flaky test isn't re-run** yet (design/01 §8).
 
-**After `handed-over`, until unit 22:** the changes are uncommitted, so any other ticket's build refuses the dirty tree. Look at the diff yourself (`git diff` on the ticket branch). Don't commit by hand: a branch with commits of its own is refused by the next build.
+**After `handed-over`:** the work is MIRAI's commit on the ticket branch (`git log -p main..` there). Don't commit on a MIRAI branch by hand: a commit MIRAI didn't make is refused by the next step. Taking a branch over is unit 46's `mirai handover`.
 
 **Installing a dependency isn't built yet.** Agents have no network in the sandbox. If the plan declares a dependency that isn't installed, Kai stops `blocked`. To go on:
 1. add the dependency to the manifest yourself, on the integration branch, and commit it;

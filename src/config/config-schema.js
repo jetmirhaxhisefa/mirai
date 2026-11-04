@@ -8,13 +8,18 @@ import { allowEntryProblem } from './git-repo-keys.js';
 // What each layer may set, as key paths. Personal settings never live in a shared repo
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
-  project: ['schema_version', 'preset', 'git.integration_branch', 'git.branch_pattern', 'git.trailer', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
+  project: ['schema_version', 'preset', 'git.integration_branch', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
-  'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'tests.max_parallel'],
+  'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel'],
 });
 
 const NAME = /^[a-z][a-z0-9-]*$/;
+// A git identity's parts: no angle brackets, newlines or control characters (they'd break the header).
+// Git strips these from both ends of a name or email (its "crud": space . , : ; " ' \ and < >), so
+// a value with one there would come back changed (unit 22 re-review): refused here instead.
+export const GIT_NAME = /^(?![\s.,:;"'\\])[^<>\u0000-\u001f\u007f]{1,100}(?<![\s.,:;"'\\])$/;
+export const GIT_EMAIL = /^(?![.,:;"'\\])[^<>\s@\u0000-\u001f\u007f]{1,64}@[^<>\s@\u0000-\u001f\u007f]{1,190}(?<![.,:;"'\\])$/;
 const NAME_HINT = 'lowercase letters, digits and "-", starting with a letter';
 
 // A git branch name (a subset of git check-ref-format): components don't start with "." or
@@ -142,6 +147,13 @@ export const CONFIG_SCHEMA = {
           },
         },
         trailer: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9-]*$/, patternHint: 'a single word such as "Mirai-Ticket"' },
+        // The subject format of MIRAI's commits (unit 22, G8): set it once where the project has a
+        // commit-message rule MIRAI can't run.
+        commit_format: { type: 'enum', values: ['plain', 'conventional'] },
+        // Who MIRAI's commits credit (unit 22): you, from your personal global file; MIRAI commits.
+        author_name: { type: 'string', pattern: GIT_NAME, patternHint: 'your name, as in your commits' },
+        author_email: { type: 'string', pattern: GIT_EMAIL, patternHint: 'an email such as "you@example.com"' },
+        committer_email: { type: 'string', pattern: GIT_EMAIL, patternHint: 'an email such as "mirai@example.com"' },
         // Repo config keys you trust on this machine beyond MIRAI's known ones (unit 14b;
         // src/config/git-repo-keys.js). Personal global file only.
         allow_repo_config: {

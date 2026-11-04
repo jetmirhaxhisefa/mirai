@@ -575,6 +575,14 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - Only Claude Code supports fail-closed hooks.
   - So tool hooks can't be the gate.
 
+- **Update (unit 22):**
+  - **Records:** `.mirai/records/<ticket>/branch.json` is each MIRAI branch's first commit, signed (`mirai/branch-record/1`). It counts only where it sits: the first commit after its base, so it can't be replayed onto another branch of the same name. A build that touches `.mirai/records/` or `.mirai/keys/` parks, declared or not.
+  - **Commit points** go beyond design/01 §7's "after each green step": MIRAI commits every handover that passed the safety checks, whatever the tests said, so the next step starts from a clean tree. A safety stop is never committed. Whether a step passed is in `build.json`, and from unit 25 in the proofs.
+  - **For unit 26:** once records and MIRAI commits are merged into the integration branch, `pushScope`'s signals must count only `merge-base..head` and a record that branch itself adds for itself. Otherwise every human branch reads as MIRAI's.
+  - **For units 25 and 54:** leave `.mirai/records/**` out of the normalized-patch hash, and decide whether a record alone makes a MIRAI MR high-risk.
+  - **For units 46 and 54:** the merge policy. Squash, keeping the trailer, keeps failing intermediate steps off the integration branch.
+  - **For D2 (stacking):** `rebase --onto` rewrites commits. Re-register the child (its new creation commit) and pin MIRAI's committer on the rebase.
+
 ### D-16 · Review and QA proofs are bound to the code change
 
 - **Context:**

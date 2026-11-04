@@ -68,9 +68,11 @@ function pinnedNoRepo(args, opts) {
 }
 
 // One pinned call on the checkout `root` (its top folder).
-function pinned(root, args, env, opts) {
+// `opts.identity`: GIT_AUTHOR_*/GIT_COMMITTER_* for a commit (unit 22): the environment beats every
+// config file, the repo's [committer] and [author] sections included.
+function pinned(root, args, env, { identity = null, ...opts } = {}) {
   const { path: excludesFile } = excludesFor(env, root, gitBinary);
-  return exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...args], pinEnv({ top: root }), opts);
+  return exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...args], { ...pinEnv({ top: root }), ...(identity ?? {}) }, opts);
 }
 
 // The repo check for `root`: the shape on every call (a few lstats), the config and LFS check
@@ -442,10 +444,12 @@ export function cloneTo(root, dest, branch, env) {
 // there, or moved there when the caller has checked it holds no commits of its own. Pinned as every
 // call, so no hook runs. Throws when git refuses (a change in the tree it would overwrite).
 export const BRANCH_NAME = /^(?!.*\.\.)(?!.*\/\/)(?!.*\.lock(?:\/|$))(?!.*\/$)[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$/;
+// With `start` null, it switches to the existing branch as it is (unit 22: a MIRAI branch with
+// MIRAI's commits on it).
 export function switchBranch(root, branch, start, env) {
   if (!BRANCH_NAME.test(branch)) throw new StoreError(`${JSON.stringify(branch.slice(0, 60))} isn't a branch name MIRAI uses`, { code: 'bad-branch' });
-  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(start)) throw new StoreError('not a commit id', { code: 'bad-branch' });
-  const r = git(root, ['switch', '--quiet', '--no-guess', '-C', branch, start], env);
+  if (start !== null && !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(start)) throw new StoreError('not a commit id', { code: 'bad-branch' });
+  const r = git(root, ['switch', '--quiet', '--no-guess', ...(start === null ? [branch] : ['-C', branch, start])], env);
   if (!r.ok) throw new StoreError(`git couldn't switch to ${branch}`, { code: 'git-failed' });
 }
 
@@ -453,6 +457,64 @@ export function switchBranch(root, branch, start, env) {
 export function commitsBetween(root, from, to, env) {
   const r = git(root, ['rev-list', '--count', `${from}..${to}`], env);
   return r.ok && /^\d+$/.test(r.out) ? Number(r.out) : null;
+}
+
+// MIRAI's commits (unit 22): everything git sees (tracked and new, never ignored) staged and
+// committed in one step, pinned as every call (no hook, no signing program, no user config).
+// `author` and `committer`: { name, email }, checked by the caller; `message`: the whole message.
+// Returns the new commit's id. Throws when git refuses (nothing to commit is refused too).
+export function commitAll(root, env, { message, author, committer }) {
+  // A nested repo is refused before anything is staged (14b: `add` would read its config).
+  if (lsFiles(root, ['.'], env) === null) throw new StoreError('git couldn\'t list the project\'s files', { code: 'git-failed' });
+  const add = git(root, ['add', '--all', '--', '.'], env, { timeout: 120_000 });
+  if (!add.ok) throw new StoreError('git couldn\'t stage the changes', { code: 'git-failed' });
+  const identity = { GIT_AUTHOR_NAME: author.name, GIT_AUTHOR_EMAIL: author.email, GIT_COMMITTER_NAME: committer.name, GIT_COMMITTER_EMAIL: committer.email };
+  const r = git(root, ['commit', '--quiet', '--no-verify', '--no-edit', '--cleanup=verbatim', '--file=-'], env, { input: message, timeout: 120_000, identity });
+  if (!r.ok) throw new StoreError('git couldn\'t make the commit', { code: 'git-failed' });
+  const sha = commitOf(root, 'HEAD', env);
+  if (!sha) throw new StoreError('the commit has no id', { code: 'git-failed' });
+  // Read back: what git wrote must be what MIRAI asked for (unit 22 review: no config may override it).
+  const back = git(root, ['log', '-1', '--no-show-signature', '--format=%an%x00%ae%x00%cn%x00%ce', sha], env);
+  const [an, ae, cn, ce] = back.ok ? back.out.split('\0') : [];
+  if (an !== author.name || ae !== author.email || cn !== committer.name || ce !== committer.email) throw new StoreError(`the commit ${sha.slice(0, 12)} doesn't carry the identity MIRAI gave it`, { code: 'identity-changed' });
+  return sha;
+}
+
+// Sets `ref` (under refs/mirai/) to commit `sha`; with `create`, only if it doesn't exist yet.
+export function setRef(root, ref, sha, env, { create = false } = {}) {
+  if (!/^refs\/mirai\/[A-Za-z0-9._/-]{1,200}$/.test(ref) || ref.includes('..')) throw new StoreError('not a MIRAI ref', { code: 'bad-ref' });
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) throw new StoreError('not a commit id', { code: 'bad-ref' });
+  const r = git(root, ['update-ref', ref, sha, ...(create ? ['0'.repeat(sha.length)] : [])], env);
+  if (!r.ok) throw new StoreError(`git couldn't set ${ref}`, { code: 'git-failed' });
+}
+
+// Puts the checkout back at commit `sha` (unit 22's discard): tracked files reset, and new files
+// git sees removed. Ignored files are never touched.
+export function resetTo(root, sha, env) {
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) throw new StoreError('not a commit id', { code: 'bad-ref' });
+  const reset = git(root, ['reset', '--quiet', '--hard', sha], env, { timeout: 120_000 });
+  if (!reset.ok) throw new StoreError('git couldn\'t reset the tree', { code: 'git-failed' });
+  const clean = git(root, ['clean', '--quiet', '--force', '-d', '--', '.'], env, { timeout: 120_000 });
+  if (!clean.ok) throw new StoreError('git couldn\'t remove the new files', { code: 'git-failed' });
+}
+
+// The commits on `to` and not on `from`: [{ sha, committerEmail, message }], newest first, at most `max`.
+export function commitsSince(root, from, to, env, { max = 500 } = {}) {
+  const r = git(root, ['log', `--max-count=${max}`, '--no-show-signature', '--format=%H%x00%ce%x00%B%x01', `${from}..${to}`], env, { maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) return null;
+  return r.out.split('\x01').map((x) => x.replace(/^\n/, '')).filter(Boolean).map((x) => {
+    const [sha, committerEmail, message] = x.split('\0');
+    return { sha, committerEmail, message: message ?? '' };
+  });
+}
+
+// Commit ids of `range` (such as "base..ref"), oldest first with `reverse`, at most `max` of them
+// (taken after the reversal: git applies --max-count before --reverse), or null.
+export function revList(root, range, env, { reverse = false, max = 10_000, firstParent = false } = {}) {
+  const r = git(root, ['rev-list', ...(firstParent ? ['--first-parent'] : []), range], env, { maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) return null;
+  const ids = r.out.split('\n').filter((x) => /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(x));
+  return (reverse ? ids.reverse() : ids).slice(0, max);
 }
 
 // The best common ancestor of two commits, or null (unit 12: a change is measured from where its

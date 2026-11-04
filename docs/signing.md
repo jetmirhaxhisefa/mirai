@@ -42,6 +42,10 @@ The signing context is `mirai/plan-approval/1:<repo-id>`, its own, so a plan app
 pass for a document approval (`mirai/approval/1:<repo-id>`) or a journal line. An edit to any
 signed part needs a new approval. The code map, the tasks and the logs may change.
 
+## Branch records (unit 22)
+
+Every ticket branch MIRAI makes starts with a commit of `.mirai/records/<ticket>/branch.json` (D-15): the ticket, the branch, the commit it started from and when. It's signed with your key, under its own context, `mirai/branch-record/1:<repo-id>`. So CI and the pre-push hook (unit 26) can see the branch is MIRAI's even without the store. `mirai branch verify [<branch>]` checks it with the integration branch's public keys, as CI will. Records are signed from your terminal only. Night runs need a machine key, which is row 29b's.
+
 ## When a key changes
 
 - **Rotate:** `mirai key new --replace`, then `mirai key revoke <old id>`. Commit both files by

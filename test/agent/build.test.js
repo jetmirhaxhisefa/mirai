@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { join } from 'node:path';
 
 import { runBuild, handoverFrom, testsAfter, HANDOVER_SCHEMA } from '../../src/agent/build.js';
-import { ensureBranch, ticketSlug } from '../../src/agent/branch.js';
+import { prepareBranch, ticketSlug } from '../../src/agent/branch.js';
 import { newDependencies } from '../../src/agent/deps.js';
 import { planPath, runPlan } from '../../src/agent/plan.js';
 import { mintLaunchToken } from '../../src/agent/requests.js';
@@ -71,6 +71,8 @@ async function ready({ plan = PLAN, files = FILES, baseline = true } = {}) {
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
   writeToken(f.env, TOKEN);
+  // Your name and email, which MIRAI's commits credit (unit 22).
+  writeFileSync(join(f.home, '.config', 'mirai', 'config.toml'), 'schema_version = 1\n[git]\nauthor_name = "Test Author"\nauthor_email = "author@example.com"\n', { mode: 0o600 });
   f.git('add', '-A');
   f.git('commit', '-qm', 'key');
   const io = { cwd: f.root, env: f.env };
@@ -105,23 +107,30 @@ test('T1: mirai build refuses a ticket not in progress, an unapproved plan, an e
   await assert.rejects(build(f, claudeWith([done])), (e) => e.code === 'not-ready');
 });
 
-test('T2: the branch: made from the integration commit and checked out; one with its own commits, or a dirty tree, is refused', async () => {
+test('T2: the branch: made from the integration commit with its record, then reused; a dirty tree or a branch MIRAI didn\'t make is refused', async () => {
   assert.equal(ticketSlug(TICKET), 'renaming-a-team-hides-its-members');
   assert.equal(ticketSlug('---\nid: x\n---\n# Ça marche: déjà vu!\n'), 'ca-marche-deja-vu');
   const f = await ready();
   const trust = snapshot({ cwd: f.root, env: f.env });
-  const opts = { root: f.store.checkout, env: f.store.gitEnv, base: trust.baseSha, integration: 'main', pattern: 'feature/{ticket}-{slug}', ticket: 'PMT-31', ticketText: TICKET };
+  const config = (await import('../../src/trust/snapshot.js')).trustedConfig(trust);
+  const signer = loadSigner(f.env, f.store);
+  const opts = { store: f.store, env: f.env, trust, config, keys: signer.keys, signer: () => signer, ticket: 'PMT-31', ticketText: TICKET };
   writeFileSync(join(f.root, 'app/Team.php'), '<?php // mine\n');
-  assert.throws(() => ensureBranch(opts), (e) => e.code === 'dirty-tree');
+  assert.throws(() => prepareBranch(opts), (e) => e.code === 'dirty-tree');
   f.git('checkout', '--', 'app/Team.php');
-  assert.deepEqual(ensureBranch(opts), { branch: 'feature/PMT-31-renaming-a-team-hides-its-members', created: true });
-  assert.equal(symbolicBranch(f.store.checkout, 'HEAD', f.store.gitEnv), 'feature/PMT-31-renaming-a-team-hides-its-members');
-  assert.deepEqual(ensureBranch(opts), { branch: 'feature/PMT-31-renaming-a-team-hides-its-members', created: false });
+  const made = prepareBranch(opts);
+  assert.equal(made.branch, 'feature/PMT-31-renaming-a-team-hides-its-members');
+  assert.equal(made.created, true);
+  assert.equal(made.base, trust.baseSha);
+  assert.equal(symbolicBranch(f.store.checkout, 'HEAD', f.store.gitEnv), made.branch);
+  const again = prepareBranch(opts);
+  assert.deepEqual([again.created, again.head], [false, made.head]);
+  // A commit MIRAI didn't make: refused.
   writeFileSync(join(f.root, 'app/Team.php'), '<?php // a commit of its own\n');
   f.git('commit', '-qam', 'own');
   f.git('checkout', '-q', 'main');
-  assert.throws(() => ensureBranch(opts), (e) => e.code === 'branch-has-commits');
-  assert.throws(() => ensureBranch({ ...opts, pattern: '{ticket}..x' }), (e) => e.code === 'bad-branch');
+  assert.throws(() => prepareBranch(opts), (e) => e.code === 'branch-not-mirai');
+  assert.throws(() => prepareBranch({ ...opts, config: { ...config, git: { ...config.git, branch_pattern: '{ticket}..x' } } }), (e) => e.code === 'bad-branch');
 });
 
 test('T3: the handover is the structured output only; blocked stays in-progress with its reason; a handover file is ignored', async () => {
@@ -224,7 +233,9 @@ test('T5: MIRAI\'s own test run decides: green moves to in-review, a new failure
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-progress');
   const kept = JSON.parse(readFileSync(join(f.store.dir, 'tickets', 'PMT-31', 'build.json'), 'utf8'));
   assert.equal(kept.tests.verdict, 'fail');
-  assert.ok(workTreeChanges(f.root, f.store.gitEnv).length > 0, 'the changes stay for you');
+  // Past the safety checks: committed by MIRAI (unit 22), so the next step starts from a clean tree.
+  assert.deepEqual(workTreeChanges(f.root, f.store.gitEnv), []);
+  assert.match(kept.commit, /^[0-9a-f]{40}$/);
   const g = await ready();
   const down = await build(g, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: async () => { throw Object.assign(new Error('Docker isn\'t running'), { code: 'no-docker' }); } });
   assert.equal(down.outcome, 'needs-you');
@@ -363,4 +374,213 @@ test('review: a deleted file the code map doesn\'t remove stops; --recheck runs 
 
   const { branchName } = await import('../../src/agent/branch.js');
   assert.throws(() => branchName('develop', 'PMT-31', 'x'), (e) => e.code === 'bad-branch');
+});
+
+// Unit 22: MIRAI's commits, checkpoints, the branch record, discard.
+const git = (f, ...a) => f.git(...a);
+const docker = async () => { throw Object.assign(new Error('Docker isn\'t running'), { code: 'no-docker' }); };
+const failingFeature = async ({ name }) => (name === 'feature' ? { outcome: 'fail', failing: [{ id: 'tests/B.php::b' }], failing_total: 1, tests: { total: 3, failed: 1, skipped: 0 } } : passing({ name }));
+
+test('22 T1 + T2: the commit points; every commit has the trailer, MIRAI as committer, you as author, no hook run, a clean tree after', async () => {
+  const f = await ready();
+  const marker = join(realpathSync(tempDir('hook')), 'ran');
+  writeFileSync(join(f.root, '.git/hooks/commit-msg'), `#!/bin/sh\ntouch ${marker}\n`, { mode: 0o755 });
+  const r = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']));
+  assert.equal(r.outcome, 'handed-over');
+  assert.match(r.commit, /^[0-9a-f]{40}$/);
+  const log = git(f, 'log', '--format=%an <%ae>|%cn <%ce>|%s', 'main..HEAD').split('\n');
+  assert.deepEqual(log, ['Test Author <author@example.com>|MIRAI <mirai@localhost>|PMT-31: build from the approved plan', 'Test Author <author@example.com>|MIRAI <mirai@localhost>|PMT-31: branch record']);
+  const body = git(f, 'log', '-1', '--format=%B');
+  assert.match(body, /Changed app\/Team\.php\./, 'Kai\'s summary in the body');
+  assert.match(body, /\n\nMirai-Ticket: PMT-31\n?$/);
+  assert.equal(existsSync(marker), false, 'no hook ran');
+  assert.deepEqual(workTreeChanges(f.root, f.store.gitEnv), []);
+  // Failing tests: still committed (past the safety checks).
+  const g = await ready();
+  const failed = await build(g, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: failingFeature });
+  assert.equal(failed.outcome, 'checks-failed');
+  assert.match(failed.commit, /^[0-9a-f]{40}$/);
+  assert.deepEqual(workTreeChanges(g.root, g.store.gitEnv), []);
+  // A safety stop: never committed; the files stay.
+  const h = await ready();
+  const stop = await build(h, claudeWith([done], ['mkdir -p .github/workflows; echo "on: push" > .github/workflows/ci.yml']));
+  assert.equal(stop.outcome, 'needs-you');
+  assert.equal(stop.commit, undefined);
+  assert.equal(git(h, 'log', '-1', '--format=%s'), 'PMT-31: branch record');
+  assert.ok(workTreeChanges(h.root, h.store.gitEnv).length > 0);
+  // No author set: refused before anything, never guessed.
+  const i = await ready();
+  writeFileSync(join(i.home, '.config', 'mirai', 'config.toml'), 'schema_version = 1\n', { mode: 0o600 });
+  await assert.rejects(build(i, claudeWith([done])), (e) => e.code === 'no-author');
+});
+
+test('22 T3 + T4: checkpoints before each step, the first never moved; the branch record verifies and is registered', async () => {
+  const f = await ready();
+  const first = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: failingFeature });
+  assert.equal(first.outcome, 'checks-failed');
+  const recordCommit = git(f, 'rev-list', '--max-count=1', 'HEAD~1');
+  assert.equal(git(f, 'rev-parse', 'refs/mirai/checkpoints/PMT-31/1'), recordCommit);
+  // The ticket is still in progress, on a clean tree at MIRAI's commit: another build step starts from it.
+  const second = await build(f, claudeWith([done], ['echo "// y" >> app/Team.php']));
+  assert.equal(second.outcome, 'handed-over');
+  assert.equal(git(f, 'rev-parse', 'refs/mirai/checkpoints/PMT-31/1'), recordCommit, 'never moved');
+  assert.equal(git(f, 'rev-parse', 'refs/mirai/checkpoints/PMT-31/2'), first.commit);
+  const { checkpoints, baselineRevision } = await import('../../src/agent/checkpoints.js');
+  assert.deepEqual(checkpoints(f.store, 'PMT-31').map((c) => [c.n, c.step, c.sha]), [[1, 'build', recordCommit], [2, 'build', first.commit]]);
+  assert.equal(baselineRevision(f.store, 'PMT-31'), recordCommit);
+  // The record: verifies; registered with its commit; an edited one fails.
+  const io = { cwd: f.root, env: f.env };
+  const v = await tty(['branch', 'verify'], io, []);
+  assert.equal(v.code, EXIT.OK, v.err);
+  assert.match(v.out, /MIRAI's branch for PMT-31/);
+  const { lookupBranch } = await import('../../src/store/branches.js');
+  assert.equal(lookupBranch(f.store, first.branch)[0].creation_sha, recordCommit);
+  const rec = '.mirai/records/PMT-31/branch.json';
+  writeFileSync(join(f.root, rec), readFileSync(join(f.root, rec), 'utf8').replace('"2026', '"2025'));
+  git(f, 'commit', '-qam', 'edited record');
+  assert.equal((await tty(['branch', 'verify'], io, [])).code, EXIT.FAILURE);
+});
+
+test('22 T5: discard needs a terminal and the typed key; resets to the last checkpoint, removes new files, refuses another branch', async () => {
+  const f = await ready();
+  await build(f, claudeWith([done], ['echo "// x" >> app/Team.php; echo new > app/New.php']), { testRun: failingFeature });
+  const io = { cwd: f.root, env: f.env };
+  let out = '';
+  const stdin = Readable.from([]);
+  stdin.isTTY = false;
+  assert.equal(await main(['discard', 'PMT-31'], { stdin, stdout: { isTTY: false, write: (t) => (out += t) }, stderr: { write: () => {} }, env: f.env, cwd: f.root }), EXIT.NEEDS_HUMAN);
+  assert.equal((await tty(['discard', 'PMT-31'], io, ['PMT-99'])).code, EXIT.FAILURE, 'a wrong key cancels');
+  // With uncommitted changes, a discard takes those only; the committed step stays.
+  const stepCommit = git(f, 'rev-parse', 'HEAD');
+  writeFileSync(join(f.root, 'app/Stray.php'), 'stray\n');
+  const first = await tty(['discard', 'PMT-31'], io, ['PMT-31']);
+  assert.equal(first.code, EXIT.OK, first.err);
+  assert.equal(git(f, 'rev-parse', 'HEAD'), stepCommit);
+  assert.equal(existsSync(join(f.root, 'app/Stray.php')), false);
+  assert.equal(existsSync(join(f.root, 'app/New.php')), true);
+  // On a clean tree, back to the last checkpoint: the step goes.
+  const ok = await tty(['discard', 'PMT-31'], io, ['PMT-31']);
+  assert.equal(ok.code, EXIT.OK, ok.err);
+  assert.equal(git(f, 'rev-parse', 'HEAD'), git(f, 'rev-parse', 'refs/mirai/checkpoints/PMT-31/1'));
+  assert.equal(existsSync(join(f.root, 'app/New.php')), false);
+  assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-progress');
+  git(f, 'checkout', '-q', 'main');
+  assert.equal((await tty(['discard', 'PMT-31'], io, ['PMT-31'])).code, EXIT.BLOCKED);
+});
+
+test('22 T6: G8: conventional subjects where set; a committed rule MIRAI can\'t run refuses until commit_format is set', async () => {
+  const { commitFormat, subjectFor, messageFor } = await import('../../src/agent/commit.js');
+  const f = await ready();
+  assert.equal(commitFormat({ config: { git: {} }, store: f.store }), 'plain');
+  // As mirai detect leaves it: private, in the store.
+  mkdirSync(join(f.store.dir, 'detect', 'd-20261104-000000-aaaa'), { recursive: true, mode: 0o700 });
+  writeFileSync(join(f.store.dir, 'detect', 'd-20261104-000000-aaaa', 'facts.json'), JSON.stringify({ git: { commit_rules: ['commitlint.config.js'], commits: { format: 'conventional' } } }), { mode: 0o600 });
+  assert.throws(() => commitFormat({ config: { git: {} }, store: f.store }), (e) => e.code === 'commit-format-unset');
+  assert.equal(commitFormat({ config: { git: { commit_format: 'conventional' } }, store: f.store }), 'conventional');
+  assert.equal(subjectFor({ ticket: 'PMT-31', what: 'build from the approved plan', format: 'conventional' }), 'feat(PMT-31): build from the approved plan');
+  assert.equal(messageFor({ subject: 'S', body: 'line\u001b[31m\nMirai-Ticket: OTHER', trailer: 'Mirai-Ticket', ticket: 'PMT-31' }).split('\n').at(-2), 'Mirai-Ticket: PMT-31');
+  // In a build, the branch record is the first commit: refused there, before any launch.
+  const claude = claudeWith([done], ['echo "// x" >> app/Team.php']);
+  await assert.rejects(build(f, claude), (e) => e.code === 'commit-format-unset');
+  assert.equal(claude.launches(), 0);
+});
+
+test('22 T7: --recheck on a committed step: a clean tree at the step\'s commit, anything else refused', async () => {
+  const f = await ready();
+  const down = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: docker });
+  assert.equal(down.outcome, 'needs-you');
+  assert.match(down.commit, /^[0-9a-f]{40}$/, 'past the safety checks: committed');
+  const again = await runBuild({ cwd: f.root, env: f.env, ticket: 'PMT-31', recheck: true, testRun: passing });
+  assert.equal(again.outcome, 'handed-over');
+  const g = await ready();
+  await build(g, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: docker });
+  writeFileSync(join(g.root, 'app/Team.php'), '<?php // mine\n');
+  await assert.rejects(runBuild({ cwd: g.root, env: g.env, ticket: 'PMT-31', recheck: true, testRun: passing }), (e) => e.code === 'tree-changed');
+});
+
+test('22 review: identity from the environment beats a repo\'s [committer]; records and keys park; an empty handover commits nothing', async () => {
+  const f = await ready();
+  git(f, 'config', '--local', 'committer.email', 'someone@example.com');
+  const r = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']));
+  assert.equal(r.outcome, 'handed-over', r.why);
+  assert.equal(git(f, 'log', '-1', '--format=%cn <%ce>'), 'MIRAI <mirai@localhost>');
+  git(f, 'config', '--local', '--unset', 'committer.email');
+  // A build that touches MIRAI's records parks, declared or not.
+  const g = await ready({ plan: PLAN.replace('| none | | |', '| protected-path | .mirai/records/PMT-31/branch.json | no |') });
+  const rec = await build(g, claudeWith([done], ['echo "{}" > .mirai/records/PMT-31/branch.json']));
+  assert.equal(rec.outcome, 'parked');
+  assert.match(rec.why, /MIRAI's records or keys/);
+  // A handover that changed nothing: no commit, no crash.
+  const h = await ready();
+  const none = await build(h, claudeWith([done]));
+  assert.equal(none.outcome, 'handed-over');
+  assert.equal(none.commit, null);
+});
+
+test('22 review: a record counts only as the first commit after its base; a crash before registration is taken over; numbering survives a stale ref', async () => {
+  const f = await ready();
+  const trust = snapshot({ cwd: f.root, env: f.env });
+  const config = (await import('../../src/trust/snapshot.js')).trustedConfig(trust);
+  const signer = loadSigner(f.env, f.store);
+  const opts = { store: f.store, env: f.env, trust, config, keys: signer.keys, signer: () => signer, ticket: 'PMT-31', ticketText: TICKET };
+  // A stale checkpoint ref already there: the next number is past it.
+  git(f, 'update-ref', 'refs/mirai/checkpoints/PMT-31/1', trust.baseSha);
+  const made = prepareBranch(opts);
+  const { addCheckpoint } = await import('../../src/agent/checkpoints.js');
+  assert.equal(addCheckpoint(f.store, 'PMT-31', { step: 'build', sha: made.head, creationSha: made.creationSha }).n, 2);
+  // The registry lost the entry (a crash between commit and registration): taken over.
+  writeFileSync(join(f.store.dir, 'branches.json'), `${JSON.stringify({ schema_version: 1, entries: [] }, null, 2)}\n`, { mode: 0o600 });
+  assert.equal(prepareBranch(opts).creationSha, made.creationSha);
+  // The record replayed onto a branch of the same name that starts with another commit: refused.
+  const rec = readFileSync(join(f.root, '.mirai/records/PMT-31/branch.json'), 'utf8');
+  git(f, 'checkout', '-q', 'main');
+  git(f, 'branch', '-D', made.branch);
+  writeFileSync(join(f.store.dir, 'branches.json'), `${JSON.stringify({ schema_version: 1, entries: [] }, null, 2)}\n`, { mode: 0o600 });
+  git(f, 'checkout', '-qb', made.branch);
+  writeFileSync(join(f.root, 'app/Team.php'), '<?php // first\n');
+  git(f, 'commit', '-qam', 'not the record');
+  mkdirSync(join(f.root, '.mirai/records/PMT-31'), { recursive: true });
+  writeFileSync(join(f.root, '.mirai/records/PMT-31/branch.json'), rec);
+  git(f, 'add', '-A');
+  git(f, 'commit', '-qm', 'the old record');
+  git(f, 'checkout', '-q', 'main');
+  assert.throws(() => prepareBranch(opts), (e) => e.code === 'branch-not-mirai' && /first commit|doesn't start/.test(e.message));
+  // Unattended: a branch that needs your signature isn't made.
+  git(f, 'branch', '-D', made.branch);
+  assert.throws(() => prepareBranch({ ...opts, unattended: true }), (e) => e.code === 'needs-terminal');
+});
+
+test('22 review: discard refuses an in-review ticket', async () => {
+  const f = await ready();
+  await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']));
+  assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-review');
+  assert.equal((await tty(['discard', 'PMT-31'], { cwd: f.root, env: f.env }, ['PMT-31'])).code, EXIT.BLOCKED);
+});
+
+test('22 re-review: a change between the checks and the commit refuses it; a taken-over branch with foreign commits isn\'t registered; a name git would strip is refused', async () => {
+  // Something writes into the project while MIRAI's tests run (they run on a copy): the commit refuses.
+  const f = await ready();
+  const writer = async (o) => {
+    writeFileSync(join(f.root, 'app/Late.php'), 'late\n');
+    return passing(o);
+  };
+  await assert.rejects(build(f, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: writer }), (e) => e.code === 'changed-before-commit');
+  assert.equal(JSON.parse(readFileSync(join(f.store.dir, 'tickets', 'PMT-31', 'build.json'), 'utf8')).outcome, 'error');
+
+  const g = await ready();
+  const trust = snapshot({ cwd: g.root, env: g.env });
+  const config = (await import('../../src/trust/snapshot.js')).trustedConfig(trust);
+  const signer = loadSigner(g.env, g.store);
+  const opts = { store: g.store, env: g.env, trust, config, keys: signer.keys, signer: () => signer, ticket: 'PMT-31', ticketText: TICKET };
+  const made = prepareBranch(opts);
+  writeFileSync(join(g.root, 'app/Team.php'), '<?php // someone else\n');
+  git(g, 'commit', '-qam', 'someone else');
+  writeFileSync(join(g.store.dir, 'branches.json'), `${JSON.stringify({ schema_version: 1, entries: [] }, null, 2)}\n`, { mode: 0o600 });
+  assert.throws(() => prepareBranch(opts), (e) => e.code === 'branch-not-mirai');
+  const { lookupBranch } = await import('../../src/store/branches.js');
+  assert.deepEqual(lookupBranch(g.store, made.branch), [], 'not registered by the refused takeover');
+
+  const h = await ready();
+  writeFileSync(join(h.home, '.config', 'mirai', 'config.toml'), 'schema_version = 1\n[git]\nauthor_name = "Jet Jr."\nauthor_email = "author@example.com"\n', { mode: 0o600 });
+  await assert.rejects(build(h, claudeWith([done])), (e) => e.code === 'no-author');
 });

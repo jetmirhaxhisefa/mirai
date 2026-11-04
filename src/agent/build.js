@@ -25,7 +25,10 @@ import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
 import { runTest } from '../tests/run.js';
 import { changeOf, classify, ignoredFingerprint, protectionRules } from '../trust/protected.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
-import { ensureBranch } from './branch.js';
+import { prepareBranch } from './branch.js';
+import { addCheckpoint } from './checkpoints.js';
+import { commitStep } from './commit.js';
+import { loadSigner } from '../sign/signer.js';
 import { newDependencies } from './deps.js';
 import { planInputs } from './inputs.js';
 import { AGENT, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
@@ -153,16 +156,19 @@ const removes = (rows, p) => rows.some((r) => r === p || (r.endsWith('/') && p.s
 // why, protectedPaths, dependencies, tests, fingerprint, park? }.
 // The tree a build left: its changes (unit 12) and their fingerprint. A recheck compares the
 // fingerprint before running anything.
-export function observe({ store, branchBase, rules, ignoredBefore }) {
-  const change = changeOf({ root: store.checkout, env: store.gitEnv, base: branchBase, rules, ignoredBefore });
+// `base`: the step's checkpoint (unit 22), so only this step's work is measured.
+export function observe({ store, base, rules, ignoredBefore }) {
+  const change = changeOf({ root: store.checkout, env: store.gitEnv, base, rules, ignoredBefore });
   const ignored = ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules });
   return { change, fingerprint: treeFingerprint(store.checkout, store.gitEnv, change.changes, ignored) };
 }
 
-async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, rules, ignoredBefore, tests, testRun, signal, seen = null }) {
+// `stepBase`: the step's checkpoint, what its changes are measured from; `branchBase`: the commit the
+// branch started from, whose baseline judges the test run.
+async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, seen = null }) {
   const declared = declaredChanges(plan);
-  const { change, fingerprint } = seen ?? observe({ store, branchBase, rules, ignoredBefore });
-  const deps = newDependencies({ root: store.checkout, env: store.gitEnv, base: branchBase, changed: change.changes, stacks: registry.stacks, declared: declared.filter((d) => d.kind === 'dependency').map((d) => d.item) });
+  const { change, fingerprint } = seen ?? observe({ store, base: stepBase, rules, ignoredBefore });
+  const deps = newDependencies({ root: store.checkout, env: store.gitEnv, base: stepBase, changed: change.changes, stacks: registry.stacks, declared: declared.filter((d) => d.kind === 'dependency').map((d) => d.item) });
   // A manifest whose every change is a declared dependency is declared as a protected path too,
   // with its lock files (21b review: node's and php's packs protect them).
   const paths = classify({ change, rules, declared: [...declared.filter((d) => d.kind === 'protected-path').map((d) => d.item), ...deps.covered], actor: BUILD_ROLE });
@@ -175,10 +181,14 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
       lstatSync(join(store.checkout, p));
       return false;
     } catch {
-      return (lsTree(store.checkout, branchBase, p, store.gitEnv) ?? []).some((e) => e.path === p);
+      return (lsTree(store.checkout, stepBase, p, store.gitEnv) ?? []).some((e) => e.path === p);
     }
   }).filter((p) => !removes(removable, p));
   const base = { protectedPaths, dependencies: deps, fingerprint, tests: null };
+  // MIRAI's records and your keys are never a build's to change, declared or not (D-17): a record
+  // rewritten by an agent would be committed as MIRAI's (unit 22 review).
+  const own = change.changes.filter((p) => /^\.mirai\/(records|keys)(\/|$)/.test(p));
+  if (own.length) return { ...base, outcome: 'parked', park: true, why: `it changed MIRAI's records or keys: ${own.slice(0, 10).join(', ')}` };
   // A path that runs by itself parks the ticket, declared or not (D-15).
   if (paths.autoRun.length) return { ...base, outcome: 'parked', park: true, why: `it changed paths that run by themselves: ${paths.autoRun.slice(0, 10).join(', ')}` };
   const stops = [];
@@ -197,6 +207,8 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
     if (err.code !== 'baseline-invalid') throw err;
     return { ...base, outcome: 'needs-you', why: `${err.message}: it may have been changed; record it again (mirai baseline --force)` };
   }
+  // Past every safety check: what's left is the test run's word (unit 22 commits from here on).
+  base.safe = true;
   if (t.verdict === 'fail') return { ...base, tests: t, outcome: 'checks-failed', why: t.runs.filter((x) => x.verdict === 'fail').map((x) => `${x.name}: ${x.why}`).join('; ') };
   if (t.verdict === 'unknown') return { ...base, tests: t, outcome: 'needs-you', why: [t.why, ...t.runs.filter((x) => x.verdict === 'unknown').map((x) => `${x.name}: ${x.why}`)].filter(Boolean).join('; ') };
   return { ...base, tests: t, outcome: 'handed-over' };
@@ -259,9 +271,14 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
     if (recheck) return await recheckBuild({ cwd, env, store, ticket, keys, plan, trust, config, registry, rules, tests, testRun, watch, now, tookOver });
     const risk = fm.risk === 'high' ? 'high' : 'normal';
     const size = given.ticket.fm.size === 'L' ? 'L' : null;
-    // The commit the branch starts from: the integration commit until stacking (D2) gives a parent.
-    const branchBase = trust.baseSha;
-    const { branch } = ensureBranch({ root: store.checkout, env: store.gitEnv, base: branchBase, integration: trust.branch, pattern: config.git?.branch_pattern, ticket, ticketText: given.ticket.text });
+    // The ticket's branch (unit 22): made with its signed record and registered, or an existing
+    // MIRAI branch as it is. Its base is the integration commit until stacking (D2) gives a parent.
+    const prep = prepareBranch({ store, env, trust, config, keys, signer: () => loadSigner(env, store), unattended, ticket, ticketText: given.ticket.text, now });
+    const { branch } = prep;
+    const branchBase = prep.base;
+    // The step's start: its checkpoint, once the launch has run (a refused one adds none, so a
+    // discard can still throw the last real step away: unit 22 review).
+    const stepBase = prep.head;
     // Ignored files under protected paths as they are right before the launch (unit 12's change).
     const ignoredBefore = ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules });
     const result = { ticket, branch, outcome: null, why: null, handover: null, launch: null, protectedPaths: null, dependencies: null, tests: null, warn: usage.warn ?? null, tookOver };
@@ -281,8 +298,9 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
         throw err;
       }
       settleLaunch(store, ticket, { launch: guard.launch, outcome: r.outcome, refundable: r.refundable, line: r.line });
+      addCheckpoint(store, ticket, { step: 'build', sha: stepBase, creationSha: prep.creationSha, now });
       result.launch = { id: r.launchId, outcome: r.outcome, why: r.why, line: r.line };
-      const record = (extra) => keepBuild(store, ticket, { branch, head: commitOf(store.checkout, 'HEAD', store.gitEnv), base: branchBase, launch: r.launchId, plan_sha256: contentHash(Buffer.from(plan)), at: now().toISOString(), ignored_before: ignoredBefore, ...extra });
+      const record = (extra) => keepBuild(store, ticket, { branch, head: commitOf(store.checkout, 'HEAD', store.gitEnv), base: branchBase, step_base: stepBase, creation_sha: prep.creationSha, launch: r.launchId, plan_sha256: contentHash(Buffer.from(plan)), at: now().toISOString(), ignored_before: ignoredBefore, ...extra });
       if (r.outcome !== 'ok') {
         record({ outcome: r.outcome, why: r.why });
         return { ...result, outcome: r.outcome, why: r.why };
@@ -300,12 +318,28 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
       }
       let checked;
       try {
-        checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null });
+        checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null });
+        // Past the safety checks, whatever the tests said: MIRAI commits what Kai produced, so the
+        // next step starts from a clean tree (unit 22, open point 3). A safety stop never is.
+        if (checked.safe) {
+          // What's committed is exactly what passed the checks: the tree looked at again right
+          // before, and the ignored files right after (unit 22 review).
+          const checkedPrint = checked.fingerprint;
+          checked.commit = commitStep({
+            store, env, config, ticket, what: 'build from the approved plan', body: handover.summary,
+            before: () => {
+              if (observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint !== checkedPrint) throw fail('the tree changed between MIRAI\'s checks and its commit: something else is writing to the project', 'changed-before-commit', EXIT.BLOCKED, 'look for a process still working in the project, then build again');
+            },
+            ignored: () => ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules }),
+          });
+          checked.checked_fingerprint = checkedPrint;
+          checked.fingerprint = observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint;
+        }
       } catch (err) {
         // Kept, so --recheck has the build to work from (its fingerprint, taken again).
         let fingerprint = null;
         try {
-          fingerprint = observe({ store, branchBase, rules, ignoredBefore }).fingerprint;
+          fingerprint = observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint;
         } catch {
           fingerprint = null;
         }
@@ -313,10 +347,10 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
         throw err;
       }
       if (checked.tests) writeChecks(store, runId, ticket, { fm, t: checked.tests });
-      record({ outcome: checked.outcome, why: checked.why ?? null, handover, fingerprint: checked.fingerprint, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
+      record({ outcome: checked.outcome, why: checked.why ?? null, handover, commit: checked.commit ?? null, checked_fingerprint: checked.checked_fingerprint ?? null, fingerprint: checked.fingerprint, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
       settleTicket(store, ticket, checked);
       if (checked.outcome === 'handed-over') endState = 'finished';
-      return { ...result, ...checked, park: undefined, fingerprint: undefined };
+      return { ...result, ...checked, park: undefined, fingerprint: undefined, checked_fingerprint: undefined, safe: undefined };
     } finally {
       const run = readRunState(store);
       if (run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
@@ -325,7 +359,8 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
 }
 
 // `mirai build <ticket> --recheck`: no agent. The tree must be exactly what the last build left:
-// the same branch, HEAD and fingerprint, so nothing but Kai's work is judged.
+// the same branch, HEAD (the step's commit, unit 22, when it was committed) and fingerprint, so
+// nothing but Kai's work is judged.
 async function recheckBuild({ cwd, env, store, ticket, keys, plan, trust, config, registry, rules, tests, testRun, watch, now, tookOver }) {
   let last;
   try {
@@ -339,12 +374,26 @@ async function recheckBuild({ cwd, env, store, ticket, keys, plan, trust, config
   // The plan Kai built from, and nothing git is told to look past (as every launch: 19b).
   if (last.plan_sha256 !== contentHash(Buffer.from(plan))) throw fail(`${ticket}'s approved plan changed since its build; a recheck judges only what Kai built from`, 'plan-changed', EXIT.BLOCKED, `build it again: mirai build ${ticket}`);
   checkNothingHidden(store.checkout, store.gitEnv);
-  const seen = observe({ store, branchBase: last.base, rules, ignoredBefore: last.ignored_before ?? null });
+  const seen = observe({ store, base: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null });
   if (seen.fingerprint !== last.fingerprint) throw fail(`the tree changed since ${ticket}'s build; only Kai's work is checked again`, 'tree-changed', EXIT.BLOCKED, 'put it back as the build left it, or start the ticket again');
-  const checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase: last.base, rules, ignoredBefore: last.ignored_before ?? null, tests, testRun, signal: watch.signal ?? null, seen });
-  keepBuild(store, ticket, { ...last, rechecked_at: now().toISOString(), outcome: checked.outcome, why: checked.why ?? null, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
+  const checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase: last.base, stepBase: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null, tests, testRun, signal: watch.signal ?? null, seen });
+  // A tree that wasn't committed (stopped before the safety checks passed, under older rules) and
+  // passes them now is committed here, so the next step starts from a clean tree.
+  let commit = last.commit ?? null;
+  let fingerprint = last.fingerprint;
+  if (!commit && checked.safe) {
+    commit = commitStep({
+      store, env, config, ticket, what: 'build from the approved plan', body: last.handover?.summary ?? '',
+      before: () => {
+        if (observe({ store, base: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null }).fingerprint !== seen.fingerprint) throw fail('the tree changed between MIRAI\'s checks and its commit', 'changed-before-commit', EXIT.BLOCKED);
+      },
+      ignored: () => ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules }),
+    });
+    fingerprint = observe({ store, base: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null }).fingerprint;
+  }
+  keepBuild(store, ticket, { ...last, rechecked_at: now().toISOString(), outcome: checked.outcome, why: checked.why ?? null, commit, fingerprint, head: commitOf(store.checkout, 'HEAD', store.gitEnv), protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
   settleTicket(store, ticket, checked);
-  return { ticket, branch, outcome: checked.outcome, why: checked.why ?? null, handover: last.handover ?? null, launch: null, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests, warn: null, tookOver, rechecked: true };
+  return { ticket, branch, outcome: checked.outcome, why: checked.why ?? null, handover: last.handover ?? null, commit, launch: null, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests, warn: null, tookOver, rechecked: true };
 }
 
 // The run log's checks line (05b): MIRAI's own run, one result per level and check.
