@@ -45,7 +45,7 @@ export default {
       if (r.dependencies?.added?.length || r.dependencies?.changedSpecs?.length) io.stdout.write(`  dependencies added or changed (declared): ${[...r.dependencies.added, ...r.dependencies.changedSpecs].map((d) => plain(d.dependency)).join(', ')}\n`);
       for (const t of r.tests?.runs ?? []) io.stdout.write(`  ${t.name}: ${t.verdict}${t.why ? ` (${plain(t.why)})` : ''}${t.fresh.length ? `; new: ${t.fresh.slice(0, 10).map(plain).join(', ')}` : ''}\n`);
       io.stdout.write(`\nbuild of ${ticket}: ${r.outcome}${r.why ? `: ${plain(r.why)}` : ''}\n`);
-      if (r.outcome === 'handed-over') io.stdout.write(`  the ticket is in-review; the changes are uncommitted on ${r.branch} (commits are unit 22): git diff\n`);
+      if (r.outcome === 'handed-over') io.stdout.write(`  the ticket is in-review; ${r.commit ? `MIRAI committed the work on ${r.branch} (${String(r.commit).slice(0, 12)})` : `nothing changed on ${r.branch}`}: git log main..\n`);
       else if (r.launch?.outcome === 'ok' || r.rechecked) io.stdout.write(`  the changes are left as they are on ${r.branch} for you to look at: git status\n  once you've fixed what stopped it outside the tree (a baseline, Docker): mirai build ${ticket} --recheck\n`);
       return BUILD_EXIT[r.outcome] ?? OUTCOME_EXIT[r.outcome] ?? EXIT.FAILURE;
     } finally {
