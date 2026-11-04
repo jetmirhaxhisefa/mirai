@@ -925,7 +925,7 @@ mirai agent run --role <role> --prompt-file <file> [--step <step>] [--risk high]
 In your terminal, in this checkout, using your subscription. Skills will reach it through MIRAI's server later (unit 19c). Which model runs, and what each role may change, is in `docs/model-tiers.md` (unit 19b): a change outside the role refuses the run.
 
 **It refuses to start unless:**
-- the red team is **green** for that template, on exactly what's installed now. Any change (Claude Code, MIRAI, Docker, your project's rule files) makes the result stale, and you run it again;
+- the red team is **green** for that template, on exactly what's installed now. Any change to what it covers (Claude Code, MIRAI's cage, Docker, your project's rule files and test setup) makes the result stale, and you run it again (MIRAI outside the cage doesn't: unit 18f);
 - a **blocker** ever seen on this Claude Code and macOS has your decision: a later green doesn't clear one by itself. Read it (`mirai redteam show <key>`), and if you accept it, `mirai redteam accept-blocker <key> --note <why>`, signed;
 - your **tree is clean**, so what the agent changes in tracked and new files shows in `git status` (ignored files don't);
 - no other MIRAI run is going, in any project; and the trust root still hashes as it should.

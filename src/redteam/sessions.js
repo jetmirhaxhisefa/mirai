@@ -36,7 +36,9 @@ export async function sessionKeyParts({ env, store, trust, claude = null }) {
   const c = resolveClaude(env, claude);
   return {
     claude_code: { version: c.version, sha256: await binaryHash(join(store.dir, 'redteam'), c.real) },
-    framework: frameworkHash(trust),
+    // All of MIRAI, not just the cage (18f's spec: the sessions suite is unchanged; your sessions
+    // use code outside the cage, such as `mirai session-server`).
+    framework: frameworkHash(trust, { all: true }),
     rules: rulesHash(store, trust),
     macos: macos(),
     node: process.version,

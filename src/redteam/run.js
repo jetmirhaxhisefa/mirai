@@ -19,7 +19,7 @@ import { containsToken, MAX_TURNS, madeTheCall, parseStream, promptFor, redact, 
 import { runInGroup } from '../agent/process.js';
 import { guardProbe } from './guard.js';
 import { cleanupOutside, hostBaseline, hostCanaries, sweepStale } from './host.js';
-import { keyOf, keyParts, resolveClaude, templateNames } from './key.js';
+import { frameworkHash, keyOf, keyParts, resolveClaude, templateNames } from './key.js';
 import { baselineCheck, binaryCheck, builtinsCheck, floorCheck } from './static.js';
 import { RESULT_FOLDER, RESULT_SCHEMA_VERSION, statusFor, writeResult } from './store.js';
 import { buildWorkspace, CONTEXT_CANARIES, lateEscapes, removeWorkspace, resetWorker, sweepLeftovers } from './workspace.js';
@@ -433,6 +433,8 @@ export async function runRedTeam({
       schema_version: RESULT_SCHEMA_VERSION,
       key: keyOf(parts),
       parts,
+      // Every framework file's hash, outside the key (unit 18f): status names a change outside the cage.
+      framework_all: frameworkHash(trust, { all: true }),
       state: stateOf({ cases: results, checks: allChecks, stopped }),
       created_at: now().toISOString(),
       mirai_version: RUNNING_VERSION,

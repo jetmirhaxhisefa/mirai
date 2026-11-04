@@ -9,6 +9,7 @@ import { trustedAdapters } from '../tests/adapters.js';
 import { checkDockerRunning, dockerCall, dockerSetup } from '../tests/docker.js';
 import { canonicalSha256 } from '../launch/strict.js';
 import { trustedConfig, trustedFile, trustedStrict } from '../trust/snapshot.js';
+import { cageOf } from './cage.js';
 import { findClaude } from './claude.js';
 import { hostFacts, macos } from './host.js';
 import { projectRuleFiles } from './workspace.js';
@@ -18,8 +19,9 @@ import { projectRuleFiles } from './workspace.js';
 // any change makes the result `stale`:
 // - Claude Code: its version and the binary's sha256 (the binary `claude` on PATH resolves to);
 // - the bundle: each strict template's canonical hash (13b; with 15a's MCP field and flags);
-// - MIRAI's code that runs outside the sandbox: the trust root's `.mirai/framework/` files (the
-//   hook, the MCP server, the launcher), as listed in its manifest;
+// - MIRAI's cage: the trust root's `.mirai/framework/` files that decide what an agent can do (the
+//   hook, the MCP server, the launcher, the launch, …), computed from their imports (unit 18f,
+//   src/redteam/cage.js), as listed in its manifest;
 // - Docker's engine version (`unavailable` when Docker Desktop isn't running or installed), git's
 //   (the pinned /usr/bin/git), the macOS build, and Node's version (the hook and the MCP server run
 //   on it);
@@ -98,11 +100,29 @@ export function templateNames(trust) {
   return (trust.manifest?.files ?? []).map((f) => /^strict\/([a-z0-9][a-z0-9._-]{0,127})\.json$/.exec(f.path)?.[1]).filter(Boolean).sort();
 }
 
-// The hash of the trust root's framework files, from its manifest (already verified).
-export function frameworkHash(trust) {
-  const files = (trust.manifest?.files ?? []).filter((f) => f.path.startsWith('tree/.mirai/framework/')).map((f) => `${f.sha256}  ${f.path}`).sort();
-  if (!files.length) throw new StoreError('the trust root has no MIRAI framework files', { code: 'no-framework', hint: 'run: mirai init --refresh, and commit it' });
-  return sha256(`${files.join('\n')}\n`);
+// The hash of the trust root's framework files, from its manifest (already verified). By default
+// the cage's only (unit 18f: src/redteam/cage.js, the roots and everything their code imports, read
+// from the trust root's own files), so a change to MIRAI's workflow keeps a result. `all`: every
+// framework file, kept beside a result so `status` can say MIRAI changed outside the cage.
+export function frameworkHash(trust, { all = false } = {}) {
+  const prefix = 'tree/.mirai/framework/';
+  const listed = (trust.manifest?.files ?? []).filter((f) => f.path.startsWith(prefix));
+  if (!listed.length) throw new StoreError('the trust root has no MIRAI framework files', { code: 'no-framework', hint: 'run: mirai init --refresh, and commit it' });
+  let keep = listed;
+  if (!all) {
+    // Read through the trust root's own check (each file's hash against the manifest).
+    const read = (rel) => {
+      try {
+        return trustedFile(trust, `.mirai/framework/${rel}`).toString('utf8');
+      } catch {
+        return null;
+      }
+    };
+    const cage = cageOf(listed.map((f) => f.path.slice(prefix.length)), read);
+    // A cage that can't be known is the whole copy (fails closed).
+    if (cage) keep = listed.filter((f) => cage.has(f.path.slice(prefix.length)));
+  }
+  return sha256(`${keep.map((f) => `${f.sha256}  ${f.path}`).sort().join('\n')}\n`);
 }
 
 // The hash of the project's Claude Code rule files in `checkout`: name and content hash each, or

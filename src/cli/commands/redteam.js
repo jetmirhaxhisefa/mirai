@@ -9,7 +9,7 @@ import { shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { snapshot, trustedStrict } from '../../trust/snapshot.js';
 import { caseIndex } from '../../redteam/cases.js';
-import { templateNames } from '../../redteam/key.js';
+import { frameworkHash, templateNames } from '../../redteam/key.js';
 import { DEFAULTS, redTeamStatus, runRedTeam } from '../../redteam/run.js';
 import { NEXT, partsText, report, SESSION_NEXT, sessionReport } from '../../redteam/report.js';
 import { listBlockers, listResults, readDecision, readResult, SESSIONS, writeDecision } from '../../redteam/store.js';
@@ -88,6 +88,14 @@ export default {
       const accepted = s.blocker_seen ? readDecision(openStore({ cwd: io.cwd, env: io.env }), s.blocker_seen.id) : null;
       if (s.blocker_seen && !accepted) lines.push('', `launches are refused until you decide: read it (mirai redteam show ${s.blocker_seen.id}), then mirai redteam accept-blocker ${s.blocker_seen.id} --note <why>`);
       if (s.blocker_seen && s.state !== 'blocker') lines.push('', `a red-team run on this Claude Code and macOS found a blocker (${s.blocker_seen.created_at}): V1's condition was met once; see mirai redteam show ${s.blocker_seen.key.slice(0, 12)}`);
+      // A refresh that changed MIRAI only outside the cage (unit 18f): the result still holds.
+      if (s.state === 'green' && s.result?.framework_all) {
+        try {
+          if (frameworkHash(snapshot({ cwd: io.cwd, env: io.env }), { all: true }) !== s.result.framework_all) lines.push('', 'MIRAI changed since this result, but not the cage: this result still holds (docs/red-team.md)');
+        } catch {
+          // a note only
+        }
+      }
       lines.push('', `next: ${NEXT[s.state]}`, '');
       lines.push(await sessionLine(io), '');
       io.stdout.write(lines.join('\n'));

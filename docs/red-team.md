@@ -3,8 +3,9 @@
 An agent that runs unattended runs as you, under the rules in [agent-safety.md](agent-safety.md).
 Those rules hold only as long as Claude Code, macOS, Docker, git and MIRAI itself behave the way
 they did when the rules were tested. **The red team tests them again, on this machine, against
-your project's own rules.** No unattended agent launch happens without a green result for exactly
-what's installed now (R3-M7; unit 19 enforces it).
+your project's own rules.** No unattended agent launch happens without a green result for what's
+installed now: Claude Code, the machine, your project's rules and test setup, and MIRAI's cage, the
+part of MIRAI that decides what an agent can do (R3-M7; unit 19 enforces it; unit 18f, below).
 
 ```sh
 mirai redteam run                 # run it (asks you first: it uses your Claude subscription)
@@ -16,9 +17,46 @@ mirai redteam show [<key>]        # print a stored result (the newest by default
 ## When to run it
 
 After any update to **Claude Code, macOS, Docker Desktop, git (Apple's, which updates silently
-with the Xcode tools) or Node**, after **any MIRAI update** you commit, and after a change to your
-project's own Claude Code files (`.claude/settings.json`, `.claude/settings.local.json`,
-`.mcp.json`). `mirai redteam status` tells you which of those changed since the last green result.
+with the Xcode tools) or Node**, after **a MIRAI update that changes the cage** (below), after a
+change to your project's test setup (`[compose]`, `[testing]`, `[checks]` and the compose files),
+and after a change to your project's own Claude Code files (`.claude/settings.json`,
+`.claude/settings.local.json`, `.mcp.json`). `mirai redteam status` tells you which of those changed
+since the last green result.
+
+**The cage, and the rest of MIRAI (unit 18f).** The result is keyed on the part of MIRAI whose code
+decides what an agent can do or how a launch is judged. That part is computed, not listed by hand
+(`src/redteam/cage.js`). It starts from its roots:
+- the hook, MIRAI's server for agents, the agent worker, the launcher;
+- the launch, test-container, trust-root and adapter code;
+- the launch's own checks;
+- the red team and its command.
+
+Then it adds **every file their code imports, directly or through others** (and every file or
+folder their code finds by path), and the registry data the templates, roles and agent
+definitions come from. A file any cage code can reach is in the cage, so a new import
+pulls it in by itself. A test checks that the cage is closed under imports; the one edge left out
+is named in the file, with why.
+
+The rest of MIRAI is what no cage code imports: planning, the build's own checks, commits and
+checkpoints, the loop guard's rounds, the baseline, setup detection, the CLI's other commands,
+reports and Kai's prompt. The red team exercises almost none of it: one case runs `mirai agent run`
+through the CLI, to show an agent can't, and that refusal is the launch's own. A MIRAI update that
+touches only the rest keeps your result, and `status` says "MIRAI changed since this result, but
+not the cage". If the cage can't be worked out, the whole copy is hashed instead:
+- a cage file can't be read;
+- or it uses an import MIRAI can't follow (a computed path, `createRequire`);
+- or a path names nothing.
+
+**The trade-off:** the gate's result vouches for the cage plus the pinned machine, not for all of
+MIRAI. **The key never guarded against MIRAI code that skips the gate,** before 18f or after:
+code that skips the check skips the key with it. The commands that start agents (`mirai agent
+run`, `plan`, `build`) are outside the cage, and they can pass the launch replacements for its
+checks; MIRAI's tests use that to stand in for Claude Code. Reviews guard those commands, as they
+guard every change. The build's own checks run on every build.
+
+**After updating to unit 18f, expect one stale result** (changed: framework): the key's MIRAI part
+is computed differently. Run the red team once. From then on, only a change to the cage makes it
+stale.
 
 It runs MIRAI's copy as committed on your integration branch (like `mirai approve`), since the
 result is signed for that copy.
@@ -220,7 +258,7 @@ A result holds for exactly these, and any change makes it **stale**:
 
 - **Claude Code:** its version and the binary's hash;
 - **the bundle:** each template's canonical hash (what `mirai sandbox show` prints);
-- **MIRAI's code:** every file of MIRAI's copy in your trust root (so any MIRAI update);
+- **MIRAI's cage:** the files of MIRAI's copy in your trust root that decide what an agent can do, computed from their imports (unit 18f, "The cage, and the rest of MIRAI" above). A MIRAI update outside it keeps the result;
 - **Docker's engine version** (`unavailable` when Docker Desktop isn't running), **git's version,
   the macOS build and Node's version;**
 - **your test setup** (since unit 18c): the integration branch's `[compose]` files and env file, and

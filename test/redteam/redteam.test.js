@@ -494,3 +494,82 @@ test('a template is tested when its counted cases pass: the known limits (inform
   assert.equal(templateTested([...rw, { id: 'z', outcome: 'inconclusive' }]), false);
   assert.equal(templateTested([{ id: 'only-info', outcome: 'pass', informational: true }]), false, 'no counted case: not tested');
 });
+
+test('18f T1: the cage is computed: the roots and everything their code imports; the workflow stays outside', async () => {
+  const { cageOf, importsOf, ALLOWED } = await import('../../src/redteam/cage.js');
+  const { PACKAGE_ROOT, FRAMEWORK_PARTS } = await import('../../src/install/parts.js');
+  const { filesUnder } = await import('../../src/install/lock.js');
+  const { statSync } = await import('node:fs');
+  const files = FRAMEWORK_PARTS.flatMap((part) => (statSync(join(PACKAGE_ROOT, part)).isDirectory() ? filesUnder(PACKAGE_ROOT, part) : [part]));
+  const read = (p) => {
+    try {
+      return readFileSync(join(PACKAGE_ROOT, p), 'utf8');
+    } catch {
+      return null;
+    }
+  };
+  const cage = cageOf(files, read);
+  assert.ok(files.length > 200 && cage.size > 100, `${files.length} files, ${cage.size} in the cage`);
+  // The roots, and what the reviews found them importing: the policy parser, the lock helpers, the
+  // journal an agent writes through, the lint tool's path check, the red-team command.
+  for (const p of ['bin/hook.js', 'src/launch/strict.js', 'src/mcp/server.js', 'src/agent/run.js', 'src/store/git.js', 'package.json', 'registry/adapters/claude-code.toml', 'registry/roles/author.toml',
+    'src/findings/schema.js', 'src/install/lock.js', 'src/store/journal.js', 'src/lint/lint.js', 'src/cli/commands/redteam.js', 'src/cli/errors.js', 'src/status/text.js']) assert.ok(cage.has(p), p);
+  for (const p of ['src/agent/build.js', 'src/agent/plan.js', 'src/agent/commit.js', 'src/cli/commands/build.js', 'src/loop/guard.js', 'registry/agents/mirai-developer.md', 'bin/mirai.js']) assert.ok(!cage.has(p), p);
+  // Closed under imports: every relative import from a cage file is in the cage, but the allowed edges.
+  for (const p of [...cage].filter((x) => x.endsWith('.js'))) {
+    for (const dep of importsOf(p, read(p) ?? '')) {
+      if (files.includes(dep) && !ALLOWED.some((e) => e.from === p && e.to === dep)) assert.ok(cage.has(dep), `${p} imports ${dep}`);
+    }
+  }
+  assert.deepEqual(importsOf('src/a/b.js', "import { x } from '../c/d.js';\nimport './e.js';\nconst m = await import('../../f.js');\nimport n from 'node:fs';"), ['src/c/d.js', 'src/a/e.js', 'f.js']);
+  assert.deepEqual(importsOf('src/a/b.js', "import {\n  a,\n  b,\n} from './g.js';\nexport * from './h.js';\nexport { i } from './i.js';\nconst u = new URL('../../bin/x.js', import.meta.url);"), ['src/a/g.js', 'src/a/h.js', 'src/a/i.js', 'bin/x.js']);
+  // The files cage code runs by path are in it: the hook, the MCP server, the worker, the echo server.
+  for (const p of ['bin/mcp.js', 'bin/agent-worker.js', 'src/redteam/mcp-echo.js', 'registry/agents/mirai-developer.toml']) assert.ok(cage.has(p), p);
+  // Fails closed: unknowable means null, and the key then hashes the whole copy.
+  const { cageOf: c } = await import('../../src/redteam/cage.js');
+  assert.equal(c(['bin/hook.js', 'src/q.js'], () => null), null, 'an unreadable cage file');
+  assert.equal(c(['bin/hook.js', 'src/q.js'], (p) => (p === 'bin/hook.js' ? 'const x = await import(name);' : '')), null, 'a computed import');
+  assert.equal(c(['bin/hook.js'], () => "import { createRequire } from 'node:module';"), null, 'createRequire');
+  assert.equal(c(['bin/hook.js'], () => "import './missing.js';"), null, 'a path that names nothing');
+  assert.ok(c(['bin/hook.js', 'src/u.js'], (p) => (p === 'bin/hook.js' ? "// createRequire in a comment\nconst u = new URL(text);\nimport '../src/u.js';" : '')).has('src/u.js'), 'comments and URL parsing are fine');
+});
+
+test('18f T2 + T3: a change outside the cage keeps the key; one inside, or a new import from the cage, changes it; status names a change outside the cage', async () => {
+  const { frameworkHash } = await import('../../src/redteam/key.js');
+  const { createHash } = await import('node:crypto');
+  // A trust root on disk: the cage is read from its files.
+  const dir = tempDir('trust');
+  const put = (files) => {
+    const manifest = [];
+    for (const [rel, text] of Object.entries(files)) {
+      const path = join(dir, 'tree/.mirai/framework', rel);
+      mkdirSync(join(path, '..'), { recursive: true });
+      writeFileSync(path, text);
+      manifest.push({ path: `tree/.mirai/framework/${rel}`, sha256: createHash('sha256').update(text).digest('hex') });
+    }
+    return { dir, manifest: { files: manifest } };
+  };
+  const base = { 'bin/hook.js': "import '../src/launch/hook.js';\n", 'src/launch/hook.js': "import '../util/x.js';\n", 'src/util/x.js': 'x\n', 'src/agent/build.js': 'build\n', 'src/cli/commands/build.js': 'cli\n' };
+  const h = frameworkHash(put(base));
+  assert.equal(frameworkHash(put({ ...base, 'src/agent/build.js': 'build v2\n', 'src/cli/commands/build.js': 'cli v2\n' })), h, 'workflow changes keep the key');
+  assert.notEqual(frameworkHash(put({ ...base, 'src/util/x.js': 'x v2\n' })), h, 'a file the cage imports');
+  assert.notEqual(frameworkHash(put({ ...base, 'bin/hook.js': "import '../src/launch/hook.js';\n// v2\n" })), h);
+  assert.notEqual(frameworkHash(put({ ...base, 'src/launch/hook.js': "import '../util/x.js';\nimport '../agent/build.js';\n" })), h, 'a new import pulls the file in');
+  assert.notEqual(frameworkHash(put(base), { all: true }), frameworkHash(put({ ...base, 'src/agent/build.js': 'build v3\n' }), { all: true }));
+  // Unknowable cage: the whole copy is hashed, so a workflow change makes it stale again.
+  const opaque = { ...base, 'bin/hook.js': "const m = await import(process.env.X);\n" };
+  assert.equal(frameworkHash(put(opaque)), frameworkHash(put(opaque), { all: true }));
+
+  // status, after a recorded green result whose whole-copy hash differs from now.
+  const r = repo();
+  const { launch } = fakeClaude(() => ({ text: 'ok' }));
+  const { recorded, result } = await runRedTeam(options(r, { launch, caseList: synthetic() }));
+  assert.equal(recorded, true);
+  assert.match(result.framework_all, /^[0-9a-f]{64}$/);
+  const store = openStore({ cwd: r.root, env: r.env });
+  const { signature: _s, ...unsigned } = readResult(store, result.key);
+  writeResult(store, { ...unsigned, framework_all: '0'.repeat(64) }, loadSigner(r.env, store));
+  const d = io(r, { extra: { docker: { version: '29.6.2' }, claude: r.claude } });
+  assert.equal(await main(['redteam', 'status'], d.io), EXIT.OK, d.out.stdout);
+  assert.match(d.out.stdout, /red team: green[^]*MIRAI changed since this result, but not the cage: this result still holds/);
+});
