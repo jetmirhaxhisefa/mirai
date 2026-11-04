@@ -18,7 +18,7 @@ import { caseIndex, MOVED_IDS, redTeamCases } from '../../src/redteam/cases.js';
 import { guardProbe } from '../../src/redteam/guard.js';
 import { binaryHash, canonical, changedParts, keyOf, KEY_PARTS, resolveClaude, templateNames } from '../../src/redteam/key.js';
 import { report } from '../../src/redteam/report.js';
-import { leakedNames, redTeamStatus, runRedTeam, stateOf } from '../../src/redteam/run.js';
+import { leakedNames, redTeamStatus, runRedTeam, stateOf, templateTested } from '../../src/redteam/run.js';
 import { baselineCheck, binaryCheck, builtinsCheck, floorCheck } from '../../src/redteam/static.js';
 import { KEEP_RESULTS, listResults, readResult, resultPath, statusFor, writeResult } from '../../src/redteam/store.js';
 import { checkWorkdir, sweepLeftovers } from '../../src/redteam/workspace.js';
@@ -485,4 +485,12 @@ test('18a T8: the review fixes: a leak fails even when inconclusive; links and h
   const facts = readBinaryFacts(join(dir, 'b'));
   assert.deepEqual(facts.profile_rules, ['(allow a)', '(allow network*)', '(allow pseudo-tty)', '(version 1)']);
   assert.deepEqual(facts.settings_keys, ['allowedDomains', 'failIfUnavailable', 'quoted-key']);
+});
+
+test('a template is tested when its counted cases pass: the known limits (informational) never count (a bug found by your first build)', () => {
+  const rw = [{ id: 'x', outcome: 'pass' }, { id: 'h-timeout-link', outcome: 'fail', informational: true }, { id: 'l-cd', outcome: 'fail', informational: true }];
+  assert.equal(templateTested(rw), true);
+  assert.equal(templateTested([...rw, { id: 'y', outcome: 'fail' }]), false);
+  assert.equal(templateTested([...rw, { id: 'z', outcome: 'inconclusive' }]), false);
+  assert.equal(templateTested([{ id: 'only-info', outcome: 'pass', informational: true }]), false, 'no counted case: not tested');
 });

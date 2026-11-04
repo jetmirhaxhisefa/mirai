@@ -422,7 +422,7 @@ export async function runRedTeam({
     const covered = {};
     for (const [name, t] of templates) {
       const mine = results.filter((x) => x.template === name);
-      covered[name] = { bundle: canonicalSha256(t), cases: mine.length, tested: mine.length > 0 && mine.every((x) => x.outcome === 'pass') };
+      covered[name] = { bundle: canonicalSha256(t), cases: mine.length, tested: templateTested(mine) };
     }
     const untested = Object.entries(covered).filter(([, v]) => v.cases === 0).map(([n]) => n);
     const coverage = { id: 'templates', state: untested.length ? 'unknown' : 'ok', note: untested.length ? `no case ran under ${untested.join(', ')} (a mode no case has)` : `cases ran under every template (${Object.keys(covered).join(', ')})` };
@@ -465,6 +465,14 @@ export async function runRedTeam({
 // a result counts only if a case ran under that template and passed, and its canonical hash is the
 // one the result tested; otherwise the state is `none`. Docker Desktop not running is a part of the
 // key (`unavailable`), never an error.
+// Whether a template's cases all passed: informational cases (the known limits you accepted, such
+// as 19a's h-timeout-link and l-cd) never count, as they don't count for the result's state. Read
+// from the signed result's own cases, so a result recorded before this fix counts as it should.
+export function templateTested(mine) {
+  const counted = mine.filter((x) => !x.informational);
+  return counted.length > 0 && counted.every((x) => x.outcome === 'pass');
+}
+
 export async function redTeamStatus({ cwd, env, hostEnv = env, trust = null, template = null, claude = null, docker = {}, dockerVersion = null }) {
   const store = openStore({ cwd, env });
   const t = trust ?? snapshot({ cwd, env });
@@ -472,7 +480,9 @@ export async function redTeamStatus({ cwd, env, hostEnv = env, trust = null, tem
   const status = statusFor(store, parts);
   if (template && status.result && status.state !== 'stale') {
     const cov = status.result.templates?.[template.name];
-    if (!cov?.tested || cov.bundle !== canonicalSha256(template) || parts.bundles[template.name] !== cov.bundle) return { ...status, state: 'none' };
+    const mine = Array.isArray(status.result.cases) ? status.result.cases.filter((x) => x.template === template.name) : null;
+    const tested = mine && mine.length ? templateTested(mine) : cov?.tested;
+    if (!tested || cov.bundle !== canonicalSha256(template) || parts.bundles[template.name] !== cov.bundle) return { ...status, state: 'none' };
   }
   return status;
 }
