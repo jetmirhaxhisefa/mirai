@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, readlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { MiraiError } from '../cli/errors.js';
@@ -167,7 +167,21 @@ export function observe({ store, base, rules, ignoredBefore }) {
 // branch started from, whose baseline judges the test run.
 async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, seen = null }) {
   const declared = declaredChanges(plan);
-  const { change, fingerprint } = seen ?? observe({ store, base: stepBase, rules, ignoredBefore });
+  const observed = seen ?? observe({ store, base: stepBase, rules, ignoredBefore });
+  const { fingerprint } = observed;
+  // Claude Code's own write staging (an empty `.claude/.cc-writes/`, made whenever it writes a
+  // file: 21b's walkthrough) is no change of the agent's. Only empty, and only that name directly
+  // inside a `.claude` folder: anything in it, or anything else under `.claude/`, still counts.
+  const staging = (p) => {
+    if (!/(^|\/)\.claude\/\.cc-writes$/.test(p)) return false;
+    try {
+      const st = lstatSync(join(store.checkout, p));
+      return st.isDirectory() && readdirSync(join(store.checkout, p)).length === 0;
+    } catch {
+      return false;
+    }
+  };
+  const change = { ...observed.change, changes: observed.change.changes.filter((p) => !staging(p)), ignored: new Set([...(observed.change.ignored ?? [])].filter((p) => !staging(p))) };
   const deps = newDependencies({ root: store.checkout, env: store.gitEnv, base: stepBase, changed: change.changes, stacks: registry.stacks, declared: declared.filter((d) => d.kind === 'dependency').map((d) => d.item) });
   // A manifest whose every change is a declared dependency is declared as a protected path too,
   // with its lock files (21b review: node's and php's packs protect them).

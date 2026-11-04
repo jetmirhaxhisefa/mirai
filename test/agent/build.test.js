@@ -584,3 +584,20 @@ test('22 re-review: a change between the checks and the commit refuses it; a tak
   writeFileSync(join(h.home, '.config', 'mirai', 'config.toml'), 'schema_version = 1\n[git]\nauthor_name = "Jet Jr."\nauthor_email = "author@example.com"\n', { mode: 0o600 });
   await assert.rejects(build(h, claudeWith([done])), (e) => e.code === 'no-author');
 });
+
+test('walkthrough fix: Claude Code\'s empty .claude/.cc-writes/ isn\'t a change; a file in it still parks; unpark --retry sends a parked ticket back', async () => {
+  const f = await ready();
+  const ok = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php; mkdir -p .claude/.cc-writes app/.claude/.cc-writes']));
+  assert.equal(ok.outcome, 'handed-over', ok.why);
+  const g = await ready();
+  const planted = await build(g, claudeWith([done], ['echo "// x" >> app/Team.php; mkdir -p .claude/.cc-writes; echo x > .claude/.cc-writes/hook.sh']));
+  assert.equal(planted.outcome, 'parked');
+  assert.equal(readTicketStatus(g.store, 'PMT-31').status.state, 'blocked');
+  const io = { cwd: g.root, env: g.env };
+  assert.equal((await tty(['unpark', 'PMT-31'], io, [])).code, EXIT.USAGE, 'a choice is needed');
+  assert.equal((await tty(['unpark', 'PMT-31', '--retry'], io, ['looked at it', 'PMT-99'])).code, EXIT.FAILURE, 'a wrong key cancels');
+  const back = await tty(['unpark', 'PMT-31', '--retry'], io, ['looked at it', 'PMT-31']);
+  assert.equal(back.code, EXIT.OK, back.err);
+  assert.equal(readTicketStatus(g.store, 'PMT-31').status.state, 'in-progress');
+  assert.equal((await tty(['unpark', 'PMT-31', '--retry'], io, ['again', 'PMT-31'])).code, EXIT.BLOCKED, 'not parked any more');
+});
