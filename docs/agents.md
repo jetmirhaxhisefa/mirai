@@ -128,6 +128,34 @@ The ticket must be `in-progress`, with a plan whose approval verifies as it is n
 
    **Every outcome after the launch** is kept in `<store>/tickets/<ticket>/build.json`: the outcome, the reason, the handover, MIRAI's checks and a fingerprint of the tree.
 
+## Fix rounds: `mirai fix <ticket>` (unit 21c)
+
+When MIRAI's own test run after a build finds new failures, the ticket stays `in-progress`, with MIRAI's commit of Kai's work. `mirai fix` sends those failures back to Kai, round by round, under the loop guard (`docs/loop-rules.md`), until one of these:
+- **green:** the ticket moves to `in-review`;
+- **a re-plan:** the same failure came back. The ticket goes back to `ready-for-dev` for its one re-plan, and you run `mirai plan` again;
+- **a park:** rounds used up (`cap`), or no progress (the failures didn't drop, or a file went back to an earlier version);
+- **a stop for you:** any of the build's safety stops, an environment fault, a usage limit, or Ctrl-C.
+
+It starts only from a step that ended with failing tests MIRAI committed, under the plan that's approved now. A round that stopped for a usage limit, a fault or Ctrl-C doesn't lose that: the next `mirai fix` starts from the same step. Kai's `blocked`, a safety stop, an error or a park needs you first: look at it, then `mirai discard` (which goes back to the last checkpoint, and fix rounds start again there when it's a failing step), `mirai unpark`, or `mirai build`. After a re-plan, `mirai build` comes first.
+
+**Each round:**
+1. The loop guard counts it.
+2. A checkpoint marks where it starts.
+3. Kai gets `failures.json`: the new failures from **MIRAI's** run (each test, its message, the run's output tail), never its own report. `plan.md` is still its only source of truth.
+4. MIRAI runs the same checks and commit as after a build. The commit's subject is `<ticket>: fix round <n>`.
+5. The loop guard decides the next round.
+
+An environment fault before Kai could act, a launch MIRAI refused before it started (a stale red team, say), Ctrl-C between rounds, or a usage limit: the round is given back. Each round checks your usage caps first.
+
+The build itself isn't a round, so the loop guard's rules start with round 1: a failure the first round didn't fix gets a second round before it counts as a plan problem.
+
+**Resuming Kai's session:**
+- **What's kept:** after a build or fix launch that ended clean, MIRAI keeps Kai's Claude Code session file in the store (`<store>/tickets/<ticket>/session/`), where agents can't write. It names the launch that made it. A launch that Claude Code or MIRAI's launch checks stopped, or whose session can't be kept whole, leaves no session: an older one is never kept in its place.
+- **How it's resumed:** a round resumes only the session of the failing step it starts from, never one from a launch that stopped. It puts the file into its own fresh config folder and starts with `--resume`, so Kai carries on with what it already read. Nothing else carries over: settings, token, trust root and the start-up check are as fresh as ever. Where the session lives and which one is resumed is decided in the launch code (the cage), not by the command.
+- **A fresh session instead:** after a `mirai discard` (the old session would remember edits that are gone), after a re-plan, when Claude Code refused the resume (the session is forgotten, so it can't fail again the same way), or when the file is missing or over 32 MiB.
+- **Not measured yet:** how much a resume saves. MIRAI's test run between rounds can take longer than the prompt cache lasts, so a long session may be read again uncached.
+- **What a kept session holds:** everything Kai saw, including files it read. It's private to you in the store, and stays until a discard, a re-plan or the next launch replaces it. Removing it when a ticket is done comes with retention (unit 69).
+
 ## MIRAI's commits (unit 22)
 
 MIRAI alone commits on its branches, with pinned git: no hook runs, nothing signs, and no git config of yours is read.

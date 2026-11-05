@@ -107,7 +107,12 @@ export async function testsAfter({ cwd, env, store, trust, config, keys, base, r
     } else if (judged.verdict === 'pass' && Boolean(then) !== Boolean(now)) {
       judged = { verdict: 'unknown', fresh: [], why: `its test counts can't be compared with the baseline's (${then ? 'none now' : 'none at baseline'})` };
     }
-    runs.push({ name, outcome: result.outcome, id: result.id ?? null, tests: now ?? null, ...judged });
+    // What a fix round is given (unit 21c): the failing tests' messages and the output's tail,
+    // from MIRAI's own run, capped, the new failures first (21c re-review).
+    const isNew = new Set(judged.fresh ?? []);
+    const failing = Array.isArray(result.failing) ? [...result.failing].sort((a, b) => Number(isNew.has(b.id ?? b.name)) - Number(isNew.has(a.id ?? a.name))).slice(0, 50).map((f) => ({ id: f.id ?? null, ...(f.name ? { name: f.name } : {}), kind: f.kind ?? null, message: typeof f.message === 'string' ? f.message.slice(0, 500) : null })) : [];
+    const tail = typeof result.output?.tail === 'string' ? result.output.tail.slice(-4000) : null;
+    runs.push({ name, outcome: result.outcome, id: result.id ?? null, tests: now ?? null, ...judged, ...(judged.verdict === 'fail' ? { failing, output_tail: tail } : {}) });
   }
   const incomplete = baseline && baseline.complete === false;
   const verdict = runs.some((r) => r.verdict === 'fail') ? 'fail' : !baseline || incomplete || names.length === 0 || runs.some((r) => r.verdict === 'unknown') ? 'unknown' : 'pass';
@@ -231,7 +236,15 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
 // The build's record beside the plan, on every outcome after the launch: what happened, MIRAI's
 // checks, the tree's fingerprint (what --recheck verifies), and the test runs by id.
 export const buildRecordPath = (store, ticket) => join(store.dir, 'tickets', ticket, 'build.json');
-function keepBuild(store, ticket, record) {
+// A step that ended checks-failed is where fix rounds start (21c): its commit, its tests and its
+// plan, kept as `fix_from` and carried by a fix round's later records, so a round that stops for
+// another reason (a usage limit, a fault, Ctrl-C) doesn't lose the way back (21c review).
+export function keepBuild(store, ticket, given) {
+  // The one before is kept too, so a discard back to it can start there again (21c re-review).
+  const from = { commit: given.head, branch: given.branch, tests: given.tests ?? null, plan_sha256: given.plan_sha256 ?? null, launch: given.launch ?? null };
+  const record = given.outcome === 'checks-failed' && given.head
+    ? { ...given, fix_from: from, fix_from_prev: given.fix_from && given.fix_from.commit !== from.commit ? given.fix_from : given.fix_from_prev ?? null }
+    : given;
   ensurePrivateDir(join(store.dir, 'tickets'));
   ensurePrivateDir(join(store.dir, 'tickets', ticket));
   atomicWrite(buildRecordPath(store, ticket), `${JSON.stringify(record, null, 2)}\n`);
@@ -248,7 +261,7 @@ function settleTicket(store, ticket, checked) {
 }
 
 // The checks that hold before any build work, for a build and a recheck alike.
-function preflight({ cwd, env, store, ticket, unattended }) {
+export function preflight({ cwd, env, store, ticket, unattended }) {
   const status = readTicketStatus(store, ticket)?.status ?? null;
   if (status?.state !== 'in-progress') throw fail(`${ticket} is ${status?.state ?? 'not approved yet'}; a build starts from in-progress, with an approved plan`, 'not-ready');
   const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
@@ -306,6 +319,8 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
         r = await launch({
           ...watch, cwd, env, store, runId, startRun: true, ownsRun: false, launchToken, agent: AGENT, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
           prompt: buildPrompt({ ticket, branch }), item: ticket, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs: given.inputs, jsonSchema: HANDOVER_SCHEMA, now,
+          // Kept for a fix round to resume (unit 21c); a new build starts a new session.
+          session: { keep: true },
         });
       } catch (err) {
         settleLaunch(store, ticket, { launch: guard.launch, outcome: 'refused', refundable: true });
@@ -315,61 +330,68 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
       addCheckpoint(store, ticket, { step: 'build', sha: stepBase, creationSha: prep.creationSha, now });
       result.launch = { id: r.launchId, outcome: r.outcome, why: r.why, line: r.line };
       const record = (extra) => keepBuild(store, ticket, { branch, head: commitOf(store.checkout, 'HEAD', store.gitEnv), base: branchBase, step_base: stepBase, creation_sha: prep.creationSha, launch: r.launchId, plan_sha256: contentHash(Buffer.from(plan)), at: now().toISOString(), ignored_before: ignoredBefore, ...extra });
-      if (r.outcome !== 'ok') {
-        record({ outcome: r.outcome, why: r.why });
-        return { ...result, outcome: r.outcome, why: r.why };
-      }
-      const handover = handoverFrom(r.structured);
-      if (handover.problem) {
-        record({ outcome: 'agent-failed', why: handover.problem });
-        return { ...result, outcome: 'agent-failed', why: handover.problem };
-      }
-      result.handover = handover;
-      if (handover.status === 'blocked') {
-        const why = handover.blocked_reason ?? 'Kai stopped without a reason';
-        record({ outcome: 'blocked', why, handover });
-        return { ...result, outcome: 'blocked', why };
-      }
-      let checked;
-      try {
-        checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null });
-        // Past the safety checks, whatever the tests said: MIRAI commits what Kai produced, so the
-        // next step starts from a clean tree (unit 22, open point 3). A safety stop never is.
-        if (checked.safe) {
-          // What's committed is exactly what passed the checks: the tree looked at again right
-          // before, and the ignored files right after (unit 22 review).
-          const checkedPrint = checked.fingerprint;
-          checked.commit = commitStep({
-            store, env, config, ticket, what: 'build from the approved plan', body: handover.summary,
-            before: () => {
-              if (observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint !== checkedPrint) throw fail('the tree changed between MIRAI\'s checks and its commit: something else is writing to the project', 'changed-before-commit', EXIT.BLOCKED, 'look for a process still working in the project, then build again');
-            },
-            ignored: () => ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules }),
-          });
-          checked.checked_fingerprint = checkedPrint;
-          checked.fingerprint = observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint;
-        }
-      } catch (err) {
-        // Kept, so --recheck has the build to work from (its fingerprint, taken again).
-        let fingerprint = null;
-        try {
-          fingerprint = observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint;
-        } catch {
-          fingerprint = null;
-        }
-        record({ outcome: 'error', why: String(err.message).slice(0, 500), handover, fingerprint });
-        throw err;
-      }
-      if (checked.tests) writeChecks(store, runId, ticket, { fm, t: checked.tests });
-      record({ outcome: checked.outcome, why: checked.why ?? null, handover, commit: checked.commit ?? null, checked_fingerprint: checked.checked_fingerprint ?? null, fingerprint: checked.fingerprint, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
-      settleTicket(store, ticket, checked);
-      if (checked.outcome === 'handed-over') endState = 'finished';
-      return { ...result, ...checked, park: undefined, fingerprint: undefined, checked_fingerprint: undefined, safe: undefined };
+      const after = await afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, record, what: 'build from the approved plan' });
+      if (after.outcome === 'handed-over') endState = 'finished';
+      return { ...result, ...after };
     } finally {
       const run = readRunState(store);
       if (run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
     }
   });
+}
+
+// After a build's or a fix round's launch (units 21b, 21c, 22): the handover, MIRAI's checks, its
+// commit when the safety checks pass, the run log's checks line, the record, and the ticket's state.
+// Returns the result's fields: { outcome, why, handover, commit, protectedPaths, dependencies, tests }.
+export async function afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, record, what }) {
+  if (r.outcome !== 'ok') {
+    record({ outcome: r.outcome, why: r.why });
+    return { outcome: r.outcome, why: r.why };
+  }
+  const handover = handoverFrom(r.structured);
+  if (handover.problem) {
+    record({ outcome: 'agent-failed', why: handover.problem });
+    return { outcome: 'agent-failed', why: handover.problem };
+  }
+  if (handover.status === 'blocked') {
+    const why = handover.blocked_reason ?? 'Kai stopped without a reason';
+    record({ outcome: 'blocked', why, handover });
+    return { outcome: 'blocked', why, handover };
+  }
+  let checked;
+  try {
+    checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal });
+    // Past the safety checks, whatever the tests said: MIRAI commits what Kai produced, so the
+    // next step starts from a clean tree (unit 22, open point 3). A safety stop never is.
+    if (checked.safe) {
+      // What's committed is exactly what passed the checks: the tree looked at again right
+      // before, and the ignored files right after (unit 22 review).
+      const checkedPrint = checked.fingerprint;
+      checked.commit = commitStep({
+        store, env, config, ticket, what, body: handover.summary,
+        before: () => {
+          if (observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint !== checkedPrint) throw fail('the tree changed between MIRAI\'s checks and its commit: something else is writing to the project', 'changed-before-commit', EXIT.BLOCKED, 'look for a process still working in the project, then build again');
+        },
+        ignored: () => ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules }),
+      });
+      checked.checked_fingerprint = checkedPrint;
+      checked.fingerprint = observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint;
+    }
+  } catch (err) {
+    // Kept, so --recheck has the build to work from (its fingerprint, taken again).
+    let fingerprint = null;
+    try {
+      fingerprint = observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint;
+    } catch {
+      fingerprint = null;
+    }
+    record({ outcome: 'error', why: String(err.message).slice(0, 500), handover, fingerprint });
+    throw err;
+  }
+  if (checked.tests) writeChecks(store, runId, ticket, { fm, t: checked.tests });
+  record({ outcome: checked.outcome, why: checked.why ?? null, handover, commit: checked.commit ?? null, checked_fingerprint: checked.checked_fingerprint ?? null, fingerprint: checked.fingerprint, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
+  settleTicket(store, ticket, checked);
+  return { ...checked, handover, park: undefined, fingerprint: undefined, checked_fingerprint: undefined, safe: undefined };
 }
 
 // `mirai build <ticket> --recheck`: no agent. The tree must be exactly what the last build left:

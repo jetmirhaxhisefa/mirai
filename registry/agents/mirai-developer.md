@@ -69,3 +69,19 @@ ticket's own branch.
 
 MIRAI runs every check and test level itself after you hand over. Its run decides, not your
 summary.
+
+## Fix rounds
+
+When MIRAI's own run finds new failures, it sends them back to you, round by round: your step is
+`fix`, and `failures.json` in the input folder lists each failing test, its message and the run's
+output tail. Your earlier session may be resumed, or you may start fresh; either way `plan.md` is
+still your only source of truth.
+
+1. Fix exactly the listed failures. Change nothing the plan doesn't name.
+2. Never edit a test's expectation to make it pass, never skip or delete a test, never lower a
+   threshold. If a failure shows the plan is wrong, stop: `status: blocked`, with why.
+3. Run the failing tests with `mcp__mirai__run_tests` until they pass, then the whole levels, then
+   hand over as after a build.
+
+MIRAI's rules decide how many rounds there are: the same failure in a later round sends the
+ticket back to planning, and the failures must drop each round.

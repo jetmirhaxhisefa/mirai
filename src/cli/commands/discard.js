@@ -6,6 +6,7 @@ import { checkTicketArg, confirmByTyping } from '../human-move.js';
 import { createPrompter, requireTty } from '../tty.js';
 import { buildRecordPath } from '../../agent/build.js';
 import { lastCheckpoint } from '../../agent/checkpoints.js';
+import { agentSessionDir, forgetSession } from '../../agent/session.js';
 import { plain } from '../../status/text.js';
 import { atomicWrite } from '../../store/files.js';
 import { commitOf, commitsSince, isAncestor, resetTo, symbolicBranch, workTreeChanges } from '../../store/git.js';
@@ -72,6 +73,9 @@ async function discard(ticket, io, store) {
   } finally {
     prompter.close();
   }
+  // The kept session believes in edits that are about to go: the next round starts fresh (unit 21c),
+  // forgotten first so a stop in between can't leave it.
+  forgetSession(agentSessionDir(store, ticket));
   resetTo(store.checkout, cp.sha, store.gitEnv);
   // Ignored files under protected paths that differ from before the step: listed, never deleted.
   let ignored = [];
@@ -83,7 +87,10 @@ async function discard(ticket, io, store) {
   } catch {
     ignored = [];
   }
-  atomicWrite(buildRecordPath(store, ticket), `${JSON.stringify({ ...last, outcome: 'discarded', discarded_to: cp.sha, commit: null, fingerprint: null, checked_fingerprint: null, head: commitOf(store.checkout, 'HEAD', store.gitEnv) }, null, 2)}\n`);
+  // Where fix rounds start again (21c re-review): the failing step the reset went back to, if it's one;
+  // else none, and the next step is a build.
+  const fixFrom = [last.fix_from, last.fix_from_prev].find((x) => x?.commit === cp.sha) ?? null;
+  atomicWrite(buildRecordPath(store, ticket), `${JSON.stringify({ ...last, outcome: 'discarded', discarded_to: cp.sha, commit: null, fingerprint: null, checked_fingerprint: null, head: commitOf(store.checkout, 'HEAD', store.gitEnv), fix_from: fixFrom, fix_from_prev: null }, null, 2)}\n`);
   appendEvent(store, { type: 'note', by: 'script', item: ticket, message: `discarded the last step: ${branch} back to checkpoint ${cp.n} (${cp.sha.slice(0, 12)})` });
   io.stdout.write(`discarded: ${branch} is back at checkpoint ${cp.n}; ${ticket} stays in-progress\n`);
   if (ignored.length) io.stdout.write(`  ignored files under protected paths that changed, left as they are: ${ignored.slice(0, 20).map(plain).join(', ')}\n`);

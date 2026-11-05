@@ -9,6 +9,8 @@ When an agent's work is checked and sent back, MIRAI follows fixed rules to deci
 - **A launch stopped before the agent could act** (Claude Code never started properly, the login token was refused) **or by a usage limit gives its round back.** A fault found in what the agent did (too many files to check, a process left behind) keeps it, and so does a crash, so neither can buy more rounds.
 - **When the rounds are used, the ticket parks.** Only you can give it more: each grant needs your signed move for that ticket (unpark retry, or a grant after an MR, D-07), one grant per move, kept with its note.
 
+**In practice (unit 21c):** `mirai fix` runs the rounds. A round's failures are MIRAI's own test run's new failures, against your baseline. The loop guard reads those as test-failure signatures (by level and test) for L4 and L5, and the files the round changed for churn. The build isn't a round, so L4 and L5 start from round 1. A launch MIRAI refused before Claude Code started gives its round back, like an environment fault. Anything that fails after it started keeps the round. Review findings join from unit 24.
+
 ## Findings
 
 - **L1:** only a blocking finding with a basis MIRAI can check (an AC, an ADR, a rule, a repro) sends work back.

@@ -1,10 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { runBuild, handoverFrom, testsAfter, HANDOVER_SCHEMA } from '../../src/agent/build.js';
+import { buildRecordPath, runBuild, handoverFrom, testsAfter, HANDOVER_SCHEMA } from '../../src/agent/build.js';
+import { runFix } from '../../src/agent/fix.js';
+import { launchInRun } from '../../src/agent/run.js';
+import { agentSessionDir, forgetSession, keepSession, keptSession, restoreSession } from '../../src/agent/session.js';
+import { MiraiError } from '../../src/cli/errors.js';
 import { prepareBranch, ticketSlug } from '../../src/agent/branch.js';
 import { newDependencies } from '../../src/agent/deps.js';
 import { planPath, runPlan } from '../../src/agent/plan.js';
@@ -600,4 +604,258 @@ test('walkthrough fix: Claude Code\'s empty .claude/.cc-writes/ isn\'t a change;
   assert.equal(back.code, EXIT.OK, back.err);
   assert.equal(readTicketStatus(g.store, 'PMT-31').status.state, 'in-progress');
   assert.equal((await tty(['unpark', 'PMT-31', '--retry'], io, ['again', 'PMT-31'])).code, EXIT.BLOCKED, 'not parked any more');
+});
+
+// Unit 21c: fix rounds. A stand-in that, like Claude Code, keeps its session under CLAUDE_CONFIG_DIR
+// and names it in the init event; it records its arguments, whether a restored session was there,
+// and the failures.json it was given.
+function claudeSessions(results, before = []) {
+  const dir = realpathSync(tempDir('claude'));
+  results.forEach((r, i) => {
+    writeFileSync(join(dir, `r${i}.json`), `${JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 4, usage: { input_tokens: 5, output_tokens: 6 }, result: 'done', structured_output: r })}\n`);
+    writeFileSync(join(dir, `b${i}.sh`), `${before[i] ?? ':'}\n`);
+  });
+  writeFileSync(join(dir, 'n'), '0');
+  const path = join(dir, 'claude');
+  writeFileSync(path, `#!/bin/sh
+if [ "$1" = "--version" ]; then echo "2.1.316 (Claude Code)"; exit 0; fi
+n=$(cat ${dir}/n); echo $((n+1)) > ${dir}/n
+for a in "$@"; do printf '%s\\n' "$a"; done > ${dir}/args$n
+sid=0000000a-0000-4000-8000-00000000000$n
+prev=$(sed -n '/^--resume$/{n;p;}' ${dir}/args$n)
+if [ -n "$prev" ] && [ -f "$CLAUDE_CONFIG_DIR/projects/p/$prev.jsonl" ]; then echo restored > ${dir}/restored$n; sid=$prev; fi
+mkdir -p "$CLAUDE_CONFIG_DIR/projects/p" && echo "{\\"launch\\":$n}" >> "$CLAUDE_CONFIG_DIR/projects/p/$sid.jsonl"
+inputs=$(sed -n '/^--add-dir$/{n;p;}' ${dir}/args$n)
+[ -f "$inputs/failures.json" ] && cp "$inputs/failures.json" ${dir}/failures$n.json
+. ${dir}/b$n.sh
+echo '{"type":"system","subtype":"init","permissionMode":"dontAsk","session_id":"'$sid'"}'; cat ${dir}/r$n.json
+`, { mode: 0o755 });
+  const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), 'utf8') : null);
+  return { path, args: (n) => readFileSync(join(dir, `args${n}`), 'utf8').split('\n'), restored: (n) => read(`restored${n}`) !== null, failures: (n) => JSON.parse(read(`failures${n}.json`) ?? 'null'), launches: () => Number(readFileSync(join(dir, 'n'), 'utf8')) };
+}
+const fixed = { status: 'done', summary: 'Fixed the failing test.' };
+const fixIt = (f, claude, o = {}) => runFix({ cwd: f.root, env: f.env, ticket: 'PMT-31', nextToken: () => mintLaunchToken(), launchOptions: watch(claude), testRun: passing, ...o });
+const failing = (id) => async ({ name }) => (name === 'feature' ? { outcome: 'fail', failing: [{ id, message: `${id} failed`, kind: 'assertion' }], failing_total: 1, tests: { total: 3, failed: 1, skipped: 0 }, output: { tail: `FAIL ${id}` } } : passing({ name }));
+
+// A ticket whose build ended checks-failed (a new failure in the feature level), committed by MIRAI.
+async function failedBuild(claude) {
+  const f = await ready();
+  const r = await build(f, { path: claude.path }, { testRun: failing('tests/B.php::b') });
+  assert.equal(r.outcome, 'checks-failed', r.why);
+  return f;
+}
+
+test('21c T1: mirai fix refuses a ticket not in progress, a last outcome that isn\'t checks-failed, a dirty tree', async () => {
+  const f = await ready();
+  await assert.rejects(fixIt(f, claudeSessions([fixed])), (e) => e.code === 'not-fixable');
+  const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php']);
+  const g = await failedBuild(claude);
+  writeFileSync(join(g.root, 'app/Team.php'), '<?php // mine\n');
+  await assert.rejects(fixIt(g, claude), (e) => e.code === 'dirty-tree');
+  g.git('checkout', '--', 'app/Team.php');
+  g.git('checkout', '-q', 'main');
+  await assert.rejects(fixIt(g, claude), (e) => e.code === 'build-moved');
+});
+
+test('21c T2 + T4: a round: counted, checkpointed, given MIRAI\'s failures, resumes the kept session, commits, and green goes to in-review', async () => {
+  const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// fixed" >> app/Team.php']);
+  const f = await failedBuild(claude);
+  const kept = keptSession(agentSessionDir(f.store, 'PMT-31'));
+  assert.equal(kept.session_id, '0000000a-0000-4000-8000-000000000000', 'the build\'s session was kept');
+  const r = await fixIt(f, claude);
+  assert.equal(r.outcome, 'handed-over', JSON.stringify(r.rounds));
+  assert.equal(r.rounds.length, 1);
+  assert.equal(r.rounds[0].resumed, true);
+  assert.equal(r.rounds[0].line.round, 1, 'the run log line names its round');
+  const args = claude.args(1);
+  assert.equal(args[args.indexOf('--resume') + 1], kept.session_id);
+  assert.equal(claude.restored(1), true, 'the session file was restored into the fresh config folder');
+  assert.deepEqual(claude.failures(1).failures, [{ test: 'tests/B.php::b', message: 'tests/B.php::b failed', level: 'feature' }]);
+  assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-review');
+  assert.equal(readLoop(f.store, 'PMT-31').rounds_used, 1);
+  assert.match(git(f, 'log', '-1', '--format=%s'), /PMT-31: fix round 1/);
+  const { checkpoints } = await import('../../src/agent/checkpoints.js');
+  assert.ok(checkpoints(f.store, 'PMT-31').some((c) => c.step === 'fix-1'));
+  // A missing session: a fresh one, no --resume.
+  const c2 = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// fixed" >> app/Team.php']);
+  const g = await failedBuild(c2);
+  forgetSession(agentSessionDir(g.store, 'PMT-31'));
+  const fresh = await fixIt(g, c2);
+  assert.equal(fresh.rounds[0].resumed, false);
+  assert.equal(c2.args(1).includes('--resume'), false);
+});
+
+test('21c T3: the loop guard decides: the same failure twice re-plans; no drop parks; rounds used up park; an early fault gives its round back', async () => {
+  // The same failure in rounds 1 and 2: a plan problem (L4), the ticket back to ready-for-dev.
+  const c = claudeSessions([done, fixed, fixed], ['echo "// x" >> app/Team.php', 'echo "// a" >> app/Team.php', 'echo "// b" >> app/Team.php']);
+  const f = await failedBuild(c);
+  const same = await fixIt(f, c, { testRun: failing('tests/B.php::b') });
+  assert.equal(same.outcome, 'replan', JSON.stringify(same.rounds));
+  assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'ready-for-dev');
+  // A different failure that doesn't drop the count: no progress (L5), parked.
+  const c2 = claudeSessions([done, fixed, fixed], ['echo "// x" >> app/Team.php', 'echo "// a" >> app/Team.php', 'echo "// b" >> app/Team.php']);
+  const g = await failedBuild(c2);
+  let k = 0;
+  const shifting = async (o) => failing(`tests/C${k++ >= 2 ? 2 : 1}.php::c`)(o);
+  const none = await fixIt(g, c2, { testRun: shifting });
+  assert.equal(none.outcome, 'parked', JSON.stringify(none.rounds));
+  assert.equal(readTicketStatus(g.store, 'PMT-31').status.park_reason, 'no-progress');
+  // Rounds used up: parked as cap, with no launch.
+  const c3 = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php']);
+  const h = await failedBuild(c3);
+  const { beforeLaunch, settleLaunch } = await import('../../src/loop/guard.js');
+  for (let i = 0; i < 2; i++) settleLaunch(h.store, 'PMT-31', { launch: beforeLaunch(h.store, 'PMT-31', { round: true }).launch, outcome: 'ok' });
+  const cap = await fixIt(h, c3);
+  assert.equal(cap.outcome, 'parked');
+  assert.equal(readTicketStatus(h.store, 'PMT-31').status.park_reason, 'cap');
+  assert.equal(c3.launches(), 1, 'only the build launched');
+  // A fault before the agent acted (no init event): its round is given back.
+  const c4 = claudeSessions([done], ['echo "// x" >> app/Team.php']);
+  const i = await failedBuild(c4);
+  const silent = join(realpathSync(tempDir('claude')), 'claude');
+  writeFileSync(silent, '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "2.1.316 (Claude Code)"; exit 0; fi\nexit 1\n', { mode: 0o755 });
+  const fault = await fixIt(i, { path: silent });
+  assert.equal(fault.outcome, 'env-fault');
+  assert.equal(readLoop(i.store, 'PMT-31').rounds_used, 0);
+});
+
+test('21c T5: the safety stops hold inside a round, and a stop isn\'t committed', async () => {
+  const c = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'mkdir -p .github/workflows; echo "on: push" > .github/workflows/ci.yml']);
+  const f = await failedBuild(c);
+  const head = git(f, 'rev-parse', 'HEAD');
+  const r = await fixIt(f, c);
+  assert.equal(r.outcome, 'needs-you');
+  assert.match(r.why, /protected paths the plan didn't declare/);
+  assert.equal(git(f, 'rev-parse', 'HEAD'), head);
+  assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-progress');
+});
+
+test('21c review: refusals for a ticket not in progress, an edited plan, a step built from another plan', async () => {
+  const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php']);
+  const f = await failedBuild(claude);
+  const text = readFileSync(planPath(f.store, 'PMT-31'), 'utf8');
+  writeFileSync(planPath(f.store, 'PMT-31'), text.replace('**Problem:**', '**Problem (edited):**'));
+  await assert.rejects(fixIt(f, claude), (e) => e.code === 'plan-not-approved');
+  writeFileSync(planPath(f.store, 'PMT-31'), text);
+  const rec = JSON.parse(readFileSync(buildRecordPath(f.store, 'PMT-31'), 'utf8'));
+  writeFileSync(buildRecordPath(f.store, 'PMT-31'), JSON.stringify({ ...rec, fix_from: { ...rec.fix_from, plan_sha256: 'sha256:other' } }));
+  await assert.rejects(fixIt(f, claude), (e) => e.code === 'plan-changed');
+  writeFileSync(buildRecordPath(f.store, 'PMT-31'), JSON.stringify(rec));
+  assert.equal((await fixIt(f, claude)).outcome, 'handed-over');
+  await assert.rejects(fixIt(f, claude), (e) => e.code === 'not-ready', 'in-review now');
+});
+
+test('21c review: a refused launch or Ctrl-C gives the round back; a faulted resume is forgotten, and the next fix starts fresh from the same step', async () => {
+  const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// fixed" >> app/Team.php']);
+  const f = await failedBuild(claude);
+  const refused = () => async () => {
+    throw Object.assign(new MiraiError('the red team isn\'t green for this launch', EXIT.BLOCKED), { code: 'red-team' });
+  };
+  await assert.rejects(fixIt(f, claude, { launch: refused() }), (e) => e.code === 'red-team');
+  assert.equal(readLoop(f.store, 'PMT-31').rounds_used, 0, 'refused before it started: no round used');
+  const stop = new AbortController();
+  stop.abort();
+  const killed = await fixIt(f, claude, { launchOptions: { ...watch(claude), signal: stop.signal } });
+  assert.equal(killed.outcome, 'killed');
+  assert.equal(readLoop(f.store, 'PMT-31').rounds_used, 0);
+  // A resume Claude Code refuses (no init): the round is given back, the session forgotten.
+  assert.ok(keptSession(agentSessionDir(f.store, 'PMT-31')));
+  const silent = join(realpathSync(tempDir('claude')), 'claude');
+  writeFileSync(silent, '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "2.1.316 (Claude Code)"; exit 0; fi\nexit 1\n', { mode: 0o755 });
+  const fault = await fixIt(f, { path: silent });
+  assert.equal(fault.outcome, 'env-fault');
+  assert.equal(fault.rounds[0].resumed, true, 'it was a resume');
+  assert.equal(keptSession(agentSessionDir(f.store, 'PMT-31')), null, 'a faulted launch\'s session isn\'t kept');
+  assert.equal(readLoop(f.store, 'PMT-31').rounds_used, 0);
+  // The step that failed is still where rounds start: the next fix runs, fresh.
+  const again = await fixIt(f, claude);
+  assert.equal(again.outcome, 'handed-over', JSON.stringify(again.rounds));
+  assert.equal(again.rounds[0].resumed, false);
+  assert.equal(claude.args(1).includes('--resume'), false);
+});
+
+test('21c review: round 2 resumes round 1\'s session; a discard forgets it; L4 tells levels apart', async () => {
+  const claude = claudeSessions([done, fixed, fixed], ['echo "// x" >> app/Team.php', 'echo "// a" >> app/Team.php', 'echo "// b" >> app/Team.php']);
+  const f = await failedBuild(claude);
+  let k = 0;
+  const firstThenGreen = async (o) => (k++ < 2 ? failing('tests/C.php::c')(o) : passing(o));
+  const r = await fixIt(f, claude, { testRun: firstThenGreen });
+  assert.equal(r.outcome, 'handed-over', JSON.stringify(r.rounds));
+  assert.deepEqual(r.rounds.map((x) => x.resumed), [true, true]);
+  const a1 = claude.args(1);
+  const a2 = claude.args(2);
+  assert.equal(a2[a2.indexOf('--resume') + 1], a1[a1.indexOf('--resume') + 1], 'the same session, carried on');
+  assert.equal(keptSession(agentSessionDir(f.store, 'PMT-31')).launch_id, r.rounds[1].launch, 'kept from the launch that made it');
+  // A round stopped for safety, then discarded: the kept session is forgotten with its work.
+  const c2 = claudeSessions([done, fixed, fixed], ['echo "// x" >> app/Team.php', 'echo "// a" >> app/Team.php', 'mkdir -p .github/workflows; echo "on: push" > .github/workflows/ci.yml']);
+  const g = await failedBuild(c2);
+  let j = 0;
+  const stopped = await fixIt(g, c2, { testRun: async (o) => (j++ < 2 ? failing('tests/C.php::c')(o) : passing(o)) });
+  assert.equal(stopped.outcome, 'needs-you', JSON.stringify(stopped.rounds));
+  assert.ok(keptSession(agentSessionDir(g.store, 'PMT-31')), 'the stopped launch itself ran clean');
+  const io = { cwd: g.root, env: g.env };
+  assert.equal((await tty(['discard', 'PMT-31'], io, ['PMT-31'])).code, EXIT.OK);
+  assert.equal(keptSession(agentSessionDir(g.store, 'PMT-31')), null);
+  // L4: a whole level failing in round 1 and another level in round 2 aren't the same problem.
+  const { failureSignatures } = await import('../../src/agent/fix.js');
+  const whole = (level) => failureSignatures([{ test: '(the whole run)', message: null, level }])[0];
+  assert.notDeepEqual(whole('lint'), whole('e2e'));
+});
+
+test('21c review: a kept session: older copies forgotten first, only the named launch\'s restored, paths and links refused', () => {
+  const home = realpathSync(tempDir('cfg'));
+  const dest = join(realpathSync(tempDir('store')), 'session');
+  const sid = '0000000a-0000-4000-8000-000000000001';
+  mkdirSync(join(home, 'projects', 'p'), { recursive: true });
+  writeFileSync(join(home, 'projects', 'p', `${sid}.jsonl`), '{}\n');
+  assert.equal(keepSession({ configHome: home, dest, sessionId: sid, launchId: 'L1' }).kept, true);
+  // A later launch that can't be kept leaves nothing behind, never the older copy.
+  assert.equal(keepSession({ configHome: home, dest, sessionId: null, launchId: 'L2' }).kept, false);
+  assert.equal(keptSession(dest), null);
+  keepSession({ configHome: home, dest, sessionId: sid, launchId: 'L1' });
+  const fresh = realpathSync(tempDir('cfg2'));
+  assert.equal(restoreSession({ src: dest, configHome: fresh, launchId: 'L9' }), null, 'another launch\'s session');
+  assert.equal(restoreSession({ src: dest, configHome: fresh, launchId: 'L1' }), sid);
+  // A file name that climbs out, and a link in the launch's folder: refused.
+  const meta = JSON.parse(readFileSync(join(dest, 'session.json'), 'utf8'));
+  writeFileSync(join(dest, 'session.json'), JSON.stringify({ ...meta, files: ['projects/../../x.jsonl'] }));
+  assert.equal(keptSession(dest), null);
+  const linked = realpathSync(tempDir('cfg3'));
+  mkdirSync(join(linked, 'projects', 'p'), { recursive: true });
+  symlinkSync(join(home, 'projects', 'p', `${sid}.jsonl`), join(linked, 'projects', 'p', `${sid}.jsonl`));
+  assert.equal(keepSession({ configHome: linked, dest, sessionId: sid, launchId: 'L3' }).kept, false);
+});
+
+test('21c re-review: Kai\'s blocked needs you first; a clean discard of a failing round starts again from the step before; a throw after the start keeps its round', async () => {
+  // Kai says the plan is wrong and changes nothing: the next `mirai fix` refuses.
+  const c = claudeSessions([done, { status: 'blocked', summary: 's', blocked_reason: 'the plan is wrong' }], ['echo "// x" >> app/Team.php']);
+  const f = await failedBuild(c);
+  assert.equal((await fixIt(f, c)).outcome, 'blocked');
+  await assert.rejects(fixIt(f, c), (e) => e.code === 'not-fixable');
+  // Round 1 commits and still fails; round 2 is refused before it starts. A discard on the clean
+  // tree goes back to checkpoint fix-1, the build's commit, and rounds start there again.
+  const c2 = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// a" >> app/Team.php']);
+  const g = await failedBuild(c2);
+  const buildCommit = git(g, 'rev-parse', 'HEAD');
+  let n = 0;
+  const firstOnly = async (o) => {
+    if (n++ === 0) return launchInRun(o);
+    throw Object.assign(new MiraiError('the red team isn\'t green for this launch', EXIT.BLOCKED), { code: 'red-team' });
+  };
+  await assert.rejects(fixIt(g, c2, { launch: firstOnly, testRun: failing('tests/C.php::c') }), (e) => e.code === 'red-team');
+  assert.notEqual(git(g, 'rev-parse', 'HEAD'), buildCommit, 'round 1 committed');
+  assert.equal(readLoop(g.store, 'PMT-31').rounds_used, 1, 'round 2 was given back');
+  const io = { cwd: g.root, env: g.env };
+  assert.equal((await tty(['discard', 'PMT-31'], io, ['PMT-31'])).code, EXIT.OK);
+  assert.equal(git(g, 'rev-parse', 'HEAD'), buildCommit);
+  const rec = JSON.parse(readFileSync(buildRecordPath(g.store, 'PMT-31'), 'utf8'));
+  assert.equal(rec.fix_from.commit, buildCommit, 'the build\'s step, back as where rounds start');
+  assert.deepEqual((rec.fix_from.tests?.runs ?? []).flatMap((x) => x.fresh ?? []), ['tests/B.php::b']);
+  // A MiraiError thrown after Claude Code started keeps its round.
+  const h = await failedBuild(claudeSessions([done], ['echo "// x" >> app/Team.php']));
+  const after = async () => {
+    throw Object.assign(new MiraiError('the run log couldn\'t be written', EXIT.FAILURE), { launched: true });
+  };
+  await assert.rejects(fixIt(h, c, { launch: after }));
+  assert.equal(readLoop(h.store, 'PMT-31').rounds_used, 1);
 });

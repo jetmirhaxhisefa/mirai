@@ -25,6 +25,7 @@ import { agentsJson as renderAgentsJson } from '../adapters/claude-code.js';
 import { trustFingerprint, verifyTrustRoot } from '../trust/verify.js';
 import { cwdsUnder, processTable, runInGroup } from './process.js';
 import { checkLaunchToken, spendLaunchToken } from './requests.js';
+import { agentSessionDir, forgetSession, keepSession, restoreSession } from './session.js';
 import { checkIgnoredCheckable, checkNothingHidden, checkPendingIgnored, findRole, IGNORED_ENTRY_BUDGET, ignoredState, recordPendingIgnored, scopeViolations, trustedRoles } from './scope.js';
 import { familyNote, pickTier, pickVerifier } from './tiers.js';
 
@@ -204,7 +205,7 @@ export async function withRun({ cwd, env }, fn) {
 
 // One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
 // every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
-export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
@@ -244,13 +245,15 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   checkRedTeam(await status({ cwd, env, trust, template, claude }), store);
   stopped();
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
-  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
+  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
 }
 
-async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
+async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, session = null, round = 1, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';
+  let sessionClean = false;
+  let spawned = false;
   let beat = null;
   try {
     // Right before the start: the whole trust root. The fingerprint comes first, so a change made
@@ -312,12 +315,19 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
         kill('init');
       }
     };
+    // A kept session (unit 21c): the ticket's own, in the store, and only the one the named launch
+    // left. Restored into this launch's fresh config folder, then resumed. Where it lives is decided
+    // here, in the cage, never by the caller (21c review).
+    const configHome = join(launched.launchDir, 'claude-config');
+    const sessionHome = session && item ? agentSessionDir(store, item) : null;
+    const resumed = sessionHome && session.resumeFrom ? restoreSession({ src: sessionHome, configHome, launchId: session.resumeFrom }) : null;
     // After `--`, so a prompt that looks like a flag can't be one.
     // A structured result (unit 21a): Claude Code checks the answer against the schema.
-    const args = ['-p', '--max-turns', String(maxTurns), '--model', model, '--append-system-prompt', LONG_OUTPUTS, ...(jsonSchema ? ['--json-schema', JSON.stringify(jsonSchema)] : []), ...launched.args, '--', prompt];
+    const args = ['-p', '--max-turns', String(maxTurns), '--model', model, '--append-system-prompt', LONG_OUTPUTS, ...(resumed ? ['--resume', resumed] : []), ...(jsonSchema ? ['--json-schema', JSON.stringify(jsonSchema)] : []), ...launched.args, '--', prompt];
     const raw = await launch(c.real, { args, env: { ...launched.env, DISABLE_AUTOUPDATER: '1' }, cwd: launched.cwd, fdToken: launched.fds[3] }, {
       signal, hardAbort: hardSignal, onLine, timeoutMs, killRoots: [launched.scratchDir], reportRoots: [launched.cwd],
       onStart: (pid, kill) => {
+        spawned = true;
         recordAgent(store, launched, pid);
         deadline = setTimeout(() => {
           if (unsafe === null) kill('no-init');
@@ -325,6 +335,22 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
       },
     });
     clearTimeout(deadline);
+    // The session, kept before the launch folder goes (unit 21c): never at the cost of the run.
+    let kept = null;
+    if (sessionHome && session.keep) {
+      try {
+        const init = raw.stdout.split('\n').map((l) => {
+          try {
+            return JSON.parse(l);
+          } catch {
+            return null;
+          }
+        }).find((e) => e?.type === 'system' && e.subtype === 'init');
+        kept = keepSession({ configHome, dest: sessionHome, sessionId: init?.session_id, launchId: launched.launchId });
+      } catch (err) {
+        kept = { kept: false, why: String(err.message).slice(0, 200) };
+      }
+    }
     const token = launched.fds[3];
     let repoChanged = null;
     const launchId = launched.launchId;
@@ -395,7 +421,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     if (outcome === 'ok') endState = 'finished';
     const usage = parsed.result?.usage ?? {};
     const line = {
-      item: item ?? 'run', event: 'agent_run', launch_id: launchId, step, role: role.name, ...(agentDef ? { agent: agentDef.name } : {}), round: 1, tier, model, tier_reason: tierWhy.slice(0, 300), ...(rung ? { rung } : {}), ...(parsed.init?.model ? { model_used: modelId(parsed.init.model) } : {}), scope_violations: scope.violations.length,
+      item: item ?? 'run', event: 'agent_run', launch_id: launchId, step, role: role.name, ...(agentDef ? { agent: agentDef.name } : {}), round: Number.isSafeInteger(round) && round > 0 ? round : 1, tier, model, tier_reason: tierWhy.slice(0, 300), ...(rung ? { rung } : {}), ...(parsed.init?.model ? { model_used: modelId(parsed.init.model) } : {}), scope_violations: scope.violations.length,
       // Cached input apart, as Claude Code reports it: it's most of a run's input.
       tokens_in: count(usage.input_tokens), tokens_cached: count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens), tokens_out: count(usage.output_tokens), turns: count(parsed.result?.num_turns), minutes: Math.round((Date.now() - started) / 600) / 100,
       ...(share === null ? { limit_share_source: 'unknown' } : { limit_share: share, limit_share_source: 'measured' }), ...(limited ? { limit_window: limited.window, ...(limited.resets_at ? { resets_at: new Date(limited.resets_at * 1000).toISOString() } : {}) } : {}), verdict: outcome === 'ok' ? 'pass' : outcome === 'agent-failed' ? 'fail' : 'error', outcome, survivors: survivors.length + suspects.length, unproven: unproven.length,
@@ -429,10 +455,22 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     const refundable = outcome === 'usage-limit' || (outcome === 'env-fault' && (health || raw.killedBy === 'no-init' || !parsed.init || unsafe === null || needsRenewal));
     // The run's structured output, as its own stream reported it (never a file it wrote).
     const structured = parsed.result?.structured_output ?? null;
-    return { outcome, why, launchId, text, structured, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
+    // Only a clean launch's session is kept (21c review): one that hit a stop, or a resume Claude Code
+    // refused, is forgotten, so the next round starts fresh instead of repeating it.
+    sessionClean = outcome === 'ok' && !scope.violations.length;
+    if (kept?.kept && !sessionClean) kept = { kept: false, why: `the launch ended ${outcome}` };
+    return { outcome, why, launchId, text, structured, resumed, kept, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
+  } catch (err) {
+    // Thrown after Claude Code started: the agent ran, so a caller never gives its round back (21c
+    // re-review).
+    if (spawned && err && typeof err === 'object') err.launched = true;
+    throw err;
   } finally {
     clearInterval(beat);
     rmSync(join(store.dir, 'agent-runs', 'current.json'), { force: true });
+    // A launch that started and didn't end clean leaves no session; one refused before it started
+    // leaves the last step's as it was.
+    if (session?.keep && item && spawned && !sessionClean) forgetSession(agentSessionDir(store, item));
     if (launched && !finished) {
       try {
         finishLaunch(launched);

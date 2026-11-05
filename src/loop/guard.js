@@ -115,7 +115,7 @@ export function settleLaunch(store, ticket, { launch, outcome, refundable = fals
       minutes: add('minutes', line.minutes), cost_usd: add('cost_usd', line.cost_usd), limit_share: add('limit_share', line.limit_share),
     };
     const mine = state.pending?.launch === launch;
-    const refund = mine && state.pending.round && refundable && ['env-fault', 'usage-limit'].includes(outcome);
+    const refund = mine && state.pending.round && refundable && ['env-fault', 'usage-limit', 'refused'].includes(outcome);
     return { next: { ...state, budget, last_settled: launch, pending: mine ? null : state.pending, rounds_used: state.rounds_used - (refund ? 1 : 0) }, result: { refunded: refund } };
   });
 }
