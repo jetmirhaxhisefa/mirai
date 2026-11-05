@@ -36,8 +36,11 @@ deny_env = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKE
 # named here (unit 13b's bundle probes). checkInit refuses anything else in a run's init event:
 # a skill, agent or plugin beyond these means --restricted stopped keeping things out. Unit 18
 # updates these per Claude Code version.
-builtin_version = "2.1.310"
-builtin_plugins = ["cc-plugin-agents-md", "cc-plugin-plugin-authoring", "cc-plugin-telemetry"]
+# 2.1.318 added cc-plugin-privacy: it asks before a shell or web tool runs with the signed-in account's
+# email in a call that may leave the machine (an "ask" is a refusal under MIRAI's dontAsk). It only
+# adds checks (read from the binary's own description and code, 2026-11-05).
+builtin_version = "2.1.318"
+builtin_plugins = ["cc-plugin-agents-md", "cc-plugin-plugin-authoring", "cc-plugin-privacy", "cc-plugin-telemetry"]
 builtin_skills = ["batch", "claude-api", "code-review", "dataviz", "debug", "deep-research", "design", "design-sync", "doctor", "fewer-permission-prompts", "loop", "plugin-authoring", "run", "run-skill-generator", "schedule", "simplify", "update-config", "verify", "workflow-authoring"]
 builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-setup"]
 
@@ -47,7 +50,7 @@ builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-se
 # listed here is red until someone reads what it does and adds it (a MIRAI change, not a local
 # one). Removed lines are reported, never red.
 [strict.binary]
-seen_on = "2.1.316"
+seen_on = "2.1.318"
 settings_keys = [
   "accessKeyIdVar",
   "allowAllUnixSockets",
@@ -135,6 +138,10 @@ permission_keys = [
   "deny",
   "disableAutoMode",
   "disableBypassPermissionsMode",
+  # 2.1.318: read only from --settings (the program that starts Claude Code). Working folders taken as
+  # written, no link at them followed; "it adds no working directory and allows nothing" (the binary's
+  # own description). Not used by MIRAI yet; it would narrow the link-swap race at a working folder.
+  "workingDirectoriesAsGiven",
 ]
 profile_rules = [
   "(allow appleevent-send)",
