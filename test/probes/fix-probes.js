@@ -36,7 +36,7 @@ const WALKTHROUGH = '314a9df';
 const FILES = ['backend/app/Http/Controllers/TaskController.php', 'backend/app/Policies/TaskPolicy.php', 'backend/routes/api.php', 'backend/tests/Feature/TaskApiTest.php'];
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 
-async function tty(argv, { cwd, env }, answers) {
+export async function tty(argv, { cwd, env }, answers) {
   const stdin = Readable.from([`${answers.join('\n')}\n`]);
   stdin.isTTY = true;
   let err = '';
@@ -44,7 +44,7 @@ async function tty(argv, { cwd, env }, answers) {
   if (code !== 0) throw new Error(`${argv.join(' ')}: ${err}`);
 }
 
-function setup({ app, workdir }) {
+export function setup({ app, workdir }) {
   const root = join(workdir, 'repo');
   mkdirSync(join(workdir, 'home'), { recursive: true, mode: 0o700 });
   const home = realpathSync(join(workdir, 'home'));

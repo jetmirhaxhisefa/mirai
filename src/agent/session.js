@@ -12,14 +12,26 @@ import { atomicWrite, ensurePrivateDir } from '../store/files.js';
 // launch that made it, and is resumed only by a round that names that launch (21c review): an older
 // session is never picked up because a newer one couldn't be kept.
 
-export const SESSION_LIMITS = Object.freeze({ files: 16, bytes: 32 * 1024 * 1024, depth: 6 });
+// Files: the transcript, and the large tool results Claude Code writes beside it (21d).
+export const SESSION_LIMITS = Object.freeze({ files: 64, bytes: 32 * 1024 * 1024, depth: 6 });
 const ID = /^[0-9a-f-]{8,64}$/i;
 
-// The *.jsonl files under `dir`/projects: [rel] (relative to `dir`), regular files only.
-function sessionFiles(dir) {
-  const out = [];
+// The files under `dir`/`start` (relative to `dir`): { files, links }. Regular files only; a link
+// or anything else is named in `links`, never followed (the start too), and so is a folder past
+// the depth cap (21d review: never a session kept in part and called whole).
+function filesUnder(dir, start) {
+  const files = [];
+  const links = [];
+  try {
+    if (!lstatSync(join(dir, start)).isDirectory()) return { files, links: [start] };
+  } catch {
+    return { files, links };
+  }
   const walk = (rel, depth) => {
-    if (depth > SESSION_LIMITS.depth) return;
+    if (depth > SESSION_LIMITS.depth) {
+      links.push(rel);
+      return;
+    }
     let entries;
     try {
       entries = readdirSync(join(dir, rel), { withFileTypes: true });
@@ -29,11 +41,24 @@ function sessionFiles(dir) {
     for (const e of entries) {
       const r = join(rel, e.name);
       if (e.isDirectory()) walk(r, depth + 1);
-      else if (e.isFile() && e.name.endsWith('.jsonl')) out.push(r);
+      else if (e.isFile()) files.push(r);
+      else links.push(r);
     }
   };
-  walk('projects', 0);
-  return out;
+  walk(start, 0);
+  return { files, links };
+}
+
+// A session's files in a config folder: its transcript `projects/<cwd>/<id>.jsonl`, and the folder
+// beside it, `projects/<cwd>/<id>/`, where Claude Code keeps large tool results (21d; else a
+// resumed session points at files that are gone). { files, links }.
+function sessionFiles(dir, sessionId) {
+  const all = filesUnder(dir, 'projects');
+  const transcripts = all.files.filter((r) => r.split(sep).pop() === `${sessionId}.jsonl`);
+  const beside = transcripts.map((r) => join(dirname(r), sessionId));
+  // The folder itself, or anything under it (a link that is the folder counts: 21d review).
+  const mine = (r) => beside.some((b) => r === b || r.startsWith(b + sep));
+  return { files: [...new Set([...transcripts, ...all.files.filter(mine)])], links: all.links.filter((r) => r === 'projects' || r.split(sep).pop() === `${sessionId}.jsonl` || mine(r)) };
 }
 
 // A regular file's bytes, never through a link (21c review: the file is looked at and read as one).
@@ -52,8 +77,9 @@ function readRegular(path) {
 export function keepSession({ configHome, dest, sessionId, launchId }) {
   forgetSession(dest);
   if (!ID.test(sessionId ?? '')) return { kept: false, why: 'the run named no session' };
-  const files = sessionFiles(configHome).filter((r) => r.split(sep).pop() === `${sessionId}.jsonl`);
-  if (!files.length) return { kept: false, why: 'its session file wasn\'t found' };
+  const { files, links } = sessionFiles(configHome, sessionId);
+  if (links.length) return { kept: false, why: `the session has a link or a special file (${links[0]})` };
+  if (!files.some((r) => r.endsWith('.jsonl'))) return { kept: false, why: 'its session file wasn\'t found' };
   if (files.length > SESSION_LIMITS.files) return { kept: false, why: `the session has too many files to keep (${files.length})` };
   ensurePrivateDir(dest);
   let bytes = 0;

@@ -859,3 +859,68 @@ test('21c re-review: Kai\'s blocked needs you first; a clean discard of a failin
   await assert.rejects(fixIt(h, c, { launch: after }));
   assert.equal(readLoop(h.store, 'PMT-31').rounds_used, 1);
 });
+
+test('21d T1: a session\'s tool results beside its transcript are kept and restored whole; capped; a link among them is refused', () => {
+  const home = realpathSync(tempDir('cfg'));
+  const dest = join(realpathSync(tempDir('store')), 'session');
+  const sid = '0000000a-0000-4000-8000-000000000002';
+  const slug = join(home, 'projects', '-p');
+  mkdirSync(join(slug, sid, 'tool-results'), { recursive: true });
+  writeFileSync(join(slug, `${sid}.jsonl`), '{}\n');
+  writeFileSync(join(slug, sid, 'tool-results', 'big.txt'), 'x'.repeat(1000));
+  writeFileSync(join(slug, 'other.jsonl'), 'not mine\n');
+  const kept = keepSession({ configHome: home, dest, sessionId: sid, launchId: 'L1' });
+  assert.equal(kept.kept, true, kept.why);
+  assert.deepEqual([...kept.files].sort(), [join('projects', '-p', `${sid}.jsonl`), join('projects', '-p', sid, 'tool-results', 'big.txt')].sort());
+  const fresh = realpathSync(tempDir('cfg2'));
+  assert.equal(restoreSession({ src: dest, configHome: fresh, launchId: 'L1' }), sid);
+  assert.equal(readFileSync(join(fresh, 'projects', '-p', sid, 'tool-results', 'big.txt'), 'utf8').length, 1000);
+  assert.equal(existsSync(join(fresh, 'projects', '-p', 'other.jsonl')), false, 'only this session\'s files');
+  // Over the file cap: not kept.
+  for (let i = 0; i < 64; i++) writeFileSync(join(slug, sid, 'tool-results', `r${i}.txt`), 'x');
+  assert.equal(keepSession({ configHome: home, dest, sessionId: sid, launchId: 'L2' }).kept, false);
+  // A link among the tool results: refused.
+  const h2 = realpathSync(tempDir('cfg3'));
+  mkdirSync(join(h2, 'projects', '-p', sid), { recursive: true });
+  writeFileSync(join(h2, 'projects', '-p', `${sid}.jsonl`), '{}\n');
+  symlinkSync('/etc/hosts', join(h2, 'projects', '-p', sid, 'hosts'));
+  const linked = keepSession({ configHome: h2, dest, sessionId: sid, launchId: 'L3' });
+  assert.equal(linked.kept, false);
+  assert.match(linked.why, /link/);
+  // The tool-results folder itself a link, or projects/ a link: refused, never kept in part.
+  const h3 = realpathSync(tempDir('cfg4'));
+  mkdirSync(join(h3, 'projects', '-p'), { recursive: true });
+  writeFileSync(join(h3, 'projects', '-p', `${sid}.jsonl`), '{}\n');
+  symlinkSync(realpathSync(tempDir('elsewhere')), join(h3, 'projects', '-p', sid));
+  assert.equal(keepSession({ configHome: h3, dest, sessionId: sid, launchId: 'L4' }).kept, false);
+  const h4 = realpathSync(tempDir('cfg5'));
+  symlinkSync(join(home, 'projects'), join(h4, 'projects'));
+  assert.equal(keepSession({ configHome: h4, dest, sessionId: sid, launchId: 'L5' }).kept, false);
+  // Past the depth cap: refused.
+  const h5 = realpathSync(tempDir('cfg6'));
+  const deep = join(h5, 'projects', '-p', sid, 'a', 'b', 'c', 'd', 'e', 'f');
+  mkdirSync(deep, { recursive: true });
+  writeFileSync(join(h5, 'projects', '-p', `${sid}.jsonl`), '{}\n');
+  writeFileSync(join(deep, 'r.txt'), 'x');
+  assert.equal(keepSession({ configHome: h5, dest, sessionId: sid, launchId: 'L6' }).kept, false);
+});
+
+test('21d T3: the checkpoint report sums a ticket\'s launches across runs, its checks and loop; an unmeasured share is named', async () => {
+  const { renderReport, ticketReport } = await import('../probes/checkpoint-report.js');
+  const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// fixed" >> app/Team.php']);
+  const f = await failedBuild(claude);
+  assert.equal((await fixIt(f, claude)).outcome, 'handed-over');
+  const r = ticketReport(f.store, 'PMT-31');
+  assert.equal(r.state, 'in-review');
+  assert.deepEqual(r.launches.map((l) => [l.step, l.round]), [['plan', 1], ['build', 1], ['build', 1]], 'the plan, the build and the fix round');
+  assert.equal(new Set(r.launches.map((l) => l.run)).size, 3, 'from three runs');
+  assert.equal(r.totals.turns, r.launches.reduce((n, l) => n + l.turns, 0));
+  assert.equal(r.totals.turns >= 8, true);
+  assert.equal(r.totals.limit_share, null);
+  assert.equal(r.totals.limit_share_unknown, 3);
+  assert.equal(r.checks.length, 2);
+  assert.equal(r.loop.rounds_used, 1);
+  const text = renderReport(r);
+  assert.match(text, new RegExp(`\\| \\*\\*Total\\*\\* \\| \\| \\| \\| 3 launches \\| ${r.totals.turns} \\|`));
+  assert.match(text, /unknown \(3 unknown\)/);
+});

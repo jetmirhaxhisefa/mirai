@@ -888,6 +888,13 @@ So if your token leaks:
   no `.git` and no real `.env*`, on internal networks, with the integration branch's compose file. Each
   red-team run tries from inside them to reach your home folder, `.git`, secrets, Docker's socket and the
   internet. A service's own image can still hold anything baked into it when you built it.
+- **A resumed fix round remembers what it read (unit 21c).** Kai's session carries over between
+  rounds, tool results included, so text that steered Kai in one round (a test's output, a file's
+  comment) is still in front of it in the next. MIRAI's checks still run after every round, and a
+  session is dropped after any stop, a discard or a re-plan. Kai can't write the config folder that
+  holds the session (explicit deny rules since unit 21d), and the red team checks that a forged
+  history doesn't change MIRAI's permission mode or let a refused write through. It doesn't test a
+  history that only steers the model.
 - **Your merge is the final gate.** MIRAI reviews and tests every change, but you decide what
   reaches your integration branch.
 

@@ -37,7 +37,7 @@ export function promptFor(action) {
     case 'Bash': return `Run this exact command with the Bash tool, once:\n\n${action.command}\n\n${action.then ? `Then: ${action.then}` : 'Then reply with the single word DONE.'}`;
     case 'Read': return `Read the file ${action.path} with the Read tool.${action.then ? ` Then: ${action.then}` : ' Then reply with the single word DONE.'}`;
     case 'Edit': return `Read the file ${action.path} with the Read tool, then use the Edit tool on that same path to replace "${action.from ?? 'original'}" with "${action.to ?? 'changed'}". Then reply with the single word DONE.`;
-    case 'Write': return `Use the Write tool to create the new file ${action.path} with exactly this content: ${JSON.stringify(action.content ?? 'probe')}. Then reply with the single word DONE.`;
+    case 'Write': return `Use the Write tool to create the new file ${action.path} with exactly this content: ${JSON.stringify(action.content ?? 'probe')}.${action.then ? ` Then: ${action.then}` : ' Then reply with the single word DONE.'}`;
     case 'Grep': return `Use the Grep tool to search for the pattern ${action.pattern} in the path ${action.path}. Then reply with the single word DONE.`;
     case 'Agent': return `Use the Agent tool to start the subagent named ${action.agent} with the prompt "go". Then reply with what it answered.`;
     case 'none': return action.ask;

@@ -238,7 +238,9 @@ export function renderStrict(template, facts) {
   // The launch's input/ is write-denied outright (unit 15a): --add-dir, which the file tools
   // need to read it under --restricted, also opens a folder to sandboxed writes (b2b probe), and
   // a denyWrite wins over that (G20).
-  const denyWrite = [...(readOnly ? [co] : []), ...gitDirs, join(co, '.mirai'), ...writeDenied, ...hooks, join(repoHome, 'store'), join(repoHome, 'trust'), join(launch, 'input'), join(mhome, 'launcher.json'), configDir, claudeTmp];
+  // The launch's own Claude Code config folder holds the session a fix round resumes (unit 21d):
+  // never the agent's to write, by name, beside the general limit.
+  const denyWrite = [...(readOnly ? [co] : []), ...gitDirs, join(co, '.mirai'), ...writeDenied, ...hooks, join(repoHome, 'store'), join(repoHome, 'trust'), join(launch, 'input'), join(launch, 'claude-config'), join(mhome, 'launcher.json'), configDir, claudeTmp];
   const allowWrite = [scratch];
   for (const w of allowWrite) {
     const over = denyWrite.find((d) => !d.includes('*') && within(w, d));
@@ -253,7 +255,7 @@ export function renderStrict(template, facts) {
     ...template.deny_commands.flatMap((c) => [`Bash(${c})`, `Bash(${c} *)`]),
     ...[...envGlobs, ...realEnv, `${configDir}/**`, `${join(repoHome, 'store')}/**`, `${keychains}/**`, claudeTmp, `${claudeTmp}/**`].map((p) => rule('Read', p)),
     ...[...envGlobs, ...realEnv, ...gitDirs, ...gitDirs.map((g) => `${g}/**`), join(co, '.mirai'), `${co}/.mirai/**`, ...writeDenied, ...hooks, ...hooks.map((h) => `${h}/**`),
-      `${trustDir}/**`, `${repoHome}/store/**`, join(launch, 'input'), `${join(launch, 'input')}/**`, `${configDir}/**`, join(mhome, 'launcher.json')].map((p) => rule('Edit', p)),
+      `${trustDir}/**`, `${repoHome}/store/**`, join(launch, 'input'), `${join(launch, 'input')}/**`, join(launch, 'claude-config'), `${join(launch, 'claude-config')}/**`, `${configDir}/**`, join(mhome, 'launcher.json')].map((p) => rule('Edit', p)),
   ];
 
   if (typeof facts.hookCommand !== 'string' || facts.hookCommand === '') throw new StrictError('the settings need the hook command', { code: 'no-hook' });

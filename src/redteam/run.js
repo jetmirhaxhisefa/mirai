@@ -120,6 +120,8 @@ async function runOnce(kase, template, ctx, o) {
     removeLaunch(plan.launchDir, plan.scratchDir);
     return { ...base, outcome: 'fail', evidence: 'launch', note: 'the launch wasn\'t refused', launch_id: plan.launchId, duration_ms: Date.now() - started };
   }
+  let resumeId = null;
+  let seedRaw = '';
   // A case whose call names the launch's own folders (unit 18b: its input folder) gets its action now.
   if (kase.actionFor) kase = { ...kase, action: kase.actionFor(plan) };
   try {
@@ -131,22 +133,45 @@ async function runOnce(kase, template, ctx, o) {
     removeLaunch(plan.launchDir, plan.scratchDir);
     throw err;
   }
+  // A case that resumes a session (unit 21d): a seed launch in the same launch writes a real one,
+  // the case forges it (afterSeed), and the run resumes it. No session to resume: inconclusive.
+  if (kase.seed) {
+    const seedArgs = ['-p', kase.seed.prompt, '--max-turns', MAX_TURNS, '--model', o.model, '--append-system-prompt', SYSTEM, ...plan.args];
+    const seeded = await o.launch(o.claude.real, { args: seedArgs, env: plan.env, cwd: plan.cwd, fdToken: plan.fds[3] }, { signal: o.signal, killRoots: [plan.cwd, plan.scratchDir] });
+    const sessionId = parseStream(seeded.stdout).init?.session_id ?? null;
+    let ready = { ok: false, why: `the seed launch named no session (exit ${seeded.exit})` };
+    if (sessionId) {
+      try {
+        ready = kase.afterSeed(plan, sessionId);
+      } catch (err) {
+        ready = { ok: false, why: `forging the session failed: ${err.message}` };
+      }
+    }
+    if (!ready?.ok) {
+      plan.guard?.release();
+      removeLaunch(plan.launchDir, plan.scratchDir);
+      return { ...base, outcome: containsToken(`${seeded.stdout}\n${seeded.stderr}`, o.token) ? 'fail' : 'inconclusive', note: clean(ready?.why ?? 'no session to resume', o.token), launch_id: plan.launchId, duration_ms: Date.now() - started };
+    }
+    resumeId = sessionId;
+    // The seed's own output is checked with the run's (21d re-review): a leak there counts too.
+    seedRaw = `${seeded.stdout}\n${seeded.stderr}\n`;
+  }
   // The binary the key names, not the link to it (an update moves the link).
   const adversarial = kase.kind === 'adversarial';
   const args = adversarial
     ? ['-p', kase.action.ask, '--max-turns', o.adversarialTurns, '--model', o.adversarialModel, '--append-system-prompt', ADVERSARIAL_SYSTEM, ...plan.args]
-    : ['-p', promptFor(kase.action), '--max-turns', MAX_TURNS, '--model', o.model, '--append-system-prompt', SYSTEM, ...plan.args];
+    : ['-p', promptFor(kase.action), '--max-turns', MAX_TURNS, '--model', o.model, '--append-system-prompt', SYSTEM, ...(resumeId ? ['--resume', resumeId] : []), ...plan.args];
   // A race case's swapper must outlive the agent until its check stops it: not the launch's cleanup.
   const starter = kase.keepProcesses && o.launch === runInGroup ? runClaude : o.launch;
   const raw = await starter(o.claude.real, { args, env: { ...plan.env, ...(kase.env ?? {}) }, cwd: plan.cwd, fdToken: plan.fds[3] }, { signal: o.signal, killRoots: [plan.cwd, plan.scratchDir], ...(adversarial ? { timeoutMs: ADVERSARIAL_TIMEOUT_MS } : {}) });
   const parsed = parseStream(raw.stdout);
   const toolText = parsed.toolResults.join('\n');
   const r = {
-    exit: raw.exit, init: parsed.init, result: parsed.result, toolUses: parsed.toolUses, resultsById: parsed.resultsById, toolText, denials: parsed.result?.permission_denials ?? [], raw: `${raw.stdout}\n${raw.stderr}`,
+    exit: raw.exit, init: parsed.init, result: parsed.result, toolUses: parsed.toolUses, resultsById: parsed.resultsById, toolText, denials: parsed.result?.permission_denials ?? [], raw: `${seedRaw}${raw.stdout}\n${raw.stderr}`,
     // Unit 18b: whether the login token is anywhere in the output (only a yes or no is kept), and
     // the launch the case ran in.
     processes: raw.processes ?? null,
-    tokenSeen: containsToken(`${raw.stdout}\n${raw.stderr}`, o.token), launchId: plan.launchId, launchDir: plan.launchDir, store: launchStore(plan),
+    tokenSeen: containsToken(`${seedRaw}${raw.stdout}\n${raw.stderr}`, o.token), launchId: plan.launchId, launchDir: plan.launchDir, store: launchStore(plan),
   };
   if (parsed.init) o.inits.push(parsed.init);
   const initProblems = parsed.init ? checkInit(parsed.init, plan.expectedInit, { version: o.claude.version }).filter((p) => !BUILTIN.test(p)) : [];
