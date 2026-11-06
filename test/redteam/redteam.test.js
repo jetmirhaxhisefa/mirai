@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
@@ -91,7 +91,7 @@ const synthetic = (ids = ['t-ok', 't-ro'], extra = {}) => () => ids.map((id) => 
 }));
 
 const options = (r, extra = {}) => ({
-  cwd: r.root, env: r.env, consent: true, claude: r.claude, dockerVersion: '29.6.2', binaryFacts: SAME_BINARY, host: HOST,
+  cwd: r.root, env: r.env, consent: true, claude: r.claude, allowScript: true, dockerVersion: '29.6.2', binaryFacts: SAME_BINARY, host: HOST,
   allowTempWorkdir: true, workdir: join(tempDir('rt'), 'w'), workers: 2, ...extra,
 });
 
@@ -572,4 +572,133 @@ test('18f T2 + T3: a change outside the cage keeps the key; one inside, or a new
   const d = io(r, { extra: { docker: { version: '29.6.2' }, claude: r.claude } });
   assert.equal(await main(['redteam', 'status'], d.io), EXIT.OK, d.out.stdout);
   assert.match(d.out.stdout, /red team: green[^]*MIRAI changed since this result, but not the cage: this result still holds/);
+});
+
+// Unit 18g: a green run keeps the binary it tested; status names it and a newer one waiting.
+test('18g T1 + T3: a green run keeps its binary (read-only, signed); a red one changes nothing; two kept; status names both', async () => {
+  const { readTested, testedRoot } = await import('../../src/redteam/tested.js');
+  const r = repo();
+  const f = fakeClaude(() => ({ text: 'ok' }));
+  const store = openStore({ cwd: r.root, env: r.env });
+  // Before any green run: agents run your PATH's, and status says so.
+  let res = await runRedTeam(options(r, { launch: f.launch, caseList: synthetic() }));
+  assert.equal(res.result.state, 'green');
+  const first = readTested(store).current;
+  assert.equal(first.version, '2.1.314');
+  assert.equal(statSync(first.path).mode & 0o777, 0o500);
+  assert.equal(first.path.startsWith(testedRoot(r.env)), true);
+  // A newer claude installed: a red run on it moves nothing.
+  const newer = (v, n) => {
+    const p = join(tempDir('bin'), 'claude');
+    writeFileSync(p, `#!/bin/sh\necho "${v} (Claude Code)"\n# ${n}\n`, { mode: 0o755 });
+    return p;
+  };
+  const b2 = newer('2.1.315', 'two');
+  const bad = fakeClaude(() => ({ text: 'no', init: { claude_code_version: '2.1.315' } }));
+  res = await runRedTeam(options(r, { claude: b2, launch: bad.launch, caseList: synthetic() }));
+  assert.equal(res.result.state, 'red');
+  assert.equal(readTested(store).current.sha256, first.sha256, 'still the green one');
+  // Status without a named claude: agents run the kept copy, green; the newer one is named.
+  const trust = snapshot({ cwd: r.root, env: r.env });
+  const env = { ...r.env, PATH: `${join(b2, '..')}:${r.env.PATH}` };
+  const s = await redTeamStatus({ cwd: r.root, env, trust, dockerVersion: '29.6.2', installed: true });
+  assert.equal(s.state, 'green');
+  assert.equal(s.tested, true);
+  assert.equal(s.parts.claude_code.version, '2.1.314');
+  assert.equal(s.installed?.version, '2.1.315');
+  assert.ok(s.installed.checks.some((c) => c.id === 'S1'));
+  // Green on two newer binaries: only the two newest copies stay.
+  const as = (v) => fakeClaude(() => ({ text: 'ok', init: { claude_code_version: v } })).launch;
+  assert.equal((await runRedTeam(options(r, { claude: b2, launch: as('2.1.315'), caseList: synthetic() }))).result.state, 'green');
+  const b3 = newer('2.1.316', 'three');
+  assert.equal((await runRedTeam(options(r, { claude: b3, launch: as('2.1.316'), caseList: synthetic() }))).result.state, 'green');
+  const rec = readTested(store);
+  assert.equal(rec.current.version, '2.1.316');
+  assert.equal(rec.previous.version, '2.1.315');
+  // A copy no record names goes once it's no longer young (another repo's run may be about to name it).
+  const { pruneTested } = await import('../../src/redteam/tested.js');
+  assert.equal(existsSync(first.path), true, 'young: kept for now');
+  pruneTested(r.env, { now: Date.now() + 16 * 60 * 1000 });
+  assert.deepEqual(readdirSync(testedRoot(r.env)).sort(), [rec.current.sha256, rec.previous.sha256].sort(), 'the first copy is gone');
+  // --kept tests the copy agents run, with a newer one first on PATH; it keeps no new copy.
+  const k = await runRedTeam(options(r, { claude: null, kept: true, env, launch: as('2.1.316'), caseList: synthetic() }));
+  assert.equal(k.result.parts.claude_code.version, '2.1.316');
+  assert.equal(k.result.state, 'green');
+  // A keep that fails after a green run is reported, not thrown.
+  const recFile = join(store.dir, 'redteam', 'tested-claude.json');
+  rmSync(recFile);
+  mkdirSync(recFile);
+  const failed = await runRedTeam(options(r, { claude: b2, launch: as('2.1.315'), caseList: synthetic() }));
+  assert.equal(failed.result.state, 'green');
+  assert.equal(failed.kept.ok, false);
+});
+
+test('18g review: the copy is what is tested, hashed as copied; a bad copy is replaced; npm installs and broken records refuse', async () => {
+  const { stageTested, testedClaude, testedRoot } = await import('../../src/redteam/tested.js');
+  const r = repo();
+  const store = openStore({ cwd: r.root, env: r.env });
+  const staged = await stageTested({ env: r.env, claude: { real: r.claude, version: '2.1.314' }, allowScript: true });
+  assert.equal(staged.path, join(testedRoot(r.env), staged.sha256, 'claude'));
+  assert.equal(readFileSync(staged.path, 'utf8'), readFileSync(r.claude, 'utf8'));
+  // Something else under that hash's name: replaced by the real bytes.
+  chmodSync(staged.path, 0o700);
+  writeFileSync(staged.path, 'not claude\n');
+  const again = await stageTested({ env: r.env, claude: { real: r.claude, version: '2.1.314' }, allowScript: true });
+  assert.equal(readFileSync(again.path, 'utf8'), readFileSync(r.claude, 'utf8'));
+  // An npm install (cli.js and the files beside it): refused.
+  const npm = join(tempDir('npm'), 'node_modules', '@anthropic-ai', 'claude-code');
+  mkdirSync(npm, { recursive: true });
+  writeFileSync(join(npm, 'cli.js'), '#!/usr/bin/env node\n');
+  await assert.rejects(stageTested({ env: r.env, claude: { real: join(npm, 'cli.js'), version: '2.1.314' }, allowScript: true }), (e) => e.code === 'claude-not-native');
+  // A script (a version manager's shim runs whatever is newest): refused outside MIRAI's own tests.
+  await assert.rejects(stageTested({ env: r.env, claude: { real: r.claude, version: '2.1.314' } }), (e) => e.code === 'claude-not-native');
+  // A Mach-O file passes by its first bytes.
+  const macho = join(tempDir('bin'), 'claude');
+  writeFileSync(macho, Buffer.concat([Buffer.from('cffaedfe', 'hex'), Buffer.from('#!/bin/sh\n')]), { mode: 0o755 });
+  const { nativeCheck } = await import('../../src/redteam/tested.js');
+  assert.doesNotThrow(() => nativeCheck(macho));
+  // A record that doesn't verify refuses, never read as "none".
+  mkdirSync(join(store.dir, 'redteam'), { recursive: true, mode: 0o700 });
+  writeFileSync(join(store.dir, 'redteam', 'tested-claude.json'), '{"current":{"sha256":"' + 'a'.repeat(64) + '"}}', { mode: 0o600 });
+  await assert.rejects(testedClaude({ env: r.env, store }), (e) => e.code === 'tested-claude-invalid');
+});
+
+test('18g T4: MIRAI\'s kept Claude Code is denied by name in both templates, and the floor checks it', () => {
+  const r = repo();
+  const trust = snapshot({ cwd: r.root, env: r.env });
+  const home = r.home;
+  const mhome = join(home, 'Library', 'Application Support', 'mirai');
+  const repoHome = join(mhome, 'repo');
+  const facts = { checkout: r.root, home, miraiHome: mhome, repoHome, trustDir: join(repoHome, 'trust', 'x'), launchDir: join(repoHome, 'launches', 'l'), scratchDir: '/private/tmp/mirai-00000000', envFiles: [], tracked: [], hooksPaths: [], userDirs: [], uid: 501, hookCommand: 'hook' };
+  const kept = join(mhome, 'claude-code');
+  for (const name of ['read-only', 'read-write']) {
+    const settings = renderStrict(trustedStrict(trust, name), facts);
+    assert.ok(settings.sandbox.filesystem.denyWrite.includes(kept), name);
+    assert.ok(settings.permissions.deny.some((d) => d.startsWith('Edit(') && d.includes(`${kept}/**`)), name);
+    assert.deepEqual(floorCheck(settings, { home, repoHome, uid: 501 }), [], name);
+    const cut = JSON.parse(JSON.stringify(settings));
+    cut.sandbox.filesystem.denyWrite = cut.sandbox.filesystem.denyWrite.filter((p) => p !== kept);
+    assert.match(floorCheck(cut, { home, repoHome, uid: 501 }).join('\n'), /claude-code isn't write-denied/, name);
+  }
+});
+
+test('18g review: mirai redteam status names the Claude Code agents run, a newer one waiting, and a broken record as a state', async () => {
+  const r = repo();
+  const f = fakeClaude(() => ({ text: 'ok' }));
+  assert.equal((await runRedTeam(options(r, { launch: f.launch, caseList: synthetic() }))).result.state, 'green');
+  const bin = tempDir('bin');
+  writeFileSync(join(bin, 'claude'), '#!/bin/sh\necho "2.1.315 (Claude Code)"\n# newer\n', { mode: 0o755 });
+  const env = { ...r.env, PATH: `${bin}:${r.env.PATH}` };
+  const d = io(r, { extra: { env, docker: { version: '29.6.2' } } });
+  assert.equal(await main(['redteam', 'status'], d.io), EXIT.OK, d.out.stdout);
+  assert.match(d.out.stdout, /agents run Claude Code 2\.1\.314: the binary the red team tested, kept by MIRAI/);
+  assert.match(d.out.stdout, /installed: Claude Code 2\.1\.315\. MIRAI stays on 2\.1\.314 until a red-team run on 2\.1\.315 is green/);
+  assert.match(d.out.stdout, /S1 /);
+  // A record that doesn't verify: said as a state, with what to do.
+  const store = openStore({ cwd: r.root, env: r.env });
+  writeFileSync(join(store.dir, 'redteam', 'tested-claude.json'), '{}');
+  const e = io(r, { extra: { env, docker: { version: '29.6.2' } } });
+  assert.equal(await main(['redteam', 'status'], e.io), EXIT.NEEDS_HUMAN);
+  assert.match(e.out.stdout, /red team: none for the Claude Code agents run/);
+  assert.match(e.out.stdout, /next: run the red team again/);
 });

@@ -15,11 +15,12 @@ import { snapshot, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
 import { readBinaryFacts } from './binary.js';
 import { launchStore } from './direct.js';
 import { redTeamCases } from './cases.js';
+import { keepTested, pruneTested, stageTested, testedClaude } from './tested.js';
 import { containsToken, MAX_TURNS, madeTheCall, parseStream, promptFor, redact, runClaude, SYSTEM } from './claude.js';
 import { runInGroup } from '../agent/process.js';
 import { guardProbe } from './guard.js';
 import { cleanupOutside, hostBaseline, hostCanaries, sweepStale } from './host.js';
-import { frameworkHash, keyOf, keyParts, resolveClaude, templateNames } from './key.js';
+import { binaryHash, frameworkHash, keyOf, keyParts, resolveClaude, templateNames } from './key.js';
 import { baselineCheck, binaryCheck, builtinsCheck, floorCheck } from './static.js';
 import { RESULT_FOLDER, RESULT_SCHEMA_VERSION, statusFor, writeResult } from './store.js';
 import { buildWorkspace, CONTEXT_CANARIES, lateEscapes, removeWorkspace, resetWorker, sweepLeftovers } from './workspace.js';
@@ -325,7 +326,7 @@ function floorAll(templates, ctx, env) {
 // every worker has stopped and everything is cleaned up; nothing is recorded.
 export async function runRedTeam({
   cwd, env, storeEnv = env, consent = false, only = null, runs = DEFAULTS.runs, maxAttempts = DEFAULTS.maxAttempts, workers = DEFAULTS.workers,
-  model = DEFAULTS.model, adversarialModel = DEFAULTS.adversarialModel, adversarialTurns = DEFAULTS.adversarialTurns, escapeGraceMs = DEFAULTS.escapeGraceMs, claude = null, signer = null, workdir = null, keep = false, signal = null, onEvent = () => {}, now = () => new Date(),
+  model = DEFAULTS.model, adversarialModel = DEFAULTS.adversarialModel, adversarialTurns = DEFAULTS.adversarialTurns, escapeGraceMs = DEFAULTS.escapeGraceMs, claude = null, kept: useKept = false, allowScript = false, signer = null, workdir = null, keep = false, signal = null, onEvent = () => {}, now = () => new Date(),
   docker = {}, dockerVersion = null, launch = runInGroup, binaryFacts = readBinaryFacts,
   // For MIRAI's own tests only: other cases, stand-ins for the host canaries, a temp work folder.
   caseList = redTeamCases, host = HOST, allowTempWorkdir = false,
@@ -347,7 +348,25 @@ export async function runRedTeam({
   let canariesOn = false;
   let canaryServer = null;
   try {
-    const c = resolveClaude(env, claude);
+    // What's tested is what agents will run (unit 18g): a copy in MIRAI's home, hashed as copied, of
+    // the newest installed Claude Code; or, with `kept`, the copy agents run now (a macOS or MIRAI
+    // change re-tested without moving to a newer Claude Code).
+    let c;
+    // The installed one: what a case that starts a nested claude from Bash aims at, beside the copy
+    // (a target only). `--kept` doesn't need one on PATH (18g re-review).
+    let installed = null;
+    if (useKept) {
+      c = await testedClaude({ env: storeEnv, store });
+      if (!c) throw new UsageError('MIRAI keeps no Claude Code yet: a green run without --kept keeps the one it tests');
+      try {
+        installed = resolveClaude(env, claude);
+      } catch {
+        installed = c;
+      }
+    } else {
+      installed = resolveClaude(env, claude);
+      c = await stageTested({ env: storeEnv, claude: installed, allowScript });
+    }
     const parts = await keyParts({ env: storeEnv, hostEnv: env, trust, store, claude: c, docker: { socket: join(env.HOME, '.docker', 'run', 'docker.sock'), ...docker }, dockerVersion });
     const templates = new Map(templateNames(trust).map((n) => [n, trustedStrict(trust, n)]));
     const checks = binaryCheck(binaryFacts(c.real), strict.binary);
@@ -357,7 +376,7 @@ export async function runRedTeam({
     sweepLeftovers(env.HOME);
     const wd = workdir ?? mkdtempSync(join(env.HOME, '.mirai-redteam-'));
     ws = buildWorkspace({ workdir: wd, checkout: store.checkout, env: storeEnv, hostEnv: env, trust, template: templates.get('read-write') ?? [...templates.values()][0], workers, allowTemp: allowTempWorkdir });
-    for (const w of ws.workers) w.host = { ...w.host, claude: c.real, launcher: null };
+    for (const w of ws.workers) w.host = { ...w.host, claude: installed.real, testedClaude: c.real, launcher: null };
 
     // The adversarial network goal's page (unit 18b): a canary served on the loopback address only.
     canaryServer = await serveCanary(ws.canaries.http);
@@ -478,7 +497,18 @@ export async function runRedTeam({
     };
     const partial = only !== null || signal?.aborted === true;
     const recorded = partial ? null : writeResult(store, result, sign, { now });
-    return { result: recorded ?? result, recorded: recorded !== null, workdir: wd, partial };
+    // A green run is how MIRAI moves to the Claude Code it tested (unit 18g): agents run that copy. A
+    // keep that fails is reported, never thrown away with the run (18g review).
+    let kept = null;
+    if (recorded?.state === 'green') {
+      try {
+        keepTested({ env: storeEnv, store, staged: c, signer: sign, now });
+        kept = { ok: true, version: c.version };
+      } catch (err) {
+        kept = { ok: false, version: c.version, why: String(err.message).slice(0, 300) };
+      }
+    } else if (!useKept) pruneTested(storeEnv, { drop: [c.sha256] });
+    return { result: recorded ?? result, recorded: recorded !== null, workdir: wd, partial, kept };
   } finally {
     if (canariesOn) host.canaries(ws.workers[0], false);
     canaryServer?.close();
@@ -500,11 +530,27 @@ export function templateTested(mine) {
   return counted.length > 0 && counted.every((x) => x.outcome === 'pass');
 }
 
-export async function redTeamStatus({ cwd, env, hostEnv = env, trust = null, template = null, claude = null, docker = {}, dockerVersion = null }) {
+export async function redTeamStatus({ cwd, env, hostEnv = env, trust = null, template = null, claude = null, docker = {}, dockerVersion = null, installed: wantInstalled = false }) {
   const store = openStore({ cwd, env });
   const t = trust ?? snapshot({ cwd, env });
-  const parts = await keyParts({ env, hostEnv, trust: t, store, claude: claude ? resolveClaude(hostEnv, claude) : null, docker, dockerVersion });
-  const status = statusFor(store, parts);
+  // The binary agents run (unit 18g): the one the last green result tested, kept by MIRAI; else
+  // your PATH's (no green run since 18g). A caller that names its own (a test, a probe) keeps it.
+  const tested = claude ? null : await testedClaude({ env, store });
+  const runs = claude ? resolveClaude(hostEnv, claude) : tested ? { path: tested.path, real: tested.real, version: tested.version } : null;
+  const parts = await keyParts({ env, hostEnv, trust: t, store, claude: runs, docker, dockerVersion });
+  const status = { ...statusFor(store, parts), claude: runs ?? null, tested: Boolean(tested), installed: null };
+  // `mirai redteam status` only (it reads the whole binary): a newer Claude Code on your PATH than the
+  // one agents run, with the no-model checks against it, so you see early whether moving needs a
+  // MIRAI update.
+  if (wantInstalled && tested) {
+    try {
+      const path = resolveClaude(hostEnv);
+      const sha256 = await binaryHash(join(store.dir, RESULT_FOLDER), path.real);
+      if (sha256 !== tested.sha256) status.installed = { version: path.version, sha256, checks: [].concat(binaryCheck(readBinaryFacts(path.real), trustedRegistry(t).adapters['claude-code'].strict.binary)) };
+    } catch {
+      // a note only
+    }
+  }
   if (template && status.result && status.state !== 'stale') {
     const cov = status.result.templates?.[template.name];
     const mine = Array.isArray(status.result.cases) ? status.result.cases.filter((x) => x.template === template.name) : null;

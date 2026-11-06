@@ -31,7 +31,7 @@ export async function runWorker({ checkout, id, claude, token, env, launch, sign
     writeStatus(store, id, { state: 'running', pid: process.pid, started: startOf(process.pid) });
     const checked = startAgent.check(raw ?? {});
     if (checked.refused) throw Object.assign(new Error(`the request's arguments aren't start_agent's: ${checked.refused}`), { code: 'bad-request' });
-    const r = await runAgent({ ...checked.args, cwd: checkout, env, claude, plan: planFrom(env), signal, hardSignal, launchToken: mintLaunchToken(), ...(launch ? { launch } : {}) });
+    const r = await runAgent({ ...checked.args, cwd: checkout, env, fallbackClaude: claude, plan: planFrom(env), signal, hardSignal, launchToken: mintLaunchToken(), ...(launch ? { launch } : {}) });
     const text = escapeInvisible(redact(r.text ?? '', null));
     writeStatus(store, id, {
       state: 'done', outcome: r.outcome, why: r.why ?? null, launch_id: r.launchId, model: r.line.model_used ?? r.line.model, tier: r.line.tier, rung: r.line.rung ?? null,

@@ -407,3 +407,13 @@ Every `stream-json` run seen so far carries a `rate_limit_event`: `{"status":"al
 - **A new built-in plugin, `cc-plugin-privacy`.** On by default, and enabled only from trusted settings.
   - **What it does:** it hooks `tool.check` for Bash, Monitor, PowerShell, Tmux, WebBrowser, WebFetch and WebSearch. When a call's input holds the signed-in account's email, and the call may leave the machine (a web tool, or a command like `curl` or `ssh`), it answers "ask". Under MIRAI's `dontAsk`, an ask is a refusal.
   - **Assessment:** it only adds checks. Listed in the adapter's built-in plugins.
+
+## 2.1.319 (2026-11-06)
+
+- **A new permission key, `denyInsteadOfPrompting`.** It's read from user settings, `--settings` and managed settings; project and local settings are ignored.
+  - **What it does:** a call that would prompt a person is denied at once instead, and the model is told. The binary's description: "it only ever denies, and allows nothing". It's what `--permission-prompts none` does for `-p`.
+  - **How Claude Code treats it:** it lists it among its restrictive settings, beside `disableBypassPermissionsMode` and the block keys.
+  - **What MIRAI does with it:** listed in the adapter's known keys, not used. MIRAI's `dontAsk` already denies what isn't allowed.
+- **No new built-in plugins** in 2.1.319's plugin registration.
+
+**Run from a copy (unit 18g's R1, 2026-11-06):** a native Claude Code 2.1.319, copied into another folder (read-only, 0500), runs from there. `--version` answers, and a headless launch under MIRAI's flags passed the init check and replied. A copy keeps working when the updater moves the `claude` link.

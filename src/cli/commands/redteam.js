@@ -55,6 +55,7 @@ export default {
     only: { type: 'string', description: 'run only these cases (comma-separated ids); a partial run is reported, never recorded' },
     note: { type: 'string', description: 'with accept-blocker: why you accept it' },
     sessions: { type: 'boolean', description: 'the cases for your own Claude Code sessions (they never gate a launch)' },
+    kept: { type: 'boolean', description: 'with run: test the Claude Code agents run now (MIRAI\'s kept copy), not the newest installed' },
   },
   async run(args, io) {
     const [action, arg] = args.positionals;
@@ -82,8 +83,23 @@ export default {
     }
     if (action === 'status') {
       if (arg !== undefined) throw new UsageError('status takes no argument');
-      const s = await redTeamStatus({ cwd: io.cwd, env: io.env, ...(io.docker ? { dockerVersion: io.docker.version } : {}), ...(io.claude ? { claude: io.claude } : {}) });
+      let s;
+      try {
+        s = await redTeamStatus({ cwd: io.cwd, env: io.env, installed: true, ...(io.docker ? { dockerVersion: io.docker.version } : {}), ...(io.claude ? { claude: io.claude } : {}) });
+      } catch (err) {
+        // The kept Claude Code is gone, changed, or its record doesn't verify (unit 18g): a state, said.
+        if (!String(err.code ?? '').startsWith('tested-claude')) throw err;
+        io.stdout.write(`red team: none for the Claude Code agents run\n\n${err.message}\n\nnext: ${err.hint}\n`);
+        return EXIT.NEEDS_HUMAN;
+      }
       const lines = [`red team: ${s.state}${s.result && s.state !== 'stale' ? ` (${s.result.created_at})` : ''}`, '', `this machine now (key ${s.key.slice(0, 16)}):`, ...partsText(s.parts)];
+      // Which Claude Code agents run (unit 18g), and a newer one waiting.
+      lines.push('', s.tested ? `agents run Claude Code ${s.parts.claude_code.version}: the binary the red team tested, kept by MIRAI` : `agents run your PATH's Claude Code ${s.parts.claude_code.version}: no green run has kept one yet (a green mirai redteam run does)`);
+      if (s.installed) {
+        const newer = versionAfter(s.installed.version, s.parts.claude_code.version);
+        lines.push(`installed: Claude Code ${s.installed.version}${newer ? '' : ' (older)'}. MIRAI stays on ${s.parts.claude_code.version} until a red-team run on ${s.installed.version} is green${newer ? '' : ', or until you run it on a newer one'}; the checks below need no model, S3 and the cases need that run`);
+        for (const c of s.installed.checks) lines.push(`  ${c.id} ${c.state}  ${c.note ?? ''}`);
+      }
       if (s.state === 'stale') lines.push('', `changed since the last ${s.result.state === 'green' ? 'green ' : ''}result: ${s.changed.join(', ')}`);
       const accepted = s.blocker_seen ? readDecision(openStore({ cwd: io.cwd, env: io.env }), s.blocker_seen.id) : null;
       if (s.blocker_seen && !accepted) lines.push('', `launches are refused until you decide: read it (mirai redteam show ${s.blocker_seen.id}), then mirai redteam accept-blocker ${s.blocker_seen.id} --note <why>`);
@@ -141,19 +157,29 @@ export default {
     const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
     for (const sig of SIGNALS) process.on(sig, onInt);
     try {
-      const { result, recorded, partial } = await runRedTeam({
-        cwd: io.cwd, env: io.env, consent: true, only, signal: abort.signal,
+      const { result, recorded, partial, kept } = await runRedTeam({
+        cwd: io.cwd, env: io.env, consent: true, only, kept: args.values.kept === true, signal: abort.signal,
         onEvent: (ev) => {
           if (ev.type === 'run') io.stderr.write(`${ev.id} (${ev.template}) run ${ev.n}: ${ev.outcome}\n`);
         },
       });
       io.stdout.write(report(result, { recorded, partial }));
-      return result.state === 'green' && recorded ? EXIT.OK : EXIT.NEEDS_HUMAN;
+      if (kept?.ok) io.stdout.write(`agents now run Claude Code ${kept.version}, the binary this run tested\n`);
+      else if (kept) io.stdout.write(`green, but MIRAI couldn't keep the binary it tested (${kept.why}): agents stay on the one they ran before\n`);
+      return result.state === 'green' && recorded && kept?.ok !== false ? EXIT.OK : EXIT.NEEDS_HUMAN;
     } finally {
       for (const sig of SIGNALS) process.removeListener(sig, onInt);
     }
   },
 };
+
+// Whether version a (x.y.z) comes after b.
+function versionAfter(a, b) {
+  const p = (v) => String(v).split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const [x, y] = [p(a), p(b)];
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+}
 
 // One line in the main status: your sessions' suite is its own command, so it's easy to forget.
 async function sessionLine(io) {

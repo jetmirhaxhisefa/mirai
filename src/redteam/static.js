@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { FILE_TOOL_BLOCKS, looseKeys } from '../launch/strict.js';
 
@@ -103,8 +103,12 @@ export function floorCheck(settings, { home, repoHome, uid }) {
   // A pattern in an allow list can't be checked against the floor, so it's refused outright.
   for (const a of allowRead) if (/[*?~[{]/.test(a)) problems.push(`allowRead has a pattern (${a}), which could re-open a denied place`);
   if (!denyRead.map(norm).includes(join(home, 'Library', 'Keychains'))) problems.push('the keychain folder isn\'t denied by name (research/10: G18)');
-  const writes = [claudeTmp, join(home, '.config', 'mirai'), join(repoHome, 'store'), join(repoHome, 'trust')];
+  // MIRAI's home keeps the Claude Code agents run (unit 18g): the folder beside the repo's own.
+  const writes = [claudeTmp, join(home, '.config', 'mirai'), join(repoHome, 'store'), join(repoHome, 'trust'), join(dirname(repoHome), 'claude-code')];
   for (const p of writes) if (!denyWrite.some((d) => within(p, norm(d)))) problems.push(`${p} isn't write-denied`);
+  // The file tools aren't sandboxed: MIRAI's kept Claude Code needs its Edit rule too (unit 18g).
+  const kept = join(dirname(repoHome), 'claude-code');
+  if (!(settings.permissions?.deny ?? []).some((d) => d.startsWith('Edit(') && d.includes(kept))) problems.push(`${kept} has no Edit rule`);
   for (const a of fs.allowWrite ?? []) if (/[*?~[{]/.test(a) || writes.some((p) => within(p, norm(a)) || within(norm(a), p)) || within(home, norm(a))) problems.push(`allowWrite re-opens ${a}`);
   // The file tools' own allow rules: none may name a path in your home or the store.
   for (const r of settings.permissions?.allow ?? []) {

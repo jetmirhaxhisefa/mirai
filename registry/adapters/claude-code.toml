@@ -50,7 +50,7 @@ builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-se
 # listed here is red until someone reads what it does and adds it (a MIRAI change, not a local
 # one). Removed lines are reported, never red.
 [strict.binary]
-seen_on = "2.1.318"
+seen_on = "2.1.319"
 settings_keys = [
   "accessKeyIdVar",
   "allowAllUnixSockets",
@@ -136,6 +136,10 @@ permission_keys = [
   "blockWritesOutsideWorkingDirectories",
   "defaultMode",
   "deny",
+  # 2.1.319: a call that would prompt a person is denied at once instead; "it only ever denies, and
+  # allows nothing" (the binary's own description), and Claude Code lists it as restrictive. What
+  # MIRAI's dontAsk already does for -p. Not used by MIRAI.
+  "denyInsteadOfPrompting",
   "disableAutoMode",
   "disableBypassPermissionsMode",
   # 2.1.318: read only from --settings (the program that starts Claude Code). Working folders taken as

@@ -923,6 +923,18 @@ at the start of the run. **Your own sessions get none of these.** Probed under `
 refused. Under
 bypass nobody is approving, so that's all that stands there. Unit 18e tried the rest: see "What holds in your sessions".
 
+## Which Claude Code agents run (unit 18g)
+
+Agents run the Claude Code binary that your last green red-team result tested, never the `claude` on
+your PATH, which the updater moves to each new version. MIRAI keeps a read-only copy of it in its home
+folder (`~/Library/Application Support/mirai/claude-code/<sha256>/claude`, with the current and the
+one before kept per project). It checks the copy's hash before each launch, and the red-team gate is
+worked out for that same binary. A copy that's gone or changed refuses the launch, never a fall back to
+another binary, and so does a record of it that doesn't verify. Agents can't write that folder: it's
+denied by name in the sandbox's write list and as an Edit rule, and the floor check requires both.
+Your own sessions use your newest Claude Code. **A known limit:** your own unsandboxed sessions, or any
+program running as you, could swap the copy between MIRAI's hash check and the launch; agents can't.
+
 ## Starting an agent (unit 19a)
 
 ```

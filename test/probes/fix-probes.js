@@ -50,7 +50,7 @@ export function setup({ app, workdir }) {
   const home = realpathSync(join(workdir, 'home'));
   const gitEnv = { PATH: '/usr/bin:/bin', HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
   const git = (...a) => execFileSync('/usr/bin/git', ['-c', 'user.email=p@example.invalid', '-c', 'user.name=p', ...a], { cwd: root, env: gitEnv }).toString();
-  execFileSync('/usr/bin/git', ['clone', '--quiet', '--no-local', app, root], { env: gitEnv });
+  execFileSync('/usr/bin/git', ['clone', '--quiet', '--no-local', '--branch', 'main', app, root], { env: gitEnv });
   git('remote', 'remove', 'origin');
   const env = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: home, USER: process.env.USER, LANG: 'C' };
   init({ cwd: root, env, refresh: true });

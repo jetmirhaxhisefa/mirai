@@ -347,3 +347,42 @@ test('processes: an orphan in your project is a suspect, not killed; in the laun
   assert.equal(t.seen.has(200), false, 'a child of a reused pid');
   assert.equal(t.groups.has(300), false, 'its group');
 });
+
+// Unit 18g: the Claude Code agents run is the one the red team tested, kept by MIRAI.
+test('18g T2: a launch runs the kept copy, not the PATH link, also after an update; a changed copy refuses', async () => {
+  const { keepTested, readTested, testedRoot } = await import('../../src/redteam/tested.js');
+  const { binaryHash } = await import('../../src/redteam/key.js');
+  const { statSync, appendFileSync, chmodSync } = await import('node:fs');
+  const f = repo();
+  const store = openStore({ cwd: f.root, env: f.env });
+  const tested = claudeWith(okBody);
+  const sha256 = await binaryHash(join(store.dir, 'redteam'), tested);
+  const { stageTested } = await import('../../src/redteam/tested.js');
+  const staged = await stageTested({ env: f.env, claude: { real: tested, version: '2.1.316' }, allowScript: true });
+  assert.equal(staged.sha256, sha256);
+  keepTested({ env: f.env, store, staged, signer: loadSigner(f.env, store) });
+  const kept = readTested(store).current;
+  assert.equal(kept.path, join(testedRoot(f.env), sha256, 'claude'));
+  assert.equal(statSync(kept.path).mode & 0o777, 0o500, 'read-only');
+  // An "update": a newer claude first on PATH. The launch and the gate still use the kept copy.
+  const bin = realpathSync(tempDir('path'));
+  writeFileSync(join(bin, 'claude'), '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "2.1.399 (Claude Code)"; exit 0; fi\nexit 9\n', { mode: 0o755 });
+  const env = { ...f.env, PATH: `${bin}:${f.env.PATH}` };
+  const seen = [];
+  const status = async (o) => {
+    seen.push(o.claude);
+    return green();
+  };
+  const r = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env, role: 'author', prompt: 'do it', status, check: noInitProblems });
+  assert.equal(r.outcome, 'ok', r.why);
+  assert.deepEqual(seen, [kept.path], 'the gate judged the kept copy');
+  // The broker's worker passes the claude your session server found: only a fall back (18g review).
+  const r2 = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env, role: 'author', prompt: 'do it', fallbackClaude: join(bin, 'claude'), status, check: noInitProblems });
+  assert.equal(r2.outcome, 'ok', r2.why);
+  assert.deepEqual(seen, [kept.path, kept.path], 'start_agent runs the kept copy too'); 
+  // A changed copy: refused, never a fall back to the PATH one.
+  chmodSync(join(testedRoot(f.env), sha256), 0o700);
+  chmodSync(kept.path, 0o700);
+  appendFileSync(kept.path, '# changed\n');
+  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env, role: 'author', prompt: 'do it', status, check: noInitProblems }), (e) => e.code === 'tested-claude-changed');
+});

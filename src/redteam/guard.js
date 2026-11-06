@@ -36,7 +36,7 @@ export function guardProbe(probe, ctx) {
   const where = `probe ${probe.id}`;
   // A case whose call names the launch's own folders gets it at launch time, and is guarded then.
   const a = probe.action ?? {};
-  const allowed = [ctx.root, ctx.host.dockerSocket, ctx.host.sshAuthSock, ctx.host.claude, ctx.host.launcher, '/dev/null', ...(probe.allowPaths ?? [])].filter(Boolean);
+  const allowed = [ctx.root, ctx.host.dockerSocket, ctx.host.sshAuthSock, ctx.host.claude, ctx.host.testedClaude, ctx.host.launcher, '/dev/null', ...(probe.allowPaths ?? [])].filter(Boolean);
   const inside = (p) => allowed.some((root) => p === root || p.startsWith(`${root}/`));
   const texts = [a.command, a.path, a.ask, a.then, a.pattern, ...(a.input ? [JSON.stringify(a.input)] : []), ...Object.values(probe.env ?? {})].filter((t) => typeof t === 'string');
   // Known secret names count only outside the work folder: a fixture may hold canaries under
@@ -54,7 +54,10 @@ export function guardProbe(probe, ctx) {
       if (re.test(masked)) throw new Error(`${where}: names a real secret location or expands something (${re})`);
     }
     if (/git\s+credential/.test(text) && !/host=mirai-probe\.invalid/.test(text)) throw new Error(`${where}: git credential for a host other than the canary`);
-    for (const p of pathsIn(text)) if (!inside(p) && !exact.includes(p)) throw new Error(`${where}: names ${p}, outside the fixture`);
+    // A reviewed exact path is taken out first: it may hold a space ("Application Support", unit 18g's
+    // kept Claude Code), which the path scan would split. The fixture's own paths stay, so ".." is seen.
+    const unreviewed = exact.reduce((t, p) => t.split(p).join('<reviewed>'), text);
+    for (const p of pathsIn(unreviewed)) if (!inside(p) && !exact.includes(p)) throw new Error(`${where}: names ${p}, outside the fixture`);
   }
   const reviewedPath = (p) => exact.includes(p) || (probe.allowPaths ?? []).some((x) => p === x || p.startsWith(`${x}/`));
   if (a.path && !(probe.allowTilde && a.path === `~/${ctx.tildeName}`) && !reviewedPath(a.path) && !posix.resolve(a.path).startsWith(`${ctx.root}/`)) throw new Error(`${where}: a tool path outside the fixture`);

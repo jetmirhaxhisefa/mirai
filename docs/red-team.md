@@ -16,8 +16,22 @@ mirai redteam show [<key>]        # print a stored result (the newest by default
 
 ## When to run it
 
-After any update to **Claude Code, macOS, Docker Desktop, git (Apple's, which updates silently
-with the Xcode tools) or Node**, after **a MIRAI update that changes the cage** (below), after a
+**Claude Code updating itself doesn't need a run (unit 18g).** Agents run the exact Claude Code binary
+your last green result tested:
+- **How it works:**
+  - A red-team run first copies the newest installed Claude Code into MIRAI's home folder (`claude-code/<hash>/claude`, read-only) and tests that copy, hashed as copied.
+  - A green result keeps it, and agents run it from then on, its hash checked at every launch.
+  - A red or incomplete run on a newer version changes nothing: agents stay on the version that was green. A run that isn't green on the version agents already run (with `--kept`, or when nothing updated) replaces that version's result, and launches stop until it's green again, as before 18g.
+- **What `status` shows:** when a newer version is installed, with the checks that need no model (S1, S2) already run against it. The built-ins check (S3) and the cases need a real run, so a version can still turn out to need a MIRAI update then, as 2.1.318's new plugin did.
+- **Your own Claude Code** keeps updating. MIRAI needs its native installer: it keeps only a native binary, so a JavaScript install or a version manager's shim is refused.
+- **Re-testing without moving:** after a macOS, Docker, git, Node, project or MIRAI change, `mirai redteam run --kept` tests the copy agents run now, so you don't have to move to the newest Claude Code at the same time.
+- **The trade-offs:**
+  - a new Claude Code's fixes reach MIRAI's agents when you run the red team on it, not before;
+  - an old kept version could one day stop working with Anthropic's servers. MIRAI can't tell when; such a launch ends as an environment fault with Claude Code's own error, and a run on the newer version moves agents to it;
+  - the last 20 results are kept, so twenty runs that aren't green on newer versions would rotate out the kept one's result.
+
+After any update to **macOS, Docker Desktop, git (Apple's, which updates silently
+with the Xcode tools) or Node** (`--kept` keeps agents on the Claude Code they run), after **you choose to move agents to a newer Claude Code**, after **a MIRAI update that changes the cage** (below), after a
 change to your project's test setup (`[compose]`, `[testing]`, `[checks]` and the compose files),
 and after a change to your project's own Claude Code files (`.claude/settings.json`,
 `.claude/settings.local.json`, `.mcp.json`). `mirai redteam status` tells you which of those changed

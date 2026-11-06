@@ -26,6 +26,7 @@ import { trustFingerprint, verifyTrustRoot } from '../trust/verify.js';
 import { cwdsUnder, processTable, runInGroup } from './process.js';
 import { checkLaunchToken, spendLaunchToken } from './requests.js';
 import { agentSessionDir, forgetSession, keepSession, restoreSession } from './session.js';
+import { testedClaude } from '../redteam/tested.js';
 import { checkIgnoredCheckable, checkNothingHidden, checkPendingIgnored, findRole, IGNORED_ENTRY_BUDGET, ignoredState, recordPendingIgnored, scopeViolations, trustedRoles } from './scope.js';
 import { familyNote, pickTier, pickVerifier } from './tiers.js';
 
@@ -205,7 +206,7 @@ export async function withRun({ cwd, env }, fn) {
 
 // One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
 // every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
-export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, fallbackClaude = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
@@ -224,7 +225,12 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   const template = trustedStrict(trust, mode);
   const config = trustedConfig(trust);
   const agentDef = agent === null ? null : agentFor(trust, agent, role, template, { structured: jsonSchema !== null });
-  const c = resolveClaude(env, claude);
+  // The Claude Code the red team tested (unit 18g), never the PATH link the updater moves; one you
+  // name (a test, a probe) as given. The gate below judges this same binary.
+  // `fallbackClaude`: the broker worker's (found when your session server was registered), used only
+  // while no tested one is kept (18g review: it had taken the test override's place).
+  const tested = claude ? null : await testedClaude({ env, store });
+  const c = tested ? { path: tested.path, real: tested.real, version: tested.version } : resolveClaude(env, claude ?? fallbackClaude);
   const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
   let model = config.models?.[picked.tier];
   let rung = null;
@@ -242,7 +248,8 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   checkNothingHidden(store.checkout, store.gitEnv);
   checkPendingIgnored(store);
   checkIgnoredCheckable(ignoredState(store.checkout, store.gitEnv));
-  checkRedTeam(await status({ cwd, env, trust, template, claude }), store);
+  // The file it launches, not a link to it (18g re-review: an update could move a link in between).
+  checkRedTeam(await status({ cwd, env, trust, template, claude: c.real }), store);
   stopped();
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
   return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });

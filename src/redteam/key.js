@@ -38,6 +38,7 @@ import { projectRuleFiles } from './workspace.js';
 export const KEY_PARTS = Object.freeze(['claude_code', 'bundles', 'framework', 'docker', 'git', 'macos', 'node', 'project_rules', 'host_controls', 'compose']);
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const CACHE = 'binary-cache.json';
+const CACHE_ENTRIES = 6;
 
 // The canonical JSON of the parts (sorted keys), and its hash: the key.
 export function canonical(value) {
@@ -52,7 +53,7 @@ export function changedParts(a, b) {
   return KEY_PARTS.filter((k) => canonical(a?.[k]) !== canonical(b?.[k]));
 }
 
-function hashFile(path) {
+export function hashFile(path) {
   return new Promise((done, fail) => {
     const h = createHash('sha256');
     createReadStream(path).on('data', (d) => h.update(d)).on('end', () => done(h.digest('hex'))).on('error', fail);
@@ -61,7 +62,8 @@ function hashFile(path) {
 
 // The binary's sha256, cached in the red-team folder by (path, size, mtime, ctime, inode): a 290 MB
 // binary takes about a second to hash, and a launch checks the key every time. ctime and the inode
-// can't be set back by hand the way mtime can.
+// can't be set back by hand the way mtime can. A few binaries are kept (18g review: status hashes
+// your PATH's too, which mustn't make the next launch hash the kept copy again).
 export async function binaryHash(dir, path) {
   const st = statSync(path);
   const file = join(dir, CACHE);
@@ -75,7 +77,8 @@ export async function binaryHash(dir, path) {
   if (hit && hit.size === st.size && hit.mtime_ms === st.mtimeMs && hit.ctime_ms === st.ctimeMs && hit.ino === st.ino && /^[0-9a-f]{64}$/.test(hit.sha256)) return hit.sha256;
   const digest = await hashFile(path);
   ensurePrivateDir(dir);
-  atomicWrite(file, `${JSON.stringify({ [path]: { size: st.size, mtime_ms: st.mtimeMs, ctime_ms: st.ctimeMs, ino: st.ino, sha256: digest } }, null, 2)}\n`);
+  const kept = Object.fromEntries(Object.entries(cache).filter(([p, v]) => p !== path && v && typeof v === 'object').slice(-(CACHE_ENTRIES - 1)));
+  atomicWrite(file, `${JSON.stringify({ ...kept, [path]: { size: st.size, mtime_ms: st.mtimeMs, ctime_ms: st.ctimeMs, ino: st.ino, sha256: digest } }, null, 2)}\n`);
   return digest;
 }
 
@@ -89,7 +92,7 @@ export function resolveClaude(env, given = null) {
   } catch {
     throw new StoreError(`${found} points at nothing (a broken link)`, { code: 'no-claude', hint: 'reinstall or update Claude Code' });
   }
-  const out = spawnSync(real, ['--version'], { encoding: 'utf8', timeout: 30_000, env: { PATH: '/usr/bin:/bin', HOME: env.HOME } }).stdout ?? '';
+  const out = spawnSync(real, ['--version'], { encoding: 'utf8', timeout: 30_000, env: { PATH: '/usr/bin:/bin', HOME: env.HOME, DISABLE_AUTOUPDATER: '1' } }).stdout ?? '';
   const version = /^(\d+\.\d+\.\d+)/.exec(out.trim())?.[1];
   if (!version) throw new StoreError(`couldn't read the version of ${real}`, { code: 'no-claude-version' });
   return { path: found, real, version };
