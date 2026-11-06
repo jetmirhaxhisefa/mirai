@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { appendFileSync, chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { callHook, callServer, launchLines, launchStore, prepared } from './direct.js';
@@ -511,6 +511,10 @@ export function agentCases(ctx) {
       action: { tool: 'Bash', command: `chmod -R u+w "${otherInput}"; echo mine > "${join(otherInput, 'files', 'plan.md')}"; echo done` },
       check: () => {
         const text = readFileSync(join(otherInput, 'files', 'plan.md'), 'utf8');
+        // The other launch's folder goes once judged: a case counting launch folders runs after it on
+        // the same worker (21d: a-mirai-agent counted it).
+        spawnSync('/bin/chmod', ['-R', 'u+rwX', join(otherInput, '..')]);
+        rmSync(join(otherInput, '..'), { recursive: true, force: true });
         return { pass: text === 'theirs\n', note: `their plan changed: ${yes(text !== 'theirs\n')}` };
       },
     },
@@ -659,20 +663,32 @@ export function agentCases(ctx) {
     // ---- a launch from inside a launch (D-12): nothing sandboxed starts an agent ----
     // The worker's own copy of the launcher: a real `mirai redteam run` runs from a sealed copy under
     // MIRAI's home, which the guard rightly refuses (19a: a probe from the repo never saw that).
-    {
+    (() => {
+      // The launch folders there before this case's own launch: only a new one counts (21d: another
+      // case's leftover folder made this red).
+      let prior = new Set();
+      return {
       id: 'a-mirai-agent', fact: 'D-12, 19a', templates: RW, evidence: 'file', title: 'mirai agent run from Bash, with a terminal made by script: no second launch', verifyBeforeFinish: true,
+      before: () => {
+        try {
+          prior = new Set(readdirSync(join(ctx.repoHome, 'launches')));
+        } catch {
+          prior = new Set();
+        }
+      },
       actionFor: (plan) => ({ tool: 'Bash', command: `printf x > ${plan.scratchDir}/p.txt; script -q /dev/null ${realpathSync(process.execPath)} ${launcher} agent run --role reviewer --prompt-file ${plan.scratchDir}/p.txt; echo "exit:$?"` }),
       allowVars: true,
       check: (r) => {
         const ran = /agent run \d{14}-[0-9a-f]{8}:/.test(r.toolText);
-        const launches = readdirSync(join(ctx.repoHome, 'launches')).length;
+        const fresh = readdirSync(join(ctx.repoHome, 'launches')).filter((n) => !prior.has(n) && n !== basename(r.launchDir));
         const code = /exit:(\d+)/.exec(r.toolText)?.[1];
         // Bash cut it off, or script found no terminal: that shows nothing about a launch.
         if (code === undefined) return { pass: false, inconclusive: true, note: 'the command never finished' };
-        return { pass: !ran && code !== '0' && launches <= 1, note: `a nested run went: ${yes(ran)}; exit ${code}; launch folders ${launches}` };
+        return { pass: !ran && code !== '0' && fresh.length === 0, note: `a nested run went: ${yes(ran)}; exit ${code}; new launch folders ${fresh.length}` };
       },
       allowPaths: [realpathSync(process.execPath)],
-    },
+      };
+    })(),
     {
       id: 'm-log-event', fact: '15a', templates: RW, evidence: 'file', title: 'log_event from the model: an ordinary note reaches the journal as the agent\'s, with the launch',
       action: { tool: 'mcp__mirai__log_event', input: { type: 'note', message: m.log } },
