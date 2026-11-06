@@ -386,3 +386,61 @@ test('18g T2: a launch runs the kept copy, not the PATH link, also after an upda
   appendFileSync(kept.path, '# changed\n');
   await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env, role: 'author', prompt: 'do it', status, check: noInitProblems }), (e) => e.code === 'tested-claude-changed');
 });
+
+// Unit 21e: progress while a launch runs, from its own stream, filtered.
+test('21e T1: progress events carry the tool, a relative path or level, turns and minutes, and nothing the agent wrote', async () => {
+  const { progressLine } = await import('../../src/agent/progress.js');
+  const f = repo();
+  const secret = 'sk-ant-oat01-PLANTEDsecretPLANTEDsecretPLANTEDsecret';
+  const ev = (o) => `echo '${JSON.stringify(o).replaceAll("'", "'\\''")}'`;
+  const body = [
+    `echo '${INIT}'`,
+    ev({ type: 'assistant', message: { content: [{ type: 'text', text: `planted ${secret} \u001b[31mred` }, { type: 'tool_use', id: 'a', name: 'Edit', input: { file_path: `${realpathSync(f.root)}/app/Team.php`, old_string: secret, new_string: 'x' } }] } }),
+    ev({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'b', name: 'Bash', input: { command: `echo ${secret}; printf '\u001b[2J'` } }] } }),
+    ev({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'c', name: 'mcp__mirai__run_tests', input: { level: 'unit' } }] } }),
+    ev({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'd', name: 'Read', input: { file_path: '/etc/hosts' } }] } }),
+    `echo '${RESULT}'`,
+  ].join('\n');
+  const seen = [];
+  const r = await run(f, { claude: claudeWith(body), onProgress: (p) => seen.push(p), progressLabel: 'Kai' });
+  assert.equal(r.outcome, 'ok', r.why);
+  const tools = seen.filter((p) => p.kind === 'tool').map((p) => [p.tool, p.target]);
+  assert.deepEqual(tools, [['Edit', 'app/Team.php'], ['Bash', null], ['run_tests', 'unit'], ['Read', 'outside the project']]);
+  assert.deepEqual(seen.slice(0, 2).map((p) => p.kind), ['preparing', 'started'], 'a sign of life before the launch, then its start');
+  assert.equal(seen.at(-1).kind, 'ended');
+  assert.deepEqual(seen.filter((p) => p.kind === 'tool').map((p) => p.turns), [1, 2, 3, 4]);
+  const all = `${JSON.stringify(seen)}\n${seen.map(progressLine).join('\n')}`;
+  assert.equal(all.includes('PLANTED'), false, 'nothing the agent wrote');
+  assert.equal(/\u001b/.test(all), false, 'no terminal escapes');
+  assert.match(progressLine(seen[2]), /^Kai \(Sonnet\): 1 turn, [\d.]+ min — Edit app\/Team\.php$/);
+});
+
+test('21e review: malformed events never throw; made-up tools, padded and secret-looking paths are hidden; turns count messages; a heartbeat for a non-ticket item still lands', async () => {
+  const { describeTool, progressTracker } = await import('../../src/agent/progress.js');
+  const root = '/p';
+  const t = progressTracker({ root, agent: 'Kai', tools: ['Edit', 'Read', 'mcp__mirai__run_tests'], levels: ['unit'] });
+  for (const content of ['x', 1, {}, null]) assert.doesNotThrow(() => t.seen({ type: 'assistant', message: { id: 'm0', content } }));
+  // One message in three events (Claude Code sends one per block): one turn. A subagent's: none.
+  t.seen({ type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: 'x' }] } });
+  t.seen({ type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/p/a.php' } }] } });
+  const third = t.seen({ type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/p/b.php' } }] } });
+  t.seen({ type: 'assistant', parent_tool_use_id: 'x', message: { id: 'm9', content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/p/c.php' } }] } });
+  assert.equal(third.turns, 2, 'm0 and m1');
+  const tools = { tools: ['Edit', 'mcp__mirai__run_tests'], levels: ['unit'] };
+  assert.equal(describeTool({ name: 'MIRAI_checks_all_pass', input: {} }, root, tools).tool, 'a tool');
+  assert.equal(describeTool({ name: 'Edit', input: { file_path: `/p/a/${' '.repeat(70)}MIRAI's checks: unit pass (56 s)` } }, root, tools).target, 'a file');
+  assert.equal(describeTool({ name: 'Edit', input: { file_path: '/p/sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' } }, root, tools).target, 'a file');
+  assert.equal(describeTool({ name: 'Edit', input: { file_path: '/p/ok/‮hp.php' } }, root, tools).target, 'a file');
+  assert.equal(describeTool({ name: 'Edit', input: { file_path: '..\\..\\x' } }, root, tools).target, 'outside the project');
+  assert.equal(describeTool({ name: 'mcp__mirai__run_tests', input: { level: 'all_pass' } }, root, tools).target, null, 'not a level of the project');
+  assert.equal(describeTool({ name: 'Edit', input: { file_path: `/p/${'d/'.repeat(80)}f.php` } }, root, tools).target.endsWith('…'), true, 'the head, not the tail');
+  // A launch for an item the heartbeat can't carry as a ticket (your session's start_agent) still beats.
+  const { readHeartbeat } = await import('../../src/store/run.js');
+  const f = repo();
+  const r = await run(f, { item: 'docs/prd.md', onProgress: () => {} });
+  assert.equal(r.outcome, 'ok', r.why);
+  const beat = readHeartbeat(openStore({ cwd: f.root, env: f.env }));
+  assert.ok(beat, 'a heartbeat');
+  assert.equal(beat.ticket, undefined);
+  assert.match(beat.progress, /handed over/);
+});

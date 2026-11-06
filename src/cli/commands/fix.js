@@ -1,4 +1,5 @@
 import { EXIT } from '../exit-codes.js';
+import { progressPrinter } from '../progress.js';
 import { requireTty } from '../tty.js';
 import { checkTicketArg } from '../human-move.js';
 import { plain } from '../../status/text.js';
@@ -27,8 +28,11 @@ export default {
     const onInt = () => (abort.signal.aborted ? hard.abort() : abort.abort());
     const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
     for (const sig of SIGNALS) process.on(sig, onInt);
+    let progress = null;
     try {
-      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
+      // What's happening as it happens (unit 21e), on stderr.
+      progress = progressPrinter(io, io.progressTiming ?? {});
+      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
       // Your terminal mints each round's token (D-14).
       const r = await runFix({ cwd: io.cwd, env: io.env, ticket, nextToken: () => mintLaunchToken(), launchOptions, ...(io.testRun ? { testRun: io.testRun } : {}) });
       if (r.warn) io.stdout.write(`note: ${plain(r.warn)}\n`);
@@ -43,6 +47,7 @@ export default {
       if (r.outcome === 'replan') io.stdout.write(`  the same failure came back: the ticket is ready-for-dev for its one re-plan: mirai plan ${ticket}\n`);
       return FIX_EXIT[r.outcome] ?? OUTCOME_EXIT[r.outcome] ?? EXIT.FAILURE;
     } finally {
+      progress?.stop();
       for (const sig of SIGNALS) process.removeListener(sig, onInt);
     }
   },

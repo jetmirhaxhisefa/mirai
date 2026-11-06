@@ -125,6 +125,8 @@ test('T6: the usage check stops before a cap and names it; anything it can\'t te
   recordReadings(env, [{ window: 'seven_day', utilization: 0.1, resets_at: Math.floor(Date.now() / 1000) - 60, status: 'allowed' }], { repoId: REPO, runId: RUN });
   const old = usageCheck({ env, caps });
   assert.deepEqual([old.cap, old.probe], ['stale', true], 'a tiny launch refreshes it (unit 28)');
+  // Its age is said (unit 21e).
+  assert.match(usageCheck({ env, caps, unattended: false, now: Date.now() + 5 * 3_600_000 }).warn, /out of date \(5 h old\)/);
   assert.equal(latestWeekly(env).utilization, 0.1);
 });
 

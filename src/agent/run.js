@@ -27,6 +27,7 @@ import { cwdsUnder, processTable, runInGroup } from './process.js';
 import { checkLaunchToken, spendLaunchToken } from './requests.js';
 import { agentSessionDir, forgetSession, keepSession, restoreSession } from './session.js';
 import { testedClaude } from '../redteam/tested.js';
+import { progressLine, progressTracker } from './progress.js';
 import { checkIgnoredCheckable, checkNothingHidden, checkPendingIgnored, findRole, IGNORED_ENTRY_BUDGET, ignoredState, recordPendingIgnored, scopeViolations, trustedRoles } from './scope.js';
 import { familyNote, pickTier, pickVerifier } from './tiers.js';
 
@@ -204,15 +205,31 @@ export async function withRun({ cwd, env }, fn) {
   }
 }
 
+// The red-team gate for a role, before anything is made for its launch (unit 21e: a refused build
+// had already made and switched to its branch). The launch checks it again, as ever.
+export async function preGate({ cwd, env, store, trust, role: roleName, claude = null, status = redTeamStatus }) {
+  const role = findRole(trustedRoles(trust), roleName);
+  const template = trustedStrict(trust, role.mode);
+  const tested = claude ? null : await testedClaude({ env, store });
+  const c = tested ? { path: tested.path, real: tested.real } : resolveClaude(env, claude);
+  checkRedTeam(await status({ cwd, env, trust, template, claude: c.real }), store);
+}
+
 // One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
 // every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
-export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, fallbackClaude = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, fallbackClaude = null, onProgress = null, progressLabel = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
   spendLaunchToken(launchToken);
   const store = given ?? openStore({ cwd, env });
   // The caller holds the run lock for this run: a launch never runs beside another.
+  // The first sign of life (unit 21e): MIRAI's own checks before a launch take seconds.
+  try {
+    onProgress?.({ kind: 'preparing', agent: progressLabel ?? agent ?? roleName, model: null, turns: 0, minutes: 0 });
+  } catch {
+    // a display only
+  }
   const holder = runLockHolder(env);
   if (!holder || holder.run_id !== runId || holder.pid !== process.pid || holder.repo_id !== store.repoId) throw refuse('a launch needs the run lock for its run, held by this process', 'no-run-lock');
   stopped();
@@ -252,15 +269,20 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   checkRedTeam(await status({ cwd, env, trust, template, claude: c.real }), store);
   stopped();
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
-  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver });
+  const levels = [...Object.keys(config.checks ?? {}), ...(config.testing?.levels ?? []).map((l) => l.name)];
+  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress, progressLabel, levels });
 }
 
-async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, session = null, round = 1, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver }) {
+async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, session = null, round = 1, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress = null, progressLabel = null, levels = null }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';
   let sessionClean = false;
   let spawned = false;
+  let progress = () => {};
+  let progressSeen = () => {};
+  let progressEnd = () => {};
+  let stopTrailing = () => {};
   let beat = null;
   try {
     // Right before the start: the whole trust root. The fingerprint comes first, so a change made
@@ -271,14 +293,68 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     launched.expectedInit.model = model;
     if (jsonSchema) launched.expectedInit.tools = launchTools(template, { structured: true });
     if (createHash('sha256').update(readFileSync(join(launched.launchDir, 'input', 'settings.json'))).digest('hex') !== launched.settingsSha256) throw refuse('the launch\'s settings changed before it started', 'settings-changed');
-    writeHeartbeat(store, { runId });
-    beat = setInterval(() => {
+    // Progress (unit 21e): from the stream, filtered (src/agent/progress.js); to the caller, and as
+    // the heartbeat's last line for `mirai status`, at most every few seconds. Never the run's cost.
+    const tracker = progressTracker({ root: launched.cwd, agent: progressLabel ?? agentDef?.name ?? role.name, model, tools: launched.expectedInit.tools, levels });
+    let lastLine;
+    let lastBeat = 0;
+    let trailing = null;
+    // The run's liveness always lands: a ticket or step the heartbeat can't carry (an item such as
+    // docs/prd.md from your session's start_agent) is left out, never the whole beat (21e review).
+    const beatNow = () => {
       try {
-        writeHeartbeat(store, { runId });
+        writeHeartbeat(store, { runId, ...(item ? { ticket: item } : {}), ...(step ? { step } : {}), ...(lastLine ? { progress: lastLine } : {}) });
       } catch {
-        // a status detail; the run goes on
+        try {
+          writeHeartbeat(store, { runId, ...(lastLine ? { progress: lastLine } : {}) });
+        } catch {
+          // a status detail; the run goes on
+        }
       }
-    }, 60_000);
+    };
+    progress = (p) => {
+      lastLine = progressLine(p).slice(0, 300);
+      if (Date.now() - lastBeat > 5_000 || p.kind !== 'tool') {
+        lastBeat = Date.now();
+        beatNow();
+      } else if (!trailing) {
+        // A line inside the window still lands, at its end (21e review: status showed an older tool).
+        trailing = setTimeout(() => {
+          trailing = null;
+          lastBeat = Date.now();
+          beatNow();
+        }, 5_000 - (Date.now() - lastBeat));
+        trailing.unref?.();
+      }
+      stopTrailing = () => clearTimeout(trailing);
+      try {
+        onProgress?.(p);
+      } catch {
+        // the caller's display; the run goes on
+      }
+    };
+    // The launch's last line lands now, and nothing of it comes later (21e re-review: a trailing beat
+    // overwrote the check line MIRAI's tests had just written).
+    progressEnd = (outcome) => {
+      clearTimeout(trailing);
+      trailing = null;
+      progress(tracker.end(outcome));
+      clearTimeout(trailing);
+      trailing = null;
+    };
+    // Never at the run's cost: a stream event that can't be read as progress is no progress.
+    progressSeen = (ev) => {
+      try {
+        // A launch whose init check failed is being stopped: not "started".
+        if (ev?.type === 'system' && ev.subtype === 'init' && unsafe?.length) return;
+        const p = tracker.seen(ev);
+        if (p) progress(p);
+      } catch {
+        // a display only
+      }
+    };
+    beatNow();
+    beat = setInterval(beatNow, 60_000);
     beat.unref();
     // The ignored files as they are right before the start: the tree is clean, so a change after is
     // the run's, or something else's that ran meanwhile (the refusal says both).
@@ -321,6 +397,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
         unsafe = ['it acted before any init event'];
         kill('init');
       }
+      progressSeen(ev);
     };
     // A kept session (unit 21c): the ticket's own, in the store, and only the one the named launch
     // left. Restored into this launch's fresh config folder, then resumed. Where it lives is decided
@@ -465,6 +542,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     // Only a clean launch's session is kept (21c review): one that hit a stop, or a resume Claude Code
     // refused, is forgotten, so the next round starts fresh instead of repeating it.
     sessionClean = outcome === 'ok' && !scope.violations.length;
+    progressEnd(outcome === 'ok' ? 'handed over' : outcome);
     if (kept?.kept && !sessionClean) kept = { kept: false, why: `the launch ended ${outcome}` };
     return { outcome, why, launchId, text, structured, resumed, kept, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
   } catch (err) {
@@ -473,6 +551,8 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     if (spawned && err && typeof err === 'object') err.launched = true;
     throw err;
   } finally {
+    stopTrailing();
+    progressEnd = () => {};
     clearInterval(beat);
     rmSync(join(store.dir, 'agent-runs', 'current.json'), { force: true });
     // A launch that started and didn't end clean leaves no session; one refused before it started

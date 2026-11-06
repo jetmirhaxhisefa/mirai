@@ -188,7 +188,9 @@ export function lintPlan(text, { registry, config, ticket }) {
 // callers only, the ways a launch is stopped (signals, time limits) and the hooks the tests and
 // the CLI's own test io use (the binary, the red-team status, the init check); never its role,
 // agent, inputs, prompt or token (LAUNCH_OPTIONS). `launch` is for the tests.
-export const LAUNCH_OPTIONS = ['signal', 'hardSignal', 'claude', 'status', 'check', 'timeoutMs', 'initDeadlineMs'];
+export const LAUNCH_OPTIONS = ['signal', 'hardSignal', 'claude', 'status', 'check', 'timeoutMs', 'initDeadlineMs', 'onProgress', 'onCheck'];
+// The agent's name in progress lines (unit 21e).
+export const AGENT_LABEL = 'Kai';
 
 // The ticket's last approval in the journal (unit 06), and how many times you rejected its plan.
 export function ticketRecord(store, ticket, keys) {
@@ -203,6 +205,12 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
   if (!Array.isArray(launchTokens) || launchTokens.length !== 2) checkLaunchToken(null);
   for (const t of launchTokens) checkLaunchToken(t);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
+  // The first sign of life (unit 21e), before MIRAI's own checks.
+  try {
+    watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
+  } catch {
+    // a display only
+  }
   return await withRun({ cwd, env }, async ({ store, runId, tookOver }) => {
     const status = readTicketStatus(store, ticket)?.status ?? null;
     if (status?.state !== 'ready-for-dev') throw fail(`${ticket} is ${status?.state ?? 'not approved yet'}; a plan starts from ready-for-dev`, 'not-ready', EXIT.BLOCKED, status ? undefined : 'approve the ticket first: mirai approve <ticket> --file <path>');
@@ -256,7 +264,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         let r;
         try {
           r = await launch({
-            ...watch, cwd, env, store, runId, startRun: !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
+            ...watch, cwd, env, store, runId, startRun: !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: AGENT_LABEL, role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
             prompt: planPrompt({ ticket, fields, via, problems }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
           });
         } catch (err) {
@@ -284,6 +292,12 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
           stored = true;
           const found = lintPlan(text, { registry, config, ticket }).filter((p) => p.severity === 'error');
           problems = found.length ? Object.assign(found, { text }) : null;
+          // The plan step's stages (unit 21e): its lint, and whether the one fix launch follows.
+          try {
+            watch.onCheck?.({ kind: 'check', name: 'plan-lint', state: problems ? `fail (${problems.length} problem${problems.length === 1 ? '' : 's'})${attempt === 1 ? ': one fix launch' : ''}` : 'pass' });
+          } catch {
+            // a display only
+          }
         }
         if (!problems) {
           toInProgress();

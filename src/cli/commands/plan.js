@@ -1,4 +1,5 @@
 import { EXIT } from '../exit-codes.js';
+import { progressPrinter } from '../progress.js';
 import { requireTty } from '../tty.js';
 import { checkTicketArg } from '../human-move.js';
 import { plain } from '../../status/text.js';
@@ -29,8 +30,11 @@ export default {
     const onInt = () => (abort.signal.aborted ? hard.abort() : abort.abort());
     const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
     for (const sig of SIGNALS) process.on(sig, onInt);
+    let progress = null;
     try {
-      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
+      // What's happening as it happens (unit 21e), on stderr.
+      progress = progressPrinter(io, io.progressTiming ?? {});
+      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
       // Your terminal mints them (D-14): the launch and its one fix launch.
       const r = await runPlan({ cwd: io.cwd, env: io.env, ticket, launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions, ...(io.planVia ? { via: io.planVia } : {}) });
       if (r.warn) io.stdout.write(`note: ${plain(r.warn)}\n`);
@@ -46,6 +50,7 @@ export default {
       }
       return PLAN_EXIT[r.outcome] ?? OUTCOME_EXIT[r.outcome] ?? EXIT.FAILURE;
     } finally {
+      progress?.stop();
       for (const sig of SIGNALS) process.removeListener(sig, onInt);
     }
   },

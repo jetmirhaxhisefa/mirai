@@ -25,6 +25,8 @@ import { withSeq } from './journal.js';
 export const RUN_STATE_SCHEMA_VERSION = 1;
 export const HEARTBEAT_STALE_MS = 5 * 60 * 1000;
 const STEP = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// A progress line: printable, no control characters, capped.
+const PROGRESS = /^[^\x00-\x1f\x7f]{1,300}$/;
 const TICKET = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/;
 // A heartbeat from more than a minute in the future (a clock jump) is treated as stale.
@@ -138,11 +140,14 @@ export function recordProgress(store, { ticket, step }) {
 }
 
 // The orchestrator's heartbeat: atomic, no seq (it orders nothing).
-export function writeHeartbeat(store, { runId, ticket, step, now = () => new Date() }) {
+// `progress` (unit 21e): the running launch's last progress line, a short plain string that
+// `mirai status` shows; only ever built from src/agent/progress.js's filtered fields.
+export function writeHeartbeat(store, { runId, ticket, step, progress, now = () => new Date() }) {
   if (!RUN_ID.test(runId)) throw new TypeError('not a run id');
   if (ticket !== undefined && !TICKET.test(ticket)) throw new TypeError('not a ticket key');
   if (step !== undefined && !STEP.test(step)) throw new TypeError('not a step name');
-  const beat = { schema_version: RUN_STATE_SCHEMA_VERSION, run_id: runId, pid: process.pid, ts: iso(now()), ...(ticket ? { ticket } : {}), ...(step ? { step } : {}) };
+  if (progress !== undefined && !PROGRESS.test(progress)) throw new TypeError('not a progress line');
+  const beat = { schema_version: RUN_STATE_SCHEMA_VERSION, run_id: runId, pid: process.pid, ts: iso(now()), ...(ticket ? { ticket } : {}), ...(step ? { step } : {}), ...(progress ? { progress } : {}) };
   atomicWrite(heartbeatPath(store), `${JSON.stringify(beat)}\n`);
   return beat;
 }
@@ -174,7 +179,7 @@ export function readHeartbeat(store, { now = () => new Date() } = {}) {
     throw bad(file, 'is not readable');
   }
   const ok = b && RUN_ID.test(b.run_id) && Number.isSafeInteger(b.pid) && ISO.test(b.ts)
-    && (b.ticket === undefined || TICKET.test(b.ticket)) && (b.step === undefined || STEP.test(b.step));
+    && (b.ticket === undefined || TICKET.test(b.ticket)) && (b.step === undefined || STEP.test(b.step)) && (b.progress === undefined || PROGRESS.test(b.progress));
   if (!ok) throw bad(file, 'is not a valid heartbeat');
   const ageMs = now().getTime() - Date.parse(b.ts);
   const future = ageMs < -FUTURE_TOLERANCE_MS;

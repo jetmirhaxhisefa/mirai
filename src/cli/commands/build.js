@@ -1,4 +1,5 @@
 import { EXIT } from '../exit-codes.js';
+import { progressPrinter } from '../progress.js';
 import { requireTty } from '../tty.js';
 import { checkTicketArg } from '../human-move.js';
 import { plain } from '../../status/text.js';
@@ -29,8 +30,11 @@ export default {
     const onInt = () => (abort.signal.aborted ? hard.abort() : abort.abort());
     const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
     for (const sig of SIGNALS) process.on(sig, onInt);
+    let progress = null;
     try {
-      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
+      // What's happening as it happens (unit 21e), on stderr.
+      progress = progressPrinter(io, io.progressTiming ?? {});
+      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
       const recheck = Boolean(args.values.recheck);
       // Your terminal mints it (D-14); a recheck launches nothing.
       const r = await runBuild({ cwd: io.cwd, env: io.env, ticket, recheck, launchToken: recheck ? null : mintLaunchToken(), launchOptions, ...(io.testRun ? { testRun: io.testRun } : {}) });
@@ -46,9 +50,14 @@ export default {
       for (const t of r.tests?.runs ?? []) io.stdout.write(`  ${t.name}: ${t.verdict}${t.why ? ` (${plain(t.why)})` : ''}${t.fresh.length ? `; new: ${t.fresh.slice(0, 10).map(plain).join(', ')}` : ''}\n`);
       io.stdout.write(`\nbuild of ${ticket}: ${r.outcome}${r.why ? `: ${plain(r.why)}` : ''}\n`);
       if (r.outcome === 'handed-over') io.stdout.write(`  the ticket is in-review; ${r.commit ? `MIRAI committed the work on ${r.branch} (${String(r.commit).slice(0, 12)})` : `nothing changed on ${r.branch}`}: git log main..\n`);
-      else if (r.launch?.outcome === 'ok' || r.rechecked) io.stdout.write(`  the changes are left as they are on ${r.branch} for you to look at: git status\n  once you've fixed what stopped it outside the tree (a baseline, Docker): mirai build ${ticket} --recheck\n`);
+      else if (r.launch?.outcome === 'ok' || r.rechecked) {
+        // What's true now (unit 21e, from 21d's checkpoint): a step past the safety checks is committed.
+        io.stdout.write(r.commit ? `  MIRAI committed the work on ${r.branch} (${String(r.commit).slice(0, 12)}) for you to look at: git log main..\n` : `  the changes are left uncommitted on ${r.branch} for you to look at (a stop for safety is never committed): git status\n`);
+        io.stdout.write(r.outcome === 'checks-failed' ? `  next: mirai fix ${ticket} (or, for a test that only fails sometimes: mirai build ${ticket} --recheck)\n` : `  once you've fixed what stopped it outside the tree (a baseline, Docker): mirai build ${ticket} --recheck\n`);
+      }
       return BUILD_EXIT[r.outcome] ?? OUTCOME_EXIT[r.outcome] ?? EXIT.FAILURE;
     } finally {
+      progress?.stop();
       for (const sig of SIGNALS) process.removeListener(sig, onInt);
     }
   },

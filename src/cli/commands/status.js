@@ -128,7 +128,7 @@ function runInfo(store) {
   const live = ['running', 'paused'].includes(state.state);
   const mine = beat && beat.run_id === state.run_id && live ? beat : null;
   const heartbeat = unreadable ? { unreadable: true } : mine ? { age_ms: mine.ageMs, stale: mine.stale, future: mine.future } : null;
-  return { run_id: state.run_id, state: state.state, ticket: mine?.ticket ?? state.ticket ?? null, step: mine?.step ?? state.step ?? null, heartbeat };
+  return { run_id: state.run_id, state: state.state, ticket: mine?.ticket ?? state.ticket ?? null, step: mine?.step ?? state.step ?? null, heartbeat, progress: mine?.progress ?? null };
 }
 
 function lockInfo(store, holder) {
@@ -143,6 +143,8 @@ function runLine(run) {
   if (run === null) return 'run: none';
   const parts = [`run: ${run.run_id}`, run.state];
   if (run.ticket) parts.push(`ticket ${run.ticket}${run.step ? ` (${run.step})` : ''}`);
+  // The running step's last progress line (unit 21e), from the heartbeat.
+  if (run.progress) parts.push(`— ${plain(run.progress)}`);
   if (run.heartbeat?.unreadable) {
     parts.push('heartbeat unreadable (run: mirai doctor)');
   } else if (run.heartbeat?.future) {

@@ -282,11 +282,9 @@ test('review: the comparison matches a known level-wide error and unmapped failu
   assert.match(t.runs[0].why, /fewer tests ran \(8 against 10\)/);
   const skipping = async ({ name }) => ({ outcome: 'pass', tests: name === 'unit' ? { total: 10, passed: 9, skipped: 1 } : { total: 1, passed: 1, skipped: 0 } });
   assert.equal((await testsAfter({ cwd: f.root, env: f.env, store: f.store, trust, config, keys, base: trust.baseSha, run: skipping })).verdict, 'unknown');
-  // A baseline that doesn't verify stops the build.
+  // A baseline that doesn't verify stops the build, before it starts (unit 21e).
   writeFileSync(join(f.store.dir, 'baseline', `${trust.baseSha}.json`), '{"schema_version":1}');
-  const r = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']));
-  assert.equal(r.outcome, 'needs-you');
-  assert.match(r.why, /doesn't verify|can't be read/);
+  await assert.rejects(build(f, claudeWith([done], ['echo "// x" >> app/Team.php'])), /doesn't verify|can't be read/);
 });
 
 test('review: a declared dependency covers its manifest with the node pack on; scripts, sources, spec changes and stacks with no data stop', async () => {
@@ -305,6 +303,7 @@ test('review: a declared dependency covers its manifest with the node pack on; s
   const g = await ready({ files: withPack });
   writeFileSync(join(g.root, '.mirai/config.toml'), `${readFileSync(join(g.root, '.mirai/config.toml'), 'utf8')}\n[gate]\npacks = ["node"]\n`);
   g.git('commit', '-qam', 'the node pack');
+  writeBaseline(g.store, { schema_version: 1, sha: snapshot({ cwd: g.root, env: g.env }).baseSha, levels: { unit: PASSED, feature: PASSED } }, loadSigner(g.env, g.store));
   const not = await build(g, claudeWith([done], add));
   assert.equal(not.outcome, 'needs-you');
   assert.match(not.why, /npm:left-pad/);
@@ -923,4 +922,55 @@ test('21d T3: the checkpoint report sums a ticket\'s launches across runs, its c
   const text = renderReport(r);
   assert.match(text, new RegExp(`\\| \\*\\*Total\\*\\* \\| \\| \\| \\| 3 launches \\| ${r.totals.turns} \\|`));
   assert.match(text, /unknown \(3 unknown\)/);
+});
+
+
+// Unit 21e: the small fixes from 21d's checkpoint.
+test('21e T4: no baseline and a stale red team refuse before the branch; checks report each level; a recheck writes its checks line', async () => {
+  // No baseline for the integration commit: refused before any branch or launch.
+  const f = await ready({ baseline: false });
+  const claude = claudeWith([done], ['echo "// x" >> app/Team.php']);
+  await assert.rejects(build(f, claude), (e) => e.code === 'no-baseline' && /mirai baseline/.test(e.hint));
+  assert.equal(git(f, 'branch', '--list', 'feature/*').trim(), '', 'no branch was made');
+  assert.equal(claude.launches(), 0, 'no launch');
+  // A stale red team: refused before the branch.
+  const g = await ready();
+  const stale = async () => ({ state: 'stale', changed: ['claude_code'], blocker_seen: null });
+  await assert.rejects(build(g, claude, { launchOptions: { ...watch(claude), status: stale } }), (e) => e.code === 'redteam-stale');
+  assert.equal(git(g, 'branch', '--list', 'feature/*').trim(), '', 'no branch was made');
+  assert.equal(symbolicBranch(g.root, 'HEAD', g.store.gitEnv), 'main');
+  // Each check and level, as it starts and ends.
+  const seen = [];
+  const r = await build(g, claude, { launchOptions: { ...watch(claude), onCheck: (c) => seen.push(`${c.name}:${c.state}`) }, testRun: failingFeature });
+  assert.equal(r.outcome, 'checks-failed');
+  assert.deepEqual(seen, ['unit:running', 'unit:pass', 'feature:running', 'feature:fail (1 new)']);
+  // A recheck writes its own checks line.
+  const checksLines = () => runIds(g.store).flatMap((id) => readRunLog(g.store, id).lines).filter((l) => l.event === 'checks' && l.item === 'PMT-31');
+  assert.equal(checksLines().length, 1);
+  await build(g, claude, { recheck: true, launchToken: null, testRun: passing });
+  assert.equal(checksLines().length, 2);
+});
+
+test('21e review: a build or fix MIRAI couldn\'t judge isn\'t started: no levels, a baseline without a level, the existing branch\'s own base', async () => {
+  const { checkJudgeable } = await import('../../src/agent/build.js');
+  const f = await ready();
+  const trust = snapshot({ cwd: f.root, env: f.env });
+  const keys = loadSigner(f.env, f.store).keys;
+  const config = (await import('../../src/trust/snapshot.js')).trustedConfig(trust);
+  assert.doesNotThrow(() => checkJudgeable({ store: f.store, config, keys, base: trust.baseSha, branch: 'main' }));
+  assert.throws(() => checkJudgeable({ store: f.store, config: { ...config, testing: { levels: [] }, checks: {} }, keys, base: trust.baseSha, branch: 'main' }), (e) => e.code === 'no-levels');
+  assert.throws(() => checkJudgeable({ store: f.store, config: { ...config, testing: { levels: [...config.testing.levels, { name: 'e2e' }] } }, keys, base: trust.baseSha, branch: 'main' }), (e) => e.code === 'no-baseline' && /doesn't cover e2e/.test(e.message));
+  // An older base than the integration commit: the hint doesn't send you to a baseline that can't help.
+  assert.throws(() => checkJudgeable({ store: f.store, config, keys, base: 'a'.repeat(40), branch: 'main', integration: trust.baseSha }), (e) => e.code === 'no-baseline' && /older than main/.test(e.message) && /start the ticket again/.test(e.hint));
+  // An existing branch is judged against its own base: main moved (a refresh), its base has a
+  // baseline, the new main has none. The rebuild goes ahead.
+  const claude = claudeWith([done, done], ['echo "// x" >> app/Team.php', 'echo "// y" >> app/Team.php']);
+  assert.equal((await build(f, claude, { testRun: failingFeature })).outcome, 'checks-failed');
+  const branch = symbolicBranch(f.root, 'HEAD', f.store.gitEnv);
+  f.git('checkout', '-q', 'main');
+  writeFileSync(join(f.root, 'README.md'), 'moved\n');
+  f.git('add', '-A');
+  f.git('commit', '-qm', 'main moved');
+  f.git('checkout', '-q', branch);
+  await assert.doesNotReject(fixIt(f, claude));
 });

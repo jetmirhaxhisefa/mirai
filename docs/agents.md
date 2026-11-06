@@ -128,6 +128,29 @@ The ticket must be `in-progress`, with a plan whose approval verifies as it is n
 
    **Every outcome after the launch** is kept in `<store>/tickets/<ticket>/build.json`: the outcome, the reason, the handover, MIRAI's checks and a fingerprint of the tree.
 
+## What you see while a step runs (unit 21e)
+
+`mirai plan`, `build` and `fix` say what's happening as it happens, on stderr:
+
+```
+Kai (Sonnet): started
+Kai (Sonnet): 4 turns, 2.1 min — Edit backend/app/Http/Controllers/TaskController.php
+Kai (Sonnet): 7 turns, 5.3 min — run_tests unit
+Kai (Sonnet): 9 turns, 8.9 min — handed over
+MIRAI's checks: unit running…
+MIRAI's checks: unit pass, only known failures (56 s)
+```
+
+- **How often:** a line per tool call, at most one every 5 seconds, and a "still working" line after 15 seconds with nothing new (a long test level says "still running"). Only the short step between Kai's handover and MIRAI's first check (its safety checks and the commit) has no line of its own.
+- **What a line shows:** the tool's name (one of the launch's own tools, so a denied one Kai tried still shows; anything else is "a tool"), a file path in the project when it's plain (letters, digits and `._@+/-`, no spaces, no secret-length segment; else "a file"; "outside the project" for one that isn't in it), and the level for `run_tests` and `run_check` (one of the project's). **Never Kai's text, a Bash command or a tool's output.** Kai chooses its paths and calls, so anything that could pass for one of MIRAI's own lines is shown as "a file" or "a tool".
+- **The plan step** also names its lint, and the one fix launch when the first plan fails it.
+- **From a second terminal:** `mirai status` shows the running step and its last progress line, including the check running while MIRAI tests the work after a build or fix round (a `--recheck` has no run of its own, so it only prints).
+- **Before a build starts:**
+  - a build or fix round MIRAI couldn't judge is refused at once, rather than after the launch: no test levels or checks, or no complete baseline covering each of them for the commit it's judged against (an existing branch's own base, else the integration commit);
+  - a red team that isn't green, or no baseline, refuses before the ticket's branch is made. Other refusals at the launch itself (the integration branch moved, an ignored file that can't be checked) can still come after it;
+  - `mirai init --refresh` lists the baseline among its next steps;
+  - a stale usage reading says how old it is.
+
 ## What a ticket costs (unit 21d's checkpoint)
 
 **SAMPLE-2** (a filter across API and UI, 9 files, about 190 lines, with tests at two levels):

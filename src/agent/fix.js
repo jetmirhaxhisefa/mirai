@@ -12,9 +12,9 @@ import { changedNames, commitOf, lsTree, symbolicBranch, workTreeChanges } from 
 import { readRunState, writeRunState } from '../store/run.js';
 import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
 import { ignoredFingerprint, protectionRules } from '../trust/protected.js';
-import { afterLaunch, BUILD_MAX_TURNS, BUILD_ROLE, BUILD_TIMEOUT_MS, buildRecordPath, HANDOVER_SCHEMA, keepBuild, preflight, testsAfter } from './build.js';
+import { afterLaunch, BUILD_MAX_TURNS, BUILD_ROLE, BUILD_TIMEOUT_MS, buildRecordPath, checkBeat, checkJudgeable, HANDOVER_SCHEMA, keepBuild, preflight, testsAfter } from './build.js';
 import { addCheckpoint } from './checkpoints.js';
-import { AGENT, LAUNCH_OPTIONS } from './plan.js';
+import { AGENT, AGENT_LABEL, LAUNCH_OPTIONS } from './plan.js';
 import { checkLaunchToken } from './requests.js';
 import { launchInRun, withRun } from './run.js';
 import { agentSessionDir, forgetSession } from './session.js';
@@ -67,6 +67,12 @@ export function fixPrompt({ ticket, round }) {
 export async function runFix({ cwd, env, ticket, nextToken, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, now = () => new Date() }) {
   if (typeof nextToken !== 'function') checkLaunchToken(null);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
+  // The first sign of life (unit 21e), before MIRAI's own checks.
+  try {
+    watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
+  } catch {
+    // a display only
+  }
   return await withRun({ cwd, env }, async ({ store, runId, tookOver }) => {
     const { keys, plan, usage, trust, config, registry, given, fm } = preflight({ cwd, env, store, ticket, unattended });
     let last;
@@ -85,6 +91,8 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
     if (commitOf(store.checkout, 'HEAD', store.gitEnv) !== from.commit) throw fail(`${from.branch} isn't at ${ticket}'s failing step (${String(from.commit).slice(0, 12)})`, 'build-moved', `mirai build ${ticket}`);
     if (workTreeChanges(store.checkout, store.gitEnv).length) throw fail('the work tree has uncommitted changes', 'dirty-tree', 'commit or stash them first, or mirai discard');
     const planHash = contentHash(Buffer.from(plan));
+    // A round MIRAI couldn't judge isn't started (unit 21e): the baseline of the step's own base.
+    checkJudgeable({ store, config, keys, base: last.base, branch: trust.branch, integration: trust.baseSha });
     // A new plan (after a re-plan) is built, never fixed into code made from the old one (21c review).
     if (from.plan_sha256 !== planHash) throw fail(`${ticket}'s failing step was built from another plan`, 'plan-changed', `mirai build ${ticket}`);
     const rules = protectionRules(registry, config);
@@ -121,7 +129,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
         let r;
         try {
           r = await launch({
-            ...watch, cwd, env, store, runId, startRun: !started, ownsRun: false, launchToken: nextToken(), agent: AGENT, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
+            ...watch, cwd, env, store, runId, startRun: !started, ownsRun: false, launchToken: nextToken(), agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
             prompt: fixPrompt({ ticket, round }), item: ticket, round, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs, jsonSchema: HANDOVER_SCHEMA, now,
             session: { keep: true, resumeFrom },
           });
@@ -135,7 +143,13 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
         settleLaunch(store, ticket, { launch: guard.launch, outcome: r.outcome, refundable: r.refundable, line: r.line });
         addCheckpoint(store, ticket, { step: `fix-${round}`, sha: stepBase, creationSha: last.creation_sha ?? null, now });
         const record = (extra) => keepBuild(store, ticket, { ...last, step: 'fix', round, head: commitOf(store.checkout, 'HEAD', store.gitEnv), step_base: stepBase, launch: r.launchId, resumed: Boolean(r.resumed), plan_sha256: planHash, at: now().toISOString(), ignored_before: ignoredBefore, commit: null, fingerprint: null, checked_fingerprint: null, tests: null, handover: null, dependencies: null, protectedPaths: null, ...extra });
-        const after = await afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase: last.base, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, record, what: `fix round ${round}` });
+        const checking = checkBeat({ store, runId, ticket, step: 'build', onCheck: watch.onCheck ?? null });
+        let after;
+        try {
+          after = await afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase: last.base, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, onCheck: checking.onCheck, record, what: `fix round ${round}` });
+        } finally {
+          checking.stop();
+        }
         const entry = { round, launch: r.launchId, outcome: after.outcome, why: after.why ?? null, resumed: Boolean(r.resumed), line: r.line, tests: after.tests ?? null };
         result.rounds.push(entry);
         // Only a round whose tests ran is judged by the loop guard; any other end is a stop.

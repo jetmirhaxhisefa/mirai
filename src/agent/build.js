@@ -25,15 +25,18 @@ import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
 import { runTest } from '../tests/run.js';
 import { changeOf, classify, ignoredFingerprint, protectionRules } from '../trust/protected.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
-import { prepareBranch } from './branch.js';
+import { branchName, prepareBranch, ticketSlug } from './branch.js';
+import { checkLine } from './progress.js';
+import { verifyBranchAt } from '../store/branch-record.js';
+import { writeHeartbeat } from '../store/run.js';
 import { addCheckpoint } from './checkpoints.js';
 import { commitStep } from './commit.js';
 import { loadSigner } from '../sign/signer.js';
 import { newDependencies } from './deps.js';
 import { planInputs } from './inputs.js';
-import { AGENT, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
+import { AGENT, AGENT_LABEL, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
 import { checkLaunchToken } from './requests.js';
-import { launchInRun, withRun } from './run.js';
+import { launchInRun, preGate, withRun } from './run.js';
 import { checkNothingHidden } from './scope.js';
 
 // The build step (unit 21b; design/01 §7, R-M4, R3-C2, R3-M2). Kai, as author, works from the plan
@@ -88,12 +91,22 @@ export function buildPrompt({ ticket, branch }) {
 // that doesn't verify stops (`baseline-invalid`): it may have been tampered with. Until unit 23's
 // floor guard, a level that ran fewer tests, or skipped more, than at baseline can't be called
 // green either: deleting or skipping a test must not buy a pass (21b review).
-export async function testsAfter({ cwd, env, store, trust, config, keys, base, run = runTest, signal = null }) {
+export async function testsAfter({ cwd, env, store, trust, config, keys, base, run = runTest, signal = null, onCheck = null }) {
   const names = [...Object.keys(config.checks ?? {}).sort(), ...(config.testing?.levels ?? []).map((l) => l.name)];
   const baseline = readBaseline(store, base, { keys });
   const runs = [];
+  // Each check and level as it starts and ends (unit 21e); a display only, never the run's cost.
+  const told = (c) => {
+    try {
+      onCheck?.(c);
+    } catch {
+      // the caller's display
+    }
+  };
   for (const name of names) {
     let result;
+    const startedAt = Date.now();
+    told({ kind: 'check', name, state: 'running' });
     try {
       result = await run({ cwd, env, name, store, trust, by: 'build', signal });
     } catch (err) {
@@ -113,6 +126,7 @@ export async function testsAfter({ cwd, env, store, trust, config, keys, base, r
     const failing = Array.isArray(result.failing) ? [...result.failing].sort((a, b) => Number(isNew.has(b.id ?? b.name)) - Number(isNew.has(a.id ?? a.name))).slice(0, 50).map((f) => ({ id: f.id ?? null, ...(f.name ? { name: f.name } : {}), kind: f.kind ?? null, message: typeof f.message === 'string' ? f.message.slice(0, 500) : null })) : [];
     const tail = typeof result.output?.tail === 'string' ? result.output.tail.slice(-4000) : null;
     runs.push({ name, outcome: result.outcome, id: result.id ?? null, tests: now ?? null, ...judged, ...(judged.verdict === 'fail' ? { failing, output_tail: tail } : {}) });
+    told({ kind: 'check', name, state: judged.verdict === 'fail' ? `fail (${(judged.fresh ?? []).length} new)` : judged.verdict === 'pass' && result.outcome === 'fail' ? 'pass, only known failures' : judged.verdict === 'unknown' ? `unknown${judged.why ? `: ${String(judged.why).slice(0, 80)}` : ''}` : judged.verdict, seconds: (Date.now() - startedAt) / 1000 });
   }
   const incomplete = baseline && baseline.complete === false;
   const verdict = runs.some((r) => r.verdict === 'fail') ? 'fail' : !baseline || incomplete || names.length === 0 || runs.some((r) => r.verdict === 'unknown') ? 'unknown' : 'pass';
@@ -170,7 +184,7 @@ export function observe({ store, base, rules, ignoredBefore }) {
 
 // `stepBase`: the step's checkpoint, what its changes are measured from; `branchBase`: the commit the
 // branch started from, whose baseline judges the test run.
-async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, seen = null }) {
+async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck = null, seen = null }) {
   const declared = declaredChanges(plan);
   const observed = seen ?? observe({ store, base: stepBase, rules, ignoredBefore });
   const { fingerprint } = observed;
@@ -221,7 +235,7 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
   if (stops.length) return { ...base, outcome: 'needs-you', why: stops.join('; ') };
   let t;
   try {
-    t = await tests({ cwd, env, store, trust, config, keys, base: branchBase, signal, ...(testRun ? { run: testRun } : {}) });
+    t = await tests({ cwd, env, store, trust, config, keys, base: branchBase, signal, onCheck, ...(testRun ? { run: testRun } : {}) });
   } catch (err) {
     if (err.code !== 'baseline-invalid') throw err;
     return { ...base, outcome: 'needs-you', why: `${err.message}: it may have been changed; record it again (mirai baseline --force)` };
@@ -231,6 +245,48 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
   if (t.verdict === 'fail') return { ...base, tests: t, outcome: 'checks-failed', why: t.runs.filter((x) => x.verdict === 'fail').map((x) => `${x.name}: ${x.why}`).join('; ') };
   if (t.verdict === 'unknown') return { ...base, tests: t, outcome: 'needs-you', why: [t.why, ...t.runs.filter((x) => x.verdict === 'unknown').map((x) => `${x.name}: ${x.why}`)].filter(Boolean).join('; ') };
   return { ...base, tests: t, outcome: 'handed-over' };
+}
+
+// Whether MIRAI can judge a step against `base` (unit 21e): the project has test levels or checks,
+// and a complete baseline for that commit covers each of them. Refused before any launch.
+export function checkJudgeable({ store, config, keys, base, branch, integration = null }) {
+  const levels = [...Object.keys(config.checks ?? {}), ...(config.testing?.levels ?? []).map((l) => l.name)];
+  if (!levels.length) throw fail('the project has no test levels or named checks, so MIRAI couldn\'t judge the work', 'no-levels', EXIT.BLOCKED, 'name them in .mirai/config.toml ([[testing.levels]], [checks]), commit, then mirai baseline');
+  const baseline = readBaseline(store, base, { keys });
+  const missing = baseline ? levels.filter((n) => !Object.hasOwn(baseline.levels ?? {}, n)) : [];
+  if (!baseline || baseline.complete === false || missing.length) {
+    // A baseline is recorded for the integration branch's HEAD only: for an older base (an existing
+    // branch from before main moved), `mirai baseline` can't make one (21e re-review).
+    const older = integration !== null && base !== integration;
+    throw fail(`${!baseline ? 'there\'s no test baseline' : baseline.complete === false ? 'the test baseline is incomplete' : `the test baseline doesn't cover ${missing.join(', ')}`} for ${base.slice(0, 12)}${older ? `, the commit this ticket's branch starts from (older than ${branch})` : ''}, so MIRAI couldn't judge the work`, 'no-baseline', EXIT.BLOCKED, older ? 'mirai baseline records one for the current integration commit only: start the ticket again from it (discard the step, or delete the branch), or record the old commit\'s baseline by checking it out' : `record it first, on ${branch}: mirai baseline`);
+  }
+}
+
+// While MIRAI's own checks run after a launch (21e review): the heartbeat keeps going, and carries
+// the running check, so `mirai status` doesn't show "handed over" growing old.
+export function checkBeat({ store, runId, ticket, step, onCheck = null }) {
+  let line = null;
+  const beat = () => {
+    try {
+      writeHeartbeat(store, { runId, ticket, step, ...(line ? { progress: line } : {}) });
+    } catch {
+      try {
+        writeHeartbeat(store, { runId, ...(line ? { progress: line } : {}) });
+      } catch {
+        // a status detail
+      }
+    }
+  };
+  const timer = setInterval(beat, 60_000);
+  timer.unref?.();
+  return {
+    onCheck: (c) => {
+      line = checkLine(c).slice(0, 300);
+      beat();
+      onCheck?.(c);
+    },
+    stop: () => clearInterval(timer),
+  };
 }
 
 // The build's record beside the plan, on every outcome after the launch: what happened, MIRAI's
@@ -292,12 +348,26 @@ export function preflight({ cwd, env, store, ticket, unattended }) {
 export async function runBuild({ cwd, env, ticket, launchToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, now = () => new Date() }) {
   if (!recheck) checkLaunchToken(launchToken);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
+  // The first sign of life (unit 21e), before MIRAI's own checks.
+  try {
+    if (!recheck) watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
+  } catch {
+    // a display only
+  }
   return await withRun({ cwd, env }, async ({ store, runId, tookOver }) => {
     const { keys, plan, usage, trust, config, registry, given, fm } = preflight({ cwd, env, store, ticket, unattended });
     const rules = protectionRules(registry, config);
-    if (recheck) return await recheckBuild({ cwd, env, store, ticket, keys, plan, trust, config, registry, rules, tests, testRun, watch, now, tookOver });
+    if (recheck) return await recheckBuild({ cwd, env, store, runId, fm, ticket, keys, plan, trust, config, registry, rules, tests, testRun, watch, now, tookOver });
     const risk = fm.risk === 'high' ? 'high' : 'normal';
     const size = given.ticket.fm.size === 'L' ? 'L' : null;
+    // Before anything is made (unit 21e, from 21d's checkpoint): a build MIRAI can't judge isn't
+    // started, and a stale red team refuses before the branch, not after it.
+    // The commit the build will be judged against: an existing branch's own base (its record),
+    // else the integration commit (21e review).
+    const name = branchName(config.git?.branch_pattern ?? 'feature/{ticket}-{slug}', ticket, ticketSlug(given.ticket.text));
+    const existing = commitOf(store.checkout, `refs/heads/${name}`, store.gitEnv) !== null ? verifyBranchAt({ root: store.checkout, env: store.gitEnv, branch: name, keys, repoId: store.repoId }) : null;
+    checkJudgeable({ store, config, keys, base: existing?.ok ? existing.record.base_sha : trust.baseSha, branch: trust.branch, integration: trust.baseSha });
+    await preGate({ cwd, env, store, trust, role: BUILD_ROLE, claude: watch.claude ?? null, ...(watch.status ? { status: watch.status } : {}) });
     // The ticket's branch (unit 22): made with its signed record and registered, or an existing
     // MIRAI branch as it is. Its base is the integration commit until stacking (D2) gives a parent.
     const prep = prepareBranch({ store, env, trust, config, keys, signer: () => loadSigner(env, store), unattended, ticket, ticketText: given.ticket.text, now });
@@ -317,7 +387,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
       let r;
       try {
         r = await launch({
-          ...watch, cwd, env, store, runId, startRun: true, ownsRun: false, launchToken, agent: AGENT, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
+          ...watch, cwd, env, store, runId, startRun: true, ownsRun: false, launchToken, agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
           prompt: buildPrompt({ ticket, branch }), item: ticket, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs: given.inputs, jsonSchema: HANDOVER_SCHEMA, now,
           // Kept for a fix round to resume (unit 21c); a new build starts a new session.
           session: { keep: true },
@@ -330,7 +400,13 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
       addCheckpoint(store, ticket, { step: 'build', sha: stepBase, creationSha: prep.creationSha, now });
       result.launch = { id: r.launchId, outcome: r.outcome, why: r.why, line: r.line };
       const record = (extra) => keepBuild(store, ticket, { branch, head: commitOf(store.checkout, 'HEAD', store.gitEnv), base: branchBase, step_base: stepBase, creation_sha: prep.creationSha, launch: r.launchId, plan_sha256: contentHash(Buffer.from(plan)), at: now().toISOString(), ignored_before: ignoredBefore, ...extra });
-      const after = await afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, record, what: 'build from the approved plan' });
+      const checking = checkBeat({ store, runId, ticket, step: 'build', onCheck: watch.onCheck ?? null });
+      let after;
+      try {
+        after = await afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, onCheck: checking.onCheck, record, what: 'build from the approved plan' });
+      } finally {
+        checking.stop();
+      }
       if (after.outcome === 'handed-over') endState = 'finished';
       return { ...result, ...after };
     } finally {
@@ -343,7 +419,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
 // After a build's or a fix round's launch (units 21b, 21c, 22): the handover, MIRAI's checks, its
 // commit when the safety checks pass, the run log's checks line, the record, and the ticket's state.
 // Returns the result's fields: { outcome, why, handover, commit, protectedPaths, dependencies, tests }.
-export async function afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, record, what }) {
+export async function afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck = null, record, what }) {
   if (r.outcome !== 'ok') {
     record({ outcome: r.outcome, why: r.why });
     return { outcome: r.outcome, why: r.why };
@@ -360,7 +436,7 @@ export async function afterLaunch({ r, cwd, env, store, runId, trust, config, re
   }
   let checked;
   try {
-    checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal });
+    checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck });
     // Past the safety checks, whatever the tests said: MIRAI commits what Kai produced, so the
     // next step starts from a clean tree (unit 22, open point 3). A safety stop never is.
     if (checked.safe) {
@@ -397,7 +473,7 @@ export async function afterLaunch({ r, cwd, env, store, runId, trust, config, re
 // `mirai build <ticket> --recheck`: no agent. The tree must be exactly what the last build left:
 // the same branch, HEAD (the step's commit, unit 22, when it was committed) and fingerprint, so
 // nothing but Kai's work is judged.
-async function recheckBuild({ cwd, env, store, ticket, keys, plan, trust, config, registry, rules, tests, testRun, watch, now, tookOver }) {
+async function recheckBuild({ cwd, env, store, runId, fm = {}, ticket, keys, plan, trust, config, registry, rules, tests, testRun, watch, now, tookOver }) {
   let last;
   try {
     last = JSON.parse(String(readPrivateFile(buildRecordPath(store, ticket), { maxBytes: 4 * 1024 * 1024 })));
@@ -412,7 +488,8 @@ async function recheckBuild({ cwd, env, store, ticket, keys, plan, trust, config
   checkNothingHidden(store.checkout, store.gitEnv);
   const seen = observe({ store, base: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null });
   if (seen.fingerprint !== last.fingerprint) throw fail(`the tree changed since ${ticket}'s build; only Kai's work is checked again`, 'tree-changed', EXIT.BLOCKED, 'put it back as the build left it, or start the ticket again');
-  const checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase: last.base, stepBase: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null, tests, testRun, signal: watch.signal ?? null, seen });
+  // A recheck runs no launch and no run state, so no heartbeat is shown for it: its checks print only.
+  const checked = await checkAfter({ onCheck: watch.onCheck ?? null, cwd, env, store, trust, config, registry, keys, plan, branchBase: last.base, stepBase: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null, tests, testRun, signal: watch.signal ?? null, seen });
   // A tree that wasn't committed (stopped before the safety checks passed, under older rules) and
   // passes them now is committed here, so the next step starts from a clean tree.
   let commit = last.commit ?? null;
@@ -427,6 +504,9 @@ async function recheckBuild({ cwd, env, store, ticket, keys, plan, trust, config
     });
     fingerprint = observe({ store, base: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null }).fingerprint;
   }
+  // The recheck's own results in the run log (unit 21e, from 21d's checkpoint: a report showed the
+  // first run's).
+  if (checked.tests && runId) writeChecks(store, runId, ticket, { fm, t: checked.tests });
   keepBuild(store, ticket, { ...last, rechecked_at: now().toISOString(), outcome: checked.outcome, why: checked.why ?? null, commit, fingerprint, head: commitOf(store.checkout, 'HEAD', store.gitEnv), protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
   settleTicket(store, ticket, checked);
   return { ticket, branch, outcome: checked.outcome, why: checked.why ?? null, handover: last.handover ?? null, commit, launch: null, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests, warn: null, tookOver, rechecked: true };

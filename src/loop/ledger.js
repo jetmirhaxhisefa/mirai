@@ -97,7 +97,10 @@ export function usageCheck({ env, largest = 0, unattended = true, caps = usageCa
   if (!freshReading(latest, now)) {
     // Readings come only from launches, so an old one needs a tiny launch to refresh it (D-18's probe,
     // unit 28): `probe` says so.
-    const r = unknown(latest ? 'the last reading of your usage is out of date' : 'there\'s no reading of your usage yet');
+    // Its age, so you can tell a day-old reading from an hour-old one (unit 21e).
+    const hours = latest ? (now - Date.parse(latest.ts)) / 3_600_000 : null;
+    const old = hours === null || !Number.isFinite(hours) ? '' : hours < 0 ? ' (dated in the future)' : hours < 1 ? ' (under an hour old)' : hours < 48 ? ` (${Math.round(hours)} h old)` : ` (${Math.round(hours / 24)} days old)`;
+    const r = unknown(latest ? `the last reading of your usage is out of date${old}` : 'there\'s no reading of your usage yet');
     return { ...r, ...(r.go ? {} : { cap: latest ? 'stale' : 'unknown' }), probe: true };
   }
   const used = Math.round(latest.utilization * 100);
