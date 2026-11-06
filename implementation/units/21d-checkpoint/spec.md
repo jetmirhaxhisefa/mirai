@@ -1,7 +1,7 @@
 ---
 unit: "21d"
 name: checkpoint
-status: approved (2026-11-05); part 1 committed, the checkpoint pending
+status: approved (2026-11-05); part 1 committed; the checkpoint done (2026-11-06)
 roadmap: design/07-implementation-roadmap.md, row 21 (21a, 21b, 21c done) and the "first agent run checkpoint" (PM2-2, R3-M7); notes from 21c's reviews (Architect M2, M5, L1)
 depends_on: ["21c", "18f"]
 ---
@@ -218,3 +218,12 @@ Nothing else about tasks changes.
     - **The Edit case's limit is written down** (Low): it usually ends at the refused Read, as `w-trust-edit` does.
     - **Row 21's opening line** names 21c and 21d as they are now (Low).
     - **Not changed:** a seed launch that throws is cleaned up by the runner's existing path for the case's own launch (Low, pre-existing).
+11. **From the checkpoint and the probes (part 2):**
+    - **18g came in between.** Claude Code updated twice during the checkpoint, so agents now run the binary the red team tested (unit 18g, its own spec). The checkpoint's build ran on 18g.
+    - **SAMPLE-2's ticket** gained Boundaries, References and Notes sections, so MIRAI's lint passes it clean.
+    - **The probes:**
+      - they clone `main` explicitly (your sample app was on a ticket branch);
+      - R1 and R2 render the Claude Code files again after their config change, since the lock covers them;
+      - R2 reads what Kai did about the package from the launch's kept stream.
+    - **The report's limit share is "not measured".** Claude Code reported it for one launch, and no manual reading was taken.
+    - **R1's recommendation** (fresh fix rounds by default) is written down for your decision. Nothing changed.

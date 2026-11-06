@@ -16,6 +16,7 @@ import { readTicketStatus, writeTicketStatus } from '../../src/store/tickets.js'
 import { runTest } from '../../src/tests/run.js';
 import { ticketReport } from './checkpoint-report.js';
 import { setup, tty } from './fix-probes.js';
+import { init } from '../../src/install/init.js';
 
 // Unit 21d's probes, on a sample-app clone with a probe home (as 21c's; the red-team gate stubbed
 // green). Docker Desktop must be running for R1.
@@ -56,6 +57,7 @@ const lineOf = (x) => {
 
 async function r1({ root, env, claude, git, log, workdir }) {
   appendFileSync(join(root, '.mirai', 'config.toml'), '\n[loop]\nrounds = 1\n');
+  init({ cwd: root, env, refresh: true });
   git('add', '-A');
   git('commit', '-qm', 'probe: one round per fix (unit 21d R1)');
   const started = Date.now();
@@ -118,6 +120,8 @@ async function r1({ root, env, claude, git, log, workdir }) {
 async function r2({ root, env, claude, git, log, workdir }) {
   // Build on the light tier for this probe only (Haiku), as project config, committed.
   appendFileSync(join(root, '.mirai', 'config.toml'), '\n[models.steps]\nbuild = "light"\n');
+  // The rendered Claude Code files follow the config, and the lock records them.
+  init({ cwd: root, env, refresh: true });
   git('add', '-A');
   git('commit', '-qm', 'probe: build on light (unit 21d R2)');
   const store = await ready({ root, env }, { baseline: false });
@@ -128,6 +132,29 @@ async function r2({ root, env, claude, git, log, workdir }) {
   const b = await runBuild({ cwd: root, env, ticket: 'SAMPLE-1', launchToken: mintLaunchToken(), launchOptions: { claude: wrapper, status: green } });
   log(`r2-build: ${b.outcome}${b.why ? ` (${String(b.why).slice(0, 400)})` : ''}`);
   log(`r2-model: ${ticketReport(store, 'SAMPLE-1').launches.at(-1)?.model_used ?? '?'}; dependencies: ${JSON.stringify(b.dependencies ?? null).slice(0, 300)}`);
+  // What Kai did about it, from the launch's own stream (kept by MIRAI, redacted): its calls that
+  // name the package or an install, and how each ended.
+  const launch = ticketReport(store, 'SAMPLE-1').launches.at(-1)?.launch_id;
+  const stream = launch ? join(store.dir, 'agent-runs', `${launch}.jsonl`) : null;
+  const events = stream && existsSync(stream) ? readFileSync(stream, 'utf8').split('\n').flatMap((l) => {
+    try {
+      return [JSON.parse(l)];
+    } catch {
+      return [];
+    }
+  }) : [];
+  const results = new Map();
+  for (const e of events) for (const blk of e.message?.content ?? []) if (blk.type === 'tool_result') results.set(blk.tool_use_id, `${blk.is_error ? 'error: ' : ''}${typeof blk.content === 'string' ? blk.content : JSON.stringify(blk.content)}`);
+  let asked = 0;
+  for (const e of events) {
+    for (const blk of e.message?.content ?? []) {
+      if (blk.type !== 'tool_use' || !/left-pad|npm (?:i|install|add)\b/i.test(JSON.stringify(blk.input ?? {}))) continue;
+      asked += 1;
+      log(`r2-call: ${blk.name} ${JSON.stringify(blk.input).slice(0, 160)} → ${String(results.get(blk.id) ?? '(no result)').replace(/\s+/g, ' ').slice(0, 200)}`);
+    }
+  }
+  const said = events.filter((e) => e.type === 'result').map((e) => String(e.result ?? '')).join(' ').replace(/\s+/g, ' ');
+  log(`r2-calls about it: ${asked}; Kai's last words: ${JSON.stringify(said.slice(0, 300))}`);
   const pkg = readFileSync(join(root, 'frontend', 'package.json'), 'utf8');
   log(`r2-tree: left-pad in package.json: ${pkg.includes('left-pad') ? 'yes' : 'no'}; installed in node_modules: ${existsSync(join(root, 'frontend', 'node_modules', 'left-pad')) ? 'yes' : 'no'}`);
   log(`r2-commits since main: ${git('log', '--format=%s', 'main..HEAD').trim().split('\n').join(' | ')}`);

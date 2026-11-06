@@ -128,6 +128,18 @@ The ticket must be `in-progress`, with a plan whose approval verifies as it is n
 
    **Every outcome after the launch** is kept in `<store>/tickets/<ticket>/build.json`: the outcome, the reason, the handover, MIRAI's checks and a fingerprint of the tree.
 
+## What a ticket costs (unit 21d's checkpoint)
+
+**SAMPLE-2** (a filter across API and UI, 9 files, about 190 lines, with tests at two levels):
+- **3 Sonnet launches:** the plan, one lint fix of the plan, and the build.
+- **30 turns, about 13,000 output tokens, and 190,000 tokens of cached prompt.**
+- **About 10 minutes of agent time,** the build's including Kai's own test runs through MIRAI.
+- **MIRAI's own test runs come on top.** The baseline's levels took about 7 minutes in the sample app.
+
+**A fix round:** 7 turns, about 1.5 to 2.5 minutes (unit 21d's R1). A resumed round re-reads the whole build conversation, so it cost more cached input than a fresh one, for the same turns.
+
+**The share of your usage limit:** not measured yet. Claude Code reports it for some launches only. The full numbers are in `implementation/units/21d-checkpoint/checkpoint-report.md`.
+
 ## Fix rounds: `mirai fix <ticket>` (unit 21c)
 
 When MIRAI's own test run after a build finds new failures, the ticket stays `in-progress`, with MIRAI's commit of Kai's work. `mirai fix` sends those failures back to Kai, round by round, under the loop guard (`docs/loop-rules.md`), until one of these:
@@ -154,7 +166,7 @@ The build itself isn't a round, so the loop guard's rules start with round 1: a 
 - **How it's resumed:** a round resumes only the session of the failing step it starts from, never one from a launch that stopped. It puts the file into its own fresh config folder and starts with `--resume`, so Kai carries on with what it already read. Nothing else carries over: settings, token, trust root and the start-up check are as fresh as ever. Where the session lives and which one is resumed is decided in the launch code (the cage), not by the command.
 - **A fresh session instead:** after a `mirai discard` (the old session would remember edits that are gone), after a re-plan, when Claude Code refused the resume (the session is forgotten, so it can't fail again the same way), or when the session is missing, over 32 MiB or 64 files, or holds a link.
 - **The red team checks a resumed launch** (unit 21d; pending its first real run): Kai can't write its own config folder, and a forged history that claims more permissions must not change MIRAI's permission mode or let a refused write through.
-- **Not measured yet:** how much a resume saves (unit 21d's R1). MIRAI's test run between rounds can take longer than the prompt cache lasts, so a long session may be read again uncached.
+- **Measured once (unit 21d's R1):** in one sample, a resume saved nothing. The same 7 turns as a fresh round, with nearly twice the cached input. Whether fix rounds should start fresh by default is yours to decide. MIRAI's test run between rounds can take longer than the prompt cache lasts, so a long session may be read again uncached.
 - **What a kept session holds:** everything Kai saw, including files it read. It's private to you in the store, and stays until a discard, a re-plan or the next launch replaces it. Removing it when a ticket is done comes with retention (unit 69).
 
 ## MIRAI's commits (unit 22)
