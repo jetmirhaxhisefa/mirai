@@ -47,10 +47,13 @@ copy may run, and runs it.
      Its exit code is passed on.
 - **`mirai which`:** a launcher-only command. It prints which copy would run in this folder, and
   why (or why none may).
-- **Putting it on your PATH.** No installer writes into your home folder. You either:
-  - point your alias at the launcher, `alias mirai='node ~/Projects/mirai/bin/launch.js'`; or
-  - once a release is tagged, run `npm install -g github:<owner>/mirai#vX.Y.Z`. That installs
-    the launcher, and each repo still runs its own copy.
+- **Putting it on your PATH.** Decided by Jet (2026-11-07): for now, run the launcher by its full
+  path, `node ~/Projects/mirai/bin/launch.js <command>`, or alias it. Later, when `mirai init`
+  installs MIRAI into a new repo, it also installs the `mirai` command globally, so no alias is
+  needed. The earlier rule "no installer writes into your home folder" is superseded for this
+  global install only; each repo still runs its own pinned copy. Open: the mechanism (a tagged
+  `npm install -g github:<owner>/mirai#vX.Y.Z`, or a link from a clean release folder) and what
+  `init` does when the global copy is older than the repo's pinned one.
 - **Making the framework copy auto-run** (open point 2): a core rule marks `.mirai/framework/**`
   and `.mirai/mirai.lock` as `auto-run`. A branch that changes them parks, and the run report
   warns you before you check it out.
