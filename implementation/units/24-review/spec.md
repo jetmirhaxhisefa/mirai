@@ -1,7 +1,7 @@
 ---
 unit: "24"
 name: review
-status: draft (decisions recorded 2026-11-07; not approved yet)
+status: approved (2026-11-07; not built yet)
 roadmap: implementation/PROGRESS.md (unit 24 is the review step); 21c (review findings as a source of fix rounds)
 depends_on: ["21b", "21c", "22"]
 ---
