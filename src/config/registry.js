@@ -87,7 +87,8 @@ const ADAPTER = {
       },
       required: ['file', 'import'],
     },
-    interactive: { type: 'table', fields: { skills: RELATIVE, agents: RELATIVE }, required: ['skills', 'agents'] },
+    // `commands` (unit 21f): where `/mirai` goes in your sessions; optional, interactive only.
+    interactive: { type: 'table', fields: { skills: RELATIVE, agents: RELATIVE, commands: RELATIVE }, required: ['skills', 'agents'] },
     headless: { type: 'table', fields: { skills: RELATIVE, agents: RELATIVE }, required: ['skills', 'agents'] },
     later: { type: 'table', fields: { settings: RELATIVE, mcp: RELATIVE } },
     // The strict bundle's rules as data (unit 13b; research/10). The safe sandbox values and the
@@ -130,7 +131,7 @@ const ADAPTER = {
   check(value, path, report) {
     // A profile can't point a tool's files at MIRAI's own or git's.
     const reserved = (p) => typeof p === 'string' && (/^(?:\.mirai|\.git)(?:\/|$)/.test(p) || p === 'AGENTS.md');
-    for (const key of ['instructions.file', 'interactive.skills', 'interactive.agents']) {
+    for (const key of ['instructions.file', 'interactive.skills', 'interactive.agents', 'interactive.commands']) {
       const [a, b] = key.split('.');
       if (reserved(value[a]?.[b])) report(key, `${key} can't be AGENTS.md or a path under .mirai/ or .git/`, undefined, 'reserved');
     }

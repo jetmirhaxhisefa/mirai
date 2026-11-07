@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
-import { createPrompter, requireTty } from '../tty.js';
+import { createPrompter, requireTty, requireTtyOrSession } from '../tty.js';
 import { shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { snapshot, trustedStrict } from '../../trust/snapshot.js';
@@ -120,7 +120,7 @@ export default {
     if (action !== 'run') throw new UsageError(`unknown action ${shown(action)}`, 'see: mirai redteam --help');
     if (arg !== undefined) throw new UsageError('run takes no argument; use --only <id,…>');
 
-    requireTty(io, 'mirai redteam run');
+    requireTtyOrSession(io, 'mirai redteam run', 'redteam run');
     const trust = snapshot({ cwd: io.cwd, env: io.env });
     // A result speaks for the trust root's code, so that's the code that must run (18c's note).
     const differs = differsFromTrust(trust);

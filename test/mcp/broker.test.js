@@ -100,7 +100,7 @@ test('15a T1: tools as data: tools/list comes from the table and the policy; a t
     assert.ok(Object.isFrozen(t), t.name);
   }
   assert.deepEqual(TOOLS.map((t) => [t.name, t.exclusive, [...t.contexts]]), [['run_tests', true, ['headless', 'interactive']], ['run_check', true, ['headless', 'interactive']],
-    ['log_event', false, ['headless', 'interactive']], ['lint', false, ['interactive']], ['start_agent', false, ['interactive']], ['agent_status', false, ['interactive']], ['session_start', false, ['interactive']], ['session_end', false, ['interactive']]]);
+    ['log_event', false, ['headless', 'interactive']], ['lint', false, ['interactive']], ['start_agent', false, ['interactive']], ['agent_status', false, ['interactive']], ['session_start', false, ['interactive']], ['session_end', false, ['interactive']], ['mirai_command', false, ['interactive']], ['mirai_status', false, ['interactive']]]);
   const all = policyFor();
   assert.deepEqual(toolList(all).map((t) => t.name), ['run_tests', 'run_check', 'log_event']);
   const log = toolList(all).find((t) => t.name === 'log_event');

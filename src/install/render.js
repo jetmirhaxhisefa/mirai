@@ -7,7 +7,7 @@ import { PROJECT_CONFIG, readConfigFile, checkConfig } from '../config/load.js';
 import { loadRegistry } from '../config/registry.js';
 import { topLevel } from '../store/git.js';
 import { buildBundle } from '../adapters/bundle.js';
-import { ADAPTER, instructionBlock, interactiveDenies, interactivePath, isManaged, isMiraiName, renderAgent } from '../adapters/claude-code.js';
+import { ADAPTER, commandPath, instructionBlock, interactiveDenies, interactivePath, isManaged, isMiraiName, MIRAI_COMMAND, renderAgent } from '../adapters/claude-code.js';
 import { LOCK_FILE, checkLock, entriesHash, filesUnder, readLock, renderedHash, settingsHash, updateLock, replaceFile, noLinks, sha256 } from './lock.js';
 import { AGENTS_WARN_BYTES, BlockError, blockOf, localInstructions, renderBlock, withBlock } from './agents-block.js';
 
@@ -186,6 +186,19 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
     const now = existing ? renderedHash(existing.bytes) : null;
     add(path, f.bytes, { path, mark: 'rendered', sha256: renderedHash(f.bytes), from }, existing, now, now === renderedHash(f.bytes));
   }
+  // `/mirai` in your sessions (unit 21f): the one command file, from the adapter.
+  const command = commandPath(profile);
+  if (command) {
+    paths.add(command);
+    noLinks(root, profile.interactive.commands);
+    noLinks(root, command);
+    const existing = existsSync(join(root, command)) ? { bytes: readFileSync(join(root, command)) } : null;
+    if (existing && !lstatSync(join(root, command)).isFile()) throw new BlockError(`${command} is not a file`, { code: 'not-file' });
+    if (existing && !listed(command)) throw new BlockError(`${command} isn't listed in ${LOCK_FILE}, so MIRAI won't overwrite it`, { code: 'conflict', hint: 'rename it (it\'s where MIRAI puts /mirai), or remove it' });
+    const bytes = Buffer.from(MIRAI_COMMAND, 'utf8');
+    const now = existing ? renderedHash(existing.bytes) : null;
+    add(command, bytes, { path: command, mark: 'rendered', sha256: renderedHash(bytes), from: [inRegistry(registry.adapterFiles[ADAPTER])] }, existing, now, now === renderedHash(bytes));
+  }
   // A MIRAI-named file the lock doesn't list isn't MIRAI's to overwrite.
   for (const path of managedOnDisk(root, profile)) {
     if (!listed(path)) throw new BlockError(`${path} isn't listed in ${LOCK_FILE}, so MIRAI won't overwrite or remove it`, { code: 'conflict', hint: 'rename it (mirai-* names are MIRAI\'s), or remove it' });
@@ -201,7 +214,7 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
     if (renderedHash(bytes) !== f.sha256) plan.warnings.push(`${f.path}: edited by hand, and removed (MIRAI no longer ships it); git has your version`);
     plan.removes.push({ path: f.path, existing: { bytes } });
   }
-  plan.folders = [profile.interactive.skills, profile.interactive.agents];
+  plan.folders = [profile.interactive.skills, profile.interactive.agents, ...(profile.interactive.commands ? [profile.interactive.commands] : [])];
   return plan;
 }
 

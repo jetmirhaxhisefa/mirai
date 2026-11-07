@@ -1,3 +1,5 @@
+import { lstatSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { EXIT } from '../exit-codes.js';
 import { StatusError, StoreError, UsageError } from '../errors.js';
 import { deriveTicketState } from '../../status/derive.js';
@@ -8,6 +10,7 @@ import { allTicketFacts, readJournal, ticketsInJournal } from '../../store/journ
 import { checkStatusAgainstJournal, readTicketStatus, ticketsInStore } from '../../store/tickets.js';
 import { loadSigningKey } from '../../sign/keys.js';
 import { readHeartbeat, readRunState } from '../../store/run.js';
+import { MIRAI_COMMAND } from '../../adapters/claude-code.js';
 import { runLockHolder } from '../../store/global.js';
 import { sessionSettingsWarnings } from '../../store/session-settings.js';
 
@@ -77,6 +80,8 @@ export default {
     io.stdout.write(`${runLine(run)}\n`);
     io.stdout.write(`global lock: ${lockLine(lock)}\n`);
     for (const w of sessionSettingsWarnings(store)) io.stdout.write(`warning: ${plain(w)}\n`);
+    const cmd = commandFileWarning(store);
+    if (cmd) io.stdout.write(`warning: ${plain(cmd)}\n`);
     if (torn > 0) io.stdout.write('warning: the journal ends with a half-written line (a crash); it was skipped\n');
     if (rows.length === 0) io.stdout.write('\nno tickets yet\n');
     else io.stdout.write('\n');
@@ -114,6 +119,22 @@ function eventLine(e) {
 // The ticket and step come from the heartbeat when it belongs to this run (it's updated as the
 // run goes), else from state.json. A damaged heartbeat is shown, not fatal: status is where
 // you look when something is wrong.
+// `/mirai` in your sessions (unit 21f review): a branch can change .claude/commands/mirai.md, and
+// your session loads it as soon as it's checked out. Said when it isn't MIRAI's.
+function commandFileWarning(store) {
+  const path = join(store.checkout, '.claude', 'commands', 'mirai.md');
+  try {
+    // Never through a link, and never a big read (21f re-review).
+    const st = lstatSync(path);
+    if (!st.isFile()) return '.claude/commands/mirai.md isn\'t a plain file (a link?): /mirai may do something else; look at it, then: mirai render';
+    if (st.size > 16 * 1024) return '.claude/commands/mirai.md isn\'t the one this MIRAI renders; look at it, then: mirai render';
+    const text = readFileSync(path, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+    return text === MIRAI_COMMAND ? null : '.claude/commands/mirai.md isn\'t the one this MIRAI renders (an edit, a branch, or another MIRAI\'s version): /mirai may do something else; look at it, then: mirai render';
+  } catch {
+    return null;
+  }
+}
+
 function runInfo(store) {
   const state = readRunState(store);
   if (state === null) return null;

@@ -923,6 +923,16 @@ at the start of the run. **Your own sessions get none of these.** Probed under `
 refused. Under
 bypass nobody is approving, so that's all that stands there. Unit 18e tried the rest: see "What holds in your sessions".
 
+## `/mirai` from your own session (unit 21f)
+
+- **What your session can start:** the commands that aren't gates (`status`, `plan`, `build`, `fix`, `baseline`, `redteam run` and the like), through MIRAI's server (`mirai_command`), never by calling `mirai` itself (R3-C3).
+  - **Claude Code asks you before each one.** The tool has no allow rule, `session-server install` adds an `ask` rule for it and for `start_agent` in your git-ignored `.claude/settings.local.json` (ask beats allow, so a "don't ask again" can't silence them; when it can't write that file, it says so), and the `/mirai` command file pre-approves only reading a status. The model can't start `/mirai` by itself (`disable-model-invocation`).
+  - **The red team** first answers with its rough cost and a one-time code, tied to `--kept` or not, and runs only when that code comes back. The protection is Claude Code's prompt on that second call; the code only makes sure the cost was given out first.
+- **How a command runs:** the server makes a request in MIRAI's store, and a detached worker from the trust root runs `mirai <command>` with that request named. `plan`, `build`, `fix` and `redteam run` accept the request in place of a terminal only when the store confirms it: the worker's own record, written before the command starts, says it's their parent and names that very command, and the request is still running. **This stops agents, not programs running as you.** Agents can't write the store or run `mirai`. Your own session's Bash, or any program running as you, could write such a record, as it could already drive a terminal with `script` (18e).
+- **The gates never run through `/mirai`.** Approvals, `discard`, `unpark`, accepting a blocker, your key and your token need your key and your typed confirmation in a terminal, so the model in your session can't approve its own plan through `/mirai`, even if a file it read told it to. Until row 29b, a session's Bash still could, as 18e found.
+- **What comes back:** MIRAI's output and its lines as it prints them: 21e's filtered progress lines, and MIRAI's own report, which can quote an agent's handover. The login token is taken out of both. The command file tells your session to treat all of it as data, never instructions.
+- **A branch can change `/mirai`.** `.claude/commands/mirai.md` is in your work tree, so a branch can edit it, and your session loads it when it's checked out. `mirai status` warns when it isn't the file MIRAI renders; `mirai render` puts it back.
+
 ## Which Claude Code agents run (unit 18g)
 
 Agents run the Claude Code binary that your last green red-team result tested, never the `claude` on

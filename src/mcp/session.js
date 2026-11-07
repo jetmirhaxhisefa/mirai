@@ -57,7 +57,8 @@ export const sessionDir = (store) => join(store.repoHome, 'session');
 // the tool table.
 // The allow rules install adds: every interactive tool but start_agent, so Claude Code asks you
 // before each launch (unit 19c, your choice).
-export const NEEDS_YOUR_YES = Object.freeze(['start_agent']);
+// Unit 21f: mirai_command too: each command from your session is asked for.
+export const NEEDS_YOUR_YES = Object.freeze(['start_agent', 'mirai_command']);
 export const sessionToolNames = () => TOOLS.filter((t) => t.contexts.includes('interactive') && !NEEDS_YOUR_YES.includes(t.name)).map((t) => `mcp__${SERVER_NAME}__${t.name}`);
 
 // The registration's id: made once per repo, kept. Every session of yours on this repo shares it
@@ -116,7 +117,8 @@ export function sessionServer({ store, trust, env, write = true }) {
   // Unit 19c: starting agents and session run ids. The worker needs claude's path, as found now.
   const claude = findClaude(env, checkout);
   if (claude) tools.start_agent = { claude };
-  Object.assign(tools, { agent_status: {}, session_start: {}, session_end: {} });
+  // Unit 21f: `/mirai <command>` from your session, through the worker.
+  Object.assign(tools, { agent_status: {}, session_start: {}, session_end: {}, mirai_command: {}, mirai_status: {} });
   const dir = sessionDir(store);
   ensurePrivateDir(dir);
   ensurePrivateDir(join(dir, 'state'));
@@ -195,39 +197,61 @@ function localAllows(store, env, add) {
   } catch {
     // none recorded
   }
-  if (existsSync(file) && !lstatSync(file).isFile()) return `${LOCAL_SETTINGS} isn't a plain file, so the tools will ask before they run`;
-  if (existsSync(join(checkout, '.claude')) && !lstatSync(join(checkout, '.claude')).isDirectory()) return '.claude isn\'t a folder, so the tools will ask before they run';
+  if (existsSync(file) && !lstatSync(file).isFile()) return `${LOCAL_SETTINGS} isn't a plain file, so the tools will ask before they run (nor the ask rule for mirai_command and start_agent: an always-allow choice in Claude Code could then silence them)`;
+  if (existsSync(join(checkout, '.claude')) && !lstatSync(join(checkout, '.claude')).isDirectory()) return '.claude isn\'t a folder, so the tools will ask before they run (nor the ask rule for mirai_command and start_agent: an always-allow choice in Claude Code could then silence them)';
   if (add && ignoredPaths(checkout, [LOCAL_SETTINGS], { PATH: env.PATH, HOME: env.HOME }).length === 0) {
-    return `git doesn't ignore ${LOCAL_SETTINGS}, so MIRAI didn't add the tools' allow rules there (they'd be shared); add it to .gitignore and run install again, or let the tools ask`;
+    return `git doesn't ignore ${LOCAL_SETTINGS}, so MIRAI didn't add the tools' allow rules there (they'd be shared); add it to .gitignore and run install again, or let the tools ask (nor the ask rule for mirai_command and start_agent: an always-allow choice in Claude Code could then silence them)`;
   }
   let value = {};
   if (existsSync(file)) {
     try {
       value = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
     } catch {
-      return `${LOCAL_SETTINGS} isn't valid JSON, so MIRAI left it alone; the tools will ask before they run`;
+      return `${LOCAL_SETTINGS} isn't valid JSON, so MIRAI left it alone; the tools will ask before they run (nor the ask rule for mirai_command and start_agent: an always-allow choice in Claude Code could then silence them)`;
     }
     if (value === null || typeof value !== 'object' || Array.isArray(value) || (value.permissions !== undefined && (typeof value.permissions !== 'object' || value.permissions === null))
-      || (value.permissions?.allow !== undefined && !Array.isArray(value.permissions.allow))) {
-      return `${LOCAL_SETTINGS} isn't shaped as Claude Code reads it, so MIRAI left it alone`;
+      || (value.permissions?.allow !== undefined && !Array.isArray(value.permissions.allow))
+      || (value.permissions?.ask !== undefined && !Array.isArray(value.permissions.ask))) {
+      return `${LOCAL_SETTINGS} isn't shaped as Claude Code reads it, so MIRAI left it alone (nor the ask rule for mirai_command and start_agent: an always-allow choice in Claude Code could then silence them)`;
     }
   } else if (!add) {
     rmSync(record, { force: true });
+    rmSync(join(sessionDir(store), 'asks.json'), { force: true });
     return null;
   }
   const allow = value.permissions?.allow ?? [];
+  // The tools that ask you each time get an `ask` rule too (unit 21f review): in Claude Code ask
+  // beats allow, so a later "don't ask again" can't silence them. Recorded apart, so remove takes
+  // out only MIRAI's.
+  const askRecord = join(sessionDir(store), 'asks.json');
+  let mineAsk = [];
+  try {
+    mineAsk = JSON.parse(readFileSync(askRecord, 'utf8'));
+  } catch {
+    // none recorded
+  }
+  const ask = Array.isArray(value.permissions?.ask) ? value.permissions.ask : [];
   let next;
+  let nextAsk;
   if (add) {
     const missing = sessionToolNames().filter((t) => !allow.includes(t));
     next = [...allow, ...missing];
     atomicWrite(record, `${JSON.stringify([...new Set([...mine, ...missing])])}\n`);
+    const askMissing = NEEDS_YOUR_YES.map((t) => `mcp__${SERVER_NAME}__${t}`).filter((t) => !ask.includes(t));
+    nextAsk = [...ask, ...askMissing];
+    atomicWrite(askRecord, `${JSON.stringify([...new Set([...mineAsk, ...askMissing])])}\n`);
   } else {
     next = allow.filter((t) => !mine.includes(t));
+    nextAsk = ask.filter((t) => !mineAsk.includes(t));
     rmSync(record, { force: true });
+    rmSync(askRecord, { force: true });
   }
-  if (JSON.stringify(next) === JSON.stringify(allow)) return null;
+  if (JSON.stringify(next) === JSON.stringify(allow) && JSON.stringify(nextAsk) === JSON.stringify(ask)) return null;
   if (!existsSync(dirname(file))) ensurePrivateDir(dirname(file));
-  writeFileSync(file, `${JSON.stringify({ ...value, permissions: { ...(value.permissions ?? {}), allow: next } }, null, 2)}\n`, { mode: 0o600 });
+  const permissions = { ...(value.permissions ?? {}), allow: next };
+  if (nextAsk.length) permissions.ask = nextAsk;
+  else delete permissions.ask;
+  writeFileSync(file, `${JSON.stringify({ ...value, permissions }, null, 2)}\n`, { mode: 0o600 });
   return null;
 }
 

@@ -92,6 +92,22 @@ export function writeStatus(store, id, status) {
   atomicWrite(file(store, id, 'status'), `${JSON.stringify({ id, ...status, at: new Date().toISOString() })}\n`);
 }
 
+// The worker's own record of a command it runs (unit 21f review): written once, before the command
+// starts, and never by the server, so the proof a command reads (src/cli/tty.js) can't be undone
+// by a later status write.
+export function writeWorkerRecord(store, id, { pid, command }) {
+  ensurePrivateDir(dir(store));
+  atomicWrite(file(store, id, 'worker'), `${JSON.stringify({ id, pid, command })}\n`);
+}
+export function readWorkerRecord(store, id) {
+  try {
+    return JSON.parse(readFileSync(file(store, id, 'worker'), 'utf8'));
+  } catch (err) {
+    if (err.code === 'bad-request-id') throw err;
+    return null;
+  }
+}
+
 export function readStatus(store, id) {
   try {
     return JSON.parse(readFileSync(file(store, id, 'status'), 'utf8'));
@@ -104,5 +120,5 @@ export function readStatus(store, id) {
 function prune(store) {
   const ids = [...new Set(readdirSync(dir(store)).map((n) => /^(q-\d{14}-[0-9a-f]{8})\./.exec(n)?.[1]).filter(Boolean))];
   const aged = ids.map((id) => ({ id, t: statSync(file(store, id, 'status'), { throwIfNoEntry: false })?.mtimeMs ?? 0 })).sort((a, b) => b.t - a.t);
-  for (const { id } of aged.slice(KEEP).filter((x) => { const st = readStatus(store, x.id); return !['queued', 'running'].includes(st?.state) || (Number.isInteger(st.pid) && !pidAlive(st.pid)); })) for (const ext of ['json', 'claimed', 'status']) rmSync(file(store, id, ext), { force: true });
+  for (const { id } of aged.slice(KEEP).filter((x) => { const st = readStatus(store, x.id); return !['queued', 'running'].includes(st?.state) || (Number.isInteger(st.pid) && !pidAlive(st.pid)); })) for (const ext of ['json', 'claimed', 'status', 'worker']) rmSync(file(store, id, ext), { force: true });
 }

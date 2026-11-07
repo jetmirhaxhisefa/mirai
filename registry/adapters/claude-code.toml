@@ -13,6 +13,9 @@ import = "@AGENTS.md"
 [interactive]
 skills = ".claude/skills"
 agents = ".claude/agents"
+# Unit 21f: `/mirai <command>` in your own sessions. Only ever placed here, never in a headless run's
+# plugin folder: agents don't get it.
+commands = ".claude/commands"
 
 # A headless run's plugin folder (unit 19), built from the same bundle in the trust root.
 [headless]

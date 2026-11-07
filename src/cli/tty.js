@@ -1,6 +1,8 @@
 import { createInterface } from 'node:readline';
 
 import { EXIT } from './exit-codes.js';
+import { readStatus, readWorkerRecord, REQUEST_ID } from '../agent/requests.js';
+import { openStore } from '../store/home.js';
 import { MiraiError } from './errors.js';
 import { escapeInvisible } from '../status/text.js';
 
@@ -14,6 +16,29 @@ export function requireTty(io, what) {
   const err = new MiraiError(`${what} needs you, in a real terminal`, EXIT.NEEDS_HUMAN);
   err.hint = 'run it yourself in a terminal; it can\'t be piped or run by an agent';
   throw err;
+}
+
+// A command your session's `/mirai` started (unit 21f) stands in for a terminal, for the commands
+// that aren't gates only (plan, build, fix, the red team's run). It proves itself through the store:
+// its request is running, claimed by this process's parent (the worker), for this very command.
+// Agents can't write the store or run mirai; the gates never call this.
+export function requireTtyOrSession(io, what, command) {
+  if (io.stdin?.isTTY === true && io.stdout?.isTTY === true) return;
+  if (fromSession(io, command)) return;
+  requireTty(io, what);
+}
+
+function fromSession(io, command) {
+  const id = io.env?.MIRAI_SESSION_REQUEST;
+  if (typeof id !== 'string' || !REQUEST_ID.test(id)) return false;
+  try {
+    const store = openStore({ cwd: io.cwd, env: io.env });
+    const w = readWorkerRecord(store, id);
+    const s = readStatus(store, id);
+    return w?.pid === process.ppid && w.command === command && ['queued', 'running'].includes(s?.state);
+  } catch {
+    return false;
+  }
 }
 
 // Asks questions one line at a time on io.stdin. Answers are trimmed; control, invisible and

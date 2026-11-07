@@ -1,6 +1,6 @@
 import { EXIT } from '../exit-codes.js';
 import { progressPrinter } from '../progress.js';
-import { requireTty } from '../tty.js';
+import { requireTtyOrSession } from '../tty.js';
 import { checkTicketArg } from '../human-move.js';
 import { plain } from '../../status/text.js';
 import { OUTCOME_EXIT } from '../../agent/run.js';
@@ -22,7 +22,7 @@ export default {
   async run(args, io) {
     const [ticket] = args.positionals;
     checkTicketArg(ticket);
-    requireTty(io, 'mirai fix');
+    requireTtyOrSession(io, 'mirai fix', 'fix');
     const abort = new AbortController();
     const hard = new AbortController();
     const onInt = () => (abort.signal.aborted ? hard.abort() : abort.abort());

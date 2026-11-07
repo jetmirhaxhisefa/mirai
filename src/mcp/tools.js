@@ -2,6 +2,7 @@ import lint from './tools/lint.js';
 import logEvent from './tools/log-event.js';
 import { runCheck, runTests } from './tools/tests.js';
 import { agentStatus, startAgent } from './tools/agents.js';
+import { miraiCommand, miraiStatus } from './tools/commands.js';
 import { sessionEnd, sessionStart } from './tools/sessions.js';
 
 // MIRAI's MCP tools as data (unit 15a; D-53): the server knows the protocol, the stop rule,
@@ -22,7 +23,7 @@ import { sessionEnd, sessionStart } from './tools/sessions.js';
 //   (a restarted server must not start again from nothing);
 // - `exclusive`: takes the server's one-call-at-a-time slot (the test tools); the others are
 //   answered while it's held.
-export const TOOLS = Object.freeze([runTests, runCheck, logEvent, lint, startAgent, agentStatus, sessionStart, sessionEnd]);
+export const TOOLS = Object.freeze([runTests, runCheck, logEvent, lint, startAgent, agentStatus, sessionStart, sessionEnd, miraiCommand, miraiStatus]);
 
 export const toolNamed = (policy, name) => TOOLS.find((t) => t.name === name && t.enabled(policy)) ?? null;
 
