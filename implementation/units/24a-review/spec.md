@@ -1,7 +1,7 @@
 ---
 unit: "24a"
 name: review
-status: draft (reopened 2026-11-07, after the first draft missed roadmap row 24 and was approved by mistake; open points decided the same day; waiting for your approval)
+status: approved (2026-11-07; reopened the same day after the first draft missed roadmap row 24, rewritten, open points decided, approved again; not built yet)
 roadmap: design/07-implementation-roadmap.md, row 24 (Rex, read-only, mirai-review skill); design/01 §9 (review per ticket, loop rules L1–L8), §8 (R3-M9 clean instruction files); design/04 (reviewers read a clean export; read-only roles by the sandbox, TL3-23; verdicts from structured output, R2-C1; the findings schema, R-M7); notes from 18c, 21a, 21c, 21f, 22
 depends_on: ["19", "20", "09", "21c", "22"]
 ---
@@ -93,4 +93,4 @@ Much of the review's logic is already built and waiting for this unit:
    A disputed finding never counts as non-blocking by itself (Kai could escape any finding by disputing it).
 4. **Decided (Jet, 2026-11-07): `mirai fix` keeps stopping at green checks** (`in-review`), as in 21c. In your terminal you run `mirai review <ticket>` again, and Rex's round 2 gets the delta and last round's blocking findings automatically; at night, `mirai run` (units 28, 55) runs the next review itself. `mirai fix` now also starts after a review with blocking findings, not only after failing checks (item 6).
 
-All four open points are decided. This spec needs your approval again before anything is built.
+All four open points are decided. Approved by Jet on 2026-11-07.
