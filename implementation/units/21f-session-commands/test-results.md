@@ -2,7 +2,7 @@
 unit: "21f"
 date: 2026-11-07
 claude_code: 2.1.319
-result: 511/511 tests after the review and re-review fixes; no model run; R2 (yours) after the refresh and the red-team run
+result: 511/511 tests after the review and re-review fixes; no model run; R2 (yours, 2026-11-07): the session commands and the gate answered as designed, and a `!` command doesn't get a real terminal
 ---
 
 # Unit 21f — Test results
@@ -35,16 +35,20 @@ In `test/mcp/commands.test.js`, plus the pinned tool lists in `test/mcp/`.
   - the login token written by a command is taken out of its status.
 - **T6, the real chain:** `mirai_command status` runs a detached worker from the fixture's trust root, which runs `mirai status`. The answer comes back at once, with MIRAI's own text.
 
-## Still to run (yours, after the refresh and one red-team run)
+## R2 (yours, 2026-11-07, Claude Code 2.1.319, the sample app at `c3d595e`)
 
-**R2, in your own Claude Code session in the sample app:**
-1. `/mirai status`;
-2. `/mirai approve SAMPLE-2 --plan`: it should answer with the terminal command;
-   Also check that Claude Code asks before `mirai_command` each time, and that `/mirai redteam status` needs no prompt;
-3. optionally `/mirai plan` on a new ticket, to see a real launch from the session;
-4. `! node ~/Projects/mirai/bin/launch.js approve SAMPLE-2 --plan`: does a `!` command get a real terminal?
+Before it: `mirai session-server install` registered the server from the trust root at `c3d595edc0e0`, with `mirai_command` and `mirai_status` among its tools, and `start_agent` asking before each launch. The first `/mirai status` came before that, in a session opened earlier: the tools weren't there, and the session's model said so and didn't fall back to Bash. A new session found them.
+
+1. **`/mirai status`:** answered with MIRAI's own text: the repo, run `r-20261106-175323-ad5e` stopped, the global lock free, SAMPLE-1 and SAMPLE-2 `in-review`. Outcome ok, exit 0.
+2. **`/mirai approve SAMPLE-2 --plan`:** answered with the terminal command (`mirai approve SAMPLE-2 --plan`) and ran nothing ("Outcome: yours, nothing executed").
+   - **Claude Code asked before each command:** yes (you).
+   - **`/mirai redteam status` needing no prompt:** not checked.
+3. **A real `/mirai plan`:** not run.
+4. **`! node ~/Projects/mirai/bin/launch.js approve SAMPLE-2 --plan`:** refused, "mirai approve needs you, in a real terminal; it can't be piped or run by an agent". **A `!` command doesn't get a real terminal**, so the gates stay terminal-only, as designed (open point 3 is settled that way).
+
+Outside R2: the same approval typed in a real terminal was refused because SAMPLE-2 is already `in-review` ("a plan waits at the gate while the ticket is in-progress"), which is right.
 
 ## Not proven
 
-- **A real `plan`, `build` or `fix` launched from a session:** R2.
-- **Claude Code's own handling of the command file** (`$ARGUMENTS`, `allowed-tools`, the 15-second follow-up): R2.
+- **A real `plan`, `build` or `fix` launched from a session:** not run in R2.
+- **Claude Code's own handling of the command file:** `$ARGUMENTS` reached the server for `status` and `approve SAMPLE-2 --plan`; `allowed-tools` (no prompt for `mirai_status`) and the 15-second follow-up weren't checked.
