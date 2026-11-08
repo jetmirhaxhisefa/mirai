@@ -65,7 +65,7 @@ test('T1: the bundle is deterministic, and changes only with what it\'s made of'
   const a = buildBundle(registry, { models: MODELS, renderAgent });
   const b = buildBundle(loadRegistry(join(PKG, 'registry')), { models: { ...MODELS }, renderAgent });
   assert.equal(a.sharedHash, b.sharedHash);
-  assert.deepEqual(a.files.map((f) => f.path), ['agents/mirai-developer.md', 'agents/mirai-fixture-reviewer.md', 'skills/mirai-docs/SKILL.md', 'skills/mirai-fixture-skill/SKILL.md', 'skills/mirai-fixture-skill/references/more.md']);
+  assert.deepEqual(a.files.map((f) => f.path), ['agents/mirai-developer.md', 'agents/mirai-fixture-reviewer.md', 'agents/mirai-reviewer.md', 'skills/mirai-docs/SKILL.md', 'skills/mirai-fixture-skill/SKILL.md', 'skills/mirai-fixture-skill/references/more.md']);
   // The tier the agent uses changes it; another tier doesn't.
   assert.notEqual(buildBundle(registry, { models: { ...MODELS, standard: 'claude-opus-5-5' }, renderAgent }).sharedHash, a.sharedHash);
   assert.equal(buildBundle(registry, { models: { ...MODELS, light: 'claude-sonnet-5-5' }, renderAgent }).sharedHash, a.sharedHash);
@@ -182,8 +182,8 @@ test('T5: mirai render follows the config, re-renders edits, and changes nothing
   // A changed [models] re-renders the agent file and its lock entry.
   writeFileSync(join(r.root, '.mirai/config.toml'), `${read(r.root, '.mirai/config.toml')}\n[models]\nstandard = "claude-opus-5-5"\n`);
   const first = render({ cwd: r.root, env: r.env });
-  // Both agents' steps (build, review) are on standard (unit 21a: the tier comes from the role).
-  assert.deepEqual(first.files.filter((f) => f.changed).map((f) => f.path), ['.claude/agents/mirai-developer.md', '.claude/agents/mirai-fixture-reviewer.md']);
+  // Every agent's step (build, review) is on standard (unit 21a: the tier comes from the role).
+  assert.deepEqual(first.files.filter((f) => f.changed).map((f) => f.path), ['.claude/agents/mirai-developer.md', '.claude/agents/mirai-fixture-reviewer.md', '.claude/agents/mirai-reviewer.md']);
   assert.equal(readFrontmatter(read(r.root, '.claude/agents/mirai-fixture-reviewer.md')).value.model, 'claude-opus-5-5');
   assert.deepEqual(checkLock(r.root), { changed: [], missing: [], added: [] });
   // Twice: nothing changes, not even the lock's bytes.

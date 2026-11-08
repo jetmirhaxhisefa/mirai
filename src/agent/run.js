@@ -159,6 +159,19 @@ export function checkAgentRole(def, role) {
   if (def.read_only === true && role.mode !== 'read-only') throw refuse(`${def.name} is read-only: it can't run as ${role.name}, which may write`, 'agent-read-only');
 }
 
+// Only Rex reviews (unit 24a; your decision, 2026-11-07, settling 21a's note "Kai under any
+// read-only role, such as reviewing its own change"): an agent launched for the review step is
+// mirai-reviewer, and the developer never runs under the reviewer role, whatever the step. A plain
+// role run with no agent definition (`mirai agent run --role reviewer`, a probe) names no agent and
+// is never the review step's launch, which always names Rex.
+export const REVIEW_AGENT = 'mirai-reviewer';
+export const REVIEW_STEPS = Object.freeze(['review', 'review-high-risk']);
+export function checkReviewAgent({ agent, role, step }) {
+  if (agent === null) return;
+  if (REVIEW_STEPS.includes(step) && agent !== REVIEW_AGENT) throw refuse(`only ${REVIEW_AGENT} (Rex) reviews; ${agent} can't run the ${step} step`, 'not-the-reviewer');
+  if (agent === 'mirai-developer' && role.name === 'reviewer') throw refuse('mirai-developer (Kai) never runs under the reviewer role: the author never reviews', 'author-reviews');
+}
+
 // An agent's definition for this launch (unit 21a), from the trust root only: a branch's copy counts
 // for nothing. It launches under its own role or a read-only one (Kai's plan step, as planner),
 // never a role that may change more. Returns { name, json }.
@@ -249,6 +262,7 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   const tested = claude ? null : await testedClaude({ env, store });
   const c = tested ? { path: tested.path, real: tested.real, version: tested.version } : resolveClaude(env, claude ?? fallbackClaude);
   const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
+  checkReviewAgent({ agent, role, step: picked.step });
   let model = config.models?.[picked.tier];
   let rung = null;
   if (verifies) {

@@ -348,7 +348,7 @@ test('17a T8: instruction files: every named file and folder; code spans, fences
   const out = await run(r);
   const ins = out.facts.instructions;
   const state = Object.fromEntries(ins.files.map((f) => [f.path, f.state]));
-  assert.deepEqual(Object.keys(state), ['.claude/agents/mirai-developer.md', '.claude/big.md', '.claude/bin.dat', '.claude/commands/mirai.md', '.claude/settings.json', '.claude/skills/mirai-docs/SKILL.md', '.cursor/rules/a.mdc', '.github/copilot-instructions.md', '.mcp.json', 'AGENTS.md', 'CLAUDE.md', '_bmad/core/agent.md', 'docs/AGENTS.md', '.mirai/context/agents-local.md']);
+  assert.deepEqual(Object.keys(state), ['.claude/agents/mirai-developer.md', '.claude/agents/mirai-reviewer.md', '.claude/big.md', '.claude/bin.dat', '.claude/commands/mirai.md', '.claude/settings.json', '.claude/skills/mirai-docs/SKILL.md', '.cursor/rules/a.mdc', '.github/copilot-instructions.md', '.mcp.json', 'AGENTS.md', 'CLAUDE.md', '_bmad/core/agent.md', 'docs/AGENTS.md', '.mirai/context/agents-local.md']);
   assert.equal(state['_bmad/core/agent.md'], 'read');
   assert.equal(state['.claude/big.md'], 'too-large');
   assert.equal(state['.claude/bin.dat'], 'binary');

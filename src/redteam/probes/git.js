@@ -85,6 +85,9 @@ export const MIRAI_STEPS = Object.freeze([
   ['mergeBase', (root, env) => mirai.mergeBase(root, 'main', 'side', env)],
   ['isAncestor', (root, env) => mirai.isAncestor(root, 'main', 'side', env)],
   ['changedLines', (root, env) => mirai.changedLines(root, 'main', null, env)],
+  // Unit 24a: the review's calls, between two commits, with --text.
+  ['changedLines-text', (root, env) => mirai.changedLines(root, 'main', 'side', env, { text: true, near: true })],
+  ['reviewPatch', (root, env) => mirai.reviewPatch(root, 'main', 'side', env)],
   ['branchRefs', (root, env) => mirai.branchRefs(root, env)],
   ['commitMessages', (root, env) => mirai.commitMessages(root, 'side', env)],
   ['cloneTo', (root, env) => {

@@ -43,6 +43,8 @@ export const COMMANDS = Object.freeze({
   plan: { needs: ['ticket'], tty: true, argv: (a) => ['plan', a.ticket] },
   build: { needs: ['ticket'], flags: ['recheck'], tty: true, argv: (a) => ['build', a.ticket, ...(a.recheck ? ['--recheck'] : [])] },
   fix: { needs: ['ticket'], tty: true, argv: (a) => ['fix', a.ticket] },
+  // Unit 24a: Rex's review, a step like fix (21f's rule: what isn't a gate runs from your session).
+  review: { needs: ['ticket'], tty: true, argv: (a) => ['review', a.ticket] },
 });
 
 // The gates: never run here. Each answers with the command to type in your terminal.
@@ -51,7 +53,8 @@ export const GATES = Object.freeze({
   'approve --plan': (a) => `mirai approve ${a.ticket ?? '<ticket>'} --plan`,
   drop: (a) => `mirai drop ${a.ticket ?? '<ticket>'}`,
   discard: (a) => `mirai discard ${a.ticket ?? '<ticket>'}`,
-  unpark: (a) => `mirai unpark ${a.ticket ?? '<ticket>'} --retry`,
+  // Unit 24a: a dispute is settled either way, both signed, in your terminal.
+  unpark: (a) => `mirai unpark ${a.ticket ?? '<ticket>'} --retry   (or, for a disputed finding you accept: mirai unpark ${a.ticket ?? '<ticket>'} --accept <finding-id>)`,
   'redteam accept-blocker': () => 'mirai redteam accept-blocker <id> --note <why>',
   key: () => 'mirai key new',
   token: () => 'mirai token set',

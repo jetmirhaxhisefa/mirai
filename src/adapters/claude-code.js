@@ -82,16 +82,16 @@ export const isMiraiName = (name) => name.toLowerCase().startsWith('mirai-');
 export const MIRAI_COMMAND_FILE = 'mirai.md';
 export const commandPath = (profile) => (profile.interactive.commands ? `${profile.interactive.commands}/${MIRAI_COMMAND_FILE}` : null);
 export const MIRAI_COMMAND = `---
-description: Run a MIRAI command here, as \`mirai <command>\` in your terminal (status, plan, build, fix, baseline, lint, test, redteam status, …)
+description: Run a MIRAI command here, as \`mirai <command>\` in your terminal (status, plan, build, fix, review, baseline, lint, test, redteam status, …)
 argument-hint: <command> [ticket] [--recheck | --kept | level]
 allowed-tools: mcp__mirai__mirai_status
 disable-model-invocation: true
 ---
 Run MIRAI's command \`$ARGUMENTS\` through MIRAI's own tools, and nothing else:
 
-1. Read the command from the arguments: the command's words (such as \`status\`, \`plan\`, \`build\`, \`baseline show\`, \`redteam run\`), then a ticket key or a level name where it takes one, and \`--recheck\` (build) or \`--kept\` (redteam run). Don't guess a ticket: if one is needed and missing, ask.
+1. Read the command from the arguments: the command's words (such as \`status\`, \`plan\`, \`build\`, \`review\`, \`baseline show\`, \`redteam run\`), then a ticket key or a level name where it takes one, and \`--recheck\` (build) or \`--kept\` (redteam run). Don't guess a ticket: if one is needed and missing, ask.
 2. Call \`mcp__mirai__mirai_command\` with \`command\` and those arguments. Claude Code asks the person first, every time. Never run \`mirai\` or its files with Bash yourself.
-3. If the answer says \`yours\` (an approval, a discard, the key or the token): show the terminal command it gives, word for word, and say the person must type it in a terminal. Don't run it.
+3. If the answer says \`yours\` (an approval, a discard, an unpark, the key or the token): show the terminal command it gives, word for word, and say the person must type it in a terminal. Don't run it.
 4. If the answer says \`confirm\` (the red team): show its \`cost\` word for word and ask the person whether to go ahead. Only if they say yes, call \`mcp__mirai__mirai_command\` again with the same command and \`confirm\` set to the code it gave.
 5. If it gives a \`request\`: call \`mcp__mirai__mirai_status\` with it about every 30 seconds. Each time, show only the new \`lines\`, exactly as given. Stop when \`state\` is \`done\` or \`lost\`. After 30 minutes, stop asking, and give the person the request id to ask about later.
 6. At the end, show MIRAI's \`output\` as it is, then the outcome and exit code in one line.

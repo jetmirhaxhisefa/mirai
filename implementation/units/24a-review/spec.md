@@ -28,7 +28,7 @@ Much of the review's logic is already built and waiting for this unit:
 
 1. **Rex as data.** `registry/agents/mirai-reviewer.toml` (role `reviewer`, `read_only = true`, the read-only template's tools) and its prompt `registry/agents/mirai-reviewer.md`, plus the `mirai-review` skill in `registry/skills/` with the review rules: the combined `normal` pass (correctness, edge cases, intent alignment, test gaps), the citation rule, and the finding fields the schema needs.
    - **The launch refuses** any agent other than `mirai-reviewer` for the `review` step, and refuses `mirai-developer` under the `reviewer` role.
-2. **The clean export (R3-M9; design/04).** Rex's working folder is a **read-only export of the ticket's committed head**, built from git objects outside the store and removed after the launch. In it, every instruction file and tool folder (`CLAUDE.md` at any depth and its `@` imports, `CLAUDE.local.md`, `AGENTS.md`, the whole `.claude/` folder, `.agents/skills/`) is replaced by the **integration branch's** version, from the trust root snapshot (unit 12). The whole `.claude/` folder is replaced, so the branch's `.claude/commands/**` never reaches Rex (21f's note).
+2. **Instruction files never reach Rex (R3-M9), without an export** (decision 5, changed during the build). Rex runs in the checkout at the ticket's committed head (every launch refuses a dirty tree), under the read-only template and `--restricted`, which every headless launch already uses: a branch's `CLAUDE.md` at any depth, `AGENTS.md`, and `.claude/` agents, skills and commands don't load. The red team proves it: `c-instructions` (read-write) passed 3/3 on 2026-11-07, and 24a adds **`c-instructions-review`**, the same planted files aimed at the reviewer, under the read-only template, for Rex. The project's own conventions reach Rex through the input folder, from the integration branch. **The clean export** of design/04 (a read-only copy with the integration branch's instruction files) **isn't built**: it would change the launch's working folder, the sandbox profile and the hook's roots, red-tested code, for a second layer behind `--restricted`. It stays a hardening item; if `--restricted` ever stops working, `c-instructions` fails and every headless launch stops.
 3. **The inputs, as files, never pasted (B8, R3-C3).** In the launch's read-only input folder:
    - **the diff** since `baseline_revision`, built with pinned git (`--no-ext-diff --no-textconv --no-color`, rename detection off, fixed context) and **with `.gitattributes` ignored** (TL3-12), so `-diff` or `binary` attributes can't hide code; fenced as data in the prompt's description of it;
    - the plan's frozen intent and claims, the ticket's ACs, and the conventions and ADRs the ticket is governed by;
@@ -63,13 +63,13 @@ Much of the review's logic is already built and waiting for this unit:
 
 ## Files
 
-- **New:** `registry/agents/mirai-reviewer.toml`, `registry/agents/mirai-reviewer.md`, `registry/skills/mirai-review/`, `src/agent/review.js` (the step), `src/agent/export.js` (the clean export), `src/review/diff.js` (the pinned diff and the changed lines), the CLI entry (see open point 1), tests.
+- **New:** `registry/agents/mirai-reviewer.toml`, `registry/agents/mirai-reviewer.md`, `src/agent/review.js` (the step), `src/review/diff.js` (the pinned diff and the changed lines), `src/cli/commands/review.js`, tests.
 - **Changed:** `src/agent/fix.js` (findings as a round's input, Kai's replies), `src/agent/run.js` (the agent and role checks for the review step), `src/cli/commands/unpark.js` (`--accept <finding-id>`), `src/mcp/tools/commands.js` and `src/adapters/claude-code.js` (`/mirai review`, the unpark gate's two commands), `src/redteam/cases-agent.js` (the 18c cases), docs (design/01 §9's "built" notes, roadmap row 24, the README).
 
 ## Tests (`npm test`, no model; a stand-in `claude`)
 
 - Kai under the `reviewer` role, or any agent but Rex for the `review` step, is refused before launch.
-- The export: the branch's `CLAUDE.md` (root and nested), `@` imports, `AGENTS.md` and `.claude/**` are the integration branch's versions; the export is read-only and removed after the launch.
+- Rex's launch runs under the read-only template with `--restricted`, in the checkout at the ticket's committed head; a dirty tree is refused.
 - The diff: a `.gitattributes` `-diff` or `binary` rule doesn't hide a changed file; a deletion marks the next line as changed.
 - A verdict that fails the schema, or doesn't come back as structured output, is refused (never a pass).
 - `triage()` gets the changed lines, so a finding on an untouched line is pre-existing, and from round 2 the delta.
@@ -94,3 +94,21 @@ Much of the review's logic is already built and waiting for this unit:
 4. **Decided (Jet, 2026-11-07): `mirai fix` keeps stopping at green checks** (`in-review`), as in 21c. In your terminal you run `mirai review <ticket>` again, and Rex's round 2 gets the delta and last round's blocking findings automatically; at night, `mirai run` (units 28, 55) runs the next review itself. `mirai fix` now also starts after a review with blocking findings, not only after failing checks (item 6).
 
 All four open points are decided. Approved by Jet on 2026-11-07.
+
+5. **Decided during the build (Jet, 2026-11-08): no clean export.** Every headless launch already runs `--restricted`, and the red team's `c-instructions` proves a branch's instruction files don't reach an agent; building the export would change red-tested launch code for a second layer. 24a adds a read-only `c-instructions-review` case for Rex instead (item 2); the export stays a hardening item.
+
+## Changes during the build (2026-11-08)
+
+What the build found that the spec didn't say, or said differently. Each is in the code and tested.
+
+1. **No clean export** (decision 5, yours): Rex runs in the checkout under `--restricted`; the red team proves it for his template with `c-instructions-review`.
+2. **A dispute parks in your terminal too, not only at night.** `needs-you` would have left nothing to settle it with: `mirai unpark` takes a parked ticket only. The parking note names both commands.
+3. **`--accept` takes one or more ids, and the disputes you don't name stand.** One signed move either way, never a dead end: none stand → back to `in-review` (a new unpark choice, `accept`, for a disputed park only); some stand → `in-progress`, and the next `mirai fix` sends them to Kai as upheld (a second dispute of them is taken as `fixed`).
+4. **L5 compares like with like.** The loop guard compared each round's open count with the last one, whatever its kind: "failures fixed to green, then two review findings" would have parked as no progress. A review now compares with the review before it (`previousOpen`), and the first fix round after a review isn't compared with Rex's count.
+5. **A bug the tests found: a first review after a test-fixing round counted no finding.** The guard's L2 freeze is keyed on its own round number, which counts fix rounds too; with an empty delta, two correctly cited blocking findings were dropped and the change passed. A first review's delta is now the whole change.
+6. **A green step that committed nothing** (a round that only disputed) is reviewed at the commit it started on, and a review of the same commit is allowed again only after a `changes` verdict (you accepted the disputes).
+7. **High risk** is the plan's `risk: high` or a protected path the build found touched (instruction files, auto-run config: design/01 §8). An instruction-file change can't reach a review undeclared (the build stops it), so "blocks in supervised mode too" is the high-risk stop until 24b.
+8. **Rex's model** comes from the verifier ladder (unit 19), chosen against Kai's launch.
+9. **The git probes** (`pr-git-mirai`) include the review's two git calls (`changedLines --text`, `reviewPatch`), and `h-review-diff` (no model) checks the installed git can't hide code through `.gitattributes`.
+10. **The `mirai-review` skill isn't made** (open for you): a headless launch loads no skills (`--restricted`), so the review rules are Rex's prompt; a skill would only serve your own sessions.
+11. **The diff Rex reads carries the file's line numbers** (found by probe r3). Rex cited a line's place in `review.diff` instead of its line in the file, and triage rightly dropped the real bug as pre-existing. Each hunk line of `review.diff` and `delta.diff` now starts with the file's line number (none on a removed line); it's text for Rex, not a patch to apply. The probe also takes the sample app's planted flaky test out of its clone (21d's finding 1).

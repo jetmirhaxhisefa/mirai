@@ -71,7 +71,10 @@ const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/;
 
 // Parses `input` (a Buffer or string): { files: [{ path, status: 'added' | 'deleted' | 'modified',
 // added: [n…], removed: [n…], binary }] }, in the diff's order. Throws DiffError.
-export function parseDiff(input, limits = DIFF_LIMITS) {
+// With `near` (unit 24a, the review's changed lines), each file also has `near`: the new-file lines
+// beside each removal (the line that took its place, and for a removal with nothing added the lines
+// on both sides of the gap), so a finding about deleted code can cite where it was.
+export function parseDiff(input, limits = DIFF_LIMITS, { near: wantNear = false } = {}) {
   const bytes = typeof input === 'string' ? Buffer.byteLength(input) : input.length;
   if (bytes > limits.bytes) throw new DiffError(`the diff is larger than ${limits.bytes} bytes`);
   const text = typeof input === 'string' ? input : input.toString('utf8');
@@ -84,6 +87,8 @@ export function parseDiff(input, limits = DIFF_LIMITS) {
   let newLeft = 0;
   let oldAt = 0;
   let newAt = 0;
+  // The current hunk's new-side count, from its header (for `near`).
+  let hunkNew = 0;
   const inHunk = () => oldLeft > 0 || newLeft > 0;
   for (let n = 0; n < lines.length; n++) {
     const l = lines[n];
@@ -96,6 +101,15 @@ export function parseDiff(input, limits = DIFF_LIMITS) {
       } else if (c === '-' && oldLeft > 0) {
         file.removed.push(oldAt++);
         oldLeft--;
+        if (wantNear) {
+          // A replacement's first new line, or both sides of a pure removal's gap (-U0's "+c,0" names
+          // the line before it).
+          if (hunkNew > 0) file.near.add(newAt);
+          else {
+            if (newAt >= 1) file.near.add(newAt);
+            file.near.add(newAt + 1);
+          }
+        }
       } else if (c === ' ' && oldLeft > 0 && newLeft > 0) {
         oldAt++;
         newAt++;
@@ -108,7 +122,7 @@ export function parseDiff(input, limits = DIFF_LIMITS) {
     }
     if (l.startsWith('diff --git ')) {
       if (files.length >= limits.files) throw new DiffError(`more than ${limits.files} files`, at);
-      file = { path: headerPath(l.slice(11), at), status: 'modified', added: [], removed: [], binary: false, hunks: 0, sawHeader: false };
+      file = { path: headerPath(l.slice(11), at), status: 'modified', added: [], removed: [], binary: false, hunks: 0, sawHeader: false, near: new Set() };
       files.push(file);
     } else if (!file) {
       throw new DiffError('text before the first "diff --git"', at);
@@ -136,9 +150,10 @@ export function parseDiff(input, limits = DIFF_LIMITS) {
       oldLeft = m[2] === undefined ? 1 : Number(m[2]);
       newAt = Number(m[3]);
       newLeft = m[4] === undefined ? 1 : Number(m[4]);
+      hunkNew = newLeft;
       file.hunks++;
     } else throw new DiffError('a line git didn\'t write', at);
   }
   if (inHunk()) throw new DiffError('the diff ends inside a hunk');
-  return { files: files.map(({ path, status, added, removed, binary }) => ({ path, status, added, removed, binary })) };
+  return { files: files.map(({ path, status, added, removed, binary, near }) => ({ path, status, added, removed, binary, ...(wantNear ? { near: [...near].sort((x, y) => x - y) } : {}) })) };
 }

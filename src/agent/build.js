@@ -316,10 +316,11 @@ function settleTicket(store, ticket, checked) {
   } else if (checked.park) parkTicket(store, ticket, { reason: 'scope', why: checked.why, evidence: [`tickets/${ticket}/build.json`] });
 }
 
-// The checks that hold before any build work, for a build and a recheck alike.
-export function preflight({ cwd, env, store, ticket, unattended }) {
+// The checks that hold before any build work, for a build and a recheck alike, and (unit 24a) a
+// review: `state` is where the step starts, `limits` the room its plan inputs may take.
+export function preflight({ cwd, env, store, ticket, unattended, state = 'in-progress', limits = INPUT_LIMITS }) {
   const status = readTicketStatus(store, ticket)?.status ?? null;
-  if (status?.state !== 'in-progress') throw fail(`${ticket} is ${status?.state ?? 'not approved yet'}; a build starts from in-progress, with an approved plan`, 'not-ready');
+  if (status?.state !== state) throw fail(`${ticket} is ${status?.state ?? 'not approved yet'}; ${state === 'in-review' ? 'a review starts from in-review, after a green build or fix round' : 'a build starts from in-progress, with an approved plan'}`, 'not-ready');
   const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
   const approved = planApproval(store, ticket, keys);
   if (!approved.ok) throw fail(`${ticket}'s plan can't be built: ${approved.reason}`, 'plan-not-approved', EXIT.BLOCKED, `read it, then: mirai approve ${ticket} --plan`);
@@ -328,7 +329,7 @@ export function preflight({ cwd, env, store, ticket, unattended }) {
   const trust = snapshot({ cwd, env });
   const config = trustedConfig(trust);
   const registry = trustedRegistry(trust);
-  const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, plan: approved.text, limits: INPUT_LIMITS });
+  const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, plan: approved.text, limits });
   const record = ticketRecord(store, ticket, keys);
   if (!record.approved || record.approved.content_hash !== contentHash(given.ticket.bytes)) throw fail(`${ticket} on the integration branch isn't the file you approved`, 'ticket-changed', EXIT.BLOCKED, `read it and approve it as merged: mirai approve ${ticket} --file ${given.ticket.path}`);
   let fm = {};
