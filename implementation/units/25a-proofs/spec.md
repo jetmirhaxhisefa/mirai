@@ -1,7 +1,7 @@
 ---
 unit: "25a"
 name: proofs
-status: draft (2026-11-08; Jet's seven decisions taken in the interview)
+status: approved (2026-11-08; Jet's seven decisions taken in the interview; not built yet)
 roadmap: design/07-implementation-roadmap.md, row 25 (split, Jet's decision 2026-11-08: **25a** the proof records and `mirai gate record|check`; **25b** the documents' park state and loop files from unit 20); D-16 (patch-id records with MIRAI's own hash; R-C1, R2-M7, R3-M11, AR3-6, AR3-15, R3-C2, AR-22); D-15 (pinned git), D-17 (signing), Q9 (no findings in a proof); G14; 17b's review (row 25's notes); D-22's update (records out of the hash)
 depends_on: ["05", "06", "09", "12", "14d", "17b", "22", "24a", "24b"]
 ---
@@ -98,4 +98,4 @@ No model run: the unit launches no agent. One manual check on the sample app (yo
 
 ## Open points for you
 
-All seven design decisions are taken (above), and the two defaults are named. Yours: approve this spec (or change a default).
+All seven design decisions are taken (above), and the two defaults are named. Approved by Jet on 2026-11-08 (PR #14), the defaults as written.
