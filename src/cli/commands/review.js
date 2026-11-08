@@ -33,13 +33,15 @@ export default {
     try {
       progress = progressPrinter(io, io.progressTiming ?? {});
       const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
-      // Your terminal mints the launch's token (D-14).
-      const r = await runReview({ cwd: io.cwd, env: io.env, ticket, launchToken: mintLaunchToken(), launchOptions });
+      // Your terminal mints each launch's token (D-14): a high-risk review is several launches (24b).
+      const r = await runReview({ cwd: io.cwd, env: io.env, ticket, nextToken: () => mintLaunchToken(), launchOptions });
       if (r.warn) io.stdout.write(`note: ${plain(r.warn)}\n`);
       if (r.tookOver) io.stdout.write(`note: ${plain(r.tookOver)}\n`);
       const line = r.launch?.line ?? {};
       io.stdout.write(`review ${r.review} of ${ticket} (round ${r.round}, ${r.risk} risk): ${r.outcome}${r.why ? `: ${plain(r.why).slice(0, 400)}` : ''}\n`);
-      if (r.launch) io.stdout.write(`  Rex: ${line.turns ?? 0} turns, ${line.minutes ?? 0} min\n`);
+      if (r.launches?.length > 1) {
+        for (const l of r.launches) io.stdout.write(`  ${plain(l.label)}: ${l.outcome}, ${l.line?.turns ?? 0} turns, ${l.line?.minutes ?? 0} min\n`);
+      } else if (r.launch) io.stdout.write(`  Rex: ${line.turns ?? 0} turns, ${line.minutes ?? 0} min\n`);
       if (r.blocking.length) io.stdout.write(`  blocking: ${r.blocking.map(plain).join(', ')}\n`);
       if (r.followups.length) io.stdout.write(`  follow-ups (not sent back): ${r.followups.length}\n`);
       io.stdout.write(`  the findings: ${plain(r.path)}\n`);

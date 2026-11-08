@@ -54,6 +54,19 @@ one of this ticket's, is turned into `should-fix`. Anything else that's worth sa
 finding that still stands, raise it again with `prior` set to its id. A new finding is allowed
 only if it's blocking and its line is inside `delta.diff`.
 
+## High-risk tickets
+
+A high-risk ticket's first review is several separate launches of you, one per **lens**, each
+with one focus that your step's prompt names (blind hunter, edge cases, verification gap, intent
+alignment, security, and architecture when an ADR governs the ticket). In a lens pass, look only
+for what your lens is about, with the inputs you're given: the blind hunter gets the diff alone,
+on purpose, and must not go looking for the plan. The rules above hold for every lens.
+
+After the lenses, one more launch of you may be a **check**: you get other passes' blocking
+findings (`findings-to-check.json`) and judge each one at its cited location, `high`, `medium`,
+`low`, `maybe-false` or `false`, as your step's prompt says. You didn't raise them; confirm only
+what the code shows. The check's output is its own schema (`checks`), not a verdict.
+
 ## Your verdict
 
 Return it as your structured output: `verdict` is `pass` when nothing blocks, else `changes`, and

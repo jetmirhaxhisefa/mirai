@@ -88,3 +88,17 @@ Already built and waiting for this unit:
 ## Open points for you
 
 All seven design decisions are taken (above). Approved by Jet on 2026-11-08, with this cost note: a high-risk round 1 is 6–7 Opus launches, and up to 3 rounds per ticket; design/01 §2 budgets 12–22 launches per high-risk ticket on the `full` track.
+
+## Changes during the build (2026-11-08)
+
+What the build found that the spec didn't say, or said differently. Each is in the code and tested.
+
+1. **Decision 6, made exact (Jet, during the build): a failed lens holds everything back.** A round 1 with a failed lens (or a failed check) is **incomplete**: no verdict, nothing to Kai, the returned passes kept in the record. `mirai review` again on the same commit runs only the missing passes (and the check), then decides on all of them; at night a verdict MIRAI can't read parks (`bad-verdict`). A pass that fails stops the ones after it: they'd hit the same limit, and the night has other tickets.
+2. **Every review is now "passes, then the check".** A normal review is one pass (`combined`), a high-risk round 1 one pass per lens, a high-risk later round one combined pass on deep; the record keeps each pass's state and verdict under `passes`, and the check under `check`. 24a's records and outcomes are unchanged for a normal review, except `depth` (`high` on high risk).
+3. **Launch tokens:** `runReview()` takes `nextToken` (as `runFix()` does), and `mirai review` mints one per launch. A caller with a single token is refused **before any launch** when the review needs more (`needs-tokens`), never halfway.
+4. **The usage check runs before each launch after the first** (a high-risk review is six or seven launches), as fix rounds do.
+5. **The lens names are in the review record, not on the run log's launch lines** (the spec's item 10): the launch line's schema has no field for them, and the record maps each pass to its launch id. The progress label shows them (`Rex (security)`, `Rex (check)`).
+6. **The run log's `finding_outcome` takes `false`** besides `fixed` and `disputed` (05b's event): one line per finding the check calls `false` or `maybe-false` (M5).
+7. **The blind hunter is blind by its inputs and its prompt, not by the sandbox:** it gets only `review.diff` and `review-files.json`, and its prompt tells it not to open the plan or the ticket; the ticket's file is in the checkout, which it can read. A real wall would need a launch without the checkout, which is the clean export (24a's decision 5).
+8. **The park note for `high-risk-review`** now says the review passed and the change touches a protected path.
+9. **Probes:** R2 (a failed lens and its rerun) isn't a model probe: a failed lens has to be forced, which a stand-in does exactly and a real model can't; the tests cover it. R1 and R3 are `test/probes/review-high-probes.js`, on 24a's seed with the plan marked `risk: high`. The second seeded problem (an AC the diff doesn't implement) isn't planted: the seed's three ACs all have code, and a new one would need a new plan; what each lens finds on the one seeded bug is what R1 records.
