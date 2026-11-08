@@ -17,7 +17,7 @@ const SAYS = Object.freeze({
   'bad-plan': 'The same problem came back: the plan needs another look.',
   'rebase-conflict': 'Its branch no longer rebases cleanly.',
   disputed: 'Kai disputes a review finding: yours to settle (mirai unpark <ticket> --retry: the finding stands; --accept <finding-id>: it\'s dropped).',
-  'high-risk-review': 'A high-risk ticket had only the normal review; the high-risk depth comes with unit 24b.',
+  'high-risk-review': 'The review passed, but the change touches a protected path (instruction files, hooks, auto-run config), which always waits for you.',
   'bad-verdict': 'Rex\'s verdict didn\'t come back as valid structured output.',
 });
 

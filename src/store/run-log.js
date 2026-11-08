@@ -110,7 +110,8 @@ export const RUN_EVENTS = Object.freeze({
   // What became of a finding, later in the ticket.
   finding_outcome: {
     id: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, patternHint: 'a finding id' },
-    outcome: { type: 'enum', values: ['fixed', 'disputed'] },
+    // `false`: the high-risk check found the finding wrong (24b; M5, reviewer precision).
+    outcome: { type: 'enum', values: ['fixed', 'disputed', 'false'] },
   },
   template_gap: { template: text, section: text, message: text },
   // Your authoring session's run id (unit 19c): its start, with the skill, and its end.

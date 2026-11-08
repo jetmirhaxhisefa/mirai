@@ -5,11 +5,13 @@ import { join } from 'node:path';
 import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
 import { basisForLog, findingFingerprint, triage } from '../findings/findings.js';
-import { checkReviewVerdict, SCHEMA_DIR } from '../findings/verdicts.js';
+import { checkFindingCheck, checkReviewVerdict, SCHEMA_DIR } from '../findings/verdicts.js';
 import { INPUT_LIMITS } from '../launch/strict.js';
 import { afterRound, beforeLaunch, readLoop, settleLaunch } from '../loop/guard.js';
+import { usageCheck, usageStop } from '../loop/ledger.js';
 import { parkTicket } from '../loop/park.js';
 import { ReviewDiffError, reviewDiff } from '../review/diff.js';
+import { CHECK_SCHEMA, checkPrompt, findingsToCheck, lensesFor, lensInputs, lensPrompt, mergeLenses, riskPathsTouched } from '../review/lenses.js';
 import { TICKET } from '../status/machines.js';
 import { move } from '../status/move.js';
 import { contentHash } from '../sign/sign.js';
@@ -42,6 +44,8 @@ export const REVIEW_MAX_TURNS = 80;
 export const REVIEW_TIMEOUT_MS = 30 * 60_000;
 export const AGENT_LABEL = 'Rex';
 const DIFF_CONTEXT = 3;
+// The one pass of a normal review, and of a high-risk review from round 2 (24b).
+export const COMBINED = 'combined';
 // Room the plan inputs may take, so the diff fits beside them (the launch's input folder: 32 files,
 // 4 MiB). The diff gets what's left, less a margin for the round-2 files and the index.
 const PLAN_INPUT_LIMITS = Object.freeze({ files: INPUT_LIMITS.files - 4, bytes: Math.floor(INPUT_LIMITS.bytes / 4) });
@@ -198,14 +202,34 @@ export function verdictFrom(structured) {
 
 const list = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []).filter((x) => typeof x === 'string');
 
-// `mirai review <ticket>`: { outcome, ticket, review, round, blocking, followups, path, why, warn }.
-// Outcomes: `pass` (in-review), `changes` (blocking findings: in-progress, for `mirai fix`),
-// `replan` (L4: back to ready-for-dev), `parked`, `needs-you` (a high-risk ticket after the normal
-// pass, until 24b), `agent-failed`, or the launch's own (refused, env-fault, usage-limit, killed).
-// `launchToken`: one-time, minted by the caller (your terminal, the session worker, the
-// orchestrator; D-14).
-export async function runReview({ cwd, env, ticket, launchToken, unattended = false, launchOptions = {}, launch = launchInRun, now = () => new Date() }) {
-  checkLaunchToken(launchToken);
+// `mirai review <ticket>`: { outcome, ticket, review, round, risk, depth, blocking, followups, path,
+// why, warn, launch, launches }. Outcomes: `pass` (in-review), `changes` (blocking findings:
+// in-progress, for `mirai fix`), `replan` (L4: back to ready-for-dev), `parked`, `needs-you` (a
+// protected path after a full pass), `agent-failed` (a pass or the check MIRAI can't read: the review
+// is incomplete, and `mirai review` again runs only what's missing), or a launch's own (refused,
+// env-fault, usage-limit, killed).
+//
+// What a review runs (unit 24b): its passes, then on high risk the check.
+// - `normal`: one combined pass.
+// - `high`, round 1: one pass per lens (src/review/lenses.js), one after another (decision 1);
+//   their findings merged; then one check launch for every blocking finding (decision 4).
+// - `high`, round 2 and later: one combined pass on deep, then the check (decision 3).
+// A review is decided only when every pass and the check returned (decision 6).
+//
+// Launch tokens: `launchToken` for the first launch, `nextToken()` for each one after (your
+// terminal mints them; D-14). A high-risk review needs `nextToken`.
+export async function runReview({ cwd, env, ticket, launchToken = null, nextToken = null, unattended = false, launchOptions = {}, launch = launchInRun, now = () => new Date() }) {
+  if (typeof nextToken !== 'function') checkLaunchToken(launchToken);
+  let firstToken = launchToken;
+  const token = () => {
+    if (firstToken !== null) {
+      const t = firstToken;
+      firstToken = null;
+      return t;
+    }
+    if (typeof nextToken !== 'function') throw fail('this review needs more than one launch, and its caller gave one launch token', 'needs-tokens', EXIT.USAGE);
+    return nextToken();
+  };
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   try {
     watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
@@ -235,10 +259,6 @@ export async function runReview({ cwd, env, ticket, launchToken, unattended = fa
     if (prior && prior.record.commit === head && prior.record.outcome !== 'changes') throw fail(`${ticket} was already reviewed at ${String(head).slice(0, 12)} (review ${prior.n}: ${prior.record.outcome})`, 'already-reviewed', EXIT.BLOCKED, prior.record.outcome === 'changes' ? `mirai fix ${ticket}` : undefined);
     const n = (past.at(-1)?.n ?? 0) + 1;
     const round = prior ? (prior.record.round ?? prior.n) + 1 : 1;
-    // High risk: the plan says so, or the change touches a protected path (design/01 §8: instruction
-    // files, auto-run config and the like), which the build already found and the plan declared.
-    const touched = list(last.protectedPaths?.touched);
-    const risk = fm.risk === 'high' || touched.length > 0 ? 'high' : 'normal';
     // The diff since the branch started (baseline_revision: its record's commit), with the plan
     // inputs' room taken first.
     const from = baselineRevision(store, ticket, last.creation_sha ?? null) ?? last.base;
@@ -254,6 +274,22 @@ export async function runReview({ cwd, env, ticket, launchToken, unattended = fa
       throw err;
     }
     if (diff.files.length === 0) throw fail(`${ticket}'s branch has no change to review since it started`, 'nothing-to-review');
+    // High risk: the plan says so; the change touches a protected path (design/01 §8: instruction
+    // files, auto-run config and the like), which the build already found and the plan declared; or
+    // (24b, decision 7) a file matching the trust root's `gate.risk.high`, read from the integration
+    // branch, so a ticket branch can't empty the list. Each can only raise it.
+    const touched = list(last.protectedPaths?.touched);
+    const riskPaths = riskPathsTouched(config.gate?.risk?.high, diff.files);
+    const risk = fm.risk === 'high' || touched.length > 0 || riskPaths.length > 0 ? 'high' : 'normal';
+    const adrs = list(given.ticket.fm.governed_by);
+    // Which passes this review runs, and the ones an incomplete review of this same commit already
+    // has (decision 6: `mirai review` again runs only what's missing).
+    const passes = risk === 'high' && round === 1 ? lensesFor({ adrs }) : [COMBINED];
+    const before = past.at(-1)?.record;
+    const resume = before && before.incomplete === true && before.commit === head && before.plan_sha256 === planHash && before.round === round && before.risk === risk ? before : null;
+    const kept = Object.fromEntries(Object.entries(resume?.passes ?? {}).filter(([name, p]) => passes.includes(name) && p?.state === 'returned' && p.verdict));
+    // More than one launch needs `nextToken`: refused before any launch, never halfway (24b).
+    if (typeof nextToken !== 'function' && passes.filter((x) => !kept[x]).length + (risk === 'high' ? 1 : 0) > 1) throw fail('a high-risk review is several launches, and its caller gave one launch token', 'needs-tokens', EXIT.USAGE);
     // Findings you dropped (`unpark --accept`) are never raised again, or counted (L3).
     const accepted = acceptedFindings(store, ticket);
     const droppedPrints = accepted.map((a) => a.fingerprint).filter((x) => typeof x === 'string');
@@ -267,28 +303,39 @@ export async function runReview({ cwd, env, ticket, launchToken, unattended = fa
         'prior-findings.json': `${JSON.stringify({ review: prior.n, findings: priorBlocking.map(({ id, severity, category, file, line, symbol, basis, claim }) => ({ id, severity, category, file, line, symbol, basis, claim })) }, null, 2)}\n`,
       } : {}),
     };
-    const result = { ticket, outcome: null, why: null, review: n, round, risk, blocking: [], followups: [], path: reviewPath(store, ticket, n), launch: null, warn: usage.warn ?? null, tookOver };
+    const depth = risk === 'high' ? 'high' : 'normal';
+    const result = { ticket, outcome: null, why: null, review: n, round, risk, depth, blocking: [], followups: [], path: reviewPath(store, ticket, n), launch: null, launches: [], warn: usage.warn ?? null, tookOver };
     let endState = 'stopped';
-    // The review's record, written once whatever happened after the launch.
+    const state = { passes: { ...kept }, check: null };
+    // The review's record, written once whatever happened after the launches.
     const keep = (extra) => {
       ensurePrivateDir(join(store.dir, 'tickets'));
       ensurePrivateDir(join(store.dir, 'tickets', ticket));
-      const record = { schema: 1, ticket, review: n, round, at: now().toISOString(), commit: head, base: from, branch: last.branch, author_launch: last.launch ?? null, plan_sha256: planHash, risk, depth: 'normal', files: diff.files, ...extra };
+      const record = { schema: 1, ticket, review: n, round, at: now().toISOString(), commit: head, base: from, branch: last.branch, author_launch: last.launch ?? null, plan_sha256: planHash, risk, depth, ...(riskPaths.length ? { risk_paths: riskPaths } : {}), files: diff.files, passes: state.passes, ...(state.check ? { check: state.check } : {}), ...(resume ? { resumes: before.review } : {}), ...extra };
       const text = `${JSON.stringify(record, null, 2)}\n`;
       atomicWrite(reviewPath(store, ticket, n), text);
       return { record, sha256: createHash('sha256').update(text).digest('hex') };
     };
-    try {
+    // One Rex launch: { ok, r } or { ok: false, outcome, why } (a launch that didn't end ok, or a
+    // structured output MIRAI can't read: `bad`).
+    let launched = 0;
+    const once = async ({ label, prompt, files, schema, read }) => {
+      // The caps again before each launch after the first: a high-risk review is several (24b).
+      if (launched > 0) {
+        const u = usageCheck({ env, unattended });
+        if (!u.go) throw usageStop(u);
+      }
+      launched++;
       // A review launch isn't a round (unit 20): the fix round that follows blocking findings is.
       const guard = beforeLaunch(store, ticket, { round: false, risk });
-      if (!guard.go) return { ...result, outcome: 'parked', why: guard.park.why ?? guard.park.reason };
+      if (!guard.go) return { ok: false, parked: guard.park };
       let r;
       try {
         r = await launch({
-          ...watch, cwd, env, store, runId, startRun: true, ownsRun: false, launchToken, agent: REVIEW_AGENT, progressLabel: AGENT_LABEL, role: REVIEW_ROLE, step: REVIEW_STEP, risk, expectBase: trust.baseSha,
+          ...watch, cwd, env, store, runId, startRun: launched === 1, ownsRun: false, launchToken: token(), agent: REVIEW_AGENT, progressLabel: label, role: REVIEW_ROLE, step: REVIEW_STEP, risk, expectBase: trust.baseSha,
           // The verifier ladder (unit 19): Rex's model is chosen against the author's.
           ...(last.launch ? { verifies: last.launch } : {}),
-          prompt: reviewPrompt({ ticket, round }), item: ticket, round, maxTurns: REVIEW_MAX_TURNS, timeoutMs: watch.timeoutMs ?? REVIEW_TIMEOUT_MS, inputs, jsonSchema: REVIEW_SCHEMA, now,
+          prompt, item: ticket, round, maxTurns: REVIEW_MAX_TURNS, timeoutMs: watch.timeoutMs ?? REVIEW_TIMEOUT_MS, inputs: files, jsonSchema: schema, now,
         });
       } catch (err) {
         settleLaunch(store, ticket, { launch: guard.launch, outcome: 'refused', refundable: true });
@@ -296,28 +343,74 @@ export async function runReview({ cwd, env, ticket, launchToken, unattended = fa
       }
       settleLaunch(store, ticket, { launch: guard.launch, outcome: r.outcome, refundable: r.refundable, line: r.line });
       result.launch = { id: r.launchId, outcome: r.outcome, why: r.why, line: r.line };
-      if (r.outcome !== 'ok') {
-        keep({ launch: r.launchId, outcome: r.outcome, why: r.why ?? null });
-        return { ...result, outcome: r.outcome, why: r.why };
+      result.launches.push({ label, ...result.launch });
+      if (r.outcome !== 'ok') return { ok: false, outcome: r.outcome, why: r.why, launchId: r.launchId };
+      const got = read(r.structured);
+      if (got.problem) return { ok: false, outcome: 'agent-failed', why: got.problem, launchId: r.launchId, bad: true };
+      return { ok: true, value: got.value, launchId: r.launchId };
+    };
+    // An incomplete review: kept for the next `mirai review`, which runs only what's missing. A
+    // verdict MIRAI can't read parks at night (bad-verdict); a launch's own outcome (a usage limit,
+    // a kill) is returned as it is, as in 24a.
+    const incomplete = (x) => {
+      keep({ launch: x.launchId ?? null, outcome: x.outcome, why: x.why ?? null, incomplete: true });
+      if (x.bad && unattended) {
+        parkTicket(store, ticket, { reason: 'bad-verdict', why: x.why, evidence: [reviewRef(ticket, n)] });
+        return { ...result, outcome: 'parked', why: x.why };
       }
-      const got = verdictFrom(r.structured);
-      if (got.problem) {
-        keep({ launch: r.launchId, outcome: 'agent-failed', why: got.problem });
-        // At night a verdict MIRAI can't read parks the ticket; in your terminal you run it again.
-        if (unattended) {
-          parkTicket(store, ticket, { reason: 'bad-verdict', why: got.problem, evidence: [reviewRef(ticket, n)] });
-          return { ...result, outcome: 'parked', why: got.problem };
+      return { ...result, outcome: x.outcome, why: x.why };
+    };
+    try {
+      // The passes, one after another; a pass that fails stops the rest (they'd hit the same
+      // limit, or the night has other tickets), and nothing is decided.
+      for (const name of passes) {
+        if (state.passes[name]?.state === 'returned') continue;
+        const lens = name !== COMBINED;
+        const got = await once({
+          label: lens ? `${AGENT_LABEL} (${name})` : AGENT_LABEL,
+          prompt: lens ? lensPrompt(name, { ticket }) : reviewPrompt({ ticket, round }),
+          files: lens ? lensInputs(name, inputs, { plan }) : inputs,
+          schema: REVIEW_SCHEMA,
+          read: verdictFrom,
+        });
+        if (got.parked) return { ...result, outcome: 'parked', why: got.parked.why ?? got.parked.reason };
+        if (!got.ok) {
+          state.passes[name] = { state: 'failed', launch: got.launchId ?? null, why: got.why ?? null };
+          return incomplete(got);
         }
-        return { ...result, outcome: 'agent-failed', why: got.problem };
+        state.passes[name] = { state: 'returned', launch: got.launchId, verdict: got.value };
       }
-      // MIRAI's own triage (L1, TL2-23, L2), then the loop guard's judgement of the round (L4, L5).
-      const triaged = triage(got.value, {
+      // One verdict for triage: the combined pass's as it is (its `prior` links stand), or the
+      // lenses' merged (new ids, every lens named).
+      const verdict = passes.length === 1 && passes[0] === COMBINED ? state.passes[COMBINED].verdict : mergeLenses(passes.map((name) => ({ lens: name, verdict: state.passes[name].verdict })));
+      // MIRAI's own triage (L1, TL2-23, L2), then on high risk the check, then the loop guard's
+      // judgement of the round (L4, L5).
+      const ctx = {
         acs: list(fm.acs).length ? list(fm.acs) : ticketAcs(given.ticket),
-        adrs: list(given.ticket.fm.governed_by),
+        adrs,
         rules: [],
         changedLines: diff.changedLines,
         ...(prior ? { round, priorBlocking: priorBlocking.map((f) => f.id), delta: delta.changedLines } : {}),
-      });
+      };
+      let triaged = triage(verdict, ctx);
+      const toCheck = triaged.findings.filter((f) => f.severity === 'blocking' && !droppedPrints.includes(f.fingerprint));
+      if (risk === 'high' && toCheck.length) {
+        const ids = toCheck.map((f) => f.id);
+        const got = await once({
+          label: `${AGENT_LABEL} (check)`,
+          prompt: checkPrompt({ ticket, round }),
+          files: { ...pick(inputs, ['review.diff', 'review-files.json', 'plan.md', 'ticket.md']), 'findings-to-check.json': `${JSON.stringify(findingsToCheck(toCheck), null, 2)}\n`, 'index.json': `${JSON.stringify({ schema: 'mirai-inputs/1', check: true, files: ['findings-to-check.json', 'review.diff', 'review-files.json', 'plan.md', 'ticket.md'] }, null, 2)}\n` },
+          schema: CHECK_SCHEMA,
+          read: (structured) => checkFrom(structured, ids),
+        });
+        if (got.parked) return { ...result, outcome: 'parked', why: got.parked.why ?? got.parked.reason };
+        if (!got.ok) {
+          state.check = { state: 'failed', launch: got.launchId ?? null, why: got.why ?? null, ids };
+          return incomplete(got);
+        }
+        state.check = { state: 'returned', launch: got.launchId, checks: got.value.checks };
+        triaged = triage(verdict, { ...ctx, confirmations: Object.fromEntries(got.value.checks.map((c) => [c.id, c.verdict])) });
+      }
       const live = triaged.findings.filter((f) => !droppedPrints.includes(f.fingerprint));
       // L5 compares a review with the review before it, never with a fix round's test failures.
       // L2's delta (by file, in the guard): the files changed since the last review; for a first
@@ -331,14 +424,22 @@ export async function runReview({ cwd, env, ticket, launchToken, unattended = fa
       let outcome;
       let why = decision.why ?? null;
       if (decision.next === 'done') {
-        // Until 24b, a high-risk ticket's normal pass is never the whole review.
-        outcome = risk === 'high' ? 'needs-you' : 'pass';
-        if (risk === 'high') why = `a high-risk ticket${touched.length ? ` (it touches ${touched.slice(0, 3).join(', ')})` : ''}: the normal pass found nothing blocking; the high-risk review comes with unit 24b`;
+        // After the full review, only a protected path still stops for you (decision 5): agents
+        // can change there what later agents obey.
+        outcome = touched.length ? 'needs-you' : 'pass';
+        if (touched.length) why = `the change touches ${touched.slice(0, 3).join(', ')}${touched.length > 3 ? ', …' : ''} (protected): the review found nothing blocking, and a protected-path change always waits for you`;
       } else if (decision.next === 'fix') outcome = 'changes';
       else if (decision.next === 'replan') outcome = 'replan';
       else outcome = 'parked';
-      const kept = keep({ launch: r.launchId, outcome, why, verdict: got.value.verdict, decision: decision.next, loop_round: decision.round, open, findings: live, followups: triaged.followups, duplicates: triaged.duplicates, complete: outcome === 'pass' });
-      logFindings({ store, runId, ticket, round, findings: live, ref: reviewRef(ticket, n), sha256: kept.sha256 });
+      const record = keep({ launch: result.launch?.id ?? null, outcome, why, verdict: verdict.verdict, decision: decision.next, loop_round: decision.round, open, findings: live, followups: triaged.followups, duplicates: triaged.duplicates, complete: outcome === 'pass' });
+      logFindings({ store, runId, ticket, round, findings: live, ref: reviewRef(ticket, n), sha256: record.sha256 });
+      // The check's `false` and `maybe-false`: the reviewer's false positives (M5).
+      const falses = (state.check?.checks ?? []).filter((c) => c.verdict === 'false' || c.verdict === 'maybe-false');
+      if (falses.length) {
+        withSeq(store, ({ take, runLine }) => {
+          for (const c of falses) runLine(runId, take(), { item: ticket, event: 'finding_outcome', id: c.id, outcome: 'false' });
+        });
+      }
       settleReview(store, ticket, { outcome, decision, unattended, why, ref: reviewRef(ticket, n) });
       if (outcome === 'needs-you' && unattended) outcome = 'parked';
       if (['pass', 'changes', 'needs-you'].includes(outcome)) endState = 'finished';
@@ -348,6 +449,17 @@ export async function runReview({ cwd, env, ticket, launchToken, unattended = fa
       if (run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
     }
   });
+}
+
+const pick = (all, names) => Object.fromEntries(names.filter((x) => Object.hasOwn(all, x)).map((x) => [x, all[x]]));
+
+// The check's verdicts from the launch's structured output, against 09a's schema: one per finding
+// sent, none for another. { value } or { problem }.
+export function checkFrom(structured, ids) {
+  if (structured === null || typeof structured !== 'object' || Array.isArray(structured)) return { problem: 'the check\'s structured output has no checks' };
+  const c = checkFindingCheck(JSON.stringify(structured), { findingIds: ids });
+  if (!c.ok) return { problem: `the check doesn't match MIRAI's schema: ${c.problems.slice(0, 3).map((p) => `${p.path} ${p.reason}`).join('; ')}` };
+  return { value: c.value };
 }
 
 // The run log's `finding` lines (D-46): each finding's structured part, its text in the review's
@@ -365,8 +477,8 @@ function logFindings({ store, runId, ticket, round, findings, ref, sha256 }) {
   });
 }
 
-// What the review's outcome does to the ticket (04's machine): a pass and a high-risk stop leave it
-// in-review (a high-risk stop parks at night); blocking findings send it to in-progress; L4 sends it
+// What the review's outcome does to the ticket (04's machine): a pass and a protected-path stop leave
+// it in-review (the stop parks at night); blocking findings send it to in-progress; L4 sends it
 // back for its one re-plan; the loop guard's park parks it.
 function settleReview(store, ticket, { outcome, decision, unattended, why, ref }) {
   const current = readTicketStatus(store, ticket).status;

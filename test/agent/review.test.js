@@ -101,7 +101,7 @@ if [ "$1" = "--version" ]; then echo "2.1.316 (Claude Code)"; exit 0; fi
 n=$(cat ${dir}/n); echo $((n+1)) > ${dir}/n
 for a in "$@"; do printf '%s\\n' "$a"; done > ${dir}/args$n
 inputs=$(sed -n '/^--add-dir$/{n;p;}' ${dir}/args$n)
-for f in review.diff delta.diff prior-findings.json review-files.json findings.json failures.json; do [ -f "$inputs/$f" ] && cp "$inputs/$f" ${dir}/$n-$f; done
+for f in review.diff delta.diff prior-findings.json review-files.json findings.json failures.json plan.md ticket.md intent.md findings-to-check.json; do [ -f "$inputs/$f" ] && cp "$inputs/$f" ${dir}/$n-$f; done
 . ${dir}/b$n.sh
 echo '${INIT}'; cat ${dir}/r$n.json
 `, { mode: 0o755 });
@@ -112,8 +112,8 @@ const watch = (claude) => ({ claude: claude.path, status: green, check: () => []
 const done = { status: 'done', summary: 'Changed app/Team.php.', tests_run: ['unit: pass'], checks_run: [] };
 
 // A ticket built green by Kai (in-review, MIRAI's commit): the change is one line in app/Team.php.
-async function built({ risk = 'normal', results = [], before = [], buildTests = passing, expect = 'handed-over' } = {}) {
-  const f = installed({ config: CONFIG, files: files(risk) });
+async function built({ risk = 'normal', results = [], before = [], buildTests = passing, expect = 'handed-over', config = CONFIG } = {}) {
+  const f = installed({ config, files: files(risk) });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
   writeToken(f.env, TOKEN);
@@ -217,18 +217,124 @@ test('24a: refusals: before a green step, Kai for the review step; a verdict MIR
   assert.equal(readTicketStatus(g.store, 'PMT-31').status.park_reason, 'bad-verdict');
 });
 
-test('24a: a high-risk ticket gets the normal pass, then stops for you (parks at night); it never passes at the lower depth', async () => {
-  const f = await built({ risk: 'high', results: [{ verdict: 'pass', findings: [] }] });
-  const r = await review(f);
-  assert.equal(r.outcome, 'needs-you');
-  assert.match(r.why, /24b/);
+// ---- Unit 24b: the high-risk depth ----
+
+const LENS_ORDER = ['blind-hunter', 'edge-cases', 'verification-gap', 'intent-alignment', 'security'];
+const clean = { verdict: 'pass', findings: [] };
+const highReview = (f, o = {}) => review(f, { launchToken: null, nextToken: () => mintLaunchToken(), ...o });
+const record = (f, n) => JSON.parse(readFileSync(reviewPath(f.store, 'PMT-31', n), 'utf8'));
+
+test('24b: a high-risk round 1 runs the five lenses one after another, each with its own inputs, on deep; nothing blocking, so no check, and it passes', async () => {
+  const f = await built({ risk: 'high', results: LENS_ORDER.map(() => clean) });
+  // One token isn't enough for a high-risk review.
+  await assert.rejects(review(f), (e) => e.code === 'needs-tokens');
+  const r = await highReview(f);
+  assert.equal(r.outcome, 'pass', r.why);
+  assert.equal(r.depth, 'high');
   assert.equal(state(f), 'in-review');
-  assert.equal(JSON.parse(readFileSync(reviewPath(f.store, 'PMT-31', 1), 'utf8')).complete, false);
-  const g = await built({ risk: 'high', results: [{ verdict: 'pass', findings: [] }] });
+  // Launch 0 was Kai's build (the one-token review was refused before any launch); then 1–5.
+  assert.equal(f.claude.launches(), 6, 'no check launch without a blocking finding');
+  LENS_ORDER.forEach((lens, i) => {
+    const args = f.claude.args(i + 1);
+    assert.ok(args.some((a) => a.includes(`yours is **${lens}**`)), `launch ${i + 1} is the ${lens} lens`);
+    assert.equal(args[args.indexOf('--model') + 1], 'claude-opus-5-5', `${lens} runs on deep`);
+    assert.match(f.claude.input(i + 1, 'review.diff'), /\+\/\/ renamed/);
+  });
+  // The blind hunter gets the diff alone; intent alignment gets the frozen block verbatim.
+  assert.equal(f.claude.input(1, 'plan.md'), null);
+  assert.equal(f.claude.input(1, 'ticket.md'), null);
+  assert.ok(f.claude.input(2, 'plan.md'));
+  assert.match(f.claude.input(4, 'intent.md'), /Intent/);
+  const rec = record(f, 1);
+  assert.equal(rec.depth, 'high');
+  assert.equal(rec.complete, true);
+  assert.deepEqual(Object.keys(rec.passes), LENS_ORDER);
+  assert.ok(Object.values(rec.passes).every((p) => p.state === 'returned'));
+});
+
+test('24b: the lenses\' findings are merged; one check launch judges every blocking one; a false one never reaches Kai and is logged; round 2 is one combined pass', async () => {
+  const same = finding({ id: 'E1', claim: 'Members go missing after the rename.' });
+  const other = finding({ id: 'E2', symbol: 'slug', basis: { kind: 'ac', ref: 'AC-PMT-31.2' }, claim: 'The old slug no longer redirects.' });
+  const lenses = [{ verdict: 'changes', findings: [finding()] }, { verdict: 'changes', findings: [same, other] }, clean, clean, clean];
+  const check = { checks: [{ id: 'F1', verdict: 'high' }, { id: 'F2', verdict: 'false', note: 'The redirect is in routes, untouched.' }] };
+  const fixDone = handover([{ id: 'F1', outcome: 'fixed' }]);
+  const f = await built({ risk: 'high', results: [...lenses, check, fixDone, clean], before: ['', '', '', '', '', '', 'printf "// members kept\\n" >> app/Team.php'] });
+  const r = await highReview(f);
+  assert.equal(r.outcome, 'changes', r.why);
+  assert.deepEqual(r.blocking, ['F1']);
+  assert.equal(state(f), 'in-progress');
+  // The check (launch 6) got both blocking findings, merged, under the review's own ids.
+  const sent = JSON.parse(f.claude.input(6, 'findings-to-check.json')).findings;
+  assert.deepEqual(sent.map((x) => x.id), ['F1', 'F2']);
+  const rec = record(f, 1);
+  const by = Object.fromEntries(rec.findings.map((x) => [x.id, x]));
+  assert.deepEqual(by.F1.lenses, ['blind-hunter', 'edge-cases'], 'the same file, symbol and basis from two lenses is one finding');
+  assert.equal(by.F2.severity, 'should-fix');
+  assert.equal(by.F2.downgrade_reason, 'unconfirmed');
+  assert.equal(rec.check.state, 'returned');
+  assert.ok(runLines(f).some((l) => l.event === 'finding_outcome' && l.id === 'F2' && l.outcome === 'false'), 'M5: the false positive is logged');
+  // Kai gets only F1.
+  const fx = await fixRound(f);
+  assert.equal(fx.outcome, 'handed-over', fx.why);
+  assert.deepEqual(JSON.parse(f.claude.input(7, 'findings.json')).findings.map((x) => x.id), ['F1']);
+  // Round 2: one combined pass, on deep, with the delta and F1; no lens and no check.
+  const r2 = await highReview(f);
+  assert.equal(r2.outcome, 'pass', r2.why);
+  assert.equal(r2.round, 2);
+  assert.equal(f.claude.launches(), 9);
+  const args = f.claude.args(8);
+  assert.equal(args.some((a) => a.includes('yours is **')), false, 'no lens in round 2');
+  assert.equal(args[args.indexOf('--model') + 1], 'claude-opus-5-5');
+  assert.ok(f.claude.input(8, 'delta.diff'));
+  assert.deepEqual(Object.keys(record(f, 2).passes), ['combined']);
+});
+
+test('24b: a lens that fails leaves the review incomplete (never a pass); mirai review again runs only what\'s missing; at night it parks', async () => {
+  const f = await built({ risk: 'high', results: [clean, { nonsense: true }, clean, clean, clean, clean] });
+  const bad = await highReview(f);
+  assert.equal(bad.outcome, 'agent-failed');
+  assert.equal(state(f), 'in-review');
+  const first = record(f, 1);
+  assert.equal(first.incomplete, true);
+  assert.equal(first.passes['blind-hunter'].state, 'returned');
+  assert.equal(first.passes['edge-cases'].state, 'failed');
+  assert.equal(first.passes.security, undefined, 'a failed pass stops the rest');
+  assert.equal(f.claude.launches(), 3);
+  // Again: edge cases and the three after it, never the blind hunter a second time.
+  const again = await highReview(f);
+  assert.equal(again.outcome, 'pass', again.why);
+  assert.equal(f.claude.launches(), 7);
+  assert.ok(f.claude.args(3).some((a) => a.includes('yours is **edge-cases**')));
+  const second = record(f, 2);
+  assert.equal(second.resumes, 1);
+  assert.equal(second.complete, true);
+  // A check MIRAI can't read is incomplete too; at night, a park.
+  const g = await built({ risk: 'high', results: [{ verdict: 'changes', findings: [finding()] }, clean, clean, clean, clean, { checks: [] }] });
   reading(g);
-  const night = await review(g, { unattended: true });
+  const night = await highReview(g, { unattended: true });
   assert.equal(night.outcome, 'parked');
-  assert.equal(readTicketStatus(g.store, 'PMT-31').status.park_reason, 'high-risk-review');
+  assert.equal(readTicketStatus(g.store, 'PMT-31').status.park_reason, 'bad-verdict');
+  assert.equal(record(g, 1).check.state, 'failed');
+});
+
+test('24b: after a full pass only a protected path stops for you (parks at night); gate.risk.high raises a normal ticket to high', async () => {
+  const f = await built({ risk: 'high', results: LENS_ORDER.map(() => clean) });
+  // The build found a protected path touched (declared in the plan, as the build requires).
+  const bp = join(f.store.dir, 'tickets', 'PMT-31', 'build.json');
+  const b = JSON.parse(readFileSync(bp, 'utf8'));
+  writeFileSync(bp, `${JSON.stringify({ ...b, protectedPaths: { ...(b.protectedPaths ?? {}), touched: ['CLAUDE.md'] } }, null, 2)}\n`);
+  reading(f);
+  const night = await highReview(f, { unattended: true });
+  assert.equal(night.outcome, 'parked');
+  assert.match(night.why, /CLAUDE\.md/);
+  assert.equal(readTicketStatus(f.store, 'PMT-31').status.park_reason, 'high-risk-review');
+  // A normal ticket whose change matches the trust root's gate.risk.high.
+  const g = await built({ config: `${CONFIG}\n[gate.risk]\nhigh = ["app/**"]\n`, results: LENS_ORDER.map(() => clean) });
+  const r = await highReview(g);
+  assert.equal(r.risk, 'high');
+  assert.equal(r.outcome, 'pass', r.why);
+  assert.deepEqual(record(g, 1).risk_paths, ['app/Team.php']);
+  assert.equal(g.claude.launches(), 6, 'the five lenses');
 });
 
 test('24a: /mirai review is a step from your session (21f\'s rule); /mirai unpark is a gate that names both terminal commands', async () => {
