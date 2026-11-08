@@ -19,6 +19,7 @@ const SAYS = Object.freeze({
   disputed: 'Kai disputes a review finding: yours to settle (mirai unpark <ticket> --retry: the finding stands; --accept <finding-id>: it\'s dropped).',
   'high-risk-review': 'The review passed, but the change touches a protected path (instruction files, hooks, auto-run config), which always waits for you.',
   'bad-verdict': 'Rex\'s verdict didn\'t come back as valid structured output.',
+  'sign-proofs': 'It passed its review and is ready for its proofs, which are signed from your terminal only: mirai gate record <ticket>.',
 });
 
 export function parkingNote({ reason, why = null, evidence = [] }) {

@@ -643,6 +643,25 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     agent change to it parks the ticket.
   - The unit's "done when" includes the full happy path, with an `e2e: true` ticket: E2E written →
     review PASS → QA PASS → gate-result record → built → push succeeds.
+- **Update (unit 25a, 2026-11-08):**
+  - **`--text` instead of `--binary`:** a binary file's bytes go into the patch as lines. Git's
+    binary delta encoding isn't promised to be byte-identical across git versions (CI's git isn't
+    yours, unit 54), and with `--text` a branch's `.gitattributes` (`-diff`, `binary`) can't change
+    the patch either. Binary content still counts.
+  - **More pins** than the command above, from AR3-6's list: `--diff-algorithm=myers`,
+    `--inter-hunk-context=0`, `--indent-heuristic`, `-O/dev/null`, `--no-relative`,
+    `diff.suppressBlankEmpty=false`, `--ignore-submodules=none`, literal pathspecs. A repo config
+    that sets most other diff keys is refused by MIRAI's repo check (14b) before git runs.
+  - **The paths** are the changed files matching the trust root's `gate.code_paths`;
+    `.mirai/records/**` is never in them. A `code_paths` that leaves a protected path out (other
+    than `.mirai/**` and the docs root) is refused by `gate record` and `gate check`.
+  - **The file name** carries the first 12 hex of the hash (`review-r1-<12 hex>.json`); the full
+    hash is inside. `r<n>`: the review round for `review`, the attempt for `gate`.
+  - **Minted at ship** by `mirai gate record`, which runs the gate's checks and levels itself and
+    embeds the merge-base's baseline (its file's digest and the known failures it allowed).
+  - **`gate check`** passes only with a `review` and a `gate` proof for the recomputed hash, and
+    refuses anything else in the ticket's records folder (`bad-record`): a record alone doesn't
+    make an MR high-risk (D-22's question), because nothing else may sit there.
 
 ### D-17 · Human-only moves are signed, and given in a real terminal
 
