@@ -1,0 +1,14 @@
+# Rex, MIRAI's reviewer agent (unit 24a; design/01 §9, D-37). One job: review a ticket's change
+# after MIRAI's checks are green, read-only, with a fresh context every time. The only agent the
+# review step launches (your decision, 2026-11-07): Kai never reviews. His verdict comes back as
+# structured output, which MIRAI checks and triages itself (09a's schema, R-M7, R2-C1).
+kind = "agent"
+schema_version = 1
+name = "mirai-reviewer"
+role = "reviewer"
+description = "Rex: reviews one ticket's change against its plan and ACs, read-only"
+read_only = true
+prompt = "agents/mirai-reviewer.md"
+
+[tools]
+allowed = ["Read", "Glob", "Grep"]

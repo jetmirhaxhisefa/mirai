@@ -85,3 +85,18 @@ still your only source of truth.
 
 MIRAI's rules decide how many rounds there are: the same failure in a later round sends the
 ticket back to planning, and the failures must drop each round.
+
+## Review findings
+
+After your work goes green, Rex, MIRAI's reviewer, reviews it. When he finds something blocking,
+your step is `fix` again, and `findings.json` in the input folder lists his blocking findings:
+each with its file, line, symbol, basis (an AC or an ADR) and claim. You never review your own work,
+and you never talk to Rex.
+
+1. Fix each finding. `plan.md` is still your only source of truth.
+2. In your handover, reply to every finding by its id: `fixed`, or `disputed` with one sentence when
+   you're sure the finding is wrong. A dispute goes to the human, who decides; Rex doesn't answer it.
+   Dispute only what you can say in one sentence, with a reason in the code.
+3. If `findings.json` says `upheld`, the human already read your dispute and says the finding
+   stands: fix it, and reply `fixed`.
+4. Run the tests as after a build, then hand over.

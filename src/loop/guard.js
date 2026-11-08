@@ -139,7 +139,11 @@ export function countingFindings(findings, { round, delta = [], seen = {} }) {
 // evidence, counted }. The round is the next one by the counters (a replay is refused).
 // `findings`: triaged (09a's triage, L1); `failures`: [{ test, message }]; `blobs`: { file: blob }
 // of the files this round changed; `delta`: those files; `disputed`: fingerprints left out (L3).
-export function afterRound(store, ticket, { findings = [], failures = [], blobs: given = {}, delta = [], disputed = [], root = null, round: claimed }) {
+// `previousOpen` (unit 24a): what L5 compares this round's open count with, like with like: left
+// out, the last round's (21c, as before); a number, that one (a review gives its previous review's);
+// null, nothing (a first review, or the first fix round after one: test failures and findings are
+// counted apart, so "3 failures, then green, then 2 findings" isn't read as no progress).
+export function afterRound(store, ticket, { findings = [], failures = [], blobs: given = {}, delta = [], disputed = [], root = null, round: claimed, previousOpen }) {
   return change(store, ticket, (state) => {
     if (state.parked) return { result: { next: 'park', ...state.parked, counted: [] } };
     // One re-plan per ticket (04), counted here and in the status file: the larger counts, so a
@@ -155,7 +159,7 @@ export function afterRound(store, ticket, { findings = [], failures = [], blobs:
     const repeats = [...fps.filter((x) => state.fingerprints[x] !== undefined), ...sigs.filter((x) => state.signatures[x] !== undefined)];
     const churn = Object.entries(blobs).filter(([file, sha]) => (state.blobs[file] ?? []).slice(0, -1).includes(sha)).map(([file]) => file);
     const open = blocking.length + sigs.length;
-    const previous = state.round_open.at(-1);
+    const previous = previousOpen === undefined ? state.round_open.at(-1) : previousOpen ?? undefined;
     const next = {
       ...state,
       reviews: round,

@@ -21,7 +21,8 @@ import { parseDiff } from '../tests/diff.js';
 // Calls used: `rev-parse`, `rev-list`, `config --file`, (unit 06) `ls-tree` / `cat-file`,
 // (unit 07b) `ls-files`, (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff
 // --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files, (unit 16b) `diff -U0`,
-// (unit 17a) `for-each-ref` and `log`, (unit 18a) `clone`. A new call needs its own probe (test/probes/git-probes.js
+// (unit 17a) `for-each-ref` and `log`, (unit 18a) `clone`, (unit 24a) `diff -U<n> --text` between
+// two commits for the reviewer. A new call needs its own probe (test/probes/git-probes.js
 // --mirai).
 
 const TIMEOUT_MS = 10_000;
@@ -332,7 +333,10 @@ const nulList = (bytes) => bytes.toString('utf8').split('\0').filter(Boolean);
 // file is wholly added (a known limit for units 26 and 54). Returns parseDiff's { files }.
 const UNIFIED_ARGS = ['diff', '-U0', '--no-renames', ...DIFF_FLAGS, '--ignore-submodules=none', '--src-prefix=a/', '--dst-prefix=b/', '--diff-algorithm=myers', '--no-relative'];
 export const UNTRACKED_MAX_BYTES = 4 * 1024 * 1024;
-export function changedLines(root, from, to, env) {
+// `text` (unit 24a, the review; TL3-12): `--text`, so a branch's `.gitattributes` (`-diff`,
+// `binary`) can't make git print "Binary files differ" for a file and hide its lines; the caller
+// tells real binary files apart by their bytes. `near`: parseDiff's lines beside each removal.
+export function changedLines(root, from, to, env, { text = false, near = false } = {}) {
   // With the work tree, a nested repo is refused before the diff looks into it (as changedNames).
   let untracked = [];
   if (!to) {
@@ -341,11 +345,22 @@ export function changedLines(root, from, to, env) {
     untracked = nulList(u.out);
     checkNested(stageOf(root, ['.'], env), untracked);
   }
-  const r = git(root, [...UNIFIED_ARGS, from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 64 * MAX_OUTPUT, timeout: 120_000 });
+  const r = git(root, [...UNIFIED_ARGS, ...(text ? ['--text'] : []), from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 64 * MAX_OUTPUT, timeout: 120_000 });
   if (!r.ok) throw new StoreError(`git diff ${from}${to ? `..${to}` : ''} failed`, { code: 'git-failed' });
-  const { files } = parseDiff(r.out);
+  const { files } = parseDiff(r.out, undefined, { near });
   for (const path of untracked) files.push(untrackedFile(root, path));
   return { files };
+}
+
+// The patch a reviewer reads (unit 24a): `git diff` between two commits with UNIFIED_ARGS' pins,
+// `context` lines around each change and `--text` (see changedLines). Commits only: never the work
+// tree. Returns the raw bytes, for src/review/diff.js to split by file.
+export function reviewPatch(root, from, to, env, { context = 3 } = {}) {
+  if (!Number.isInteger(context) || context < 0 || context > 50) throw new StoreError('a review patch\'s context is 0 to 50 lines', { code: 'bad-context' });
+  const args = ['diff', `-U${context}`, ...UNIFIED_ARGS.slice(2), '--text', from, to, '--'];
+  const r = git(root, args, env, { raw: true, maxBuffer: 64 * MAX_OUTPUT, timeout: 120_000 });
+  if (!r.ok) throw new StoreError(`git diff ${from}..${to} failed`, { code: 'git-failed' });
+  return r.out;
 }
 
 // An untracked file as a diff would show it: every line added. Read without following a link

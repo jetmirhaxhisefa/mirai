@@ -99,7 +99,8 @@ test('T4: unpark needs a note and a matching choice; parking needs a park reason
     refused(() => move(TICKET, 'blocked', to, { by: 'human', note: '   ', choice }), 'missing');
   }
   refused(() => move(TICKET, 'blocked', 'dropped', { by: 'human', note: 'x', choice: 'retry' }), 'missing');
-  assert.equal(Object.keys(UNPARK_CHOICES).length, 3, 'three choices: re-plan, retry, drop');
+  // Unit 24a adds accept (a disputed park only, mirai unpark checks it): back to in-review.
+  assert.equal(Object.keys(UNPARK_CHOICES).length, 4, 'four choices: re-plan, retry, drop, accept');
   for (const from of ['in-progress', 'in-review', 'waiting']) {
     refused(() => move(TICKET, from, 'blocked', { by: 'script' }), 'missing');
     refused(() => move(TICKET, from, 'blocked', { by: 'script', park_reason: 'tired' }), 'missing');
@@ -259,7 +260,7 @@ test('T12: StatusError shape, and movesFrom for menus', () => {
   assert.deepEqual([err.machine, err.item, err.from, err.to], ['ticket', 'T-7', 'ready-for-dev', 'in-review']);
   assert.equal(err.message, 'T-7: ready-for-dev → in-review is not allowed in the ticket machine');
   refused(() => move(TICKET, 'nowhere', 'draft', { by: 'human' }), 'unknown-state');
-  assert.deepEqual(movesFrom(TICKET, 'blocked', 'human').map((m) => m.choice).sort(), ['drop', 're-plan', 'retry']);
+  assert.deepEqual(movesFrom(TICKET, 'blocked', 'human').map((m) => m.choice).sort(), ['accept', 'drop', 're-plan', 'retry']);
   assert.deepEqual(movesFrom(TICKET, 'blocked', 'script'), []);
 });
 

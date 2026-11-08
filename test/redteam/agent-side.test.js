@@ -48,7 +48,7 @@ const ROWS = {
   'D-30 network and secrets': ['a-web', 's-token-shape-write', 'adv-network', 'adv-network-real', '18c: ct-level-* and ct-check-*'],
   'D-30 docker and tests': ['18c: ct-level-*, ct-check-*, ct-copy-links, ct-paths'],
   'D-30 host credentials': ['g18-default (18a)', 'R2: the data-protection keychain, not testable without a signed app'],
-  'D-30 instruction injection': ['c-instructions', 'c-project-rules', 'unit 24: .gitattributes -diff, instructions aimed at the reviewer'],
+  'D-30 instruction injection': ['c-instructions', 'c-project-rules', 'c-instructions-review', 'h-review-diff'],
   'D-30 CI': ['unit 54'],
   '06: approve/drop/key, expect, script, unbuffer, pty, update-ref': ['a-mirai', 'w-git-config', 'partial: unbuffer isn\'t on macOS; a python pty like script and expect; drop and key like approve'],
   '11: work-tree .claude agents, skills, commands': ['c-instructions'],
@@ -71,7 +71,8 @@ test('18b T1: every row of roadmap row 18b is a case, in 18c, or named elsewhere
     }
   }
   const kinds = caseIndex().reduce((n, c) => ({ ...n, [c.kind]: (n[c.kind] ?? 0) + 1 }), {});
-  assert.ok(kinds.direct === 3 && kinds.adversarial === 6 && kinds.probe === 4 && kinds.model > 60, JSON.stringify(kinds));
+  // Unit 24a: h-review-diff is the fourth direct case.
+  assert.ok(kinds.direct === 4 && kinds.adversarial === 6 && kinds.probe === 4 && kinds.model > 60, JSON.stringify(kinds));
   assert.deepEqual(caseIndex().filter((c) => c.informational).map((c) => c.id).sort(), ['adv-linger', 'h-git-objects', 'h-timeout-link', 'l-cd']);
 });
 
@@ -329,4 +330,12 @@ test('21d fix: a-mirai-agent counts only a launch folder made during its run, no
     return 'exit:1';
   }) }));
   assert.equal(res.result.cases[0].outcome, 'fail');
+});
+
+test('24a: h-review-diff, with no model: a .gitattributes -diff, binary or diff driver hides nothing from the review diff', async () => {
+  const r = repo();
+  const res = await runRedTeam(options(r, { only: ['h-review-diff'], launch: async () => { throw new Error('no model in a direct case'); } }));
+  const c = res.result.cases.find((x) => x.id === 'h-review-diff');
+  assert.equal(c.outcome, 'pass', c.runs[0]?.note);
+  assert.match(c.runs[0].note, /shown in the review diff: 3 of 3; with their changed line: 3 of 3/);
 });

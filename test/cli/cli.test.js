@@ -238,5 +238,5 @@ test('T13: the test script runs only MIRAI tests under test/', () => {
 });
 
 test('T14: the real command list is pinned, so every new command is a reviewed test change', () => {
-  assert.deepEqual(COMMANDS.map((c) => c.name), ['agent', 'approve', 'baseline', 'branch', 'build', 'config', 'detect', 'discard', 'drop', 'fix', 'init', 'key', 'lint', 'log', 'plan', 'protected', 'redteam', 'render', 'sandbox', 'session', 'session-server', 'status', 'test', 'token', 'trust', 'unpark', 'version']);
+  assert.deepEqual(COMMANDS.map((c) => c.name), ['agent', 'approve', 'baseline', 'branch', 'build', 'config', 'detect', 'discard', 'drop', 'fix', 'init', 'key', 'lint', 'log', 'plan', 'protected', 'redteam', 'render', 'review', 'sandbox', 'session', 'session-server', 'status', 'test', 'token', 'trust', 'unpark', 'version']);
 });

@@ -40,14 +40,18 @@ export const DOCUMENT = machine('document', {
 });
 
 // Why a ticket is parked (D-07: `blocked` always carries one).
-export const PARK_REASONS = Object.freeze(['cap', 'budget', 'repeat', 'no-progress', 'environment', 'rebase-conflict', 'bad-plan', 'scope']);
+// Unit 24a adds the review's: a finding Kai disputes (L3; yours to settle), a high-risk ticket after
+// the normal pass (until 24b), and a verdict that didn't come back valid at night.
+export const PARK_REASONS = Object.freeze(['cap', 'budget', 'repeat', 'no-progress', 'environment', 'rebase-conflict', 'bad-plan', 'scope', 'disputed', 'high-risk-review', 'bad-verdict']);
 
 // Why a ticket goes back to planning: you rejected the plan, or the same failure repeated
 // (a bad plan). The orchestrator gets one re-plan per ticket, whatever the reason.
 export const REPLAN_REASONS = Object.freeze(['plan-rejected', 'bad-plan']);
 
 // `mirai unpark` choices and where each one leads (three, decided 2026-10-23).
-export const UNPARK_CHOICES = Object.freeze({ 're-plan': 'ready-for-dev', retry: 'in-progress', drop: 'dropped' });
+// Unit 24a: `accept`, for a disputed park only (mirai unpark checks it): the disputed findings you
+// accepted are dropped and none stand, so the ticket goes back to in-review for Rex's next round.
+export const UNPARK_CHOICES = Object.freeze({ 're-plan': 'ready-for-dev', retry: 'in-progress', drop: 'dropped', accept: 'in-review' });
 
 export const TICKET = machine('ticket', {
   states: ['draft', 'ready-for-dev', 'in-progress', 'in-review', 'built', 'waiting', 'integrated', 'done', 'blocked', 'dropped'],
