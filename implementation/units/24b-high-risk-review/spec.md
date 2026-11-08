@@ -1,7 +1,7 @@
 ---
 unit: "24b"
 name: high-risk-review
-status: draft (2026-11-08; Jet's seven decisions taken in the interview, not approved yet)
+status: approved (2026-11-08; Jet's seven decisions taken in the interview; not built yet)
 roadmap: design/07-implementation-roadmap.md, row 24 (24b: the `high`-risk lens passes and the per-finding check); design/01 §9 (depth by risk, L7; "High-risk tickets only: check each finding"), §8 (instruction-file changes block in supervised mode too), §4 (risk auto-set from risk paths); D-14, D-58 (a high-risk review is a judgement step, never below deep); 24a's spec and build
 depends_on: ["24a", "19", "20", "09"]
 ---
@@ -87,4 +87,4 @@ Already built and waiting for this unit:
 
 ## Open points for you
 
-All seven design decisions are taken (above). One cost note to confirm with the approval: a high-risk round 1 is 6–7 Opus launches, and up to 3 rounds per ticket; design/01 §2 budgets 12–22 launches per high-risk ticket on the `full` track.
+All seven design decisions are taken (above). Approved by Jet on 2026-11-08, with this cost note: a high-risk round 1 is 6–7 Opus launches, and up to 3 rounds per ticket; design/01 §2 budgets 12–22 launches per high-risk ticket on the `full` track.
