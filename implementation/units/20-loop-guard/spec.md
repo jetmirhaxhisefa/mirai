@@ -57,7 +57,7 @@ That's your weekly limit's use, 11%, and when it resets. Until now `limit_share`
 11. **Docs:** `docs/loop-rules.md` (the rules in plain words, what each cap means, where counters live); research/10 (the `rate_limit_event` fact); the roadmap.
 
 **Out:**
-- **The loops themselves:** units 21 (plan and build), 24 (review), 25–27 (QA, docs).
+- **The loops themselves:** units 21 (plan and build), 24 (review), 44 and later (documents; first noted here as rows 25–27, which became proofs, hooks and ship).
 - **Tier escalation for light steps:** unit 58.
 - **The pause's wait and resume:** units 28 and 29; the morning report: 56.
 - **Calibration of the caps:** unit 57.
@@ -116,7 +116,7 @@ That's your weekly limit's use, 11%, and when it resets. Until now `limit_share`
 6. **L2 by file, not by line,** as design/01 says by line: the delta's hunks aren't available yet (unit 24 brings them).
 7. **"A five-hour window near its limit" is dropped:** only `rejected` counts; a warning feeds no decision yet.
 8. **A usage limit ends a single agent run as `stopped`, not `paused`:** `paused` would block the next `mirai agent run` until unit 28's resume exists. Unit 28 pauses its own runs.
-9. **Not built here:** documents' loops (rows 25–27 settle a park state in 04 first), the breaker's caller (unit 28), per-night aggregates of turns and tokens (unit 29). `src/store/global.js` changed only in a comment.
+9. **Not built here:** documents' loops (row 44 settles a park state in 04 first; first noted as rows 25–27), the breaker's caller (unit 28), per-night aggregates of turns and tokens (unit 29). `src/store/global.js` changed only in a comment.
 10. **From the review of the fixes:** the baseline's age is taken at the launch's start (a long launch never got a measured share); a broken readings file can't stop a launch; only a fault decided before the agent could act, or a usage limit, gives a round back; a usage limit only when the stream ends on it, never for running out of turns; the loop keeps its own re-plan count too; rounds need your signed move as proof, one grant per move; each launch is settled once; the round is required; the breaker checks its run id; the progress count starts again after a re-plan; an old reading's refusal says a tiny launch would refresh it (`cap: 'stale'`, `probe`).
 11. **Your decisions after the reviews:** 1A, an out-of-date reading needs a tiny Haiku launch to refresh it before the night's first ticket (unit 28 makes it; this unit refuses with `cap: 'stale'` and `probe`); 2A, L4 stays strict: a problem still open in the next round is a repeat, so a re-plan.
 12. **R1's answer:** one reading per stream, after the first answer, so a launch's tail is booked to the next; stated in the docs and research/10.
