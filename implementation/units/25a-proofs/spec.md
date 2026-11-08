@@ -99,3 +99,17 @@ No model run: the unit launches no agent. One manual check on the sample app (yo
 ## Open points for you
 
 All seven design decisions are taken (above), and the two defaults are named. Approved by Jet on 2026-11-08 (PR #14), the defaults as written.
+
+## Changes during the build (2026-11-08)
+
+What the build found that the spec didn't say, or said differently. Each is in the code and tested.
+
+1. **`--text` instead of `--binary`** (decision 4's command, one flag): git's binary delta encoding isn't promised to be byte-identical across git versions, and CI's git won't be yours (unit 54); with `--text` a binary file's bytes go into the patch as lines, so binary content still counts, and a branch's `.gitattributes` (`-diff`, `binary`) can't change the patch (the first test caught that: `-diff` turned a `.js` file binary and changed the hash). D-16's update records it.
+2. **More pins than D-16's command,** from AR3-6's list: `--inter-hunk-context=0`, `--indent-heuristic`, `-O/dev/null`, `--no-relative`, `diff.suppressBlankEmpty=false`, `--ignore-submodules=none`, literal pathspecs (in batches: `git diff` reads no pathspec file). MIRAI's repo check (14b) already refuses to run git at all on a repo config that sets `diff.context`, `diff.interHunkContext`, the prefixes, the order file and the like, so those can't reach the hash; the G14 test checks both.
+3. **The `code_paths` rule isn't in `mirai lint`** (Scope item 6): lint checks documents, and the config check can't see the protected-path rules. `gate record` and `gate check` refuse a `code_paths` that leaves a protected path out (`code-paths-hide`), checked against a sample path per protected rule, from the trust root.
+4. **G14 across git versions** isn't testable here: this machine has one git, and MIRAI runs only `/usr/bin/git`. Settled for git config and rebases; across versions it's unit 54's, against CI's git.
+5. **`gate check` needs no store in its core** (`checkProofs`: the commit, the integration commit, `code_paths`, the protected rules, the public keys, the repo id). The CLI reads them from the trust root through the store; CI (54) will read them from the base commit.
+6. **The outcomes:** `gate record`: `recorded` (0), `gate-failed` (1), `cant-tell` (5), `parked` (unattended, 4), and refusals `no-review`, `review-stale`, `no-baseline`, `nothing-to-prove`, `dirty`, `wrong-branch`, `not-reviewed` (the ticket isn't in-review), `code-paths-hide`. `gate check`: `pass` (0), `no-proof` and `stale` (1), `nothing-to-prove` (1), `bad-record` (4).
+7. **The proofs carry `outcome: "pass"`** (a proof is of a pass only) and `framework_hash` beside `framework_version`. A review proof for a round and hash that's already committed is kept as it is; each `gate record` adds a new gate attempt (`gate-r2`, …).
+8. **The tree check (R3-M8)** is a hash of `git status`'s changes and the ignored files, taken before the run, after the tests, and before the proofs are written; the commit then holds exactly the proof files.
+9. **P1 is a probe script, not by hand** (`test/probes/gate-probes.js`): no sample-app ticket has passed a review yet, so P1 builds the walkthrough code green in a clone (24a's seed without its bug), has real Rex review it (Sonnet, 1 run), then records, checks, rebases onto a moved main and adds one whitespace change, checking after each. It waits for your OK; `seeded()` in the review probes takes `clean`.

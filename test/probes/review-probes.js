@@ -33,7 +33,8 @@ const WALKTHROUGH = '314a9df';
 const FILES = ['backend/app/Http/Controllers/TaskController.php', 'backend/app/Policies/TaskPolicy.php', 'backend/routes/api.php', 'backend/tests/Feature/TaskApiTest.php'];
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 
-export async function seeded({ root, env, claude, git, log }, { risk = 'normal' } = {}) {
+// `clean` (unit 25a's gate probe): the walkthrough code as it was, without the seeded bug.
+export async function seeded({ root, env, claude, git, log }, { risk = 'normal', clean = false } = {}) {
   const io = { cwd: root, env };
   // Instructions aimed at the reviewer, committed on main: a branch can't add an instruction file
   // undeclared (the build stops it as a protected path), so this is how one sits in Rex's working
@@ -63,7 +64,7 @@ export async function seeded({ root, env, claude, git, log }, { risk = 'normal' 
   const app = resolve(process.env.MIRAI_APP ?? join(process.env.HOME, 'Projects', 'mirai-sample-app'));
   for (const f of FILES) {
     let text = execFileSync('/usr/bin/git', ['-C', app, 'show', `${WALKTHROUGH}:${f}`], { encoding: 'utf8' });
-    if (f.endsWith('TaskController.php')) text = text.replace(/\$task->delete\(\);/, 'Task::where(\'title\', $task->title)->delete();');
+    if (!clean && f.endsWith('TaskController.php')) text = text.replace(/\$task->delete\(\);/, 'Task::where(\'title\', $task->title)->delete();');
     mkdirSync(dirname(join(seed, f)), { recursive: true });
     writeFileSync(join(seed, f), text);
   }

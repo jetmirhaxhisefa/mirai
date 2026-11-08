@@ -1131,6 +1131,13 @@ them: a restart can't grant fresh rounds.
 - **When proofs are made:** the **review proof** at review PASS, the **QA proof** at QA PASS, and
   the **gate-result record** after the checks (§8). The QA proof, the last one before ship,
   carries the `mirai trace` result (§5a).
+- **Built (unit 25a, 2026-11-08; Jet's decisions):** proofs are minted **at ship** (D-16, AR3-15),
+  not at each pass: `mirai gate record <ticket>` checks Rex's latest pass is for the same code
+  hash, runs every check and level against the **merge-base's baseline**, and writes and commits
+  the `review` and `gate` proofs together; from your terminal only until row 29b (at night the
+  ticket parks, `sign-proofs`). `mirai gate check <ticket>` recomputes the hash and verifies the
+  proofs with the integration branch's public keys only. The patch is `--text`, not `--binary`
+  (D-16's update for 25a).
 - **Signed with Ed25519** (R2-C5), built into Node's `crypto`, so still zero dependencies. The
   private key is in `~/.config/mirai/`, which the sandbox and deny rules keep agents from reading
   (R-M1). The **public key is committed with its key id**, so CI can verify a proof without any

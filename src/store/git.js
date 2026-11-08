@@ -22,7 +22,7 @@ import { parseDiff } from '../tests/diff.js';
 // (unit 07b) `ls-files`, (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff
 // --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files, (unit 16b) `diff -U0`,
 // (unit 17a) `for-each-ref` and `log`, (unit 18a) `clone`, (unit 24a) `diff -U<n> --text` between
-// two commits for the reviewer. A new call needs its own probe (test/probes/git-probes.js
+// two commits for the reviewer, (unit 25a) `diff -U3 --text` over literal paths for the proof hash. A new call needs its own probe (test/probes/git-probes.js
 // --mirai).
 
 const TIMEOUT_MS = 10_000;
@@ -361,6 +361,41 @@ export function reviewPatch(root, from, to, env, { context = 3 } = {}) {
   const r = git(root, args, env, { raw: true, maxBuffer: 64 * MAX_OUTPUT, timeout: 120_000 });
   if (!r.ok) throw new StoreError(`git diff ${from}..${to} failed`, { code: 'git-failed' });
   return r.out;
+}
+
+// The patch a proof hashes (unit 25a; D-16, G14): `git diff` between two commits over exactly
+// `paths` (literal pathspecs), every flag that changes the output named here whatever the repo's
+// config says: D-16's quotePath, prefixes, no renames, 3 lines of context, myers; and the settings
+// AR3-6 lists (no inter-hunk merging, the default indent heuristic, no order file, blank context
+// lines as " "). `--text` instead of D-16's `--binary`: every file's bytes as lines, so a binary
+// file's content counts without git's delta encoding (which can differ between git versions, and
+// CI's git isn't yours), and a `.gitattributes` (`-diff`, `binary`) can't change the patch (as
+// TL3-12 for the review). Commits only. Many paths are diffed a batch at a time (`git diff` reads
+// no pathspec file): the caller sorts the sections, so the batches don't matter. Returns the raw
+// bytes; an empty `paths` is an empty patch.
+const PROOF_ARGS = ['diff', '-U3', '--no-renames', ...DIFF_FLAGS, '--ignore-submodules=none', '--src-prefix=a/', '--dst-prefix=b/', '--diff-algorithm=myers', '--no-relative', '--inter-hunk-context=0', '--indent-heuristic', '--text', '-O/dev/null'];
+const PATHS_PER_CALL_BYTES = 128 * 1024;
+export function proofPatch(root, from, to, paths, env) {
+  const out = [];
+  let batch = [];
+  let size = 0;
+  const flush = () => {
+    if (!batch.length) return;
+    const args = ['-c', 'core.quotePath=true', '-c', 'diff.suppressBlankEmpty=false', ...PROOF_ARGS, from, to, '--', ...batch];
+    const r = git(root, args, env, { raw: true, maxBuffer: 256 * MAX_OUTPUT, timeout: 300_000 });
+    if (!r.ok) throw new StoreError(`git diff ${from.slice(0, 12)}..${to.slice(0, 12)} failed`, { code: 'git-failed' });
+    out.push(r.out);
+    batch = [];
+    size = 0;
+  };
+  for (const p of paths) {
+    const spec = `:(literal)${p}`;
+    if (size + spec.length > PATHS_PER_CALL_BYTES) flush();
+    batch.push(spec);
+    size += spec.length + 1;
+  }
+  flush();
+  return Buffer.concat(out);
 }
 
 // An untracked file as a diff would show it: every line added. Read without following a link
