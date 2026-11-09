@@ -260,11 +260,12 @@ R2-M3). Merges into `feature/<epic>` are also approved here (§12a).
    - the feature map (screens, stable handles such as ARIA roles and `data-*` attributes);
    - how to capture evidence.
 7. **Install enforcement:**
-   - git hooks, installed **outside the project** in the trust root (`<trust-root>/hooks`, inside
-     the MIRAI home) and hash-checked against the integration branch's `mirai.lock` (R-C2, R2-C1).
+   - git hooks, installed **outside the project** in the MIRAI home (`<mirai-home>/<repo-id>/hooks/`;
+     built in unit 26a, D-15's update: run from the integration branch's sealed copy, checked at
+     every push) (R-C2, R2-C1).
      Every host git call by MIRAI is **pinned** (R3-C4): it first checks `.git/config` against the
      hash MIRAI recorded last time and refuses if it changed, then runs with
-     `-c core.hooksPath=<trust-root>/hooks -c core.fsmonitor=false -c core.sshCommand=ssh
+     `-c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.sshCommand=ssh
      -c credential.helper= -c diff.external= -c core.pager=cat -c protocol.ext.allow=never` and
      `GIT_OPTIONAL_LOCKS=0`. So nothing an agent or a container writes into `.git/config` (filters,
      includes, helpers, remotes) runs on your machine through MIRAI;

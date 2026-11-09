@@ -6,6 +6,8 @@ import { plain } from '../../status/text.js';
 import { OUTCOME_EXIT } from '../../agent/run.js';
 import { runReview } from '../../agent/review.js';
 import { mintLaunchToken } from '../../agent/requests.js';
+import { requireHooks } from '../../hooks/install.js';
+import { openStore } from '../../store/home.js';
 
 // mirai review <ticket> (unit 24a; design/01 §9): Rex reviews the ticket's change after a green
 // build or fix round, read-only, in a fresh session. MIRAI checks and triages his findings itself:
@@ -24,6 +26,8 @@ export default {
     const [ticket] = args.positionals;
     checkTicketArg(ticket);
     requireTtyOrSession(io, 'mirai review', 'review');
+    // MIRAI's pre-push hook must be on before agents start (unit 26a).
+    requireHooks({ store: openStore({ cwd: io.cwd, env: io.env }), env: io.env });
     const abort = new AbortController();
     const hard = new AbortController();
     const onInt = () => (abort.signal.aborted ? hard.abort() : abort.abort());

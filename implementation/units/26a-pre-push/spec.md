@@ -1,7 +1,7 @@
 ---
 unit: "26a"
 name: pre-push
-status: draft (2026-11-09; Jet's six decisions taken in the interview; not approved yet)
+status: approved (2026-11-09; Jet's seven decisions taken in the interview; not built yet)
 roadmap: design/07-implementation-roadmap.md, row 26 (split, Jet's decision 2026-11-09: **26a** the `pre-push` hook and everything that blocks a push; **26b** the diff-coverage warning with trusted `coverage_paths`); D-15 (hooks outside the project, fail-closed scope, the secret scan for everyone; R-C2, R2-C1, R3-C2, AR3-1, TL3-18, TL3-22); D-16 (proofs); D-30 #10 and D-49 (the secret scan, the token's exact value); D-54 (the git-integrity hash); Q3; open question 05 §151 (the token's exact value)
 depends_on: ["05", "06", "10", "12", "12b", "13a", "13c", "14b", "22", "25a"]
 ---
@@ -102,4 +102,12 @@ No model run of its own: one manual run on the sample app (yours, about 10 minut
 
 ## Open points for you
 
-All seven decisions are taken (above); the four defaults are named. Waiting for your approval.
+All seven decisions are taken (above), and the four defaults are named. Approved by Jet on 2026-11-09 (PR #20), the defaults as written.
+
+## Changes during the build (2026-11-09)
+
+1. **The branch record's position isn't required at push.** The default said `verifyBranchAt`; the build requires that the branch adds `.mirai/records/<ticket>/branch.json` and that `gate check` passes (which verifies every record in the folder, the branch record's signature, branch and ticket included). `verifyBranchAt` also requires the record to be the first commit after its base, which any rebase onto a moved main breaks, while the proofs rightly survive a clean rebase (25a's P1). The ticket comes from the commits' trailers (exactly one, on every commit).
+2. **The push's trust base is the local integration branch, else its remote-tracking branch** (`pushBase`), for the trust root and the launcher's sealed copy alike, not "the remote's tip" as item 3 said: the first push after MIRAI is committed on main has no MIRAI on the remote at all, and pushing a refresh would otherwise run the old copy, which has no `hook` command. Only you commit on the integration branch.
+3. **`mirai fix` and `mirai review`** refuse with `hooks-off` too, beside `mirai build` (there is no `mirai run` yet): all three start agents.
+4. **25a's test fixture** (a ticket Kai built and Rex passed) moved to `test/proofs/fixture.js`, shared by 25a's and 26a's tests.
+5. **Known limit:** deleting the whole MIRAI home takes the hook script with it, and git runs no hook when its hooks folder is empty. The push isn't checked; `mirai build`, `fix` and `review` refuse (`hooks-off`), and `mirai status` shows `hook: off`. CI (unit 54) is the second check.

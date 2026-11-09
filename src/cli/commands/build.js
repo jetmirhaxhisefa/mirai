@@ -6,6 +6,8 @@ import { plain } from '../../status/text.js';
 import { OUTCOME_EXIT } from '../../agent/run.js';
 import { runBuild } from '../../agent/build.js';
 import { mintLaunchToken } from '../../agent/requests.js';
+import { requireHooks } from '../../hooks/install.js';
+import { openStore } from '../../store/home.js';
 
 // mirai build <ticket> (unit 21b; design/01 §7). Kai builds the ticket from the plan you approved,
 // on the ticket's own branch, and hands over; MIRAI then checks protected paths, new dependencies
@@ -25,6 +27,8 @@ export default {
     const [ticket] = args.positionals;
     checkTicketArg(ticket);
     requireTtyOrSession(io, 'mirai build', 'build');
+    // MIRAI's pre-push hook must be on before agents start (unit 26a).
+    requireHooks({ store: openStore({ cwd: io.cwd, env: io.env }), env: io.env });
     const abort = new AbortController();
     const hard = new AbortController();
     const onInt = () => (abort.signal.aborted ? hard.abort() : abort.abort());

@@ -6,6 +6,8 @@ import { plain } from '../../status/text.js';
 import { OUTCOME_EXIT } from '../../agent/run.js';
 import { runFix } from '../../agent/fix.js';
 import { mintLaunchToken } from '../../agent/requests.js';
+import { requireHooks } from '../../hooks/install.js';
+import { openStore } from '../../store/home.js';
 
 // mirai fix <ticket> (unit 21c; design/01 §7, D-18): fix rounds after a build whose own test run
 // found new failures. Kai gets those failures, from MIRAI's run, and fixes them, round by round,
@@ -23,6 +25,8 @@ export default {
     const [ticket] = args.positionals;
     checkTicketArg(ticket);
     requireTtyOrSession(io, 'mirai fix', 'fix');
+    // MIRAI's pre-push hook must be on before agents start (unit 26a).
+    requireHooks({ store: openStore({ cwd: io.cwd, env: io.env }), env: io.env });
     const abort = new AbortController();
     const hard = new AbortController();
     const onInt = () => (abort.signal.aborted ? hard.abort() : abort.abort());

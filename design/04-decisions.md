@@ -583,6 +583,14 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - **For units 46 and 54:** the merge policy. Squash, keeping the trailer, keeps failing intermediate steps off the integration branch.
   - **For D2 (stacking):** `rebase --onto` rewrites commits. Re-register the child (its new creation commit) and pin MIRAI's committer on the rebase.
 
+- **Update (unit 26a):**
+  - **The hooks folder** is `<mirai-home>/<repo-id>/hooks/`, beside the store (not `<trust-root>/hooks`: a trust root is per integration commit, and `core.hooksPath` would move with every one). `mirai init`, `--refresh` and `--join` write it and set `core.hooksPath` in `.git/config`. Its `pre-push` is a fixed three-line script that runs the `mirai` launcher's `hook pre-push`, and the launcher runs it from the **integration branch's sealed copy**, never the work tree's. The store records what the folder should hold; every push checks it (`hooks-changed`), and `mirai build`, `fix` and `review` refuse to start agents while it's off (`hooks-off`).
+  - **The repo's own hooks are forwarded** after your yes: a fixed forwarding script per hook; your `pre-push` runs first, then MIRAI's check.
+  - **One check, `prePushCheck`:** the hook calls it, and unit 27 calls it right before MIRAI's own push. MIRAI's own git keeps `core.hooksPath=/dev/null` (14b), so no planted hook ever runs inside MIRAI.
+  - **Its trust:** the local integration branch, else its remote-tracking branch (`pushBase`), not the run's "both agree": pushing an integration branch that's ahead is when they differ.
+  - **Scope** counts only the branch's own commits since its merge-base (the update above). The integration branch and tags get only the secret scan: your merge is the gate. In scope: no merge commit, every commit carries the same ticket's trailer, the ticket's `branch.json` is among the files the branch adds, and 25a's `gate check` passes for the pushed commit. The branch record's position (verifyBranchAt) isn't required: a rebase onto a moved main moves it, and the proofs survive a clean rebase.
+  - **The secret scan** reads each new commit's message and the lines its diff adds (`--text`, so binary files too), on every branch: the fixed-prefix shapes of `registry/secrets` and the login token's exact value in every form. **No entropy rule** (Jet, 2026-11-09): it moves to unit 54. A push it can't check is refused: `git push --no-verify` is the human's way past, as before.
+
 ### D-16 · Review and QA proofs are bound to the code change
 
 - **Context:**

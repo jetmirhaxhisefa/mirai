@@ -13,6 +13,7 @@ import { readHeartbeat, readRunState } from '../../store/run.js';
 import { MIRAI_COMMAND } from '../../adapters/claude-code.js';
 import { runLockHolder } from '../../store/global.js';
 import { sessionSettingsWarnings } from '../../store/session-settings.js';
+import { hooksState } from '../../hooks/install.js';
 
 // mirai status [<ticket>] [--json] (unit 05a, moved from unit 04). Reads the ticket status
 // files and the journal from the store, and shows each ticket's effective state: derived from
@@ -77,6 +78,14 @@ export default {
     }
 
     io.stdout.write(`repo: ${store.repoId}\n`);
+    // MIRAI's pre-push hook (unit 26a): off or changed, MIRAI starts no agents.
+    let hook;
+    try {
+      hook = hooksState({ store, env: io.env });
+    } catch (err) {
+      hook = { state: 'changed', why: err.message };
+    }
+    io.stdout.write(`hook: ${hook.state}${hook.state === 'ok' ? '' : ` (${plain(hook.why).slice(0, 200)}; run: mirai init --refresh)`}\n`);
     io.stdout.write(`${runLine(run)}\n`);
     io.stdout.write(`global lock: ${lockLine(lock)}\n`);
     for (const w of sessionSettingsWarnings(store)) io.stdout.write(`warning: ${plain(w)}\n`);

@@ -102,7 +102,8 @@ tool call. It looks at the file on disk, not just the name it's given, and refus
   fixed prefix, so ordinary code doesn't trip it. A key pasted as a test fixture is refused too;
   the agent is told to use a placeholder or make the key when the tests run. This checks what
   the **file tools** write; something written by a shell command isn't scanned here, and the
-  push check (unit 26) is the backstop for both.
+  push check is the backstop for both: every push scans what it adds for the same shapes and
+  the token (unit 26a, `docs/pre-push.md`).
 
 For **writes**, the hook is the gate: the agent's write tools work only when the hook allows
 the call, so a hook that fails to run means no write. For **reads**, Claude Code needs no
