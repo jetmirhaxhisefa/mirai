@@ -91,7 +91,9 @@ async function p1(ctx) {
   const hook = join(hooksDir(store), 'pre-push');
   const before = readFileSync(hook);
   appendFileSync(hook, ' ');
-  push('p1-hook-edited', branch);
+  // A new branch name, so the push has something to send: git runs no pre-push hook when a push
+  // is "Everything up-to-date" (the first P1 run's mistake).
+  push('p1-hook-edited', `${branch}:refs/heads/probe/hook-edited`);
   writeFileSync(hook, before);
 
   ctx.git('switch', '-q', '-c', 'human/probe', 'main');
