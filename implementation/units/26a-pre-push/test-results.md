@@ -51,3 +51,10 @@ The first run (same day) had all of these right but the edited-hook step: it pus
 
 - The new git calls (`rangeCommits`, `hasTrackingRefs`, `pushLog`, `setHooksPath`) across git versions: one git here (2.39.5, Apple); `git-probes.js --mirai` has no case for them yet (unit 54, against CI's).
 - A deleted MIRAI home: git then runs no hook (the known limit in the spec); `status` shows `hook: off` and `build` refuses, CI (unit 54) is the second check.
+
+## The sample app after the refresh (yours, 2026-11-09)
+
+The sample app refreshed to 26a (`b6aae96`, pushed; 13 files: the new `src/hooks/` folder and `hook.js`, `launch.js` in `bin/` and `src/launch/`, `build`/`fix`/`review`/`status`/`init`, the command list, `git.js`, `snapshot.js` and the lock). `init --refresh` installed the hook in the MIRAI home (`core.hooksPath`); `mirai status` shows `hook: ok`. The refresh commit's own push went through the hook.
+
+- **Red team: GREEN** on the first full run, key `ca4f1ed1a0c7a518`, framework `3108afb2a5e0`, Claude Code 2.1.319 (kept), 328 runs on 6 workers in 16 min 42 s; S1–S5 ok. "Bash denied before it ran" for `w-git-config` and `a-claude`, as before. Claude Code 2.1.321 is installed; agents stay on 2.1.319 until a red-team run on 2.1.321 is green.
+- **Baseline** for `b6aae96`, signed: lint pass; unit 13/14 with `KnownFailureSeedTest` failing 10 of 10 (the known failure); frontend 6/6; e2e 1/1. One gap (reported): the playwright adapter has no coverage.
