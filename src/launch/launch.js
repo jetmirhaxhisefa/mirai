@@ -47,6 +47,7 @@ export function decide({ cwd, env, argv, packageRoot = PACKAGE_ROOT }) {
   // then refuse what isn't right, instead of offering a fresh init.
   const installed = top !== null && present(join(top, LOCK_FILE));
   if (SELF.has(first)) return { run: 'self', why: `${first} always runs this launcher's MIRAI` };
+  if (first === 'hook') return decideHook(top, env);
   if (!installed) {
     if (OUTSIDE.has(first)) return { run: 'self', why: top ? 'MIRAI isn\'t installed in this repo' : 'not inside a git repository' };
     return refuse(top ? 'MIRAI isn\'t installed in this repo' : 'this folder is not inside a git repository', 'not-installed', 'run: mirai init');
@@ -94,6 +95,33 @@ export function decide({ cwd, env, argv, packageRoot = PACKAGE_ROOT }) {
   return refuse(`${FRAMEWORK} isn't the copy committed on ${store.branch}, nor this launcher's`, 'untrusted-copy', onBranch
     ? 'it was edited here; restore it: git checkout -- .mirai'
     : `this branch changed MIRAI's copy: read that change on the host first; to run it anyway: node ${FRAMEWORK}/bin/mirai.js${argv.map((a) => ` ${shellWord(a)}`).join('')}`);
+}
+
+// `hook` (unit 26a): the git hooks run the integration branch's own copy, sealed, whatever the
+// work tree holds (Jet's decision 2): the local branch, else its remote-tracking branch, as the
+// push check's trust root (pushBase). The work tree isn't compared: a branch from before MIRAI
+// was installed, or one that changed MIRAI's copy, is still checked by the trusted copy.
+function decideHook(top, env) {
+  if (top === null) return refuse('this folder is not inside a git repository', 'not-installed', 'git runs its hooks from inside the repo');
+  const root = realpathSync(top);
+  let store;
+  try {
+    store = storeOf(root, env);
+  } catch (err) {
+    return refuse(`this repo's MIRAI store can't be read (${err.message})`, err.code ?? 'store', err.hint ?? 'see the message');
+  }
+  if (!store) return refuse('this machine has no MIRAI store for this repo, so the integration branch is unknown', 'no-store', noStoreHint(root));
+  const all = remotes(root, env);
+  const remote = all.has('origin') ? 'origin' : all.size === 1 ? [...all.keys()][0] : null;
+  const refs = [[`refs/heads/${store.branch}`, store.branch], ...(remote ? [[`refs/remotes/${remote}/${store.branch}`, `${remote}/${store.branch}`]] : [])];
+  for (const [ref, label] of refs) {
+    const commit = commitOf(root, ref, env);
+    if (!commit) continue;
+    const listed = lockAt(root, commit, env);
+    if (listed && listed.size > 0) return { run: 'sealed', commit, files: listed, storeDir: store.dir, why: `the copy committed on ${label} (${commit.slice(0, 12)}), run sealed from the store` };
+    return refuse(`${label} (${commit.slice(0, 12)}) has no MIRAI copy MIRAI can run`, 'no-trusted-copy', `commit MIRAI on ${store.branch} (mirai init), then push it`);
+  }
+  return refuse(`the integration branch ${store.branch} has no commit here`, 'no-base', `fetch it: git fetch origin ${store.branch}`);
 }
 
 const present = (path) => {

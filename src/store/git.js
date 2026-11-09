@@ -22,7 +22,7 @@ import { parseDiff } from '../tests/diff.js';
 // (unit 07b) `ls-files`, (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff
 // --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files, (unit 16b) `diff -U0`,
 // (unit 17a) `for-each-ref` and `log`, (unit 18a) `clone`, (unit 24a) `diff -U<n> --text` between
-// two commits for the reviewer, (unit 25a) `diff -U3 --text` over literal paths for the proof hash. A new call needs its own probe (test/probes/git-probes.js
+// two commits for the reviewer, (unit 25a) `diff -U3 --text` over literal paths for the proof hash, (unit 26a) `log` for a push's commits and their `-p --text -U0` diffs, `for-each-ref` on a remote's tracking refs, `config --file .git/config core.hooksPath`. A new call needs its own probe (test/probes/git-probes.js
 // --mirai).
 
 const TIMEOUT_MS = 10_000;
@@ -556,6 +556,45 @@ export function commitsSince(root, from, to, env, { max = 500 } = {}) {
     const [sha, committerEmail, message] = x.split('\0');
     return { sha, committerEmail, message: message ?? '' };
   });
+}
+
+// The commits of `range` (such as "base..sha") for the push check (unit 26a): [{ sha, parents,
+// committerEmail, message }], newest first, at most `max`; null when git can't list them.
+export function rangeCommits(root, range, env, { max = 10_000 } = {}) {
+  const r = git(root, ['log', `--max-count=${max}`, '--no-show-signature', '--no-notes', '--no-decorate', '--no-color', '--encoding=UTF-8', '--format=%H%x00%P%x00%ce%x00%B%x01', range, '--'], env, { maxBuffer: 64 * MAX_OUTPUT, timeout: 60_000 });
+  if (!r.ok) return null;
+  return r.out.split('\x01').map((x) => x.replace(/^\n/, '')).filter(Boolean).map((x) => {
+    const [sha, parents, committerEmail, message] = x.split('\0');
+    return { sha, parents: (parents ?? '').split(' ').filter(Boolean), committerEmail, message: message ?? '' };
+  });
+}
+
+// Whether `remote` has any remote-tracking ref here (unit 26a: the commits a push adds are the
+// ones none of them reaches).
+export function hasTrackingRefs(root, remote, env) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$/.test(remote)) return false;
+  const r = git(root, ['for-each-ref', '--count=1', '--format=%(refname)', `refs/remotes/${remote}/`], env);
+  return r.ok && r.out !== '';
+}
+
+// What a push adds, for the secret scan (unit 26a): each commit of `head` not reachable from
+// `exclude` (commit ids, or `--remotes=<name>`), with its message and its diff against its first
+// parent (a root commit against the empty tree): `--text`, no renames, no context, no driver.
+// Each commit starts with a line `<marker> <sha>`, and its diff with a line `<marker>`. Raw bytes;
+// throws `git-output-too-large` over `maxBytes`.
+export function pushLog(root, head, exclude, env, { marker, maxBytes = 64 * MAX_OUTPUT } = {}) {
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(head)) throw new StoreError('not a commit id', { code: 'bad-ref' });
+  if (!/^[A-Za-z0-9-]{16,64}$/.test(marker ?? '')) throw new TypeError('a marker');
+  const r = git(root, ['log', '-p', '--text', '-U0', '--no-renames', ...DIFF_FLAGS, '--ignore-submodules=none', '--diff-merges=first-parent', '--root', '--src-prefix=a/', '--dst-prefix=b/',
+    '--no-show-signature', '--no-notes', '--no-decorate', '--encoding=UTF-8', `--format=${marker} %H%n%B%n${marker}`, head, '--not', ...exclude, '--'], env, { raw: true, maxBuffer: maxBytes, timeout: 120_000 });
+  if (!r.ok) throw new StoreError('git log for the push failed', { code: 'git-failed' });
+  return r.out;
+}
+
+// Sets core.hooksPath in the repo's own .git/config (unit 26a; never the global config).
+export function setHooksPath(root, path, env) {
+  const r = git(root, ['config', '--file', join(root, '.git', 'config'), 'core.hooksPath', path], env);
+  if (!r.ok) throw new StoreError('git couldn\'t set core.hooksPath', { code: 'git-failed' });
 }
 
 // Commit ids of `range` (such as "base..ref"), oldest first with `reverse`, at most `max` of them

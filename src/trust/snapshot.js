@@ -79,9 +79,25 @@ export function baseCommit(root, branch, env) {
 // manifestSha256, reused }.
 // `keep`: base commits whose snapshots a running run still uses (unit 19 passes its own), never
 // pruned.
-export function snapshot({ cwd, env, now = () => new Date(), keep = [] }) {
+// `forPush` (unit 26a's pre-push check): the integration branch's commit as a push sees it
+// (pushBase).
+export function snapshot({ cwd, env, now = () => new Date(), keep = [], forPush = false }) {
   const store = openStore({ cwd, env });
-  return withLock(join(store.dir, 'trust.lock'), () => build(store, { env, now, keep }));
+  return withLock(join(store.dir, 'trust.lock'), () => build(store, { env, now, keep, forPush }));
+}
+
+// The integration branch's commit for a push (unit 26a): the local branch, else its
+// remote-tracking branch. Not baseCommit's "both sides agree": pushing an integration branch
+// that's ahead of its remote is exactly when they differ, and its first push (MIRAI just
+// committed on it) has nothing on the remote to trust. Only you commit on it (agents never
+// commit; MIRAI commits on ticket branches only). Never fetches.
+export function pushBase(root, branch, env) {
+  const all = remotes(root, env);
+  const remote = all.has('origin') ? 'origin' : all.size === 1 ? [...all.keys()][0] : null;
+  const local = commitOf(root, `refs/heads/${branch}`, env);
+  const base = local ?? (remote ? commitOf(root, `refs/remotes/${remote}/${branch}`, env) : null);
+  if (!base) throw new TrustError(`the integration branch ${branch} has no commit here`, { code: 'no-base' });
+  return base;
 }
 
 // The bases your sessions' MIRAI server runs from (unit 15b, src/mcp/session.js): every trust
@@ -107,9 +123,9 @@ function registeredBase(store) {
   return bases;
 }
 
-function build(store, { env, now, keep }) {
+function build(store, { env, now, keep, forPush = false }) {
   const root = store.checkout;
-  const base = baseCommit(root, store.branch, env);
+  const base = forPush ? pushBase(root, store.branch, env) : baseCommit(root, store.branch, env);
   const home = join(store.repoHome, TRUST_FOLDER);
   ensurePrivateDir(home);
   const record = readRecord(store);

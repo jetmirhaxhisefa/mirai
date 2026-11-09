@@ -148,7 +148,7 @@ They were raised in `research/04` §6:
   - the headless network allowlist is tested **empty** (G16), and dependency installs go only
     through the broker;
   - `WebFetch`/`WebSearch` and `claude` from Bash are denied (unit 13);
-  - the secret scan matches the token's exact value (unit 26).
+  - the secret scan matches the token's exact value (unit 26; built in 26a: every push, every branch, every form `tokenForms` lists).
 
   Whether the token can be kept out of the Bash environment is G9. DNS from sandboxed Bash and
   from an internal compose network is G19. If the token stays readable, the residual risk is

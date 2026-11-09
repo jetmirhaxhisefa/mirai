@@ -41,6 +41,8 @@ if (decision.refuse && (argv[0] === '--version' || argv[0] === '--help' || argv[
 }
 if (decision.refuse) {
   process.stderr.write(`mirai: ${decision.refuse}\n${decision.hint}\n`);
+  // A git hook that can't run its check refuses the push (unit 26a, Jet's decision 6).
+  if (argv[0] === 'hook') process.stderr.write('mirai: the push wasn\'t checked, so it\'s refused; to push anyway: git push --no-verify\n');
   process.exit(decision.exitCode);
 }
 if (decision.run === 'self') {
@@ -51,6 +53,7 @@ if (decision.run === 'self') {
     sealed = sealedCopy({ root: process.cwd(), env, storeDir: decision.storeDir, commit: decision.commit, files: decision.files });
   } catch (err) {
     process.stderr.write(`mirai: ${err.message}\n${err.hint ? `${err.hint}\n` : ''}`);
+    if (argv[0] === 'hook') process.stderr.write('mirai: the push wasn\'t checked, so it\'s refused; to push anyway: git push --no-verify\n');
     process.exit(err.exitCode ?? 1);
   }
   // The child shares the terminal, so Ctrl-C reaches it directly: the launcher waits for it to
