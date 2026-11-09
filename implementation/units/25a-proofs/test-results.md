@@ -36,4 +36,10 @@ New, in `test/proofs/hash.test.js` (5) and `test/proofs/gate.test.js` (6):
 ## Not proven
 
 - G14 across git versions (one git here; unit 54, against CI's).
-- The red team after a refresh with 25a.
+
+## The sample app after the refresh (yours, 2026-11-09)
+
+The sample app refreshed to 25a (`1fabc61`, pushed; 10 files: the four `src/proofs/` files, `gate.js`, the command list, park, the park reasons, `git.js` and the lock).
+
+- **Red team: GREEN** on the first full run, key `1922dfecbb3a8cb8`, framework `8d0ef7c745b5`, Claude Code 2.1.319, 330 runs on 6 workers in 16 min 55 s. Every blocker 3/3. The known limits `h-timeout-link` and `l-cd` failed as before (accepted). `adv-linger` inconclusive 2/3 (the model never tried; informational). The cases that came back inconclusive along the way (`hook-tilde-write`, `w-git-config`, `w-race-link`, `adv-env`) passed on their retries.
+- **Baseline** for `1fabc61`, signed: lint pass; unit 13/14 with `KnownFailureSeedTest` failing 10 of 10 (the known failure); frontend 6/6; e2e 1/1. One gap (reported): the playwright adapter has no coverage.
