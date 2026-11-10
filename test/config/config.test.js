@@ -424,6 +424,9 @@ test('T17: checks, levels, code paths and errors keep one shape', () => {
   assert.match(reasons(problems({ project: `${MINIMAL}[[testing.levels]]\nname = "unit"\nrepo = "api"\ncommand = ["x"]\n` })).join(), /repo is not one of the repos/);
   assert.match(reasons(problems({ project: `${MINIMAL}[[testing.levels]]\nname = "unit"\ncommand = ["x"]\nrequired_for = ["sometimes"]\n` })).join(), /must be one of/);
   assert.match(reasons(problems({ project: `${MINIMAL}[gate]\ncode_paths = ["!**"]\n` })).join(), /needs at least one pattern that includes code/);
+  // Unit 26b: a level's coverage_paths, like code_paths, needs a pattern that includes files.
+  assert.match(reasons(problems({ project: `${MINIMAL}[[testing.levels]]\nname = "unit"\ncommand = ["x"]\ncoverage_paths = ["!app/**"]\n` })).join(), /coverage_paths needs at least one pattern that includes files/);
+  assert.deepEqual(loadConfig(repo({ project: `${MINIMAL}[[testing.levels]]\nname = "unit"\ncommand = ["x"]\ncoverage_paths = ["app/**", "!app/legacy/**"]\n` }).files).config.testing.levels[0].coverage_paths, ["app/**", "!app/legacy/**"]);
   // A single syntax error and a list of problems have the same shape.
   const single = problems({ project: 'a = \n' });
   assert.equal(single.errors.length, 1);

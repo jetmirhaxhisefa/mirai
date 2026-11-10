@@ -148,7 +148,8 @@ export function prePushCheck({ cwd, env, remote, updates, checkHooks = true }) {
     }
     const p = checkProofs({ root, env: genv, ticket, commit: u.localSha, integration: trust.baseSha, codePaths: config.gate?.code_paths, keys, repoId: store.repoId, rules, docsRoot: config.docs?.root });
     if (p.outcome === 'pass' || p.outcome === 'nothing-to-prove') {
-      done('pass', p.outcome === 'pass' ? `${ticket}: the review and gate proofs match code ${p.hash.slice(7, 19)}` : `${ticket}: no code changed`, undefined, { ticket });
+      // Unit 26b: the gate proof's diff coverage, a warning only (Milestone A).
+      done('pass', p.outcome === 'pass' ? `${ticket}: the review and gate proofs match code ${p.hash.slice(7, 19)}` : `${ticket}: no code changed`, undefined, { ticket, ...(p.outcome === 'pass' ? { diffCoverage: p.matched.gate.diffCoverage ?? null } : {}) });
       continue;
     }
     const hint = p.outcome === 'bad-record' ? `look at ${p.bad.map((b) => b.path).slice(0, 2).join(', ')}: only MIRAI's signed records belong there` : `mint them after the review: mirai gate record ${ticket}`;

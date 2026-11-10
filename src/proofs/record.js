@@ -15,12 +15,15 @@ import { loadSigner } from '../sign/signer.js';
 import { contentHash } from '../sign/sign.js';
 import { verifyBranchAt } from '../store/branch-record.js';
 import { readPrivateFile } from '../store/files.js';
-import { commitOf, ignoredNames, lsTree, mergeBase, workTreeChanges } from '../store/git.js';
+import { isBinary } from '../review/diff.js';
+import { blobAt, changedLines, commitOf, ignoredNames, lsTree, mergeBase, workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { readRunLog, runIds } from '../store/run-log.js';
 import { readTicketStatus } from '../store/tickets.js';
 import { gateCheck } from '../tests/gate.js';
-import { runTest } from '../tests/run.js';
+import { findAdapter, trustedAdapters } from '../tests/adapters.js';
+import { combinedCoverage, gateChanges } from '../tests/diff-coverage.js';
+import { findTarget, runTest } from '../tests/run.js';
 import { protectionRules } from '../trust/protected.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { codeHash, codePathsHide } from './hash.js';
@@ -37,6 +40,9 @@ import { PROOF_NAME, PROOF_SCHEMA, RECORDS_DIR, proofPath, proofText, signProof 
 //   5. every named check and test level run now, at HEAD, signed (decision 5), each judged against
 //      that baseline with docs/test-baseline.md's rule;
 //   6. the `review` and `gate` proofs written and committed on the branch (decision 6).
+// Unit 26b: the test levels whose adapter has coverage run with it, and the gate proof carries
+// the diff coverage from the merge-base to HEAD over every level (`diff_coverage`): a warning,
+// never a reason to refuse (Milestone A).
 // The work tree and the ignored files must be what they were from step 1 to the signature (R3-M8).
 
 const fail = (message, code, exitCode = EXIT.BLOCKED, hint) => Object.assign(new MiraiError(message, exitCode), { code, ...(hint ? { hint } : {}) });
@@ -133,8 +139,16 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
 
   // 5. Every check and level, now, signed (decision 5).
   const results = new Map();
+  // Unit 26b: the levels whose adapter has coverage run with it, as the baseline's do.
+  const adapters = trustedAdapters(trust);
+  const levelNames = new Set((config.testing?.levels ?? []).map((l) => l.name));
+  const measures = (name) => {
+    if (!levelNames.has(name)) return false;
+    const target = findTarget(config, name);
+    return Boolean(target.adapter && findAdapter(adapters, target.adapter)?.coverage);
+  };
   const signedRun = async (o) => {
-    const r = await run({ ...o, by: 'you', gate: { branch, head, signer } });
+    const r = await run({ ...o, ...(measures(o.name) ? { coverage: true } : {}), by: 'you', gate: { branch, head, signer } });
     results.set(o.name, r);
     return r;
   };
@@ -142,6 +156,9 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
   if (treeState(store) !== before || commitOf(store.checkout, 'HEAD', store.gitEnv) !== head) throw fail('the work tree changed while the gate ran', 'dirty', EXIT.BLOCKED, 'look for a process still working in the project, then run it again');
   if (tests.verdict === 'fail') return { ticket, outcome: 'gate-failed', why: tests.runs.filter((x) => x.verdict === 'fail').map((x) => `${x.name}: ${x.why}${x.fresh?.length ? ` (${x.fresh.slice(0, 5).join(', ')})` : ''}`).join('; '), tests, hash: code.hash };
   if (tests.verdict !== 'pass') return { ticket, outcome: 'cant-tell', why: [tests.why, ...tests.runs.filter((x) => x.verdict === 'unknown').map((x) => `${x.name}: ${x.why}`)].filter(Boolean).join('; '), tests, hash: code.hash };
+
+  // Unit 26b: diff coverage over every level, from the merge-base (decisions 1–4).
+  const diffCoverage = diffCoverageOf({ store, config, baseline, results, measures, base, head, codePaths });
 
   // 6. The proofs.
   const common = { schema: PROOF_SCHEMA, ticket, code_hash: code.hash, base_sha: base, head_sha: head, trust_root_hash: trust.manifestSha256, framework_version: RUNNING_VERSION, framework_hash: frameworkHash(trust, { all: true }), trace: 'n/a', outcome: 'pass', minted_at: now().toISOString() };
@@ -179,6 +196,7 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
       digest: baselineDigest,
       known_failures: Object.fromEntries(tests.runs.map((x) => [x.name, (knownFailures(baseline, x.name) ?? []).map(({ id, scope, kind }) => ({ id: id ?? null, scope, kind: kind ?? null }))])),
     },
+    diff_coverage: diffCoverage,
   };
   const written = [];
   const files = [];
@@ -202,7 +220,45 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
       if (changes.length !== expected.size || changes.some((c) => !expected.has(c))) throw fail('something besides the proofs changed in the work tree', 'dirty', EXIT.BLOCKED, 'look for a process still working in the project; nothing was committed');
     },
   });
-  return { ticket, outcome: 'recorded', hash: code.hash, files: code.files, commit: sha, written, review: review.n, gate: gateProof.round, tests, base };
+  return { ticket, outcome: 'recorded', hash: code.hash, files: code.files, commit: sha, written, review: review.n, gate: gateProof.round, tests, base, diffCoverage };
+}
+
+// The gate proof's `diff_coverage` (unit 26b). Each test level: its coverage from this run (null
+// when it gave none), and its scope: the integration branch's `coverage_paths`, or else the files
+// its baseline measured. A level whose adapter has no coverage measures nothing; a
+// `coverage_paths` on it is named in `ignored`.
+export function diffCoverageOf({ store, config, baseline, results, measures, base, head, codePaths }) {
+  const levels = [];
+  const facts = {};
+  const ignored = [];
+  for (const l of config.testing?.levels ?? []) {
+    if (!measures(l.name)) {
+      if (l.coverage_paths) ignored.push(l.name);
+      continue;
+    }
+    const r = results.get(l.name);
+    let coverage = null;
+    if (r?.coverage?.state === 'ok' && r.dir) {
+      try {
+        coverage = JSON.parse(readFileSync(join(r.dir, 'coverage.json'), 'utf8'));
+      } catch {
+        coverage = null;
+      }
+    }
+    const measured = baseline?.levels?.[l.name]?.measured ?? null;
+    const scope = l.coverage_paths ? { kind: 'coverage_paths', paths: l.coverage_paths } : measured ? { kind: 'baseline', files: measured.files } : null;
+    levels.push({ name: l.name, coverage, scope });
+    facts[l.name] = {
+      coverage: coverage ? 'ok' : (r?.coverage?.state ?? 'none'),
+      coverage_sha256: r?.coverage?.sha256 ?? null,
+      scope: scope?.kind ?? null,
+      ...(scope?.kind === 'coverage_paths' ? { coverage_paths: l.coverage_paths } : {}),
+      measured_sha256: measured?.sha256 ?? null,
+    };
+  }
+  const changes = gateChanges({ root: store.checkout, env: store.gitEnv, base, head, changedLines, blobAt, isBinary });
+  const c = combinedCoverage(changes, levels, { codePaths });
+  return { base_sha: base, head_sha: head, renames: 'exact', ...c, levels: facts, ...(ignored.length ? { ignored } : {}) };
 }
 
 // A proof file in the checkout: its folder made, the file created new (never overwritten).

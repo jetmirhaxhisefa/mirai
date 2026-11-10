@@ -98,6 +98,15 @@ const level = {
     purpose: { type: 'string' },
     required_for: { type: 'array', items: { type: 'enum', values: REQUIRED_FOR } },
     budget_minutes: { type: 'integer', min: 1 },
+    // The files this level must measure (unit 26b, diff coverage): a changed file inside them
+    // that no level's coverage lists counts as uncovered. Read from the integration branch's
+    // config only. Without it, the files the level's baseline measured.
+    coverage_paths: {
+      ...globs,
+      check(value, path, report) {
+        if (!value.some((p) => !p.startsWith('!'))) report(path, `${path} needs at least one pattern that includes files`, 'for example "backend/app/**"', 'range');
+      },
+    },
     ...RUN_IN,
   },
   required: ['name', 'command'],

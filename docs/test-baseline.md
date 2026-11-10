@@ -73,8 +73,9 @@ level and check:
   outcome, result hash);
 - the test counts and the hash of every case (`cases.json`);
 - its known failures: `{ id, scope, kind?, state, runs, failed, first?, reason? }`;
-- with coverage: the summary, and **the files it measures** with a hash of the list, so unit 26
-  can see a branch stop measuring a file.
+- with coverage: the summary, and **the files it measures** with a hash of the list, so unit 26b
+  can see a branch stop measuring a file: for a level without `coverage_paths`, a changed file
+  its baseline measured that no level lists at ship counts as not run.
 
 The runs themselves are kept with the test runs (`<store>/tests/gate/`, the last 100), so a
 baseline outlives its runs' files; its hashes still name exactly what ran.

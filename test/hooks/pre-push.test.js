@@ -12,7 +12,7 @@ import { parseUpdates, prePushCheck, trailerValues } from '../../src/hooks/pre-p
 import { parseLog } from '../../src/hooks/secrets.js';
 import { PACKAGE_ROOT } from '../../src/install/parts.js';
 import { openStore } from '../../src/store/home.js';
-import { TOKEN, passed } from '../proofs/fixture.js';
+import { COV_CONFIG, TOKEN, coveringRun, passed } from '../proofs/fixture.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
 
 // Unit 26a: MIRAI's pre-push hook, through real `git push`es to a bare repo (no model, no Docker,
@@ -69,6 +69,8 @@ test('26a: a MIRAI branch with its proofs pushes; after a code change it\'s stal
   let r = f.push(branch);
   assert.equal(r.code, 0, r.err);
   assert.match(r.err, /mirai pre-push: .*: pass: PMT-31: the review and gate proofs match/);
+  // Unit 26b: the gate proof's diff coverage (no level here measures app/Team.php).
+  assert.match(r.err, /diff coverage: no changed lines to measure/);
 
   // A code change after the proofs, made as MIRAI would (its trailer): stale.
   writeFileSync(join(f.root, 'app/Team.php'), `${readFileSync(join(f.root, 'app/Team.php'), 'utf8')}// more\n`);
@@ -288,3 +290,13 @@ test('26a: the commits a push adds are the ones the remote\'s tracking refs don\
   assert.equal(EXIT.OK, 0);
 });
 
+test('26b: the push warns from the gate proof\'s diff coverage, and still pushes', async () => {
+  const f0 = await passed({ config: COV_CONFIG });
+  const rec = await f0.record({ run: coveringRun({ unit: { 'app/Team.php': { 4: 0 } } }).run });
+  assert.equal(rec.outcome, 'recorded', rec.why);
+  const f = await withRemote(f0);
+  const r = f.push(f.git('rev-parse', '--abbrev-ref', 'HEAD'));
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.err, /: pass: PMT-31: the review and gate proofs match/);
+  assert.match(r.err, /\n {2}warning: diff coverage 0 of 1 changed lines ran \(0%\); no test ran these lines:\n {4}app\/Team\.php 4\n/);
+});

@@ -61,7 +61,7 @@ export function checkProofs({ root, env, ticket, commit, integration, codePaths,
       bad(r.reason);
       continue;
     }
-    const p = { path: e.path, kind: r.proof.kind, round: r.proof.round, keyId: r.keyId, codeHash: r.proof.code_hash };
+    const p = { path: e.path, kind: r.proof.kind, round: r.proof.round, keyId: r.keyId, codeHash: r.proof.code_hash, ...(r.proof.kind === 'gate' ? { diffCoverage: r.proof.diff_coverage ?? null } : {}) };
     if (r.proof.code_hash === hash && (r.proof.kind === 'review' || r.proof.kind === 'gate')) {
       // The newest round or attempt of each kind for this hash.
       if (!out.matched[r.proof.kind] || out.matched[r.proof.kind].round < p.round) out.matched[r.proof.kind] = p;

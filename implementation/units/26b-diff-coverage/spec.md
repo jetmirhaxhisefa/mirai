@@ -1,7 +1,7 @@
 ---
 unit: "26b"
 name: diff-coverage
-status: draft (Jet's four decisions taken in the interview, 2026-11-09; waiting for approval)
+status: approved (2026-11-10; Jet's four decisions taken in the interview, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 26 (split, Jet's decision 2026-11-09: **26a** the `pre-push` hook, built; **26b** the diff-coverage warning with trusted `coverage_paths`); D-45 point 3 (diff coverage, not file coverage); G7 (design/05: diff coverage per stack); the row's notes from 16b's and 17b's reviews (the baseline's measured files, a trusted `coverage_paths` per level, renames, the record fields)
 depends_on: ["16b", "17b", "25a", "26a"]
 ---
@@ -86,3 +86,10 @@ One manual run on the sample app (yours, about 12 minutes, one Sonnet review as 
 ## Open points for you
 
 The four decisions are taken (above), and four defaults are named. Approve the spec, or say which default to change.
+
+## Changes during the build (2026-11-10)
+
+1. **Binary files are told apart by their bytes, not by git.** The changed lines are read with `--text`, so a branch's `.gitattributes` (`-diff`, `binary`) can't hide a file's lines from the warning; a file whose new content is binary (a NUL byte in its first 8,000 bytes, the review's rule) or over 4 MiB is listed apart. Spec item 3 said "as 16b", which trusts git's binary call.
+2. **The git probe covers the new calls:** `git-probes.js --mirai` gained 26a's `rangeCommits`, `hasTrackingRefs` and `pushLog` (PROGRESS's open item from 26a) and 26b's `changedLines` with exact renames; every case passed (2026-11-10).
+3. **Test files:** the combining rules, renames, the text and `gate record` are in `test/proofs/coverage.test.js`; the push's warning in `test/hooks/pre-push.test.js`; `coverage_paths` in `test/config/config.test.js`'s T17. The stand-in covering run and the coverage config are in the shared `test/proofs/fixture.js`.
+4. **`gate check` always prints the coverage lines** of the gate proof it matched (all files); `gate record` prints up to 20, the push 5.

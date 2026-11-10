@@ -45,6 +45,22 @@ A branch counts as MIRAI's only by its own commits since it left the integration
 branch of yours built on top of merged MIRAI work is yours. Pushing the integration branch itself,
 or a tag, gets only the secret scan: your merge is the gate there.
 
+## Diff coverage: a warning
+
+When a MIRAI branch passes, the push also prints the diff coverage that `mirai gate record`
+signed into the gate proof (unit 26b): how many of the lines the ticket added that can run were
+run by a test, and the files and lines that weren't:
+
+```
+mirai pre-push: feature/PMT-31-…: pass: PMT-31: the review and gate proofs match code 3f1c…
+  warning: diff coverage 41 of 45 changed lines ran (91%); no test ran these lines:
+    backend/app/Http/Controllers/TaskController.php 52-55
+```
+
+It never blocks in Milestone A (unit 54 makes it blocking, in CI). `mirai gate check <ticket>`
+prints it in full. What counts (a level's `coverage_paths`, the baseline's measured files, exact
+renames) is in `docs/test-adapters.md`. A proof minted before unit 26b says "none in this proof".
+
 ## When it refuses
 
 Each ref gets one line, `pass` or `blocked (<code>)`, with the reason and what to do:
