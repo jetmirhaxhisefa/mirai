@@ -16,7 +16,10 @@ import { blobAt } from '../store/git.js';
 // Returns { data, title, leftOut }.
 
 const MAX_FOLLOWUPS = 10;
-const oneLine = (text, max) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+// One line of plain text: markdown code spans lose their backticks (the plan writes paths and
+// calls in them; passed through, the renderer escapes the backticks and the line reads garbled:
+// 27a's P1), whitespace runs become one space.
+const oneLine = (text, max) => String(text ?? '').replace(/`+([^`]*)`+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // The lines under a `## name` heading, up to the next heading of level 1 or 2; fenced code skipped.
 export function section(body, name) {

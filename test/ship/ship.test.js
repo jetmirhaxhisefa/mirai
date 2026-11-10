@@ -110,6 +110,8 @@ test('27a: the description: the review line, short follow-ups, nothing citing a 
   assert.ok(data.what_changed.length > 0);
   assert.deepEqual(data.files, [{ label: 'Ticket', path: 'docs/mirai/tickets/PMT-31.md' }]);
   assert.equal(Object.hasOwn(data, 'findings'), false);
+  // The plan's code spans arrive as plain text (27a's P1: passed through, they rendered garbled).
+  assert.ok(data.what_changed.every((l) => !l.includes('`')), JSON.stringify(data.what_changed));
 });
 
 test('27a: ship opens one MR, a second run changes nothing, an edited description is put back', async () => {
