@@ -668,3 +668,37 @@ export function commitAndBlob(root, ref, path, env, { maxBytes = 4 * 1024 * 1024
     bytes: second?.type === 'blob' && second.body.length <= maxBytes ? Buffer.from(second.body) : null,
   };
 }
+
+// MIRAI's push (unit 27a; Jet's decision 1): pinned git as every call, plus one credential helper
+// for this call only: the host's CLI (`gh` or `glab`, its absolute path recorded by `mirai init`),
+// given your HOME and its config folder in the helper's own command, so git itself keeps the
+// pinned empty HOME. The pins' empty `credential.helper` comes first and resets every helper a
+// config file named; this one is added after it. The token stays between the CLI and git: never
+// in arguments, files or the repo. `url` is the repo's https URL (never a remote's name, so
+// `remote.*` config isn't read) or, for tests, an absolute path. `sha` goes to
+// refs/heads/<branch>; `lease` is the sha the branch must still be at (`--force-with-lease`).
+// No hook runs (the pins' hooksPath); the push check ran before this (unit 26a, decision 5).
+// Returns { ok, out }; a refused push is { ok: false, why } with git's porcelain line.
+export function pushBranch(root, url, branch, sha, env, { helper = null, lease = null, timeout = 300_000 } = {}) {
+  checkGuards(root);
+  checkRepo(root, env);
+  if (!(/^https:\/\/[^\s'"\\@]+$/.test(url) || (url.startsWith('/') && !/[\s'"\\]/.test(url)))) throw new StoreError('a push goes to an https URL', { code: 'bad-url' });
+  if (!BRANCH_NAME.test(branch)) throw new StoreError(`${JSON.stringify(branch.slice(0, 60))} isn't a branch name MIRAI uses`, { code: 'bad-branch' });
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha) || (lease !== null && !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(lease))) throw new StoreError('a push names full commit ids', { code: 'bad-sha' });
+  const extra = [];
+  if (helper) {
+    const { command, home, configDir, configVar } = helper;
+    if (![command, home, configDir].every((p) => typeof p === 'string' && p.startsWith('/'))) throw new StoreError('the credential helper needs absolute paths', { code: 'bad-helper' });
+    if (!/^[A-Z_]{1,40}$/.test(configVar)) throw new StoreError('the credential helper\'s config variable isn\'t a name', { code: 'bad-helper' });
+    extra.push('-c', `credential.helper=!HOME=${shQuote(home)} ${configVar}=${shQuote(configDir)} ${shQuote(command)} auth git-credential`);
+  }
+  const { path: excludesFile } = excludesFor(env, root, gitBinary);
+  const args = ['--no-replace-objects', ...pinArgs({ excludesFile }), ...extra, 'push', '--porcelain', '--no-verify',
+    ...(lease ? [`--force-with-lease=refs/heads/${branch}:${lease}`] : []), url, `${sha}:refs/heads/${branch}`];
+  const r = exec(root, args, pinEnv({ top: root }), { timeout });
+  if (r.ok) return { ok: true, out: r.out };
+  const line = String(r.out ?? '').split('\n').find((l) => /^[!=*+ -]\t/.test(l)) ?? '';
+  return { ok: false, why: line.split('\t').slice(2).join(' ').trim() || 'git refused the push' };
+}
+
+const shQuote = (s) => `'${String(s).replace(/'/g, '\'\\\'\'')}'`;

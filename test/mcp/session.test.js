@@ -8,7 +8,7 @@ import { Readable } from 'node:stream';
 
 import { init } from '../../src/install/init.js';
 import { openStore } from '../../src/store/home.js';
-import { checkEvent, readJournal } from '../../src/store/journal.js';
+import { checkEvent, JOURNAL_SCHEMA_VERSION, readJournal } from '../../src/store/journal.js';
 import { KEEP_SNAPSHOTS, snapshot } from '../../src/trust/snapshot.js';
 import { checkPolicy, createServer, PolicyError, readPolicy, toolList } from '../../src/mcp/server.js';
 import { addArgs, findClaude, install, LOCAL_SETTINGS, policyFiles, remove, sessionServer, sessionToolNames, SESSION_LOG_CAPS, status } from '../../src/mcp/session.js';
@@ -185,7 +185,7 @@ test('15b T3: log_event in a session: by session with its registration, no launc
   const other = harness(capped, { now: () => new Date(day) });
   assert.equal((await h.call('log_event', { type: 'note', message: 'from my session' })).logged, 'note');
   const line = readJournal(r.store).events.find((e) => e.by === 'session');
-  assert.deepEqual([line.registration_id, line.launch_id, line.item, line.schema_version], [policy.registration_id, undefined, undefined, 4]);
+  assert.deepEqual([line.registration_id, line.launch_id, line.item, line.schema_version], [policy.registration_id, undefined, undefined, JOURNAL_SCHEMA_VERSION]);
   assert.equal((await other.call('log_event', { type: 'note', message: 'two' })).logged, 'note');
   const full = await h.call('log_event', { type: 'note', message: 'three' });
   assert.equal(full.code, 'log-full');

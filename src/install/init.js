@@ -18,6 +18,9 @@ import { LOCAL_FILE, applyPlan, renderPlan, undoAll } from './render.js';
 // never uses the network.
 
 import { PACKAGE_ROOT, FRAMEWORK_PARTS } from './parts.js';
+import { CLOUD, remoteHost } from '../ship/host.js';
+
+const cloudHostOf = (url) => Object.keys(CLOUD).find((k) => new URL(CLOUD[k]).host === remoteHost(url ?? '')) ?? null;
 
 export { PACKAGE_ROOT, FRAMEWORK_PARTS };
 const FRAMEWORK_DIR = '.mirai/framework';
@@ -94,7 +97,10 @@ export function init({ cwd, env, branch: wanted, refresh = false, now = () => ne
     let configBytes = kept;
     let config = keptConfig;
     if (kept === null) {
-      configBytes = Buffer.from(`schema_version = 1\n\n[git]\nintegration_branch = ${tomlString(branch)}\n`, 'utf8');
+      // Unit 27a: the host, when the remote is on a cloud host MIRAI knows (a self-hosted server
+      // can't be told from its address: you set [git] host and host_url yourself).
+      const cloud = cloudHostOf(remotes(root, env).get('origin'));
+      configBytes = Buffer.from(`schema_version = 1\n\n[git]\nintegration_branch = ${tomlString(branch)}\n${cloud ? `host = ${tomlString(cloud)}\n` : ''}`, 'utf8');
       writeNew(join(stage, 'config.toml'), configBytes);
       config = loadProjectConfig(root, join(stage, 'config.toml'));
       if (config.git.integration_branch !== branch) {

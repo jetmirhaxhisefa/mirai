@@ -62,6 +62,7 @@ async function record(ticket, io) {
       for (const l of coverageLines(r.diffCoverage, { files: 20, ticket })) io.stdout.write(`${l}\n`);
       for (const p of r.written) io.stdout.write(`  wrote ${plain(p)}\n`);
       io.stdout.write(`  committed ${r.commit.slice(0, 12)} on the ticket's branch; check it with: mirai gate check ${ticket}\n`);
+      io.stdout.write(`next: mirai ship ${ticket}\n`);
     }
     if (r.outcome === 'gate-failed') io.stdout.write('  nothing was written: fix the failing tests (mirai fix), then review and record again\n');
     if (r.outcome === 'cant-tell') io.stdout.write('  nothing was written: MIRAI can\'t tell these from the baseline; look at them yourself\n');

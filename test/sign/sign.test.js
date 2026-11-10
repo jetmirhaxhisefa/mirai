@@ -14,7 +14,7 @@ import { checkKeyChange } from '../../src/sign/key-rule.js';
 import { loadSigner } from '../../src/sign/signer.js';
 import { createStore, openStore } from '../../src/store/home.js';
 import { atomicWrite } from '../../src/store/files.js';
-import { appendEvent, journalContext, readJournal } from '../../src/store/journal.js';
+import { appendEvent, JOURNAL_SCHEMA_VERSION, journalContext, readJournal } from '../../src/store/journal.js';
 import { readTicketStatus, signHumanMove, writeTicketStatus } from '../../src/store/tickets.js';
 import { git, HERE, refused, setup, tmp } from '../store/helpers.js';
 
@@ -379,7 +379,7 @@ test('T10b: a signed line copied into another repo\'s journal doesn\'t verify th
   atomicWrite(join(storeB.dir, 'journal.jsonl'), line);
   atomicWrite(join(storeB.dir, 'seq'), '1\n');
   refused(() => readJournal(openStore({ cwd: b.repo, env: a.env })), 'bad-signature');
-  assert.match(journalContext(storeB), /^mirai\/journal\/4:/);
+  assert.match(journalContext(storeB), new RegExp(`^mirai/journal/${JOURNAL_SCHEMA_VERSION}:`));
 });
 
 test('T11: the key-change rule', () => {

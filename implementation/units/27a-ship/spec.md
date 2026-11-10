@@ -1,7 +1,7 @@
 ---
 unit: "27a"
 name: ship
-status: draft (Jet's five decisions, 2026-11-10; waiting for approval)
+status: approved (2026-11-10; Jet's five decisions, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 27 (split, Jet's decision 2026-11-10: **27a** `mirai ship` with a host interface and the GitHub host; **27b** the GitLab host, cloud and self-hosted; `mirai-ship`: push and open the MR targeting the integration branch via the host CLI with its own credentials; the MR description with the review line and follow-ups only, no review comments (Q9); idempotent MR creation, R-M6); design/01 §11 (ship); design/03 (`mirai-ship`, the git host); D-30 #9 (credentials stay with the orchestrator; an explicit push URL); D-29 (no findings on the host); D-34 (no ship gate: your merge is the gate); D-06/D-07 (`built` derived)
 depends_on: ["09", "14b", "22", "24a", "25a", "26a"]
 ---
@@ -82,3 +82,12 @@ One manual run, about 12 minutes and one Sonnet review (as 26b's P1), in a probe
 ## Open points for you
 
 The five decisions are taken (above), and five defaults are named. Approve the spec, or say which default to change. P1 opens and closes a real PR on your private `mirai-sample-app` repo.
+
+## Changes during the build (2026-11-10)
+
+1. **`gh` gets your real HOME, explicitly.** Probed on this Mac: `gh` with any other HOME can't reach its token in the macOS keychain ("the token in default is invalid"), even with `GH_CONFIG_DIR` set. The credential helper's own command sets `HOME='<your home>' GH_CONFIG_DIR='…'` for `gh` alone, so git keeps the pinned empty HOME; the CLI's home is its own option (`cliHome`), which the probe uses because its MIRAI home is a probe folder.
+2. **`mirai init` writes the host only into a new config** (`host = "github"` or `"gitlab"` for a cloud remote); it never edits an existing one, and it doesn't ask (init has no prompt for this). With no `host` in the config, ship takes it from a `github.com` or `gitlab.com` remote; a self-hosted server must be named (`no-host`). init records `gh` and `glab` (when found) in the store's `host-tools.json`, and prints a `host CLIs:` line.
+3. **The journal's existing events are used**, not a new `shipped` one: `pushed` gains `proofs: "pass"` (MIRAI checked them at that head before pushing it) and `mr_opened` gains the MR's `number` and `url` (journal version 5). `mirai status` derives `built` from them and prints the MR's URL. Ship also records `mr_merged` or `mr_closed` when it finds the MR that way.
+4. **`fetch-first`:** when the host's integration branch is at a commit this clone doesn't have, ship refuses (it can't tell whether the base is on it) and says to fetch.
+5. **The probe's base branch:** the probe clone's main holds probe commits GitHub's main doesn't, so P1 pushes it to a throwaway `mirai-probe/base-<id>` and points the host's integration branch there; the push, the helper and the PR are real. GitHub's `main` is never touched.
+6. **The git probe** gained `pushBranch` (to a bare repo by path); every case passed (2026-11-10).

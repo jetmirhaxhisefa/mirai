@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -95,6 +95,17 @@ export const MIRAI_STEPS = Object.freeze([
   ['hasTrackingRefs', (root, env) => mirai.hasTrackingRefs(root, 'origin', env)],
   ['pushLog', (root, env) => mirai.pushLog(root, 'side', ['main'], env, { marker: 'MIRAI-SCAN-0123456789abcdef' })],
   ['changedLines-renames', (root, env) => mirai.changedLines(root, 'main', 'side', env, { text: true, renames: 'exact' })],
+  // Unit 27a: MIRAI's push, to a bare repo by path (no credentials asked; the helper's round trip
+  // through gh is the ship probe's).
+  ['pushBranch', (root, env) => {
+    const bare = `${root}-push.git`;
+    try {
+      execFileSync('/usr/bin/git', ['init', '-q', '--bare', bare], { env: { PATH: '/usr/bin:/bin', HOME: '/var/empty', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } });
+      return mirai.pushBranch(root, bare, 'probe/push', mirai.commitOf(root, 'side', env), env);
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
+  }],
   ['cloneTo', (root, env) => {
     const dest = `${root}-clone`;
     try {
