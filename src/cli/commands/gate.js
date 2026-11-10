@@ -5,6 +5,7 @@ import { requireTty } from '../tty.js';
 import { checkTicketArg } from '../human-move.js';
 import { plain } from '../../status/text.js';
 import { checkProofs } from '../../proofs/check.js';
+import { coverageLines } from '../../proofs/coverage-text.js';
 import { recordProofs } from '../../proofs/record.js';
 import { branchKeys } from '../../sign/keys.js';
 import { openStore } from '../../store/home.js';
@@ -58,6 +59,7 @@ async function record(ticket, io) {
     for (const x of r.tests?.runs ?? []) io.stdout.write(`  ${plain(x.name)}: ${x.verdict}${x.outcome === 'fail' && x.verdict === 'pass' ? ' (only known failures)' : ''}\n`);
     if (r.outcome === 'recorded') {
       io.stdout.write(`  code ${r.hash.slice(7, 19)} (${r.files.length} files since ${r.base.slice(0, 12)}), review ${r.review}, gate attempt ${r.gate}\n`);
+      for (const l of coverageLines(r.diffCoverage, { files: 20, ticket })) io.stdout.write(`${l}\n`);
       for (const p of r.written) io.stdout.write(`  wrote ${plain(p)}\n`);
       io.stdout.write(`  committed ${r.commit.slice(0, 12)} on the ticket's branch; check it with: mirai gate check ${ticket}\n`);
     }
@@ -84,6 +86,7 @@ function check(ticket, commit, io) {
     const m = r.matched[k];
     io.stdout.write(m ? `  ${k}: ${plain(m.path)}, signed by ${m.keyId}\n` : `  ${k}: none for this code\n`);
   }
+  if (r.matched.gate) for (const l of coverageLines(r.matched.gate.diffCoverage)) io.stdout.write(`${l}\n`);
   for (const b of r.bad) io.stdout.write(`  not a valid record: ${plain(b.path)} (${plain(b.reason)})\n`);
   if (r.outcome === 'stale') io.stdout.write(`  the proofs there are for other code (${r.others.map((o) => o.codeHash.slice(7, 19)).filter((v, i, a) => a.indexOf(v) === i).join(', ')}): review and record again\n`);
   if (r.outcome === 'no-proof') io.stdout.write(`  mint them: mirai gate record ${ticket}\n`);

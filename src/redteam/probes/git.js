@@ -90,6 +90,11 @@ export const MIRAI_STEPS = Object.freeze([
   ['reviewPatch', (root, env) => mirai.reviewPatch(root, 'main', 'side', env)],
   ['branchRefs', (root, env) => mirai.branchRefs(root, env)],
   ['commitMessages', (root, env) => mirai.commitMessages(root, 'side', env)],
+  // Unit 26a: the push check's reads. Unit 26b: diff coverage's exact renames.
+  ['rangeCommits', (root, env) => mirai.rangeCommits(root, 'main..side', env)],
+  ['hasTrackingRefs', (root, env) => mirai.hasTrackingRefs(root, 'origin', env)],
+  ['pushLog', (root, env) => mirai.pushLog(root, 'side', ['main'], env, { marker: 'MIRAI-SCAN-0123456789abcdef' })],
+  ['changedLines-renames', (root, env) => mirai.changedLines(root, 'main', 'side', env, { text: true, renames: 'exact' })],
   ['cloneTo', (root, env) => {
     const dest = `${root}-clone`;
     try {

@@ -24,7 +24,7 @@ export class ReviewDiffError extends Error {
   }
 }
 
-const isBinary = (bytes) => bytes.subarray(0, SNIFF_BYTES).includes(0);
+export const isBinary = (bytes) => bytes.subarray(0, SNIFF_BYTES).includes(0);
 
 // Whether a changed file is text: both its sides (the one that exists, for an added or deleted
 // file) read as text and fit. { text: true } or { text: false, note }.

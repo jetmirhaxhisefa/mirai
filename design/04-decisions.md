@@ -1663,6 +1663,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   9. **The existing test style wins** (D-20).
 - **Human developers in the same repo:** the hard gates apply only to registered MIRAI branches
   and commits with the `Mirai-Ticket` trailer, and the scope fails closed (D-15, D-50).
+- **Update (unit 26b):** point 3 built as a warning (Milestone A; blocking in unit 54). `mirai gate record` runs the levels with coverage and signs the diff coverage from the merge base into the gate proof (`diff_coverage`: the merge base, the changed lines' hash, the numbers, each level's coverage and scope); the push prints it. A line counts as covered when any level ran it. A level's trusted `coverage_paths` (the integration branch's config), or else the files its baseline measured, decides which changed files must be measured: one no level lists counts as not run. Renames: exact moves only (`--find-renames=100%`). Jet's decisions, 2026-11-09.
 - **Consequences:** coverage improves only where work happens. Old untested code stays untested
   until a ticket touches it, which is intended.
 

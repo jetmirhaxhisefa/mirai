@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runBuild } from '../../src/agent/build.js';
@@ -28,7 +29,7 @@ export const TOKEN = `sk-ant-oat01-${'Ag3_-k'.repeat(16)}`;
 const INIT = '{"type":"system","subtype":"init","permissionMode":"dontAsk"}';
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 const PLAN = readFileSync(join(REGISTRY_DIR, 'examples', 'plan.md'), 'utf8');
-const CONFIG = '\n[[testing.levels]]\nname = "unit"\ncommand = ["run-tests"]\nservice = "app"\n\n[[testing.levels]]\nname = "feature"\ncommand = ["run-tests"]\nservice = "app"\n\n[compose]\nfiles = ["compose.yml"]\nenv_file = ".env.test"\n';
+export const CONFIG = '\n[[testing.levels]]\nname = "unit"\ncommand = ["run-tests"]\nservice = "app"\n\n[[testing.levels]]\nname = "feature"\ncommand = ["run-tests"]\nservice = "app"\n\n[compose]\nfiles = ["compose.yml"]\nenv_file = ".env.test"\n';
 const doc = (fm, body) => `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n${body}`;
 const ticketDoc = doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"."', risk: 'normal', size: 'M', verify: '"Rename a team on staging."', tdd: 'first' },
   '# Renaming a team hides its members\n\n## Acceptance criteria\n\n- AC-PMT-31.1: the members stay after a rename\n- AC-PMT-31.2: the old slug redirects\n');
@@ -65,8 +66,8 @@ export const watch = (claude) => ({ claude: claude.path, status: green, check: (
 export const done = { status: 'done', summary: 'Changed app/Team.php.', tests_run: ['unit: pass'], checks_run: [] };
 
 // PMT-31 built by Kai and, unless `reviewed: false`, passed by Rex: in-review, on its branch.
-export async function passed({ reviewed = true, baseline = { unit: PASSED, feature: PASSED } } = {}) {
-  const f = installed({ config: CONFIG, files: FILES });
+export async function passed({ reviewed = true, baseline = { unit: PASSED, feature: PASSED }, config = CONFIG } = {}) {
+  const f = installed({ config, files: FILES });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
   writeToken(f.env, TOKEN);
@@ -95,3 +96,20 @@ export async function passed({ reviewed = true, baseline = { unit: PASSED, featu
   return { ...f, io, store, check, record: (o = {}) => recordProofs({ cwd: f.root, env: f.env, ticket: 'PMT-31', run: passing, ...o }) };
 }
 
+// Unit 26b. The fixture's levels with the phpunit adapter (it has [coverage]): unit with coverage_paths,
+// feature without (its baseline measured nothing, so it scopes nothing).
+export const COV_CONFIG = CONFIG.replace('name = "unit"\ncommand = ["run-tests"]\nservice = "app"\n', 'name = "unit"\ncommand = ["run-tests"]\nservice = "app"\nadapter = "phpunit"\ncoverage_paths = ["app/**"]\n')
+  .replace('name = "feature"\ncommand = ["run-tests"]\nservice = "app"\n', 'name = "feature"\ncommand = ["run-tests"]\nservice = "app"\nadapter = "phpunit"\n');
+
+// A stand-in test run that leaves coverage: `hits` maps a level to its coverage.json files.
+export function coveringRun(hits) {
+  const seen = [];
+  const run = async ({ name, coverage }) => {
+    seen.push({ name, coverage: Boolean(coverage) });
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mirai-26b-run-')));
+    const files = hits[name] ?? {};
+    writeFileSync(join(dir, 'coverage.json'), `${JSON.stringify({ schema_version: 1, files, unmapped: 0 })}\n`);
+    return { outcome: 'pass', id: `t-${name}`, dir, tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 }, ...(coverage ? { coverage: { state: 'ok', sha256: `c-${name}` } } : {}) };
+  };
+  return { run, seen };
+}

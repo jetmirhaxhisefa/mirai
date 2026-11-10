@@ -336,7 +336,12 @@ export const UNTRACKED_MAX_BYTES = 4 * 1024 * 1024;
 // `text` (unit 24a, the review; TL3-12): `--text`, so a branch's `.gitattributes` (`-diff`,
 // `binary`) can't make git print "Binary files differ" for a file and hide its lines; the caller
 // tells real binary files apart by their bytes. `near`: parseDiff's lines beside each removal.
-export function changedLines(root, from, to, env, { text = false, near = false } = {}) {
+// `renames: 'exact'` (unit 26b, diff coverage; Jet's decision 4): git looks for renames with
+// identical content only (--find-renames=100%, which needs no similarity guess, so another git
+// finds the same), and a pure move has no added lines; a moved file with any edit stays wholly
+// added. Commits only.
+export function changedLines(root, from, to, env, { text = false, near = false, renames = false } = {}) {
+  if (renames && !to) throw new StoreError('exact renames are read between two commits only', { code: 'bad-diff-args' });
   // With the work tree, a nested repo is refused before the diff looks into it (as changedNames).
   let untracked = [];
   if (!to) {
@@ -345,9 +350,10 @@ export function changedLines(root, from, to, env, { text = false, near = false }
     untracked = nulList(u.out);
     checkNested(stageOf(root, ['.'], env), untracked);
   }
-  const r = git(root, [...UNIFIED_ARGS, ...(text ? ['--text'] : []), from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 64 * MAX_OUTPUT, timeout: 120_000 });
+  const args = renames === 'exact' ? UNIFIED_ARGS.map((a) => (a === '--no-renames' ? '--find-renames=100%' : a)) : UNIFIED_ARGS;
+  const r = git(root, [...args, ...(text ? ['--text'] : []), from, ...(to ? [to] : []), '--'], env, { raw: true, maxBuffer: 64 * MAX_OUTPUT, timeout: 120_000 });
   if (!r.ok) throw new StoreError(`git diff ${from}${to ? `..${to}` : ''} failed`, { code: 'git-failed' });
-  const { files } = parseDiff(r.out, undefined, { near });
+  const { files } = parseDiff(r.out, undefined, { near, renames: renames === 'exact' ? 'exact' : false });
   for (const path of untracked) files.push(untrackedFile(root, path));
   return { files };
 }

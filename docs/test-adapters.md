@@ -138,6 +138,25 @@ which of them ran. Files the coverage doesn't list (a new file no test loaded, a
 files git shows as binary, are shown apart, never counted as covered. `--against` needs the
 whole level: a one-file run lists every other file as not run.
 
+**At ship** (unit 26b), `mirai gate record` runs every level whose adapter has `[coverage]` with
+it, and signs the diff coverage from the merge base into the gate proof: a line counts as covered
+when any level ran it. Each level may set **`coverage_paths`** (globs, `!` excludes), read only
+from the integration branch's config:
+
+```toml
+[[testing.levels]]
+name = "unit"
+adapter = "phpunit"
+coverage_paths = ["backend/app/**"]
+```
+
+A changed file inside a level's `coverage_paths` that no level's coverage lists counts as not run,
+every added line: the branch's runner config can't hide a file from the warning. A level without
+`coverage_paths` uses the files its baseline measured. Changed files outside every level's scope
+are listed, not counted. Renames count only when the content is identical (`--find-renames=100%`):
+a pure move adds no lines; a moved file with any edit is wholly added. In Milestone A this is a
+warning (`docs/pre-push.md`); unit 54 makes it blocking.
+
 Shipped: `phpunit` (Cobertura; needs pcov or Xdebug in the image, and a `<source>` in
 `phpunit.xml`) and `vitest` (lcov; needs `@vitest/coverage-v8` or `-istanbul`). Playwright's
 browser tests don't measure the app's code, so `playwright` has none.

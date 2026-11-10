@@ -6,6 +6,7 @@ import { UsageError, formatError } from '../errors.js';
 import { plain } from '../../status/text.js';
 import { readHooksRecord } from '../../hooks/install.js';
 import { parseUpdates, prePushCheck } from '../../hooks/pre-push.js';
+import { coverageLines } from '../../proofs/coverage-text.js';
 import { openStore } from '../../store/home.js';
 
 // mirai hook pre-push <remote> <url> (unit 26a): what MIRAI's pre-push script runs, from the
@@ -65,6 +66,7 @@ export default {
         const name = x.remoteRef.replace(/^refs\/heads\//, '');
         io.stderr.write(`mirai pre-push: ${plain(name).slice(0, 200)}: ${x.outcome === 'pass' ? 'pass' : `blocked (${x.outcome})`}: ${plain(x.why ?? '').slice(0, 400)}\n`);
         if (x.outcome !== 'pass' && x.hint) io.stderr.write(`  ${plain(x.hint).slice(0, 400)}\n`);
+        if (x.outcome === 'pass' && Object.hasOwn(x, 'diffCoverage')) for (const l of coverageLines(x.diffCoverage, { files: 5, ticket: x.ticket })) io.stderr.write(`${l}\n`);
         for (const f of (x.findings ?? []).slice(1, 10)) io.stderr.write(`  also: ${f.pattern} in ${f.file === null ? 'the message' : plain(f.file).slice(0, 200)} (${f.commit.slice(0, 12)})\n`);
       }
       return result.ok ? EXIT.OK : EXIT.BLOCKED;

@@ -71,10 +71,15 @@ const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/;
 
 // Parses `input` (a Buffer or string): { files: [{ path, status: 'added' | 'deleted' | 'modified',
 // added: [n…], removed: [n…], binary }] }, in the diff's order. Throws DiffError.
+// With `renames: 'exact'` (unit 26b; git run with --find-renames=100%), a file git calls renamed
+// with `similarity index 100%` is { path: <new>, from: <old>, status: 'renamed', added: [] }: its
+// paths come from the `rename from`/`rename to` lines (the header's two paths can't be split
+// reliably when they differ). Any other similarity, or a rename without the option, is refused.
 // With `near` (unit 24a, the review's changed lines), each file also has `near`: the new-file lines
 // beside each removal (the line that took its place, and for a removal with nothing added the lines
 // on both sides of the gap), so a finding about deleted code can cite where it was.
-export function parseDiff(input, limits = DIFF_LIMITS, { near: wantNear = false } = {}) {
+export function parseDiff(input, limits = DIFF_LIMITS, { near: wantNear = false, renames = false } = {}) {
+  if (renames !== false && renames !== 'exact') throw new DiffError('renames is false or "exact"');
   const bytes = typeof input === 'string' ? Buffer.byteLength(input) : input.length;
   if (bytes > limits.bytes) throw new DiffError(`the diff is larger than ${limits.bytes} bytes`);
   const text = typeof input === 'string' ? input : input.toString('utf8');
@@ -122,12 +127,38 @@ export function parseDiff(input, limits = DIFF_LIMITS, { near: wantNear = false 
     }
     if (l.startsWith('diff --git ')) {
       if (files.length >= limits.files) throw new DiffError(`more than ${limits.files} files`, at);
-      file = { path: headerPath(l.slice(11), at), status: 'modified', added: [], removed: [], binary: false, hunks: 0, sawHeader: false, near: new Set() };
+      if (file?.rename && !file.rename.done) throw new DiffError('a rename without its "rename from" and "rename to" lines', at);
+      let path;
+      let rename = null;
+      try {
+        path = headerPath(l.slice(11), at);
+      } catch (err) {
+        if (!renames) throw err;
+        // Two different paths: only an exact rename, named by the lines that follow.
+        path = null;
+        rename = { similarity: false, from: null, done: false };
+      }
+      file = { path, status: 'modified', added: [], removed: [], binary: false, hunks: 0, sawHeader: false, near: new Set(), rename };
       files.push(file);
     } else if (!file) {
       throw new DiffError('text before the first "diff --git"', at);
     } else if (l === '\\ No newline at end of file') {
       // After a hunk's last line.
+    } else if (file.rename && /^similarity index \d{1,3}%$/.test(l)) {
+      if (l !== 'similarity index 100%') throw new DiffError('a rename that isn\'t exact (only 100% similarity is read)', at);
+      file.rename.similarity = true;
+    } else if (file.rename && l.startsWith('rename from ')) {
+      if (!file.rename.similarity || file.rename.from !== null) throw new DiffError('a "rename from" line git didn\'t write', at);
+      file.rename.from = unquote(l.slice(12), at);
+    } else if (file.rename && l.startsWith('rename to ')) {
+      if (file.rename.from === null || file.rename.done) throw new DiffError('a "rename to" line git didn\'t write', at);
+      file.path = unquote(l.slice(10), at);
+      if (file.path === file.rename.from) throw new DiffError('a rename to the same path', at);
+      file.status = 'renamed';
+      file.rename.done = true;
+    } else if (file.rename && file.rename.done) {
+      // An exact rename has nothing after its two lines but a mode change (before them).
+      throw new DiffError('an exact rename with changes after it', at);
     } else if (/^new file mode [0-7]{6}$/.test(l)) file.status = 'added';
     else if (/^deleted file mode [0-7]{6}$/.test(l)) file.status = 'deleted';
     else if (/^(?:old|new) mode [0-7]{6}$/.test(l) || /^index [0-9a-f]+\.\.[0-9a-f]+(?: [0-7]{6})?$/.test(l)) {
@@ -155,5 +186,6 @@ export function parseDiff(input, limits = DIFF_LIMITS, { near: wantNear = false 
     } else throw new DiffError('a line git didn\'t write', at);
   }
   if (inHunk()) throw new DiffError('the diff ends inside a hunk');
-  return { files: files.map(({ path, status, added, removed, binary, near }) => ({ path, status, added, removed, binary, ...(wantNear ? { near: [...near].sort((x, y) => x - y) } : {}) })) };
+  if (file?.rename && !file.rename.done) throw new DiffError('a rename without its "rename from" and "rename to" lines');
+  return { files: files.map(({ path, status, added, removed, binary, near, rename }) => ({ path, status, ...(rename ? { from: rename.from } : {}), added, removed, binary, ...(wantNear ? { near: [...near].sort((x, y) => x - y) } : {}) })) };
 }
