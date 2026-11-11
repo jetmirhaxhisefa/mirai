@@ -108,6 +108,18 @@ async function p1(ctx, { hostUrl, repo }) {
       return;
     }
     const mainSha = ctx.git('rev-parse', 'main').trim();
+    // The project as on gitlab.com: `main` there and the default branch (P2's project starts empty,
+    // and GitLab makes the first branch pushed the default, which it then won't delete). Branches
+    // a stopped run left behind are removed first.
+    const proj = g.api('GET', `projects/${enc}`).json;
+    if (proj?.default_branch !== 'main') {
+      const pm = pushBranch(ctx.root, host.pushUrl, 'main', mainSha, store.gitEnv, { helper: host.helper, ca: host.ca });
+      const pd = pm.ok ? g.api('PUT', `projects/${enc}`, { default_branch: 'main' }) : null;
+      ctx.log(`p1-project: default branch was ${proj?.default_branch ?? 'none'}; main pushed ${pm.ok ? 'ok' : `REFUSED ${pm.why}`}, made the default ${pd?.status === 0 ? 'ok' : `exit ${pd?.status} ${pd?.err ?? ''}`}`);
+      if (pd?.status !== 0) return;
+    }
+    const stale = (g.api('GET', `projects/${enc}/repository/branches?search=${encodeURIComponent('^mirai-probe/')}&per_page=100`).json ?? []).map((b) => b.name).filter((n) => n.startsWith('mirai-probe/'));
+    for (const b of stale) ctx.log(`p1-stale: ${b} from an earlier run: ${delBranch(b)().status === 0 ? 'deleted' : 'not deleted'}`);
     const t = Date.now();
     const pb = pushBranch(ctx.root, host.pushUrl, base, mainSha, store.gitEnv, { helper: host.helper, ca: host.ca });
     cleanups.push(delBranch(base));

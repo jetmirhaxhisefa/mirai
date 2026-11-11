@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { MR_MARKER, renderMrDescription } from '../../src/reports/render.js';
-import { GLAB_MIN, glabConfigDir, glabTls, olderThan, projectPath } from '../../src/ship/gitlab.js';
+import { GLAB_MIN, glabConfigDir, glabTls, olderThan, openRetry, projectPath } from '../../src/ship/gitlab.js';
 import { cleanTitle, hostConfig, hostFor, TOOLS_FILE } from '../../src/ship/host.js';
 import { shipTicket } from '../../src/ship/ship.js';
 import { pushBranch } from '../../src/store/git.js';
@@ -49,6 +49,7 @@ if (a[0] === 'api') {
   if (b && method === 'GET') { const sha = tip(decodeURIComponent(b[1])); if (!sha) notFound('Branch'); out({ name: decodeURIComponent(b[1]), commit: { id: sha } }); }
   if (rest.startsWith('merge_requests?') && method === 'GET') { const q = new URLSearchParams(rest.split('?')[1]); out(s.mrs.filter((x) => x.source_branch === q.get('source_branch'))); }
   if (rest === 'merge_requests' && method === 'POST') {
+    if (s.lateBranch > 0) { s.lateBranch -= 1; save(); process.stdout.write(JSON.stringify({ message: { source_branch: ['does not exist'] } })); process.stderr.write('glab: map[message:map[source_branch:[does not exist]]]\\n'); process.exit(1); }
     const iid = s.mrs.length + 1;
     const mr = { iid, state: 'opened', web_url: 'https://gitlab.com/acme/sub/app/-/merge_requests/' + iid, title: body.title, description: body.description, source_branch: body.source_branch, target_branch: body.target_branch, sha: tip(body.source_branch) };
     s.mrs.push(mr); out(mr);
@@ -154,6 +155,31 @@ test('27b: ship on GitLab opens one MR through the API, a rerun changes nothing,
   assert.equal((await f.ship()).outcome, 'updated');
   assert.ok(f.glab.read().mrs[0].description.startsWith(MR_MARKER));
   assert.equal(f.glab.read().mrs.length, 1);
+});
+
+test('27b: a branch GitLab hasn\'t registered yet: the MR is tried again, then given up on', async () => {
+  const saved = openRetry.delaysMs;
+  openRetry.delaysMs = [10, 10, 10];
+  try {
+    const f = await shippable();
+    f.glab.write((s) => {
+      s.lateBranch = 2;
+    });
+    assert.equal((await f.ship()).outcome, 'opened');
+    const posts = f.glab.read().calls.filter((c) => c.args.includes('POST'));
+    assert.equal(posts.length, 3, 'two refusals, then made');
+    assert.equal(f.glab.read().mrs.length, 1);
+
+    const g = await shippable();
+    g.glab.write((s) => {
+      s.lateBranch = 99;
+    });
+    await assert.rejects(g.ship(), (e) => e.code === 'host-failed' && /does not exist/.test(e.message));
+    assert.equal(g.glab.read().calls.filter((c) => c.args.includes('POST')).length, 4, 'once, then three more');
+    assert.equal(g.glab.read().mrs.length, 0);
+  } finally {
+    openRetry.delaysMs = saved;
+  }
 });
 
 test('27b: refusals: an old glab, logged out, skip_tls_verify, a bad ca_cert, locked, closed, merged, a moved branch', async () => {

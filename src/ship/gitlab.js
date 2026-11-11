@@ -94,6 +94,13 @@ export function olderThan(a, b) {
 
 const STATES = Object.freeze({ opened: 'open', closed: 'closed', merged: 'merged', locked: 'locked' });
 
+// GitLab learns of a pushed branch in a background job: on a busy server, an MR opened seconds
+// after the push can be refused "source_branch does not exist" (P2, 2026-11-11, a local GitLab CE).
+// That one refusal is tried again, about 30 s in all. Nothing is made by a refused create.
+export const openRetry = { delaysMs: [1000, 2000, 3000, 4000, 5000, 5000, 5000, 5000] };
+const NO_SOURCE = /source_branch\W{0,6}does not exist/i;
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 // `deps`: { runCli, withJsonFile, hostError, failed } from host.js (shared with the GitHub host).
 export function gitlabHost({ hostUrl, repo, cli, env, cliHome = env.HOME }, deps) {
   const { runCli, withJsonFile, hostError, failed } = deps;
@@ -107,9 +114,15 @@ export function gitlabHost({ hostUrl, repo, cli, env, cliHome = env.HOME }, deps
   const glab = (args, o) => runCli(cli, args, cenv, o);
   const project = `projects/${projectPath(repo)}`;
   // One API call: JSON back, or null for a 404 that `missing` accepts.
-  const api = (method, path, { body, missing = null } = {}) => {
+  const api = (method, path, { body, missing = null, retry = null } = {}) => {
     const call = (file) => glab(['api', '--hostname', host, '--method', method, ...(file ? ['--header', 'Content-Type: application/json', '--input', file] : []), path]);
-    const r = body === undefined ? call(null) : withJsonFile(body, call);
+    const once = () => (body === undefined ? call(null) : withJsonFile(body, call));
+    let r = once();
+    for (const ms of retry ? openRetry.delaysMs : []) {
+      if (r.ok || !retry.test(`${r.err} ${r.out}`)) break;
+      sleep(ms);
+      r = once();
+    }
     if (r.ok) return JSON.parse(r.out || 'null');
     if (missing && /\b404\b/.test(r.err ?? '') && missing.test(`${r.err} ${r.out}`)) return null;
     if (/\b404\b/.test(r.err ?? '') && /Project Not Found/i.test(`${r.err} ${r.out}`)) throw hostError(`${repo} isn't on ${host}, or your login can't see it`, 'host-failed', 'check the remote and that glab is logged in as a member of the project');
@@ -166,7 +179,7 @@ export function gitlabHost({ hostUrl, repo, cli, env, cliHome = env.HOME }, deps
       return mrs.find((m) => m.state === 'open') ?? mrs.sort((a, b) => b.number - a.number)[0] ?? null;
     },
     openMr({ base, head, title, body }) {
-      const m = api('POST', `${project}/merge_requests`, { body: { source_branch: head, target_branch: base, title, description: body } });
+      const m = api('POST', `${project}/merge_requests`, { body: { source_branch: head, target_branch: base, title, description: body }, retry: NO_SOURCE });
       if (!Number.isInteger(m?.iid) || typeof m.web_url !== 'string') throw hostError('GitLab didn\'t name the new merge request', 'host-failed');
       return { number: m.iid, url: m.web_url };
     },
