@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { MR_MARKER, renderMrDescription } from '../../src/reports/render.js';
-import { GLAB_MIN, glabConfigDir, glabTls, olderThan, openRetry, projectPath } from '../../src/ship/gitlab.js';
+import { GLAB_MIN, glabConfigDir, glabTls, glabVersion, olderThan, openRetry, projectPath } from '../../src/ship/gitlab.js';
 import { cleanTitle, hostConfig, hostFor, TOOLS_FILE } from '../../src/ship/host.js';
 import { shipTicket } from '../../src/ship/ship.js';
 import { pushBranch } from '../../src/store/git.js';
@@ -219,6 +219,18 @@ test('27b: refusals: an old glab, logged out, skip_tls_verify, a bad ca_cert, lo
     assert.equal(ticketFacts(readJournal(f.store).events, 'PMT-31').mr, mr);
   }
   assert.equal(f.glab.read().mrs.length, 1, 'never reopened, never a second MR');
+});
+
+test('27b: init reads glab\'s version though glab makes its config folder even for --version; nothing of yours touched', () => {
+  const dir = tempDir('glabver');
+  const cli = join(dir, 'glab');
+  const seen = join(dir, 'seen');
+  // As the real glab: no config folder it can make → exit 2.
+  writeFileSync(cli, `#!/bin/sh\ncfg="\${GLAB_CONFIG_DIR:-$HOME/Library/Application Support/glab-cli}"\nmkdir -p "$cfg" 2>/dev/null || exit 2\nprintf '%s\\n' "$cfg" > ${JSON.stringify(seen)}\necho "glab 1.130.0 (abc)"\n`, { mode: 0o755 });
+  assert.deepEqual(glabVersion(cli), [1, 130, 0]);
+  const cfg = readFileSync(seen, 'utf8').trim();
+  assert.ok(!cfg.startsWith(process.env.HOME), `a throwaway folder, not yours: ${cfg}`);
+  assert.equal(existsSync(cfg), false, 'removed after');
 });
 
 test('27b: the push names glab as the only helper, with its folder and quiet switches, and the CA file', async () => {
