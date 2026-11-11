@@ -18,7 +18,8 @@ import { escapeInvisible } from '../status/text.js';
 // - markup characters are backslash-escaped, and a line can't start a heading, quote, list or
 //   a GitLab quick action (a leading "/");
 // - anything a host turns into a link or a reference even when escaped (a URL, an email, an
-//   @mention, #12, GH-12, !12, %milestone, ~label, a commit SHA, $math$, an :emoji: code) is
+//   @mention, #12, GH-12, !12, %milestone, ~label, a commit SHA, $math$, an :emoji: code; and
+//   GitLab's ^alert#12, *iteration:, [[_TOC_]] or [TOC], [issue:12]-style references (27b)) is
 //   shown as a code span, which hosts never link (checked against GitHub's renderer in review).
 // The MR description takes no finding objects (Q9, D-29), refuses a follow-up that cites a
 // file or a line, and carries command output only as a redacted tail, within the host's size
@@ -50,6 +51,7 @@ const INLINE = /[\\`*_[\]<>|~&$@#!%]/g;
 const REFERENCE = new RegExp([
   '[A-Za-z][A-Za-z0-9+.-]{0,31}:\\/\\/', 'www\\.', '(?:mailto|xmpp|tel|sms|data|javascript):',
   '@', '#\\S', '\\bGH-\\d', '![0-9]', '%\\S', '~\\S', '&[#\\w]', '\\$', ':[A-Za-z0-9_+-]+:',
+  '\\^', '\\*iteration:', '\\[\\[?_?toc', '\\[[a-z_]+:',
   '\\b(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\\b',
 ].join('|'), 'i');
 

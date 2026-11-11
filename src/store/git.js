@@ -677,9 +677,12 @@ export function commitAndBlob(root, ref, path, env, { maxBytes = 4 * 1024 * 1024
 // in arguments, files or the repo. `url` is the repo's https URL (never a remote's name, so
 // `remote.*` config isn't read) or, for tests, an absolute path. `sha` goes to
 // refs/heads/<branch>; `lease` is the sha the branch must still be at (`--force-with-lease`).
+// `ca` (unit 27b): an absolute certificate-authority file, the one glab's config names for a
+// self-hosted server, so git trusts the same authority glab does (`http.sslCAInfo`, this push
+// only). `helper.vars`: more variables for the helper's own command (glab's quiet switches).
 // No hook runs (the pins' hooksPath); the push check ran before this (unit 26a, decision 5).
 // Returns { ok, out }; a refused push is { ok: false, why } with git's porcelain line.
-export function pushBranch(root, url, branch, sha, env, { helper = null, lease = null, timeout = 300_000 } = {}) {
+export function pushBranch(root, url, branch, sha, env, { helper = null, lease = null, ca = null, timeout = 300_000 } = {}) {
   checkGuards(root);
   checkRepo(root, env);
   if (!(/^https:\/\/[^\s'"\\@]+$/.test(url) || (url.startsWith('/') && !/[\s'"\\]/.test(url)))) throw new StoreError('a push goes to an https URL', { code: 'bad-url' });
@@ -687,10 +690,17 @@ export function pushBranch(root, url, branch, sha, env, { helper = null, lease =
   if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha) || (lease !== null && !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(lease))) throw new StoreError('a push names full commit ids', { code: 'bad-sha' });
   const extra = [];
   if (helper) {
-    const { command, home, configDir, configVar } = helper;
+    const { command, home, configDir, configVar, vars = {} } = helper;
     if (![command, home, configDir].every((p) => typeof p === 'string' && p.startsWith('/'))) throw new StoreError('the credential helper needs absolute paths', { code: 'bad-helper' });
     if (!/^[A-Z_]{1,40}$/.test(configVar)) throw new StoreError('the credential helper\'s config variable isn\'t a name', { code: 'bad-helper' });
-    extra.push('-c', `credential.helper=!HOME=${shQuote(home)} ${configVar}=${shQuote(configDir)} ${shQuote(command)} auth git-credential`);
+    const more = Object.entries(vars);
+    if (!more.every(([k, v]) => /^[A-Z_]{1,40}$/.test(k) && /^[A-Za-z0-9_.-]{0,40}$/.test(v))) throw new StoreError('the credential helper\'s variables aren\'t plain names and values', { code: 'bad-helper' });
+    extra.push('-c', `credential.helper=!HOME=${shQuote(home)} ${configVar}=${shQuote(configDir)}${more.map(([k, v]) => ` ${k}=${shQuote(v)}`).join('')} ${shQuote(command)} auth git-credential`);
+  }
+  extra.push('-c', 'http.sslVerify=true'); // the repo check refuses http.* in the repo's config too
+  if (ca !== null) {
+    if (typeof ca !== 'string' || !ca.startsWith('/') || /[\n\0]/.test(ca)) throw new StoreError('a certificate authority file is an absolute path', { code: 'bad-ca' });
+    extra.push('-c', `http.sslCAInfo=${ca}`);
   }
   const { path: excludesFile } = excludesFor(env, root, gitBinary);
   const args = ['--no-replace-objects', ...pinArgs({ excludesFile }), ...extra, 'push', '--porcelain', '--no-verify',

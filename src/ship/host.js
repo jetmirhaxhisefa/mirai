@@ -6,11 +6,12 @@ import { isAbsolute, join } from 'node:path';
 import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
 import { atomicWrite } from '../store/files.js';
+import { gitlabHost } from './gitlab.js';
 
 // The git host behind `mirai ship` (unit 27a; Jet's decision 5): one interface, so ship never
 // calls a host's CLI itself. The project's config says which host it is (`[git] host`, and
 // `host_url` for a self-hosted server), read only from the integration branch; the repo's path on
-// it comes from the remote. GitHub (`gh`) is built here; GitLab (`glab`) is unit 27b.
+// it comes from the remote. GitHub (`gh`) is built here; GitLab (`glab`, unit 27b) in gitlab.js.
 //
 // A host: { name, hostUrl, repo, pushUrl, helper, renderAs, checkAuth(), branchTip(branch),
 // findMr(branch), openMr({ base, head, title, body }), updateMr(number, { title, body }) }.
@@ -28,6 +29,10 @@ export function hostConfig(config, remoteUrl) {
   const name = config.git?.host ?? Object.keys(CLOUD).find((k) => new URL(CLOUD[k]).host === where) ?? null;
   if (!name) throw hostError(`MIRAI can't tell which host ${where ?? 'the remote'} is`, 'no-host', 'set it in .mirai/config.toml on the integration branch: [git] host = "github" or "gitlab", and host_url = "https://<server>" for a self-hosted one');
   const hostUrl = config.git?.host_url ?? CLOUD[name];
+  // Unit 27b, Jet's decision 1: a self-hosted server on its own address. A port or a sub-path
+  // clashes with how glab and git name hosts; it's later work.
+  const u = new URL(hostUrl);
+  if (u.port || (u.pathname !== '/' && u.pathname !== '')) throw hostError(`MIRAI doesn't support a host on a port or a sub-path yet (${hostUrl})`, 'host-unsupported', 'MIRAI works with a server on its own address, such as https://gitlab.example.com; a port or a sub-path is listed as later work');
   if (where !== new URL(hostUrl).host) throw hostError(`the remote is on ${where ?? 'no host MIRAI reads'}, not ${new URL(hostUrl).host} (the configured ${name} host)`, 'wrong-host', 'fix [git] host_url on the integration branch, or the remote');
   return { name, hostUrl, repo: repoPath(remoteUrl) };
 }
@@ -117,14 +122,12 @@ export function recordedCli(store, name, root) {
 // read.
 // `home`: your HOME. On macOS the keychain that holds `gh`'s token is found through it (an empty or
 // other HOME logs gh out: probed 2026-11-10), so the CLI always gets the real one.
-function cliEnv(name, env, hostUrl, home = env.HOME) {
-  if (name === 'github') {
-    return { PATH: '/usr/bin:/bin', HOME: home, GH_CONFIG_DIR: env.GH_CONFIG_DIR ?? join(home, '.config', 'gh'), GH_HOST: new URL(hostUrl).host, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_SPINNER_DISABLED: '1', NO_COLOR: '1', LANG: 'C' };
-  }
-  return { PATH: '/usr/bin:/bin', HOME: home, GLAB_CONFIG_DIR: env.GLAB_CONFIG_DIR ?? join(home, '.config', 'glab-cli'), GITLAB_HOST: hostUrl, NO_PROMPT: '1', NO_COLOR: '1', LANG: 'C' };
+// (glab's is in gitlab.js: its config folder is found as glab finds it.)
+function ghEnv(env, hostUrl, home = env.HOME) {
+  return { PATH: '/usr/bin:/bin', HOME: home, GH_CONFIG_DIR: env.GH_CONFIG_DIR ?? join(home, '.config', 'gh'), GH_HOST: new URL(hostUrl).host, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_SPINNER_DISABLED: '1', NO_COLOR: '1', LANG: 'C' };
 }
 
-function runCli(path, args, cenv, { input, timeout = 60_000 } = {}) {
+export function runCli(path, args, cenv, { input, timeout = 60_000 } = {}) {
   try {
     const out = execFileSync(path, args, { cwd: '/', env: cenv, encoding: 'utf8', timeout, maxBuffer: 16 * 1024 * 1024, ...(input !== undefined ? { input } : {}), stdio: [input !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
     return { ok: true, out };
@@ -135,10 +138,10 @@ function runCli(path, args, cenv, { input, timeout = 60_000 } = {}) {
 }
 
 // A body goes to the CLI through a private temp file, never as an argument.
-function withBodyFile(body, fn) {
+function withBodyFile(body, fn, name = 'body.md') {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mirai-mr-')));
   try {
-    const file = join(dir, 'body.md');
+    const file = join(dir, name);
     writeFileSync(file, body, { mode: 0o600 });
     return fn(file);
   } finally {
@@ -146,12 +149,14 @@ function withBodyFile(body, fn) {
   }
 }
 
+export const withJsonFile = (value, fn) => withBodyFile(JSON.stringify(value), fn, 'body.json');
+
 const SHA = /^[0-9a-f]{40}$/;
-const failed = (what, r) => hostError(`${what} failed: ${String(r.err || r.out).trim().split('\n').at(-1)?.slice(0, 300) || `exit ${r.status}`}`, 'host-failed', 'check the host and your login, then run it again');
+export const failed = (what, r) => hostError(`${what} failed: ${String(r.err || r.out).trim().split('\n').at(-1)?.slice(0, 300) || `exit ${r.status}`}`, 'host-failed', 'check the host and your login, then run it again');
 
 // The GitHub host, through `gh`.
 export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
-  const cenv = cliEnv('github', env, hostUrl, cliHome);
+  const cenv = ghEnv(env, hostUrl, cliHome);
   const gh = (args, o) => runCli(cli, args, cenv, o);
   const api = (path) => {
     const r = gh(['api', '--method', 'GET', path]);
@@ -204,7 +209,18 @@ export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
 export function hostFor({ config, remoteUrl, store, env, root, cliHome }) {
   if (!remoteUrl) throw hostError('the repo has no remote named origin', 'no-remote', 'add it: git remote add origin <url>');
   const h = hostConfig(config, remoteUrl);
-  if (h.name === 'gitlab') throw hostError('the GitLab host isn\'t built yet', 'host-not-built', 'unit 27b brings it; until then push and open the merge request yourself');
+  if (h.name === 'gitlab') return gitlabHost({ ...h, cli: recordedCli(store, h.name, root), env, ...(cliHome ? { cliHome } : {}) }, { runCli, withJsonFile, hostError, failed });
   return githubHost({ ...h, cli: recordedCli(store, h.name, root), env, ...(cliHome ? { cliHome } : {}) });
 }
 
+
+// An MR title that can't make the MR a draft (unit 27b): GitLab drafts an MR whose title starts
+// with Draft:, [Draft], (Draft) or WIP: (any case, repeated). Both hosts get the same title.
+export function cleanTitle(title) {
+  let t = String(title);
+  for (;;) {
+    const next = t.replace(/^\s*(?:\[\s*(?:draft|wip)\s*\]|\(\s*(?:draft|wip)\s*\)|(?:draft|wip)\s*:|draft\s+-)\s*/i, '');
+    if (next === t) return t.trim() || 'Untitled';
+    t = next;
+  }
+}
