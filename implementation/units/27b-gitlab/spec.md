@@ -1,7 +1,7 @@
 ---
 unit: "27b"
 name: gitlab
-status: draft (2026-11-11; Jet's two interview decisions, the defaults as written)
+status: approved (2026-11-11; Jet's two interview decisions, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 27 (split, Jet's decision 2026-11-10: **27b** the GitLab host, cloud and self-hosted, right after 27a; every later unit that talks to the host works on GitHub and GitLab alike); 27a's spec, decision 5 (the host per project in config); D-30 #9 (credentials stay with the orchestrator; an explicit push URL); D-29 (no findings on the host)
 depends_on: ["27a"]
 ---
