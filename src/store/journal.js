@@ -22,9 +22,10 @@ import { signObject, verifySigned } from '../sign/sign.js';
 
 // Version 2 (unit 06) adds the `approval` event and signed human lines; version 3 (unit 15a)
 // adds `by: "agent"` lines, written through MIRAI's MCP server; version 4 (unit 15b) adds
-// `by: "session"` lines, from your own Claude Code sessions through the same server. Older lines
-// read unchanged.
-export const JOURNAL_SCHEMA_VERSION = 4;
+// `by: "session"` lines, from your own Claude Code sessions through the same server; version 5
+// (unit 27a) adds `proofs` to `pushed` (MIRAI checked the proofs at that head before pushing it)
+// and the MR's `number` and `url` to `mr_opened`. Older lines read unchanged.
+export const JOURNAL_SCHEMA_VERSION = 5;
 const SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
 
@@ -45,8 +46,8 @@ const f = {
 export const EVENT_TYPES = Object.freeze({
   // `note` is in the line, so a signed move's note is signed too (unit 06).
   status_written: { privileged: true, human: true, fields: { ticket: f.ticket, state: f.state, park_reason: f.park_reason, note: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' } }, required: ['ticket', 'state'] },
-  pushed: { privileged: true, fields: { ticket: f.ticket, branch: f.branch, sha: f.sha }, required: ['ticket', 'branch', 'sha'] },
-  mr_opened: { privileged: true, fields: { ticket: f.ticket, head: f.sha, target: f.branch }, required: ['ticket', 'head', 'target'] },
+  pushed: { privileged: true, fields: { ticket: f.ticket, branch: f.branch, sha: f.sha, proofs: { type: 'enum', values: ['pass'] } }, required: ['ticket', 'branch', 'sha'] },
+  mr_opened: { privileged: true, fields: { ticket: f.ticket, head: f.sha, target: f.branch, number: { type: 'integer', min: 1 }, url: { type: 'string', pattern: /^https:\/\/[^\s"'<>\\]{1,500}$/, patternHint: 'the MR\'s https URL' } }, required: ['ticket', 'head', 'target'] },
   // A merge into feature/<epic> names the epic, so `done` can be derived once the epic merges.
   mr_merged: {
     privileged: true,
@@ -304,8 +305,9 @@ export function checkCounter(store) {
 // - `pushSeq` is the latest `pushed`. An MR opened without a logged push counts its opening as
 //   the push, because opening it shipped that head.
 // - `epicMerged`: an `epic_merged` event for the epic the ticket was merged into.
-// - `proofsValidAtHead` stays false until proofs exist (unit 25): an MR without checked proofs
-//   isn't built.
+// - `proofsValidAtHead`: the latest push carried `proofs: "pass"` (unit 27a: `mirai ship` checks
+//   them at that head before pushing it); an MR without checked proofs isn't built.
+// - `url`: the MR's address, from `mr_opened` (unit 27a).
 // - `head`: the head MIRAI last shipped (the latest pushed sha or opened head), so unit 25 can
 //   hold `built` only while the MR's head equals it (D-06).
 export function ticketFacts(events, ticket) {
@@ -319,18 +321,23 @@ export function allTicketFacts(events) {
   for (const e of events) {
     if (e.type === 'epic_merged') mergedEpics.add(e.epic);
     if (e.ticket === undefined) continue;
-    if (!seen.has(e.ticket)) seen.set(e.ticket, { merged: null, latestMr: null, pushSeq: undefined, openSeq: undefined, closeSeq: undefined, head: undefined });
+    if (!seen.has(e.ticket)) seen.set(e.ticket, { merged: null, latestMr: null, pushSeq: undefined, openSeq: undefined, closeSeq: undefined, head: undefined, proofs: false, url: undefined });
     const t = seen.get(e.ticket);
     if (e.type === 'mr_merged' && (t.merged === null || e.target === 'integration')) t.merged = e;
     if (e.type === 'mr_opened' || e.type === 'mr_closed') t.latestMr = e;
-    if (e.type === 'pushed') [t.pushSeq, t.head] = [e.seq, e.sha];
-    if (e.type === 'mr_opened') [t.openSeq, t.head] = [e.seq, e.head];
+    if (e.type === 'pushed') [t.pushSeq, t.head, t.proofs] = [e.seq, e.sha, e.proofs === 'pass'];
+    if (e.type === 'mr_opened') {
+      if (e.head !== t.head) t.proofs = false;
+      [t.openSeq, t.head] = [e.seq, e.head];
+      if (e.url) t.url = e.url;
+    }
     if (e.type === 'mr_closed') t.closeSeq = e.seq;
   }
   const facts = new Map();
   for (const [ticket, t] of seen) {
     if (t.merged) facts.set(ticket, { mr: 'merged', mergedInto: t.merged.target, epicMerged: t.merged.target === 'epic' && mergedEpics.has(t.merged.epic) });
-    else if (t.latestMr?.type === 'mr_opened') facts.set(ticket, { mr: 'open', pushSeq: t.pushSeq ?? t.openSeq, head: t.head, proofsValidAtHead: false });
+    // Unit 27a: MIRAI pushes a head only after its proofs checked (`proofs: "pass"` on the push).
+    else if (t.latestMr?.type === 'mr_opened') facts.set(ticket, { mr: 'open', pushSeq: t.pushSeq ?? t.openSeq, head: t.head, proofsValidAtHead: t.proofs, ...(t.url ? { url: t.url } : {}) });
     else if (t.latestMr?.type === 'mr_closed') facts.set(ticket, { mr: 'closed', closeSeq: t.closeSeq });
     else facts.set(ticket, { mr: 'none', ...(t.head ? { head: t.head } : {}) });
   }

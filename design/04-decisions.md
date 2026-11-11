@@ -1168,6 +1168,13 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
      token. The orchestrator commits (D-50), pushes with an explicit URL and opens MRs. The
      environment is an allowlist (D-12). Whether Claude Code keeps `CLAUDE_CODE_OAUTH_TOKEN` out
      of the Bash environment is UNVERIFIED (G9).
+     - **Update (unit 27a):** built for the push. `mirai ship` pushes with MIRAI's pinned git and
+       one credential helper for that call only: the host's CLI (`gh`; `glab` in 27b), its path
+       recorded by `mirai init`, given your HOME inside the helper's own command, so git keeps the
+       pinned empty HOME. The token stays between the CLI and git: never in arguments, files or the
+       repo. The URL is `<host_url>/<repo>.git`, never a remote's name. The host (GitHub or GitLab,
+       cloud or self-hosted) is set per project in `[git] host` / `host_url` on the integration
+       branch (Jet, 2026-11-10).
   10. **Secrets can't reach a commit.** `pre-push` runs a secret scan that blocks (patterns, the
       exact token value and its encoded forms, and an entropy rule on new files), and CI's test
       job runs it again. The autonomous preset refuses to run on a public repo.

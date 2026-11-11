@@ -5,6 +5,7 @@ import { alreadyForwarded, existingHooks, installHooks } from '../../hooks/insta
 import { init } from '../../install/init.js';
 import { PACKAGE_ROOT } from '../../install/parts.js';
 import { openStore } from '../../store/home.js';
+import { recordCli } from '../../ship/host.js';
 import { join, joinPlan } from '../../install/join.js';
 import { UsageError } from '../errors.js';
 import { createPrompter, requireTty } from '../tty.js';
@@ -48,18 +49,21 @@ export default {
       const r = join({ cwd: io.cwd, env: io.env, branch: plan.branch });
       io.stdout.write(`joined: this machine's store for ${r.root} is ${r.store}\n`);
       await reportHooks(io, r.root);
+      io.stdout.write(`${noteHost(io, r.root)}\n`);
       io.stdout.write('Next: mirai key new   (once per machine; commit the public key it writes)\n');
       return EXIT.OK;
     }
     const r = init({ cwd: io.cwd, env: io.env, branch: args.values.branch, refresh: Boolean(args.values.refresh) });
     for (const w of r.warnings) io.stderr.write(`warning: ${w}\n`);
     const hooks = await setUpHooks(io, r.root, io.hookPaths ?? {});
+    const host = noteHost(io, r.root);
     io.stdout.write([
       r.previous ? `MIRAI ${r.version} is refreshed in ${r.root} (${r.previous !== r.version ? `was ${r.previous}` : r.sameCopy ? 'the framework copy was already this one' : 'same version, a different framework copy'})` : `MIRAI ${r.version} is installed in ${r.root}`,
       `  integration branch: ${r.branch} (from ${r.branchFrom})`,
       `  wrote: ${r.wrote.join(', ')} (${r.files} files in the lock)`,
       `  store: ${r.store}`,
       ...(hooks.installed ? [hooksLine(hooks)] : []),
+      host,
       '',
       'Next:',
       `  1. Review these files and commit them on ${r.branch} (MIRAI never commits).`,
@@ -97,6 +101,15 @@ export async function setUpHooks(io, root, { node = process.execPath, launcher =
   }
   const r = installHooks({ store, env: io.env, node, launcher, forward });
   return { installed: true, dir: r.dir, forwarded: forward?.names ?? [] };
+}
+
+// The git host's CLI (unit 27a): `gh` and `glab` as found on your PATH, recorded in the store for
+// `mirai ship`. A line for the summary; a missing CLI is said, not fatal (ship refuses then).
+function noteHost(io, root) {
+  const store = openStore({ cwd: root, env: io.env });
+  const tools = recordCli(store, io.env, store.checkout);
+  const found = Object.entries(tools).map(([name, path]) => `${name}: ${path}`);
+  return `  host CLIs: ${found.length ? found.join(', ') : 'none found (mirai ship needs gh for GitHub, glab for GitLab)'}`;
 }
 
 const hooksLine = (h) => `  hooks: pre-push in ${h.dir} (core.hooksPath)${h.forwarded.length ? `; forwarding ${h.forwarded.join(', ')}` : ''}`;

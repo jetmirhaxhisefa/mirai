@@ -8,7 +8,7 @@ import { allowEntryProblem } from './git-repo-keys.js';
 // What each layer may set, as key paths. Personal settings never live in a shared repo
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
-  project: ['schema_version', 'preset', 'git.integration_branch', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
+  project: ['schema_version', 'preset', 'git.integration_branch', 'git.host', 'git.host_url', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel'],
@@ -149,6 +149,11 @@ export const CONFIG_SCHEMA = {
       type: 'table',
       fields: {
         integration_branch: { type: 'string', pattern: BRANCH, patternHint: 'a git branch name such as "main"' },
+        // Where the project's MRs live (unit 27a; Jet's decision 5): GitHub or GitLab, cloud or
+        // self-hosted. `host_url` only for a self-hosted server: https, a host name and an optional
+        // port, no path, no user or password.
+        host: { type: 'enum', values: ['github', 'gitlab'] },
+        host_url: { type: 'string', pattern: /^https:\/\/[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+(?::[1-9][0-9]{0,4})?$/, patternHint: 'https and a server name, such as "https://gitlab.example.com", with no path' },
         branch_pattern: {
           type: 'string',
           check(value, path, report) {

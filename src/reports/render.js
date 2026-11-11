@@ -215,7 +215,7 @@ function checked(validate, data, what, { except = [] } = {}) {
 
 // A follow-up says what's worth knowing, never where: a file path or a "file:line" is review
 // detail, which stays local (D-29).
-const CITES_CODE = /\S+\.[A-Za-z0-9]{1,8}:\d+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,8}\b/;
+export const CITES_CODE = /\S+\.[A-Za-z0-9]{1,8}:\d+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,8}\b/;
 
 // `data`: { ticket: { id, title }, why, what_changed[], review: { rounds }, followups[],
 // qa?: { acs: [{ ac, result: "pass", tests[] }], commands: [{ command, output }] }, risk: {

@@ -256,7 +256,7 @@ test('15a T4: log_event is answered while a test runs; a second test call is sti
 });
 
 test('15a T5: the journal: by agent for the log types only, always with its launch; older lines still read', () => {
-  assert.equal(JOURNAL_SCHEMA_VERSION, 4);
+  assert.ok(JOURNAL_SCHEMA_VERSION >= 4); // 5 since unit 27a (the push and MR fields)
   assert.doesNotThrow(() => checkEvent({ type: 'note', by: 'agent', launch_id: LAUNCH, message: 'x' }));
   assert.throws(() => checkEvent({ type: 'note', by: 'agent', message: 'x' }), /names its launch/);
   assert.throws(() => checkEvent({ type: 'note', by: 'unverified', launch_id: LAUNCH, message: 'x' }), /only an agent line carries a launch_id/);

@@ -59,8 +59,10 @@ export default {
       const base = { ticket, written: status?.state ?? null, seq: status?.seq ?? null, park_reason: status?.park_reason ?? null, note: status?.note ?? null, migrated_from: read?.migratedFrom ?? null, signed_by: signedBy, signed_by_you: signedBy !== null && signedBy === mine };
       if (mismatch) return { ...base, state: null, source: null, why: null, error: mismatch };
       try {
-        const { state, source, why } = deriveTicketState(status, facts.get(ticket) ?? { mr: 'none' });
-        return { ...base, state, source, why: status === null && source === 'written' ? 'no status file yet' : why, error: null };
+        const fact = facts.get(ticket) ?? { mr: 'none' };
+        const { state, source, why } = deriveTicketState(status, fact);
+        // Unit 27a: the MR's address, as `mirai ship` recorded it.
+        return { ...base, state, source, why: status === null && source === 'written' ? 'no status file yet' : why, mr_url: fact.url ?? null, error: null };
       } catch (err) {
         if (!(err instanceof StatusError)) throw err;
         return { ...base, state: null, source: null, why: null, error: err.message };
@@ -114,10 +116,11 @@ function line(r, width) {
   if (r.source === 'written' && r.signed_by) parts.push(r.signed_by_you ? `by you (signed, ${r.signed_by})` : `signed by ${r.signed_by}`);
   if (r.source === 'written' && r.note) parts.push(shown(r.note));
   if (r.migrated_from !== null) parts.push(`(written by an older MIRAI, schema ${r.migrated_from})`);
+  if (r.mr_url) parts.push(plain(r.mr_url));
   return parts.join('  ');
 }
 
-const FIELDS = ['state', 'park_reason', 'branch', 'sha', 'head', 'target'];
+const FIELDS = ['state', 'park_reason', 'branch', 'sha', 'head', 'target', 'proofs', 'number', 'url'];
 
 function eventLine(e) {
   const fields = FIELDS.filter((k) => e[k] !== undefined).map((k) => `${k}=${shown(e[k])}`);

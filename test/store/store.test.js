@@ -12,7 +12,7 @@ import { StoreError, formatError } from '../../src/cli/errors.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
 import { createStore, normalizeRemote, openStore, repoIdentity } from '../../src/store/home.js';
 import { acquireLock, atomicWrite } from '../../src/store/files.js';
-import { appendEvent, EVENT_TYPES, readJournal, ticketFacts, withSeq } from '../../src/store/journal.js';
+import { appendEvent, EVENT_TYPES, JOURNAL_SCHEMA_VERSION, readJournal, ticketFacts, withSeq } from '../../src/store/journal.js';
 import { readTicketStatus, writeTicketStatus } from '../../src/store/tickets.js';
 import { deriveTicketState } from '../../src/status/derive.js';
 import { cli, deadPid, git, HERE, makeRepo, mode, refused, setup, tmp, unchanged, unchangedAsync } from './helpers.js';
@@ -227,7 +227,7 @@ test('T6: a torn last line is skipped and counted, then cut off by the next appe
   assert.equal(after.torn, 0);
   assert.deepEqual(after.events.map((e) => e.message), ['one', 'two']);
   assert.equal(after.events[1].seq, 3, 'the torn line\'s number stays a gap');
-  assert.ok(readFileSync(journal, 'utf8').split('\n').every((l) => l === '' || l.startsWith('{"schema_version":4,"seq":')));
+  assert.ok(readFileSync(journal, 'utf8').split('\n').every((l) => l === '' || l.startsWith(`{"schema_version":${JOURNAL_SCHEMA_VERSION},"seq":`)));
   assert.equal(readFileSync(`${journal}.torn`, 'utf8'), '{"schema_version":1,"seq":2,"ts":"2026-10\n', 'the fragment is kept for doctor');
   assert.equal(mode(`${journal}.torn`), 0o600);
 
