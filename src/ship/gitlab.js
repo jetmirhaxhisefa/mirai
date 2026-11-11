@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 // The GitLab host behind `mirai ship` (unit 27b; Jet's decisions 2026-11-11): gitlab.com, or a
@@ -75,14 +76,19 @@ export function glabTls(configDir, host) {
 // The project's path for GitLab's API: `group/sub/repo` → `group%2Fsub%2Frepo`.
 export const projectPath = (repo) => repo.split('/').map(encodeURIComponent).join('%2F');
 
-// glab's version at `cli` ([major, minor, patch]), or null.
+// glab's version at `cli` ([major, minor, patch]), or null. glab reads (and makes) its config
+// folder even for --version, and exits 2 when it can't (a read-only HOME: the sample app's refresh,
+// 2026-11-12): a throwaway folder, removed after, so your own config is never touched.
 export function glabVersion(cli) {
+  const dir = mkdtempSync(join(tmpdir(), 'mirai-glab-'));
   try {
-    const out = execFileSync(cli, ['--version'], { cwd: '/', env: { PATH: '/usr/bin:/bin', HOME: '/var/empty', GLAB_CHECK_UPDATE: 'false', GLAB_SEND_TELEMETRY: 'false', NO_COLOR: '1' }, encoding: 'utf8', timeout: 20_000, stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = execFileSync(cli, ['--version'], { cwd: '/', env: { PATH: '/usr/bin:/bin', HOME: dir, GLAB_CONFIG_DIR: join(dir, 'glab-cli'), GLAB_CHECK_UPDATE: 'false', GLAB_SEND_TELEMETRY: 'false', GLAB_SHOW_WHATS_NEW: 'false', NO_COLOR: '1' }, encoding: 'utf8', timeout: 20_000, stdio: ['ignore', 'pipe', 'ignore'] });
     const m = /(\d+)\.(\d+)\.(\d+)/.exec(out);
     return m ? m.slice(1, 4).map(Number) : null;
   } catch {
     return null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 

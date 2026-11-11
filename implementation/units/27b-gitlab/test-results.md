@@ -70,3 +70,7 @@ After P2's fixes (the MR retry, the review index, the glab-auth message): **578 
 - **Cleanup:** every MR and probe branch deleted, `main` kept.
 
 **Found by Rex, fixed: a normal review's `index.json` didn't list the diff.** Rex's follow-up: "review.diff was not in the input folder (index.json lists only plan.md and ticket.md), so I reviewed the code at the checkout". The file was there; the folder's `index.json` was the plan stage's, written before MIRAI added `review.diff` and `review-files.json` (and in round 2, `delta.diff` and `prior-findings.json`). Rex's prompt says to read `index.json` first, so this time it believed the index. This dates from unit 24a and touched every normal-risk review (high-risk lenses build their own index). The index now names every file in the folder; the 24a review tests check it in round 1 and round 2 (they failed without the fix). P1's review raised nothing about it; whether it read the diff isn't recorded.
+
+## After the merge: glab's version in `mirai init`
+
+The sample app's `mirai init --refresh` showed `gitlab: …/glab (version unknown)`. glab reads, and makes, its config folder even for `--version`, and exits 2 when it can't; `glabVersion` ran it with the read-only `/var/empty` as HOME. Shipping wasn't affected (its version check runs with your glab config, as P1 and P2 showed); only `init`'s line and its "too old" warning were. Fixed: a throwaway config folder, removed after. A stand-in glab that, like the real one, exits 2 without a config folder it can make: the test failed before the fix and passes after.
