@@ -106,6 +106,17 @@ export const MIRAI_STEPS = Object.freeze([
       rmSync(bare, { recursive: true, force: true });
     }
   }],
+  // Unit 27b: the same push with a certificate authority file and the helper's extra variables
+  // (glab's quiet switches); a push by path asks no credentials, so the helper never runs.
+  ['pushBranch-ca', (root, env) => {
+    const bare = `${root}-push-ca.git`;
+    try {
+      execFileSync('/usr/bin/git', ['init', '-q', '--bare', bare], { env: { PATH: '/usr/bin:/bin', HOME: '/var/empty', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } });
+      return mirai.pushBranch(root, bare, 'probe/push', mirai.commitOf(root, 'side', env), env, { ca: '/etc/ssl/cert.pem', helper: { command: '/usr/bin/false', home: '/var/empty', configDir: '/var/empty', configVar: 'GLAB_CONFIG_DIR', vars: { GLAB_CHECK_UPDATE: 'false' } } });
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
+  }],
   ['cloneTo', (root, env) => {
     const dest = `${root}-clone`;
     try {

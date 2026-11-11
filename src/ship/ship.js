@@ -15,7 +15,7 @@ import { gateCheck } from '../tests/gate.js';
 import { protectionRules } from '../trust/protected.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { describeTicket } from './describe.js';
-import { hostFor } from './host.js';
+import { cleanTitle, hostFor } from './host.js';
 
 // `mirai ship <ticket>` (unit 27a; design/01 §11; Jet's decisions 1–5): MIRAI, never an agent,
 // pushes a reviewed ticket's branch and opens or updates its one MR against the integration
@@ -26,7 +26,8 @@ import { hostFor } from './host.js';
 //   3. the host (config + remote), its CLI and your login;
 //   4. the push check (26a's `prePushCheck`, the hook's own check);
 //   5. the base is on the host's integration branch (else the MR would carry your unpushed main);
-//   6. the MR: merged or closed → refused, never reopened; the host's branch at a commit MIRAI
+//   6. the MR: merged or closed → refused, never reopened; locked (GitLab merging it) → refused,
+//      try again; the host's branch at a commit MIRAI
 //      didn't push → refused, never forced;
 //   7. push (when the host's branch isn't at HEAD), then open or update the MR; the journal records
 //      both (`pushed` with `proofs: "pass"`, `mr_opened` with its number and URL).
@@ -96,6 +97,7 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
     if (facts.mr !== 'closed') appendEvent(store, { type: 'mr_closed', by: 'script', ticket });
     throw fail(`${ticket}'s MR ${mr.url} is closed`, 'mr-closed', `closing it was your decision, and MIRAI never reopens it: drop the ticket (mirai drop ${ticket}), or reopen the MR yourself and run it again`);
   }
+  if (mr?.state === 'locked') throw fail(`${ticket}'s MR ${mr.url} is locked: GitLab is merging it`, 'mr-locked', 'run it again in a minute');
   let lease = null;
   if (remoteSha && remoteSha !== head) {
     const forward = commitOf(store.checkout, remoteSha, store.gitEnv) && isAncestor(store.checkout, remoteSha, head, store.gitEnv);
@@ -108,12 +110,13 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   // 7. Push, then the MR.
   let pushed = false;
   if (remoteSha !== head) {
-    const p = pushBranch(store.checkout, host.pushUrl, branch, head, store.gitEnv, { helper: host.helper, lease });
+    const p = pushBranch(store.checkout, host.pushUrl, branch, head, store.gitEnv, { helper: host.helper, lease, ca: host.ca ?? null });
     if (!p.ok) throw fail(`the push of ${branch} was refused: ${p.why}`, 'push-refused', 'look at the branch on the host, then run it again');
     pushed = true;
   }
   if (pushed || facts.head !== head) appendEvent(store, { type: 'pushed', by: 'script', ticket, branch, sha: head, proofs: 'pass' });
-  const { data, title } = describeTicket({ store, ticket, head, ticketPath: `${config.docs?.root ?? 'docs/mirai'}/tickets/${ticket}.md` });
+  const { data, title: rawTitle } = describeTicket({ store, ticket, head, ticketPath: `${config.docs?.root ?? 'docs/mirai'}/tickets/${ticket}.md` });
+  const title = cleanTitle(rawTitle);
   const body = renderMrDescription(data, { host: host.renderAs, root: store.checkout, home: env.HOME });
   if (!mr) {
     const made = host.openMr({ base: integration, head: branch, title, body });

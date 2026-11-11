@@ -97,7 +97,8 @@ test('27a: the host from config and the remote', () => {
   assert.deepEqual(hostConfig({ git: { host: 'gitlab', host_url: 'https://git.acme.io' } }, 'git@git.acme.io:team/app.git'), { name: 'gitlab', hostUrl: 'https://git.acme.io', repo: 'team/app' });
   assert.throws(() => hostConfig({ git: {} }, 'https://git.acme.io/team/app.git'), (e) => e.code === 'no-host');
   assert.throws(() => hostConfig({ git: { host: 'github' } }, 'https://evil.example/acme/app.git'), (e) => e.code === 'wrong-host');
-  assert.throws(() => hostFor({ config: { git: { host: 'gitlab' } }, remoteUrl: 'https://gitlab.com/g/r.git', store: null, env: {}, root: '/' }), (e) => e.code === 'host-not-built');
+  // Unit 27b: the GitLab host is built; it needs glab recorded like gh.
+  assert.throws(() => hostFor({ config: { git: { host: 'gitlab' } }, remoteUrl: 'https://gitlab.com/g/r.git', store: { dir: '/nowhere' }, env: {}, root: '/' }), (e) => e.code === 'no-glab');
 });
 
 test('27a: the description: the review line, short follow-ups, nothing citing a file', async () => {

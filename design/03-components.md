@@ -246,7 +246,7 @@ Confluence). `repo` is forced when no tool is connected.
 | Name | Purpose | Prior art | MVP |
 |---|---|---|---|
 | `repo` store | Markdown files in the repo (the default and the fallback) | BMAD repo store | B (A hard-codes ticket files) |
-| Git host (GitHub `gh`, GitLab `glab`; per project in `[git] host`, unit 27a) | Push (explicit URL), MR, retargeting stacked MRs, the docs-MR merge after your approval (D-56), merge detection logged as journal observations (`integrated`, `done`), CI status, merge timestamps for metrics. Run by the orchestrator with its own credentials; agents never call it (D-30). GitLab `glab` later. | pstack `babysit`/`watch-pr` | A |
+| Git host (GitHub `gh`, GitLab `glab`; per project in `[git] host`, unit 27a) | Push (explicit URL), MR, retargeting stacked MRs, the docs-MR merge after your approval (D-56), merge detection logged as journal observations (`integrated`, `done`), CI status, merge timestamps for metrics. Run by the orchestrator with its own credentials; agents never call it (D-30). GitLab through `glab` since unit 27b (cloud, or self-hosted on its own address). | pstack `babysit`/`watch-pr` | A |
 | ClickUp, Jira, Linear | Ticket stores. One is picked when you choose a tool (D4). Also post the QA result as a ticket comment, with screenshots where the API allows (D-29). | `bmad-ticket/config/jira-ticketing.toml` (via `acli`); atlassian `spec-to-backlog` (reference) | Later |
 | Confluence, Notion | Doc stores | BMAD `external_handoffs` | Later |
 | GitHub Issues | Ticket store | BMAD store TOMLs | Later |

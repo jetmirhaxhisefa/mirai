@@ -1175,6 +1175,12 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
        repo. The URL is `<host_url>/<repo>.git`, never a remote's name. The host (GitHub or GitLab,
        cloud or self-hosted) is set per project in `[git] host` / `host_url` on the integration
        branch (Jet, 2026-11-10).
+     - **Update (unit 27b):** GitLab built the same way: `glab auth git-credential` as the only
+       helper (glab 1.125.0+, its config folder found as glab finds it, its update check and
+       telemetry off), GitLab's API through `glab api` for the branch and the MR. A self-hosted
+       server on its own address only (a port or a sub-path refused, later work; Jet, 2026-11-11);
+       a company certificate authority named in glab's `ca_cert` is given to git for the push
+       (`http.sslCAInfo`), and `skip_tls_verify` is refused.
   10. **Secrets can't reach a commit.** `pre-push` runs a secret scan that blocks (patterns, the
       exact token value and its encoded forms, and an entropy rule on new files), and CI's test
       job runs it again. The autonomous preset refuses to run on a public repo.

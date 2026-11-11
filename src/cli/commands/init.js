@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { join as joinPath } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -5,7 +6,9 @@ import { alreadyForwarded, existingHooks, installHooks } from '../../hooks/insta
 import { init } from '../../install/init.js';
 import { PACKAGE_ROOT } from '../../install/parts.js';
 import { openStore } from '../../store/home.js';
-import { recordCli } from '../../ship/host.js';
+import { CLOUD, recordCli, remoteHost } from '../../ship/host.js';
+import { GLAB_MIN, glabVersion, olderThan } from '../../ship/gitlab.js';
+import { remotes } from '../../store/git.js';
 import { join, joinPlan } from '../../install/join.js';
 import { UsageError } from '../errors.js';
 import { createPrompter, requireTty } from '../tty.js';
@@ -108,8 +111,31 @@ export async function setUpHooks(io, root, { node = process.execPath, launcher =
 function noteHost(io, root) {
   const store = openStore({ cwd: root, env: io.env });
   const tools = recordCli(store, io.env, store.checkout);
-  const found = Object.entries(tools).map(([name, path]) => `${name}: ${path}`);
-  return `  host CLIs: ${found.length ? found.join(', ') : 'none found (mirai ship needs gh for GitHub, glab for GitLab)'}`;
+  const found = Object.entries(tools).map(([name, path]) => {
+    if (name !== 'gitlab') return `${name}: ${path}`;
+    // Unit 27b: glab's version, against the floor ship holds it to.
+    const v = glabVersion(path);
+    if (!v) return `${name}: ${path} (version unknown)`;
+    return `${name}: ${path} (${v.join('.')}${olderThan(v, GLAB_MIN) ? `: too old, mirai ship needs ${GLAB_MIN.join('.')} or newer` : ''})`;
+  });
+  const lines = [`  host CLIs: ${found.length ? found.join(', ') : 'none found (mirai ship needs gh for GitHub, glab for GitLab)'}`];
+  // A remote on a server MIRAI can't name from its address, with no host in the config: say how.
+  let remoteUrl = null;
+  try {
+    remoteUrl = remotes(store.checkout, store.gitEnv).get('origin') ?? null;
+  } catch {
+    remoteUrl = null;
+  }
+  const where = remoteHost(remoteUrl);
+  const cloud = Object.values(CLOUD).some((u) => new URL(u).host === where);
+  let named = false;
+  try {
+    named = /^\s*host\s*=/m.test(readFileSync(joinPath(store.checkout, '.mirai', 'config.toml'), 'utf8'));
+  } catch {
+    named = false;
+  }
+  if (where && !cloud && !named) lines.push(`  git host: ${where} is self-hosted; for mirai ship, add to .mirai/config.toml under [git]: host = "gitlab" (or "github") and host_url = "https://${where}", then commit it`);
+  return lines.join('\n');
 }
 
 const hooksLine = (h) => `  hooks: pre-push in ${h.dir} (core.hooksPath)${h.forwarded.length ? `; forwarding ${h.forwarded.join(', ')}` : ''}`;
