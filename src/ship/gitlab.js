@@ -163,7 +163,8 @@ export function gitlabHost({ hostUrl, repo, cli, env, cliHome = env.HOME }, deps
       if (!v.ok || !have || olderThan(have, GLAB_MIN)) throw hostError(`glab ${have ? have.join('.') : '(version unknown)'} is older than ${GLAB_MIN.join('.')}, the first with the credential-helper fixes MIRAI needs`, 'glab-old', 'upgrade glab, then run: mirai init --refresh');
       readTls();
       const r = glab(['auth', 'status', '--hostname', host]);
-      if (!r.ok) throw hostError(`glab isn't logged in to ${host}`, 'glab-auth', `run: glab auth login --hostname ${host}`);
+      // Not logged in, or the server unreachable: P2 showed a missing ca_cert ends here too.
+      if (!r.ok) throw hostError(`glab can't use a login to ${host}: it isn't logged in, or can't reach the server`, 'glab-auth', `see why: glab auth status --hostname ${host}. Not logged in: glab auth login --hostname ${host}. A server with your company's certificate: glab config set ca_cert /absolute/path/to/ca.pem --host ${host}`);
     },
     branchTip(branch) {
       const b = api('GET', `${project}/repository/branches/${encodeURIComponent(branch)}`, { missing: /Branch Not Found/i });

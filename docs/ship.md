@@ -123,7 +123,7 @@ so the MR is never a draft.
 | `no-remote`, `bad-remote`, `no-host`, `wrong-host` | fix the `origin` remote, or `[git] host` / `host_url` on the integration branch |
 | `host-unsupported` | a server on a port or a sub-path: not supported yet |
 | `no-gh`, `gh-auth` | install `gh`, `gh auth login`, `mirai init --refresh` |
-| `no-glab`, `glab-auth`, `glab-old` | install or upgrade `glab` (1.125.0+), `glab auth login --hostname <host>`, `mirai init --refresh` |
+| `no-glab`, `glab-auth`, `glab-old` | install or upgrade `glab` (1.125.0+), `glab auth login --hostname <host>`, `mirai init --refresh`. `glab-auth` is also what a self-hosted server whose certificate glab can't check gives: `glab auth status --hostname <host>` shows which, and `ca_cert` fixes the second |
 | `tls-off`, `bad-ca` | remove `skip_tls_verify` from glab's config; set `ca_cert` to an absolute, readable file |
 | `host-failed` | the host or glab answered with an error (shown): check the project, your login, the server |
 | `fetch-first`, `base-not-pushed` | `git fetch`, or push the integration branch first |

@@ -101,7 +101,7 @@ if [ "$1" = "--version" ]; then echo "2.1.316 (Claude Code)"; exit 0; fi
 n=$(cat ${dir}/n); echo $((n+1)) > ${dir}/n
 for a in "$@"; do printf '%s\\n' "$a"; done > ${dir}/args$n
 inputs=$(sed -n '/^--add-dir$/{n;p;}' ${dir}/args$n)
-for f in review.diff delta.diff prior-findings.json review-files.json findings.json failures.json plan.md ticket.md intent.md findings-to-check.json; do [ -f "$inputs/$f" ] && cp "$inputs/$f" ${dir}/$n-$f; done
+for f in index.json review.diff delta.diff prior-findings.json review-files.json findings.json failures.json plan.md ticket.md intent.md findings-to-check.json; do [ -f "$inputs/$f" ] && cp "$inputs/$f" ${dir}/$n-$f; done
 . ${dir}/b$n.sh
 echo '${INIT}'; cat ${dir}/r$n.json
 `, { mode: 0o755 });
@@ -166,6 +166,10 @@ test('24a: a pass: Rex is launched read-only with the pinned diff as input; the 
   assert.equal(/Edit|Write|Bash/.test(tools), false, `Rex's tools: ${tools}`);
   assert.match(f.claude.input(1, 'review.diff'), /\+\/\/ renamed/);
   assert.equal(f.claude.input(1, 'prior-findings.json'), null, 'round 1 has no prior findings');
+  // index.json names every file in the folder, the diff included (27b's P2: Rex read an index that
+  // listed only plan.md and ticket.md, and reviewed the checkout instead).
+  const listed = JSON.parse(f.claude.input(1, 'index.json')).files.map((x) => x.name);
+  for (const name of ['plan.md', 'ticket.md', 'review.diff', 'review-files.json']) assert.ok(listed.includes(name), `${name} in index.json: ${listed}`);
   const rec = JSON.parse(readFileSync(reviewPath(f.store, 'PMT-31', 1), 'utf8'));
   assert.equal(rec.complete, true);
   assert.equal(rec.decision, 'done');
@@ -375,6 +379,8 @@ test('24a: review → fix → review: Kai gets Rex\'s blocking findings, replies
   assert.equal(r2.round, 2);
   assert.match(f.claude.input(3, 'delta.diff'), /\+\/\/ members kept/);
   assert.deepEqual(JSON.parse(f.claude.input(3, 'prior-findings.json')).findings.map((x) => x.id), ['F1']);
+  const listed2 = JSON.parse(f.claude.input(3, 'index.json')).files.map((x) => x.name);
+  for (const name of ['review.diff', 'delta.diff', 'prior-findings.json']) assert.ok(listed2.includes(name), `${name} in round 2's index.json: ${listed2}`);
   // One fix round was used; mirai fix after a pass has nothing to start from.
   assert.equal(readLoop(f.store, 'PMT-31').rounds_used, 1);
 });

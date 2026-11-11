@@ -294,8 +294,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
     const accepted = acceptedFindings(store, ticket);
     const droppedPrints = accepted.map((a) => a.fingerprint).filter((x) => typeof x === 'string');
     const priorBlocking = prior ? prior.record.findings.filter((f) => f.severity === 'blocking' && !droppedPrints.includes(f.fingerprint ?? findingFingerprint(f))) : [];
-    const inputs = {
-      ...given.inputs,
+    const added = {
       'review.diff': diff.patch,
       'review-files.json': `${JSON.stringify({ base: from, head, files: diff.files }, null, 2)}\n`,
       ...(prior ? {
@@ -303,6 +302,12 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
         'prior-findings.json': `${JSON.stringify({ review: prior.n, findings: priorBlocking.map(({ id, severity, category, file, line, symbol, basis, claim }) => ({ id, severity, category, file, line, symbol, basis, claim })) }, null, 2)}\n`,
       } : {}),
     };
+    // index.json names every file in the folder, the review's own included: Rex reads it first, and
+    // one that listed only plan.md and ticket.md led it to review the checkout instead of the diff
+    // (unit 27b's P2, 2026-11-11).
+    const ADDED_WHY = { 'review.diff': 'the whole change since the branch started', 'review-files.json': 'the changed files, with the base and head commits', 'delta.diff': 'the change since the last review', 'prior-findings.json': 'the last review\'s blocking findings' };
+    const index = { ...given.index, files: [...(given.index?.files ?? []), ...Object.entries(added).map(([name, text]) => ({ name, from: 'MIRAI', why: ADDED_WHY[name], bytes: Buffer.byteLength(text) }))] };
+    const inputs = { ...given.inputs, ...added, 'index.json': `${JSON.stringify(index, null, 2)}\n` };
     const depth = risk === 'high' ? 'high' : 'normal';
     const result = { ticket, outcome: null, why: null, review: n, round, risk, depth, blocking: [], followups: [], path: reviewPath(store, ticket, n), launch: null, launches: [], warn: usage.warn ?? null, tookOver };
     let endState = 'stopped';
