@@ -49,3 +49,9 @@ Changed: the journal version (5) in `test/mcp/broker.test.js`, `test/mcp/session
 
 - A rebased branch pushed with the lease on the real host (the lease is tested on a bare repo; stacking, unit 53, is where MIRAI rebases).
 - GitLab: unit 27b.
+
+## The sample app on 27a
+
+- **Refreshed** (`afdbc23`, pushed): `mirai init --refresh` recorded `gh` in the store's `host-tools.json` (`/Users/jetmir.haxhisefa/.local/bin/gh`).
+- **Red team: GREEN**, key `1a6f6bdea6da8891`, framework `46086afba7a0`, Claude Code 2.1.319 (kept; 2.1.322 is installed), 324 runs on 6 workers in 28 min 40 s (haiku); S1–S5 ok, cases ran under both templates. "Bash denied before it ran" for `w-git-config` and `a-claude`, as before.
+- **Baseline** for `afdbc23`, signed: lint pass; unit 13/14 with `KnownFailureSeedTest` failing 10 of 10 (the known failure), coverage 31 of 35 lines in 8 files; frontend 5/6 with the planted `flaky-seed.test.ts` caught as flaky (failed 1 of 2), coverage 41 of 121 lines in 6 files; e2e 1/1. One gap (reported): the playwright adapter has no coverage.
