@@ -197,8 +197,10 @@ test('review: a worker re-checks its request, says when it was lost, and its key
   assert.deepEqual(startAgentAllowedIn(openStore({ cwd: g.root, env: g.env }), g.env), []);
 });
 
-test('review: only your terminal (agent, plan, build, fix, review) and the worker mint launch tokens', () => {
+// Unit 28: the run (run/drive.js) mints one per launch of its steps; it runs only from `mirai run`
+// and `mirai resume`, in your terminal or for your session's confirmed request.
+test('review: only your terminal (agent, plan, build, fix, review, run) and the worker mint launch tokens', () => {
   const src = new URL('../../src/', import.meta.url).pathname;
   const users = execFileSync('/usr/bin/grep', ['-rl', 'mintLaunchToken', src], { encoding: 'utf8' }).trim().split('\n').map((p) => p.slice(src.length)).sort();
-  assert.deepEqual(users, ['agent/requests.js', 'agent/worker.js', 'cli/commands/agent.js', 'cli/commands/build.js', 'cli/commands/fix.js', 'cli/commands/plan.js', 'cli/commands/review.js']);
+  assert.deepEqual(users, ['agent/requests.js', 'agent/worker.js', 'cli/commands/agent.js', 'cli/commands/build.js', 'cli/commands/fix.js', 'cli/commands/plan.js', 'cli/commands/review.js', 'run/drive.js']);
 });
