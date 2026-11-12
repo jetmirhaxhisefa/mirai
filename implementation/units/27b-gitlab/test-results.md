@@ -74,3 +74,9 @@ After P2's fixes (the MR retry, the review index, the glab-auth message): **578 
 ## After the merge: glab's version in `mirai init`
 
 The sample app's `mirai init --refresh` showed `gitlab: …/glab (version unknown)`. glab reads, and makes, its config folder even for `--version`, and exits 2 when it can't; `glabVersion` ran it with the read-only `/var/empty` as HOME. Shipping wasn't affected (its version check runs with your glab config, as P1 and P2 showed); only `init`'s line and its "too old" warning were. Fixed: a throwaway config folder, removed after. A stand-in glab that, like the real one, exits 2 without a config folder it can make: the test failed before the fix and passes after.
+
+## The sample app on 27b
+
+- **Refreshed** (`9528664`, pushed; the pre-push check passed): `mirai init --refresh` recorded `glab` beside `gh` in the store's `host-tools.json`, `gitlab: /Users/jetmir.haxhisefa/.local/bin/glab (1.130.0)` (after the fix above; the first refresh showed "version unknown"). The framework copy's changed files are the eight 27b source files, each the same as MIRAI's merged code.
+- **Red team: GREEN**, key `fae1f78835284f7a`, framework `594c403d8aee`, Claude Code 2.1.319 (kept; 2.1.322 is installed), 325 runs on 6 workers in 20 min 32 s (haiku), signed with `k-eea753565042f25b`; S1–S5 ok, cases ran under both templates. "Bash denied before it ran" for `w-git-config` and `a-claude`, as before.
+- **Baseline** for `9528664`, signed: lint pass (49 s); unit 13/14 with `KnownFailureSeedTest` failing 10 of 10 (the known failure), coverage 31 of 35 lines in 8 files; frontend 5/6 with the planted `flaky-seed.test.ts` caught as flaky (failed 2 of 3), coverage 41 of 121 lines in 6 files; e2e 1/1 (90 s). One gap (reported): the playwright adapter has no coverage. The same as 27a's.
