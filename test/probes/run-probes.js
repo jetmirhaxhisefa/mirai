@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 
 import { main } from '../../src/cli/main.js';
 import { readLoop } from '../../src/loop/guard.js';
-import { driveTicket } from '../../src/run/drive.js';
+import { driveTicket, STEPS } from '../../src/run/drive.js';
 import { showData, showText } from '../../src/run/show.js';
 import { findCli, hostFor, TOOLS_FILE } from '../../src/ship/host.js';
 import { pushBranch } from '../../src/store/git.js';
@@ -106,11 +106,30 @@ async function r1(ctx, repo) {
     if (!pb.ok) return;
 
     const t1 = Date.now();
-    const d2 = await driveTicket({ ...io, ticket: 'SAMPLE-1', launchOptions: { ...opts, hostOf }, onEvent: events(ctx.log, 'r1-run2') });
+    // Each test run's verdicts (the build's and the gate's), and a failing run's messages.
+    const tests = (label, r) => {
+      for (const x of r?.tests?.runs ?? []) {
+        ctx.log(`${label}: ${x.name} ${x.verdict} (${x.outcome}${x.tests ? `; ${x.tests.passed ?? '?'} passed, ${x.tests.failed ?? '?'} failed of ${x.tests.total ?? '?'}` : ''})`);
+        for (const f of x.failing ?? []) ctx.log(`${label}:   ${String(f.id ?? f.name).slice(0, 160)}: ${String(f.message ?? '').replace(/\s+/g, ' ').slice(0, 400)}`);
+        if (x.output_tail) for (const l of x.output_tail.split('\n').slice(-40)) ctx.log(`${label}:   tail| ${l}`);
+      }
+    };
+    const steps = {
+      ...STEPS,
+      runBuild: async (a) => { const r = await STEPS.runBuild(a); tests('r1-build-tests', r); return r; },
+      runFix: async (a) => { const r = await STEPS.runFix(a); for (const x of r?.rounds ?? []) tests('r1-fix-tests', x); return r; },
+      recordProofs: async (a) => { const r = await STEPS.recordProofs(a); tests('r1-gate-tests', r); return r; },
+    };
+    const d2 = await driveTicket({ ...io, ticket: 'SAMPLE-1', steps, launchOptions: { ...opts, hostOf }, onEvent: events(ctx.log, 'r1-run2') });
     summary(ctx.log, 'r1-run2', d2);
     ctx.log(`r1-run2: ${Math.round((Date.now() - t1) / 60000)} min`);
     const branch = JSON.parse(readFileSync(join(store.dir, 'tickets', 'SAMPLE-1', 'build.json'), 'utf8')).branch;
+    // The branch is on GitHub only if the run shipped it.
     cleanups.push(() => ghRun('api', '--method', 'DELETE', `repos/${repo}/git/refs/heads/${branch}`));
+    if (d2.outcome !== 'finished') {
+      ctx.keep = true;
+      ctx.log(`r1-diff: ${ctx.git('diff', '--stat', 'main...HEAD').trim().split('\n').join(' | ').slice(0, 600)}`);
+    }
     const pr = /\/pull\/(\d+)/.exec(d2.mr ?? '')?.[1];
     if (pr) cleanups.unshift(() => ghRun('pr', 'close', pr, '--repo', repo));
     // One run for every step: one run_started, its launches, run_finished.
@@ -125,7 +144,7 @@ async function r1(ctx, repo) {
   } finally {
     for (const c of cleanups) {
       const x = c();
-      ctx.log(`r1-cleanup: ${x.status === 0 ? 'ok' : `exit ${x.status} ${String(x.stderr).trim().slice(0, 160)}`}`);
+      ctx.log(`r1-cleanup: ${x.status === 0 ? 'ok' : /Reference does not exist/.test(String(x.stderr)) ? 'ok (the branch was never pushed)' : `exit ${x.status} ${String(x.stderr).trim().slice(0, 160)}`}`);
     }
   }
 }
@@ -198,12 +217,15 @@ async function cli() {
   }
   const workdir = realpathSync(mkdtempSync(join(process.env.HOME, '.mirai-probes-')));
   const log = (l) => process.stdout.write(`${l}\n`);
+  const ctx = { log, workdir, keep: false };
   try {
-    const ctx = setup({ app: resolve(values.app ?? join(process.env.HOME, 'Projects', 'mirai-sample-app')), workdir });
-    await probe({ ...ctx, log, workdir }, values.repo ?? 'jetmirhaxhisefa/mirai-sample-app');
+    Object.assign(ctx, setup({ app: resolve(values.app ?? join(process.env.HOME, 'Projects', 'mirai-sample-app')), workdir }), { log, workdir });
+    await probe(ctx, values.repo ?? 'jetmirhaxhisefa/mirai-sample-app');
   } finally {
     spawnSync('/bin/chmod', ['-R', 'u+rwX', workdir]);
-    rmSync(workdir, { recursive: true, force: true });
+    // A run that stopped short keeps its folder, to look at; delete it after.
+    if (ctx.keep) log(`kept for a look: ${workdir} (delete it after: rm -rf ${workdir})`);
+    else rmSync(workdir, { recursive: true, force: true });
   }
   return 0;
 }

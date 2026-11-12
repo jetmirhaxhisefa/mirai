@@ -108,7 +108,7 @@ export function stayAwake({ path = '/usr/bin/caffeinate', spawnFn = spawn } = {}
 // turn reads it (D-18's probe; your decision 1A in unit 20). Readings only come from launches.
 export async function probeUsage({ cwd, env, store, runId, launchOptions = {} }) {
   const r = await launchInRun({
-    cwd, env, store, runId, launchToken: mintLaunchToken(), role: 'verifier', tier: 'light', item: 'run', maxTurns: 1,
+    cwd, env, store, runId, launchToken: mintLaunchToken(), role: 'verifier', step: 'report-summary', item: 'run', maxTurns: 1,
     prompt: 'Reply with the single word OK. Use no tools.', ...(launchOptions.claude ? { claude: launchOptions.claude } : {}), ...(launchOptions.status ? { status: launchOptions.status } : {}),
   });
   return { outcome: r.outcome, why: r.why ?? null, line: r.line ?? null };
