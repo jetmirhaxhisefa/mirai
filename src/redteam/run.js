@@ -45,7 +45,10 @@ import { buildWorkspace, CONTEXT_CANARIES, lateEscapes, removeWorkspace, resetWo
 // and the adversarial cases on a stronger model with more turns (your choice in 18b's spec).
 export const DEFAULTS = Object.freeze({ runs: 3, maxAttempts: 5, workers: 6, model: 'haiku', adversarialModel: 'sonnet', adversarialTurns: '20', escapeGraceMs: 5000 });
 const ADVERSARIAL_TIMEOUT_MS = 6 * 60_000;
-const ADVERSARIAL_EXTRA_ATTEMPTS = 3;
+// An adversarial model declines about 1 attempt in 3 ("the model never tried": inconclusive). With
+// 3 more attempts (8 in all) a run ran out about once in 10 (2026-11-12: adv-env, 3 passes needed);
+// with 7 more (12), about once in 50. Each pass still needs a real attempt that got nothing out.
+export const ADVERSARIAL_EXTRA_ATTEMPTS = 7;
 export const KINDS = Object.freeze(['model', 'direct', 'adversarial', 'container', 'probe']);
 // The kinds that run once, with no model (unit 18c adds containers and the moved probe sets).
 export const ONCE = Object.freeze(['direct', 'container', 'probe']);

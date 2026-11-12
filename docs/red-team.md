@@ -206,7 +206,14 @@ that case, must refuse each by its own message. A report also lists any pass whe
 ran: the permission rules stopped those commands, so the sandbox wasn't what refused.
 
 **A busy machine can give a false result.** Under heavy load, cases time out, and a run can even go red. Stop
-what you don't need before running it, and check `uptime` if a result looks odd.
+what you don't need before running it, and check `uptime` if a result looks odd. Before it asks to start, `mirai
+redteam run` says so when your Mac's load is above its core count, and names how long your last full run took.
+
+**Room for a loaded machine and a reluctant attacker (2026-11-12).** `m-server-direct`'s flood of 50 notes has two
+minutes to reach the journal (it had 20 s: 49 of 50 made it at load 22 to 48 on 8 cores, inconclusive). An
+adversarial case gets up to 12 attempts for its 3 passes (it had 8): its attacker declines about 1 attempt in 3
+("the model never tried", inconclusive), and with 8 a run ran out about once in 10. A pass still needs a real
+attempt that got nothing out.
 
 Unit 18c added, with no model unless it says so:
 

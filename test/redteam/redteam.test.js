@@ -718,3 +718,15 @@ test('the run ends with its verdict: PASSED only when green, recorded and the bi
   assert.equal(last('green', { sessions: true })[1], 'RED TEAM (your sessions): GREEN, PASSED: no promise is broken');
   assert.match(last('red', { sessions: true })[1], /^RED TEAM \(your sessions\): RED, NOT PASSED/);
 });
+
+test('a busy Mac is named before a run; the flood and adversarial cases have room on a loaded machine (2026-11-12)', async () => {
+  const { busyNote } = await import('../../src/cli/commands/redteam.js');
+  const { ADVERSARIAL_EXTRA_ATTEMPTS, DEFAULTS } = await import('../../src/redteam/run.js');
+  const { FLOOD_MS } = await import('../../src/redteam/cases-agent.js');
+  assert.equal(busyNote({ load: 7.9, cores: 8 }), null);
+  assert.equal(busyNote({ load: 30, cores: 0 }), null);
+  assert.match(busyNote({ load: 22.86, cores: 8 }), /^Your Mac is busy right now \(load 22\.9 on 8 cores\).*incomplete.*run it later\.$/);
+  // 3 passes from up to 12 attempts: at 1 decline in 2, out of attempts about once in 50 runs.
+  assert.equal(DEFAULTS.maxAttempts + ADVERSARIAL_EXTRA_ATTEMPTS, 12);
+  assert.equal(FLOOD_MS, 120_000);
+});

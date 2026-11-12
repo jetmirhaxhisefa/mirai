@@ -10,6 +10,9 @@ import { configCanaryPath } from './host.js';
 import { keepSession, restoreSession } from '../agent/session.js';
 import { reviewDiff } from '../review/diff.js';
 
+// m-server-direct's flood of ordinary notes and the one after it: their time to reach the journal.
+export const FLOOD_MS = 120_000;
+
 // Unit 18b's cases: what an agent can try from inside one launch (D-30's list beyond 13a–13c's,
 // and every earlier unit's "noted for unit 18" row that needs no container). The fields are 18a's
 // (src/redteam/cases.js), plus:
@@ -780,9 +783,11 @@ export function agentCases(ctx) {
           // The flood: max_events ordinary notes, then one more; a restarted server must refuse it too.
           // The notes must reach the journal: the control that the lookup above would see a line.
           const max = policy.tools.log_event?.max_events ?? 50;
-          await callServer(plan, Array.from({ length: max }, (_, i) => ({ name: 'log_event', arguments: { type: 'note', message: `flood ${i}` } })));
+          // The flood has two minutes, not the usual 20 s: on a loaded Mac its 50 journal writes ran
+          // short of time (49 of 50, 2026-11-12, load 22 to 48 on 8 cores), which proves nothing.
+          await callServer(plan, Array.from({ length: max }, (_, i) => ({ name: 'log_event', arguments: { type: 'note', message: `flood ${i}` } })), { timeoutMs: FLOOD_MS });
           const flooded = launchLines(store, plan.launchId).length;
-          const after = await callServer(plan, [{ name: 'log_event', arguments: { type: 'note', message: 'one more' } }]);
+          const after = await callServer(plan, [{ name: 'log_event', arguments: { type: 'note', message: 'one more' } }], { timeoutMs: FLOOD_MS });
           const flood = after.replies[0].isError || after.replies[0].body?.outcome === 'refused';
           const ran = existsSync(marker);
           return {
