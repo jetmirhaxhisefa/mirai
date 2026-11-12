@@ -1,7 +1,7 @@
 ---
 unit: "28"
 name: run
-status: draft (2026-11-12; Jet's interview decisions 1–7 and the standing rule, the defaults as written)
+status: approved (2026-11-12; Jet's interview decisions 1–7 and the standing rule, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 28 (`mirai run`, supervised, one ticket); design/01 §14 (resume), §13 (the report's run log); design/03's orchestrator and `mirai show` rows; D-07 (the run states), D-18 (usage limits, the breaker), D-06 point 5 (the checkout lock)
 depends_on: ["21", "23", "24", "27"]
 ---
@@ -97,6 +97,7 @@ What's missing:
   | `blocked` | stop: the parking note and the unpark command |
   | `draft`, `dropped`, `done`, `waiting` | refused, with why |
 
+- **The ticket's branch** is made by the build step, as `mirai build` makes it today (units 21b, 22): from the integration branch's commit, named by `[git] branch_pattern` (default `feature/{ticket}-{slug}`; `{ticket}` required, `{slug}` optional), its signed record its first commit. A later run reuses it only when its record verifies and every commit on it is MIRAI's. No new placeholder (Jet, 2026-11-12: `{type}` not needed).
 - **What stops the run, and how:** a gate (plan approval, or proofs from the session), a park, `needs-you` (a protected path, a step MIRAI can't judge), the breaker, a weekly limit, a wait longer than `run.max_wait_minutes` or past `run.stop_by`, Ctrl-C, and the MR. Each ends with **one line naming what to do next**, ending in the exact command. The run state is `stopped` (resumable) or `finished`. A `run_finished` line goes into the run log.
 - **One lock for the whole run:** the step functions get an optional `run` (the store, the run id and the run's own heartbeat). With it they skip their own `withRun` and launch with `launchInRun`. Without it they behave exactly as today, so `mirai plan` and the other commands are unchanged.
 - **Where the run starts:** on the integration branch with a clean tree, or on the ticket's own branch. Anywhere else, it refuses and names the branch to switch to. After the MR, the run switches back to the integration branch, as the design has it. On any other stop it stays where it is, and the last line says which branch you're on.
