@@ -183,17 +183,24 @@ async function r2(ctx) {
   const child = join(ctx.workdir, 'run-child.mjs');
   writeFileSync(child, `import { driveTicket } from ${JSON.stringify(join(HERE, '..', '..', 'src', 'run', 'drive.js'))};
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
-await driveTicket({ cwd: ${JSON.stringify(ctx.root)}, env: ${JSON.stringify(ctx.env)}, ticket: 'SAMPLE-1', launchOptions: { claude: ${JSON.stringify(ctx.claude)}, status: green }, onEvent: (e) => { if (e.type === 'step') process.stdout.write('[' + e.step + ']\\n'); } });
+await driveTicket({ cwd: ${JSON.stringify(ctx.root)}, env: ${JSON.stringify(ctx.env)}, ticket: 'SAMPLE-1', launchOptions: { claude: ${JSON.stringify(ctx.claude)}, status: green }, onEvent: (e) => { if (e.type === 'step') process.stdout.write('[' + e.step + ']\\n'); else if (e.type === 'step-done') process.stdout.write('[' + e.step + '] ' + e.outcome + '\\n'); } });
 `);
   const p = spawn(process.execPath, [child], { cwd: ctx.root, env: ctx.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  p.stdout.on('data', (b) => ctx.log(`r2-child: ${String(b).trim()}`));
+  // The step the child is on, from its own lines (a launch's heartbeat may carry no step).
+  let current = null;
+  p.stdout.on('data', (b) => {
+    for (const l of String(b).split('\n').filter((x) => x.trim())) {
+      ctx.log(`r2-child: ${l.trim()}`);
+      const m = /^\[([a-z-]+)\]$/.exec(l.trim());
+      if (m) current = m[1];
+    }
+  });
   const agentFile = join(store.dir, 'agent-runs', 'current.json');
   const t0 = Date.now();
   let agentSince = null;
   while (Date.now() - t0 < 40 * 60_000) {
     await new Promise((r) => { setTimeout(r, 5000); });
-    const s = readRunState(store);
-    if (s?.step === 'build' && existsSync(agentFile)) {
+    if (current === 'build' && existsSync(agentFile)) {
       agentSince ??= Date.now();
       if (Date.now() - agentSince > 90_000) break;
     }
