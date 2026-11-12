@@ -714,7 +714,7 @@ test('the run ends with its verdict: PASSED only when green, recorded and the bi
   assert.match(last('blocker', {})[1], /^RED TEAM: BLOCKER, NOT PASSED/);
   assert.match(last('green', { partial: true })[1], /NOT PASSED: a partial run/);
   assert.match(last('green', { recorded: false })[1], /NOT PASSED/);
-  assert.match(last('green', { kept: { ok: false } })[1], /GREEN, PASSED, but agents stay/);
+  assert.match(last('green', { kept: { ok: false } })[1], /GREEN, NOT PASSED: MIRAI couldn't keep/, 'the command exits NEEDS_HUMAN then');
   assert.equal(last('green', { sessions: true })[1], 'RED TEAM (your sessions): GREEN, PASSED: no promise is broken');
   assert.match(last('red', { sessions: true })[1], /^RED TEAM \(your sessions\): RED, NOT PASSED/);
 });
