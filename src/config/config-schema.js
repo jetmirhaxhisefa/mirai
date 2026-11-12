@@ -10,7 +10,7 @@ import { allowEntryProblem } from './git-repo-keys.js';
 export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.integration_branch', 'git.host', 'git.host_url', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
-  'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by'],
+  'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by', 'run.on_limit', 'run.max_wait_minutes'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel'],
 });
 
@@ -301,6 +301,9 @@ export const CONFIG_SCHEMA = {
       type: 'table',
       fields: {
         stop_by: { type: 'string', pattern: /^([01][0-9]|2[0-3]):[0-5][0-9]$/, patternHint: 'a 24-hour time as a string, for example "06:30"' },
+        // Unit 28: at a 5-hour usage limit, wait for the reset or stop; and the longest wait.
+        on_limit: { type: 'enum', values: ['wait', 'stop'] },
+        max_wait_minutes: { type: 'integer', min: 1, max: 600 },
       },
     },
     // How many test runs may run at once across all your projects (unit 14d). Personal global
@@ -318,6 +321,8 @@ export const CONFIG_SCHEMA = {
         reserve: { type: 'integer', min: 0, max: 100 },
         // The next ticket's share until a run has measured one (unit 20).
         ticket_estimate: { type: 'integer', min: 0, max: 100 },
+        // Unit 28: how old a usage reading may be before a run's short Haiku check refreshes it.
+        stale_hours: { type: 'integer', min: 1, max: 168 },
       },
       check(value, path, report) {
         if (Number.isInteger(value.night_max) && Number.isInteger(value.week_max) && value.night_max > value.week_max) {

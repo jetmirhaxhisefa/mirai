@@ -38,6 +38,8 @@ export const RUN_EVENTS = Object.freeze({
   // One agent launch, written when it ends (its numbers are end-of-launch numbers).
   agent_run: {
     launch_id: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, patternHint: 'a launch id' },
+    // Unit 28: the launch's tool calls as a summary, each tool and how often.
+    tool_calls: { type: 'array', items: { type: 'table', fields: { tool: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9_]{0,63}$/, patternHint: 'a tool name' }, n: { type: 'integer', min: 1 } }, required: ['tool', 'n'] }, uniqueBy: 'tool' },
     step: { type: 'enum', values: STEPS },
     role: name,
     round: count,
@@ -125,7 +127,7 @@ const OPTIONAL = {
   session_ended: ['note'],
   // What tdd resolved to is unit 23's to record (its red check); until then MIRAI can't tell.
   checks: ['tdd_applied'],
-  agent_run: ['rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'agent', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
+  agent_run: ['tool_calls', 'rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'agent', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };
 // Rules across fields, per event.
 const CHECKS = {

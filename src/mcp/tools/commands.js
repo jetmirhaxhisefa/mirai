@@ -45,6 +45,31 @@ export const COMMANDS = Object.freeze({
   fix: { needs: ['ticket'], tty: true, argv: (a) => ['fix', a.ticket] },
   // Unit 24a: Rex's review, a step like fix (21f's rule: what isn't a gate runs from your session).
   review: { needs: ['ticket'], tty: true, argv: (a) => ['review', a.ticket] },
+  // Unit 28 (Jet's standing rule: every command runs from the session unless it's a gate): the run,
+  // which stops before the proofs from here (they're signed with your key, in your terminal); its
+  // resume; a ticket's page; and ship, which signs nothing.
+  run: { needs: ['ticket'], tty: true, run: true, argv: (a) => ['run', a.ticket] },
+  resume: { flags: ['abandon'], tty: true, run: true, argv: (a) => ['resume', ...(a.abandon ? ['--abandon'] : [])] },
+  show: { quick: true, needs: ['ticket'], flags: ['full', 'json'], argv: (a) => ['show', a.ticket, ...(a.full ? ['--full'] : []), ...(a.json ? ['--json'] : [])] },
+  ship: { needs: ['ticket'], argv: (a) => ['ship', a.ticket] },
+  // Read-only, or a draft for you to review (unit 28, the standing rule).
+  'config check': { quick: true, argv: () => ['config', 'check'] },
+  'config show': { quick: true, argv: () => ['config', 'show'] },
+  protected: { quick: true, argv: () => ['protected'] },
+  'trust check': { quick: true, argv: () => ['trust', 'check'] },
+  detect: { argv: () => ['detect'] },
+});
+
+// Jet's standing rule (2026-11-12): every command also runs from your session, unless it's a gate
+// (above) or here, with the reason. A test holds every command of the CLI to one of the three.
+export const NOT_FROM_SESSION = Object.freeze({
+  agent: 'its session form is the start_agent tool (19c)',
+  hook: 'git runs it, never you or a session',
+  log: 'its session form is the log_event tool, which marks a note as the session\'s (15b)',
+  session: 'its session form is the session_start and session_end tools (19c)',
+  init: 'a session\'s copy of MIRAI can\'t bring a newer one, and it rewrites files in your work tree (21f)',
+  render: 'it rewrites files in your work tree (21f)',
+  'trust snapshot': 'MIRAI builds the trust root itself before every step',
 });
 
 // The gates: never run here. Each answers with the command to type in your terminal.
@@ -59,6 +84,8 @@ export const GATES = Object.freeze({
   key: () => 'mirai key new',
   token: () => 'mirai token set',
   'session-server': () => 'mirai session-server install   (or remove)',
+  // Unit 28 (decision 2): proofs are signed with your key, from your terminal only until row 29b.
+  'gate record': (a) => `mirai gate record ${a.ticket ?? '<ticket>'}`,
 });
 
 const refuse = (code, message) => ({ body: { outcome: 'refused', code, message }, isError: true });
@@ -72,7 +99,7 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'recheck', 'kept', 'confirm'].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json'].includes(k)) return { refused: `${k} isn't an argument here` };
   }
   if (args.ticket !== undefined) {
     if (typeof args.ticket !== 'string' || !TICKET.test(args.ticket)) return { refused: 'ticket must be a ticket key' };
@@ -86,7 +113,7 @@ export function checkCommand(args) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
   }
-  for (const flag of ['recheck', 'kept']) {
+  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json']) {
     if (args[flag] === undefined) continue;
     if (typeof args[flag] !== 'boolean') return { refused: `${flag} is true or false` };
     if (!(spec.flags ?? []).includes(flag)) return { refused: `${command} doesn't take ${flag}` };
@@ -101,7 +128,7 @@ export function checkCommand(args) {
 
 export const miraiCommand = Object.freeze({
   name: 'mirai_command',
-  description: 'Run one MIRAI command in this project, as `mirai <command>` in your terminal would (status, plan, build, fix, baseline, lint, test, redteam status/run, …). Approvals and your key and token are never run here: the answer is the terminal command to type. A long command runs on: follow it with mirai_status.',
+  description: 'Run one MIRAI command in this project, as `mirai <command>` in your terminal would (status, run, resume, show, plan, build, fix, review, ship, baseline, lint, test, redteam status/run, …). Approvals and your key and token are never run here: the answer is the terminal command to type. A long command runs on: follow it with mirai_status.',
   exclusive: false,
   contexts: Object.freeze(['interactive']),
   enabled: (policy) => Boolean(policy.tools.mirai_command),
@@ -109,11 +136,14 @@ export const miraiCommand = Object.freeze({
     type: 'object',
     properties: {
       command: { type: 'string', enum: [...Object.keys(COMMANDS), ...Object.keys(GATES)] },
-      ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, branch verify and the gates' },
+      ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },
       confirm: { type: 'string', pattern: CODE.source, description: 'with redteam run: the one-time code its first answer gave, once the person agreed to the cost' },
+      abandon: { type: 'boolean', description: 'with resume: give the stopped run up instead' },
+      full: { type: 'boolean', description: 'with show: every finding\'s text, the plan, the parking note whole' },
+      json: { type: 'boolean', description: 'with show: the page as JSON' },
     },
     required: ['command'],
     additionalProperties: false,

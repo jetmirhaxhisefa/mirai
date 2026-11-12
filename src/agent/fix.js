@@ -20,7 +20,7 @@ import { addCheckpoint } from './checkpoints.js';
 import { AGENT, AGENT_LABEL, LAUNCH_OPTIONS } from './plan.js';
 import { checkLaunchToken } from './requests.js';
 import { reviewRef, reviewStart, writeDisputes } from './review.js';
-import { launchInRun, withRun } from './run.js';
+import { inRun, launchInRun } from './run.js';
 import { agentSessionDir, forgetSession } from './session.js';
 
 // Fix rounds (unit 21c; design/01 §7 and §8, D-18, R-M4, R-M5). When MIRAI's own test run after a
@@ -104,7 +104,20 @@ export function fixPrompt({ ticket, round }) {
 // `replan` (back to ready-for-dev for its one re-plan), `parked`, or a round's stop (needs-you,
 // blocked, agent-failed, env-fault, usage-limit, killed, refused). `nextToken()`: a one-time launch
 // token per round, minted by the caller (your terminal or the orchestrator, D-14).
-export async function runFix({ cwd, env, ticket, nextToken, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, now = () => new Date() }) {
+// Where a fix round starts from the ticket's last build record (`last`), or null (unit 28's run asks
+// the same question): the failing step MIRAI committed (`fix_from`), carried across a stop that's no
+// one's decision, or Rex's blocking findings / the disputes you said stand (24a).
+export const CARRIED = Object.freeze(['usage-limit', 'env-fault', 'killed', 'discarded']);
+export function fixFrom(store, ticket, last) {
+  const carried = CARRIED.includes(last?.outcome);
+  let from = null;
+  if (carried && last.review_from?.commit) from = last.review_from;
+  else if (last?.outcome === 'checks-failed' || carried) from = last.fix_from ?? null;
+  if (!from?.commit) from = reviewStart(store, ticket, last);
+  return from?.commit ? from : null;
+}
+
+export async function runFix({ cwd, env, ticket, nextToken, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, now = () => new Date() }) {
   if (typeof nextToken !== 'function') checkLaunchToken(null);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   // The first sign of life (unit 21e), before MIRAI's own checks.
@@ -113,7 +126,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
   } catch {
     // a display only
   }
-  return await withRun({ cwd, env }, async ({ store, runId, tookOver }) => {
+  return await inRun({ cwd, env, run: outerRun }, async ({ store, runId, tookOver, outer }) => {
     const { keys, plan, usage, trust, config, registry, given, fm } = preflight({ cwd, env, store, ticket, unattended });
     let last;
     try {
@@ -126,12 +139,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
     // Only a stop that's no one's decision carries it: a usage limit, a fault, Ctrl-C, or your discard.
     // Kai's `blocked`, a failure, a safety stop or an error needs you first (21c re-review).
     // A round from a review (unit 24a) that stopped the same way starts again from its findings.
-    const carried = ['usage-limit', 'env-fault', 'killed', 'discarded'].includes(last?.outcome);
-    let from = null;
-    if (carried && last.review_from?.commit) from = last.review_from;
-    else if (last?.outcome === 'checks-failed' || carried) from = last.fix_from ?? null;
-    // Unit 24a: Rex's blocking findings, or the disputes you said stand, start a round too.
-    if (!from?.commit) from = reviewStart(store, ticket, last);
+    let from = fixFrom(store, ticket, last);
     if (!from?.commit) throw fail(`${ticket} has no step that ended with failing tests MIRAI committed, and no review with blocking findings of its last green step (last: ${last?.outcome ?? 'no build'}); fix rounds start only from there`, 'not-fixable', last ? (last.outcome === 'handed-over' ? `mirai review ${ticket}` : 'a stop for safety needs you first: look at it, then mirai unpark, mirai discard, or mirai build') : `mirai build ${ticket}`);
     if (symbolicBranch(store.checkout, 'HEAD', store.gitEnv) !== from.branch) throw fail(`the checkout isn't on ${ticket}'s branch (${from.branch})`, 'build-moved', `git switch ${from.branch}`);
     if (commitOf(store.checkout, 'HEAD', store.gitEnv) !== from.commit) throw fail(`${from.branch} isn't at ${ticket}'s failing step (${String(from.commit).slice(0, 12)})`, 'build-moved', `mirai build ${ticket}`);
@@ -182,7 +190,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
         let r;
         try {
           r = await launch({
-            ...watch, cwd, env, store, runId, startRun: !started, ownsRun: false, launchToken: nextToken(), agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
+            ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: nextToken(), agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
             prompt: fromReview ? fixFindingsPrompt({ ticket, round, upheld: Boolean(from.upheld) }) : fixPrompt({ ticket, round }), item: ticket, round, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs, jsonSchema: fromReview ? FIX_REVIEW_SCHEMA : HANDOVER_SCHEMA, now,
             session: { keep: true, resumeFrom },
           });
@@ -276,7 +284,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
       return { ...result, outcome: 'needs-you', why: `${MAX_ROUNDS_HERE} rounds in one command; run it again to go on` };
     } finally {
       const run = readRunState(store);
-      if (run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
+      if (!outer && run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
     }
   });
 }

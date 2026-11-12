@@ -122,6 +122,34 @@ export function writeRunState(store, to, { by = 'script', ticket, step, clear = 
   });
 }
 
+// Your move on a stopped run (unit 28, decision 6), in one step under the journal lock: the
+// `run_resumed` event (signed from your terminal with `signer`; from your session MIRAI's line with
+// the `request` the store confirmed), then the human stopped → running move with the same seq order.
+// `abandon`: the run stays stopped and is given up: `mirai run` no longer waits for it.
+export function resumeRun(store, { runId, via, request = null, signer = null, abandon = false }) {
+  if (via === 'terminal' && !signer) throw new StoreError('a resume from your terminal is signed with your key', { code: 'unsigned', exitCode: EXIT.BLOCKED });
+  return withSeq(store, ({ take, event, runLine }) => {
+    const current = readRunState(store);
+    if (current === null || current.run_id !== runId) throw new StoreError(`run ${runId} isn't the last run`, { code: 'no-run', exitCode: EXIT.BLOCKED });
+    if (current.state !== 'stopped') throw new StoreError(`run ${runId} is ${current.state}, not stopped`, { code: 'not-resumable', exitCode: EXIT.BLOCKED });
+    const n = take();
+    event(n, { type: 'run_resumed', by: via === 'terminal' ? 'human' : 'script', item: current.ticket ?? 'run', run_id: runId, via, ...(request ? { request } : {}), ...(abandon ? { abandon: true } : {}) }, via === 'terminal' ? { signer } : {});
+    if (abandon) {
+      const next = { ...current, abandoned: true };
+      writeState(store, next);
+      return Object.freeze(next);
+    }
+    move(RUN, 'stopped', 'running', { by: 'human', item: runId });
+    const line = { item: current.ticket ?? 'run', event: 'run_state', from: 'stopped', to: 'running' };
+    const seq = take();
+    runLine(runId, seq, line);
+    const { abandoned: _a, ...rest } = current;
+    const next = { ...rest, state: 'running', seq };
+    writeState(store, next);
+    return Object.freeze(next);
+  });
+}
+
 // Records where the running run is (its ticket and step) without a state move: the run machine
 // has no running → running move, and resume (unit 28) reads the position from state.json.
 export function recordProgress(store, { ticket, step }) {

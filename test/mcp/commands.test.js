@@ -178,3 +178,24 @@ test('21f review: plan through the real worker is not refused for a terminal; th
   assert.equal(right.body.code, 'no-worker', 'past the consent, to the worker');
   assert.match(checkCommand({ command: 'status', confirm: 'abcdef0123456789' }).refused, /one-time code/);
 });
+
+test('28: the standing rule: every command of the CLI runs from your session, is a gate, or is named as not from a session with why; run, resume, show and ship run, gate record is a gate', async () => {
+  const { COMMANDS: CLI } = await import('../../src/cli/commands/index.js');
+  const { NOT_FROM_SESSION } = await import('../../src/mcp/tools/commands.js');
+  const first = (k) => k.split(' ')[0];
+  const covered = new Set([...Object.keys(COMMANDS), ...Object.keys(GATES), ...Object.keys(NOT_FROM_SESSION)].map(first));
+  const missing = CLI.map((c) => c.name).filter((n) => !covered.has(n));
+  assert.deepEqual(missing, [], 'a new command goes on the session list, the gates, or NOT_FROM_SESSION with its reason');
+  for (const why of Object.values(NOT_FROM_SESSION)) assert.ok(why.length > 10);
+  assert.deepEqual(checkCommand({ command: 'run', ticket: 'SAMPLE-1' }).args, { command: 'run', ticket: 'SAMPLE-1' });
+  assert.deepEqual(checkCommand({ command: 'resume', abandon: true }).args, { command: 'resume', abandon: true });
+  assert.deepEqual(checkCommand({ command: 'show', ticket: 'SAMPLE-1', full: true }).args, { command: 'show', ticket: 'SAMPLE-1', full: true });
+  assert.deepEqual(COMMANDS.show.argv({ ticket: 'S-1', json: true }), ['show', 'S-1', '--json']);
+  assert.deepEqual(COMMANDS.ship.argv({ ticket: 'S-1' }), ['ship', 'S-1']);
+  assert.match(checkCommand({ command: 'run', ticket: 'S-1', abandon: true }).refused, /doesn't take abandon/);
+  assert.match(checkCommand({ command: 'resume', ticket: 'S-1' }).refused, /doesn't take ticket/);
+  let spawned = 0;
+  const r = await miraiCommand.run({ command: 'gate record', ticket: 'SAMPLE-1' }, { policy: {}, deps: { spawn: () => { spawned += 1; } } });
+  assert.deepEqual([r.body.outcome, r.body.run_in_your_terminal, spawned], ['yours', 'mirai gate record SAMPLE-1', 0]);
+  for (const words of ['run', 'resume', 'show', 'ship', '--abandon', '--full', '--json']) assert.ok(MIRAI_COMMAND.includes(words), words);
+});

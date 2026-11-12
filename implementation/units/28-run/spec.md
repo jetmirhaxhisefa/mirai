@@ -174,3 +174,15 @@ What's missing:
 ## Open points for you
 
 The seven decisions and the standing rule are taken (above), and the defaults are named. Approve the spec, or say which default to change.
+
+## Changes during the build (2026-11-12)
+
+1. **One lock for the run:** the steps take an optional `run` and use `inRun` (src/agent/run.js), which uses the outer run's lock and leaves the run state to it, or takes a run of its own as before. Alone, `plan`, `build`, `fix` and `review` are unchanged: their 81 tests pass as they were.
+2. **The fix round's start is shared:** `fixFrom` (src/agent/fix.js) answers "where would a fix round start", for `mirai fix` and the run alike.
+3. **In review, the order is proofs first:** minting the proofs adds a records-only commit, so after it the review's commit is behind the head. The run asks: valid proofs at the head → ship; a passed, complete review on this branch → proofs (which refuse a review whose code changed, `review-stale`); else review.
+4. **An environment fault runs the step again;** the breaker (`loop.breaker`, 3) stops the run after that many in a row, and a good launch resets it. A fault doesn't stop the run on its own.
+5. **After a crash with uncommitted changes, `resume` names `mirai discard` first.** Resetting a half-finished step throws work away, and `discard` is a gate (your typed key), so it stays one: the run refuses a dirty tree and says so. A crash between steps (a clean tree) resumes at once. R2 shows which.
+6. **`resume` is signed:** a new journal event `run_resumed` (your key from the terminal; from the session MIRAI's line with the request id), written with the stopped → running move in one step (`resumeRun`, src/store/run.js). `--abandon` writes the same event with `abandon: true`, and the run stays stopped, given up.
+7. **The per-launch progress summary** is `tool_calls` on the `agent_run` line: each tool and how often (a tool outside the launch's list counts as `other`), never each call.
+8. **The session list, by the standing rule:** besides `run`, `resume`, `show` and `ship`, five read-only or draft-writing commands joined it (`config check`, `config show`, `protected`, `trust check`, `detect`). `NOT_FROM_SESSION` names the rest with the reason (`agent`, `hook`, `log`, `session` have session tools of their own; `init`, `render` and `trust snapshot` stay terminal-only, 21f). A test holds every CLI command to the list, the gates, or that.
+9. **The session worker's time limit for `run` and `resume` is 600 minutes** (other agent commands keep 240): a run can wait up to `run.max_wait_minutes` for a usage limit.

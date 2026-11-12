@@ -104,7 +104,7 @@ const count = (v) => (Number.isSafeInteger(v) && v >= 0 ? v : 0);
 // the one on record, with a grace for its server to clean up. Its background jobs have groups of
 // their own: any working in its scratch are killed, any in your checkout named. Nothing compared
 // `.git` for that run, and the note says so.
-async function takeOver(store) {
+export async function takeOver(store) {
   const state = readRunState(store);
   if (state?.state !== 'running') return null;
   const file = join(store.dir, 'agent-runs', 'current.json');
@@ -218,6 +218,18 @@ export async function withRun({ cwd, env }, fn) {
   }
 }
 
+// A step's run (unit 28): inside `mirai run`'s own run when `outer` is given ({ store, runId }),
+// whose lock this process already holds (locks aren't re-entrant), else a run of its own as
+// before. `outer` tells the step not to start or end the run state: the outer run owns it.
+export async function inRun({ cwd, env, run = null }, fn) {
+  if (run) {
+    const holder = runLockHolder(env);
+    if (!holder || holder.run_id !== run.runId || holder.pid !== process.pid) throw refuse('a step inside a run needs that run\'s lock, held by this process', 'no-run-lock');
+    return await fn({ store: run.store, runId: run.runId, tookOver: null, outer: true });
+  }
+  return await withRun({ cwd, env }, (x) => fn({ ...x, outer: false }));
+}
+
 // The red-team gate for a role, before anything is made for its launch (unit 21e: a refused build
 // had already made and switched to its branch). The launch checks it again, as ever.
 export async function preGate({ cwd, env, store, trust, role: roleName, claude = null, status = redTeamStatus }) {
@@ -295,6 +307,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
   let spawned = false;
   let progress = () => {};
   let progressSeen = () => {};
+  let toolCalls = () => [];
   let progressEnd = () => {};
   let stopTrailing = () => {};
   let beat = null;
@@ -310,6 +323,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     // Progress (unit 21e): from the stream, filtered (src/agent/progress.js); to the caller, and as
     // the heartbeat's last line for `mirai status`, at most every few seconds. Never the run's cost.
     const tracker = progressTracker({ root: launched.cwd, agent: progressLabel ?? agentDef?.name ?? role.name, model, tools: launched.expectedInit.tools, levels });
+    toolCalls = tracker.toolCalls;
     let lastLine;
     let lastBeat = 0;
     let trailing = null;
@@ -524,6 +538,8 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
       tokens_in: count(usage.input_tokens), tokens_cached: count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens), tokens_out: count(usage.output_tokens), turns: count(parsed.result?.num_turns), minutes: Math.round((Date.now() - started) / 600) / 100,
       ...(share === null ? { limit_share_source: 'unknown' } : { limit_share: share, limit_share_source: 'measured' }), ...(limited ? { limit_window: limited.window, ...(limited.resets_at ? { resets_at: new Date(limited.resets_at * 1000).toISOString() } : {}) } : {}), verdict: outcome === 'ok' ? 'pass' : outcome === 'agent-failed' ? 'fail' : 'error', outcome, survivors: survivors.length + suspects.length, unproven: unproven.length,
       settings_sha256: hashes.settings, canonical_sha256: hashes.canonical, token_fingerprint: tokenFingerprint(token),
+      // The launch's progress as a summary (unit 28, from 21e): each tool and how often, never each call.
+      ...(toolCalls().length ? { tool_calls: toolCalls() } : {}),
       ...(Number.isFinite(parsed.result?.total_cost_usd) && parsed.result.total_cost_usd >= 0 ? { cost_usd: parsed.result.total_cost_usd } : {}),
     };
     const seq = withSeq(store, ({ take, runLine }) => {

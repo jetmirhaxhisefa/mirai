@@ -24,7 +24,7 @@ import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { planInputs, ticketAcs } from './inputs.js';
 import { checkLaunchToken } from './requests.js';
-import { launchInRun, withRun } from './run.js';
+import { inRun, launchInRun } from './run.js';
 
 // The plan step (unit 21a; design/01 §6, D-15, R2-C1, R2-M11). Kai, on the planner role (it may
 // change nothing), reads the ticket's inputs and returns the plan as its run's structured output;
@@ -200,7 +200,7 @@ export function ticketRecord(store, ticket, keys) {
   return { approved, rejections: mine.filter((e) => e.kind === 'plan' && e.decision === 'rejected').length };
 }
 
-export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', unattended = false, launchOptions = {}, launch = launchInRun, now = () => new Date() }) {
+export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', unattended = false, launchOptions = {}, launch = launchInRun, run: outerRun = null, now = () => new Date() }) {
   // Checked here, spent by each launch: no plan runs without them.
   if (!Array.isArray(launchTokens) || launchTokens.length !== 2) checkLaunchToken(null);
   for (const t of launchTokens) checkLaunchToken(t);
@@ -211,7 +211,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
   } catch {
     // a display only
   }
-  return await withRun({ cwd, env }, async ({ store, runId, tookOver }) => {
+  return await inRun({ cwd, env, run: outerRun }, async ({ store, runId, tookOver, outer }) => {
     const status = readTicketStatus(store, ticket)?.status ?? null;
     if (status?.state !== 'ready-for-dev') throw fail(`${ticket} is ${status?.state ?? 'not approved yet'}; a plan starts from ready-for-dev`, 'not-ready', EXIT.BLOCKED, status ? undefined : 'approve the ticket first: mirai approve <ticket> --file <path>');
     // The usage check before a ticket (unit 20), then the trust root and the inputs.
@@ -264,7 +264,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         let r;
         try {
           r = await launch({
-            ...watch, cwd, env, store, runId, startRun: !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: AGENT_LABEL, role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
+            ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: AGENT_LABEL, role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
             prompt: planPrompt({ ticket, fields, via, problems }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
           });
         } catch (err) {
@@ -320,7 +320,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
     } finally {
       // The run ends here, whichever launch it got to (a launch that threw may have started it).
       const run = readRunState(store);
-      if (run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
+      if (!outer && run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
     }
   });
 }

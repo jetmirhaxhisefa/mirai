@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { recordBaseline } from '../../src/baseline/record.js';
+import { growthMessage, recordBaseline } from '../../src/baseline/record.js';
 import { readBaseline, knownFailures, baselinePath, KEEP_BASELINES } from '../../src/baseline/store.js';
 import { addRerun, fileOf as fileOfGuard, outcomesOf, stateOf } from '../../src/baseline/flaky.js';
 import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
@@ -340,6 +340,40 @@ test('17b review fixes: a rerun that times out; refusals stop the baseline; an i
   await assert.rejects(recordBaseline({ cwd: r4.root, env: r4.env, run: broke.runner, refuseGrowth: true, limits: { runsPerFile: 2, reruns: 5, filesPerLevel: 5 } }), (e) => e.code === 'baseline-grew');
   const grew = await recordBaseline({ cwd: r4.root, env: r4.env, run: broke.runner, limits: { runsPerFile: 2, reruns: 5, filesPerLevel: 5 } });
   assert.equal(grew.baseline.growth.previous.sha, d.baseline.sha);
-  assert.deepEqual(grew.baseline.growth.added, [{ level: 'unit', scope: 'test', id: `${A}::a` }]);
+  assert.deepEqual(grew.baseline.growth.added, [{ level: 'unit', scope: 'test', id: `${A}::a`, state: 'failing' }]);
   assert.equal(fileOfGuard('weird'), null);
+});
+
+test('28: a flaky test from the previous baseline is carried over when it passes first time; a new flaky one is growth, said as flaky', async () => {
+  const id = 'tests/ATest.php::test_flaky';
+  const lim = { limits: { runsPerFile: 3, reruns: 10, filesPerLevel: 5 } };
+  const r = repo();
+  // Caught: it fails, then passes on the rerun.
+  const caught = scripted((name, path, n) => (name !== 'unit' ? { cases: [], noTests: true } : { cases: [T(id, n === 0 ? 'fail' : 'pass')] }));
+  const first = await recordBaseline({ cwd: r.root, env: r.env, run: caught.runner, ...lim });
+  assert.deepEqual(knownFailures(first.baseline, 'unit').map((k) => [k.id, k.state]), [[id, 'flaky']]);
+  // The next commit: it passes first time, so nothing runs it again. Carried, flaky, and no growth.
+  r.git('commit', '-q', '--allow-empty', '-m', 'next');
+  const clean = scripted((name) => (name !== 'unit' ? { cases: [], noTests: true } : { cases: [T(id, 'pass')] }));
+  const second = await recordBaseline({ cwd: r.root, env: r.env, run: clean.runner, refuseGrowth: true, ...lim });
+  const carried = knownFailures(second.baseline, 'unit');
+  assert.deepEqual(carried.map((k) => [k.id, k.state, k.carried_from]), [[id, 'flaky', first.baseline.sha]]);
+  assert.deepEqual(second.baseline.growth.added, []);
+  // And the one after: caught again, it's what it was, not new.
+  r.git('commit', '-q', '--allow-empty', '-m', 'again');
+  const caughtAgain = scripted((name, path, n) => (name !== 'unit' ? { cases: [], noTests: true } : { cases: [T(id, n === 0 ? 'fail' : 'pass')] }));
+  const third = await recordBaseline({ cwd: r.root, env: r.env, run: caughtAgain.runner, refuseGrowth: true, ...lim });
+  assert.deepEqual(third.baseline.growth.added, []);
+  assert.deepEqual(knownFailures(third.baseline, 'unit').map((k) => [k.id, k.state, k.carried_from]), [[id, 'flaky', undefined]], 'caught again: its own history, not carried');
+  // Carried again from a carried one: the first sha it was seen flaky on stays.
+  r.git('commit', '-q', '--allow-empty', '-m', 'quiet');
+  const quiet = await recordBaseline({ cwd: r.root, env: r.env, run: clean.runner, refuseGrowth: true, ...lim });
+  assert.equal(knownFailures(quiet.baseline, 'unit')[0].carried_from, third.baseline.sha);
+
+  // A test never seen failing that turns out flaky: growth, said as "newly flaky".
+  const other = 'tests/ATest.php::test_other';
+  r.git('commit', '-q', '--allow-empty', '-m', 'new flaky');
+  const fresh = scripted((name, path, n) => (name !== 'unit' ? { cases: [], noTests: true } : { cases: [T(id, 'pass'), T(other, n === 0 ? 'fail' : 'pass')] }));
+  await assert.rejects(recordBaseline({ cwd: r.root, env: r.env, run: fresh.runner, refuseGrowth: true, ...lim }), (e) => e.code === 'baseline-grew' && /1 newly flaky test since/.test(e.message) && !/new known failure/.test(e.message) && /fails only sometimes/.test(e.hint));
+  assert.equal(growthMessage([{ state: 'failing' }, { state: 'flaky' }], 'a'.repeat(40)), `1 new known failure and 1 newly flaky test since the previous baseline (${'a'.repeat(12)})`);
 });

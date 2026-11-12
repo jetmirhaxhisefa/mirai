@@ -25,7 +25,7 @@ import { baselineRevision } from './checkpoints.js';
 import { ticketAcs } from './inputs.js';
 import { LAUNCH_OPTIONS } from './plan.js';
 import { checkLaunchToken } from './requests.js';
-import { launchInRun, REVIEW_AGENT, withRun } from './run.js';
+import { inRun, launchInRun, REVIEW_AGENT } from './run.js';
 import { agentSessionDir, forgetSession } from './session.js';
 
 // The review step (unit 24a; design/01 §9, R-M7, R2-C1, TL2-23, TL3-12). After a green build or
@@ -218,7 +218,7 @@ const list = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []).fi
 //
 // Launch tokens: `launchToken` for the first launch, `nextToken()` for each one after (your
 // terminal mints them; D-14). A high-risk review needs `nextToken`.
-export async function runReview({ cwd, env, ticket, launchToken = null, nextToken = null, unattended = false, launchOptions = {}, launch = launchInRun, now = () => new Date() }) {
+export async function runReview({ cwd, env, ticket, launchToken = null, nextToken = null, unattended = false, launchOptions = {}, launch = launchInRun, run: outerRun = null, now = () => new Date() }) {
   if (typeof nextToken !== 'function') checkLaunchToken(launchToken);
   let firstToken = launchToken;
   const token = () => {
@@ -236,7 +236,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
   } catch {
     // a display only
   }
-  return await withRun({ cwd, env }, async ({ store, runId, tookOver }) => {
+  return await inRun({ cwd, env, run: outerRun }, async ({ store, runId, tookOver, outer }) => {
     const { plan, usage, trust, config, given, fm } = preflight({ cwd, env, store, ticket, unattended, state: 'in-review', limits: PLAN_INPUT_LIMITS });
     let last;
     try {
@@ -337,7 +337,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
       let r;
       try {
         r = await launch({
-          ...watch, cwd, env, store, runId, startRun: launched === 1, ownsRun: false, launchToken: token(), agent: REVIEW_AGENT, progressLabel: label, role: REVIEW_ROLE, step: REVIEW_STEP, risk, expectBase: trust.baseSha,
+          ...watch, cwd, env, store, runId, startRun: !outer && launched === 1, ownsRun: false, launchToken: token(), agent: REVIEW_AGENT, progressLabel: label, role: REVIEW_ROLE, step: REVIEW_STEP, risk, expectBase: trust.baseSha,
           // The verifier ladder (unit 19): Rex's model is chosen against the author's.
           ...(last.launch ? { verifies: last.launch } : {}),
           prompt, item: ticket, round, maxTurns: REVIEW_MAX_TURNS, timeoutMs: watch.timeoutMs ?? REVIEW_TIMEOUT_MS, inputs: files, jsonSchema: schema, now,
@@ -451,7 +451,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
       return { ...result, outcome, why };
     } finally {
       const run = readRunState(store);
-      if (run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
+      if (!outer && run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
     }
   });
 }

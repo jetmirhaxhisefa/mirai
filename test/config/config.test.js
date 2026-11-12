@@ -455,3 +455,15 @@ test('T18: any model may be set for a tier, and a model outside its family is sh
   assert.match(out, /warning: the standard tier uses claude-haiku-5-5 \(set in \.mirai\/config\.toml:5:1\), not a Sonnet model; every standard step will run on it/);
   assert.ok(dir);
 });
+
+test('28: the run\'s limits: run.on_limit and run.max_wait_minutes in the project or your personal file; usage.stale_hours in your global file; each refused out of range', () => {
+  const { config } = loadConfig(repo({
+    project: `${MINIMAL}[run]\non_limit = "stop"\nmax_wait_minutes = 120\n`,
+    personal: 'schema_version = 1\n[run]\nmax_wait_minutes = 60\n',
+    global: 'schema_version = 1\n[usage]\nstale_hours = 6\n',
+  }).files);
+  assert.deepEqual([config.run.on_limit, config.run.max_wait_minutes, config.usage.stale_hours], ['stop', 60, 6], 'personal wins over project');
+  const err = problems({ project: `${MINIMAL}[run]\non_limit = "sometimes"\nmax_wait_minutes = 0\n` });
+  assert.deepEqual(err.errors.map((e) => e.path), ['run.on_limit', 'run.max_wait_minutes']);
+  assert.match(reasons(problems({ global: 'schema_version = 1\n[usage]\nstale_hours = 0\n' }))[0], /stale_hours/);
+});

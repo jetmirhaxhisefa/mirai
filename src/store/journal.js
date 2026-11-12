@@ -84,6 +84,23 @@ export const EVENT_TYPES = Object.freeze({
       if (e.reason !== undefined && e.decision === 'accepted') report('reason', 'a reason goes with edited or rejected only');
     },
   },
+  // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.
+  // Signed from your terminal; from your session, MIRAI's line with the request the store confirmed.
+  run_resumed: {
+    privileged: true,
+    human: true,
+    fields: {
+      run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
+      via: { type: 'enum', values: ['terminal', 'session'] },
+      request: { type: 'string', pattern: /^q-\d{14}-[0-9a-f]{8}$/, patternHint: 'a request id' },
+      abandon: { type: 'boolean' },
+    },
+    required: ['run_id', 'via'],
+    check(e, report) {
+      if ((e.via === 'session') !== (e.request !== undefined)) report('request', 'a resume from your session names its request, and only that one');
+      if ((e.via === 'terminal') !== (e.by === 'human')) report('by', 'a resume from your terminal is yours, signed; one from your session is MIRAI\'s line');
+    },
+  },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },
 });

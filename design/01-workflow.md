@@ -1463,6 +1463,8 @@ continues a `stopped` run.
   (`bmad-tea-test-design/steps-c/step-01b-resume.md`).
 - bmad-loop `state.json` + `journal.jsonl` + `heartbeat.json`.
 
+**Built (unit 28, supervised, one ticket; docs/run.md):** `mirai run <ticket>` reads the next step from the ticket every time, so running it again is how a stopped run goes on; `mirai resume` is the same for your last run, after taking over a crashed one. A crash that left uncommitted changes names `mirai discard` first (your typed confirmation), never a silent reset. Your stopped → running move is signed from your terminal, or confirmed by your session's request, as a `run_resumed` journal line. A 5-hour usage limit pauses (`run.on_limit`, `run.max_wait_minutes`, `run.stop_by`), a weekly one stops; the breaker counts faults across the run's launches.
+
 ---
 
 ## 15. Change requests (requirements move after approval)
