@@ -73,10 +73,23 @@ async function r1(ctx, repo) {
   const store = openStore(io);
   const opts = { claude: ctx.claude, status: green };
   const t0 = Date.now();
-  const d1 = await driveTicket({ ...io, ticket: 'SAMPLE-1', launchOptions: opts, onEvent: events(ctx.log, 'r1-run1') });
+  // The plan's lint problems, if any, and every launch of the run, as its log has them.
+  const planSteps = {
+    ...STEPS,
+    runPlan: async (a) => {
+      const r = await STEPS.runPlan(a);
+      for (const p of r?.problems ?? []) ctx.log(`r1-plan-lint: line ${p.line}${p.code ? ` [${p.code}]` : ""}: ${String(p.reason ?? p.message ?? JSON.stringify(p)).slice(0, 300)}`);
+      return r;
+    },
+  };
+  const d1 = await driveTicket({ ...io, ticket: 'SAMPLE-1', steps: planSteps, launchOptions: opts, onEvent: events(ctx.log, 'r1-run1') });
   summary(ctx.log, 'r1-run1', d1);
   ctx.log(`r1-run1: ${Math.round((Date.now() - t0) / 1000)} s; ticket ${readTicketStatus(store, 'SAMPLE-1').status.state}; run ${readRunState(store).state}`);
-  if (d1.stop?.kind !== 'gate-plan') return;
+  for (const l of readRunLog(store, d1.runId).lines.filter((x) => x.event === 'agent_run')) ctx.log(`r1-run1-launch: ${l.step}/${l.outcome}${l.why ? ` (${String(l.why).slice(0, 200)})` : ''}, ${l.turns ?? '?'} turns, ${l.model_used ?? l.model ?? '?'}`);
+  if (d1.stop?.kind !== 'gate-plan') {
+    ctx.keep = true;
+    return;
+  }
   const ap = await term(['approve', 'SAMPLE-1', '--plan'], io, ['a', 'SAMPLE-1']);
   ctx.log(`r1-approve: exit ${ap.code} (the probe home's key)`);
   if (ap.code !== 0) return;
