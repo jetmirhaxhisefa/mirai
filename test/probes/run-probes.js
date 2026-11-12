@@ -11,6 +11,7 @@ import { main } from '../../src/cli/main.js';
 import { readLoop } from '../../src/loop/guard.js';
 import { driveTicket, STEPS } from '../../src/run/drive.js';
 import { showData, showText } from '../../src/run/show.js';
+import { installHooks } from '../../src/hooks/install.js';
 import { findCli, hostFor, TOOLS_FILE } from '../../src/ship/host.js';
 import { pushBranch } from '../../src/store/git.js';
 import { openStore } from '../../src/store/home.js';
@@ -171,6 +172,8 @@ async function r1(ctx, repo) {
 async function r2(ctx) {
   const io = await prep(ctx);
   const store = openStore(io);
+  // MIRAI's hooks in the probe home, as `mirai init` installs them: `mirai resume` needs them (26a).
+  installHooks({ store, env: ctx.env, node: process.execPath, launcher: join(HERE, '..', '..', 'bin', 'launch.js') });
   const opts = { claude: ctx.claude, status: green };
   // The plan, then your gate (the probe's key), as in r1.
   const d1 = await driveTicket({ ...io, ticket: 'SAMPLE-1', launchOptions: opts, onEvent: events(ctx.log, 'r2-plan') });
@@ -211,6 +214,8 @@ await driveTicket({ cwd: ${JSON.stringify(ctx.root)}, env: ${JSON.stringify(ctx.
     return;
   }
   const agent = JSON.parse(readFileSync(agentFile, 'utf8'));
+  // Whatever resume does, Kai isn't left running after the probe.
+  ctx.after.push(() => { try { process.kill(-agent.pid, 'SIGTERM'); ctx.log(`r2-end: Kai (pid ${agent.pid}) was still running; stopped`); } catch { /* gone */ } });
   process.kill(-p.pid, 'SIGKILL');
   await new Promise((r) => { setTimeout(r, 3000); });
   const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -243,11 +248,12 @@ async function cli() {
   }
   const workdir = realpathSync(mkdtempSync(join(process.env.HOME, '.mirai-probes-')));
   const log = (l) => process.stdout.write(`${l}\n`);
-  const ctx = { log, workdir, keep: false };
+  const ctx = { log, workdir, keep: false, after: [] };
   try {
     Object.assign(ctx, setup({ app: resolve(values.app ?? join(process.env.HOME, 'Projects', 'mirai-sample-app')), workdir }), { log, workdir });
     await probe(ctx, values.repo ?? 'jetmirhaxhisefa/mirai-sample-app');
   } finally {
+    for (const f of ctx.after) f();
     spawnSync('/bin/chmod', ['-R', 'u+rwX', workdir]);
     // A run that stopped short keeps its folder, to look at; delete it after.
     if (ctx.keep) log(`kept for a look: ${workdir} (delete it after: rm -rf ${workdir})`);
