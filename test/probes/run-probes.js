@@ -92,11 +92,17 @@ async function r1(ctx, repo) {
   const base = `mirai-probe/base-${id}`;
   const remoteUrl = `https://github.com/${repo}.git`;
   const real = (a) => hostFor({ ...a, remoteUrl, cliHome: process.env.HOME });
+  const ghRun = (...args) => spawnSync(gh, args, { env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME, GH_PROMPT_DISABLED: '1', NO_COLOR: '1' }, encoding: 'utf8' });
+  // The ticket's branch name is the same every time, so an earlier probe's closed PR on it is
+  // there: PRs from before this probe aren't its own (a real project's would be yours).
+  const last = ghRun('api', `repos/${repo}/pulls?state=all&per_page=1&sort=created&direction=desc`, '--jq', '.[0].number // 0');
+  const before = Number(String(last.stdout).trim()) || 0;
+  ctx.log(`r1-prs: the newest PR before this probe: #${before}${last.status === 0 ? '' : ` (gh exit ${last.status})`}`);
   const hostOf = (a) => {
     const h = real(a);
-    return { ...h, branchTip: (b) => h.branchTip(b === 'main' ? base : b), openMr: (o) => h.openMr({ ...o, base }) };
+    const ours = (mr) => (mr && Number(/\/pull\/(\d+)/.exec(mr.url ?? '')?.[1] ?? 0) > before ? mr : null);
+    return { ...h, branchTip: (b) => h.branchTip(b === 'main' ? base : b), openMr: (o) => h.openMr({ ...o, base }), findMr: (b) => ours(h.findMr(b)) };
   };
-  const ghRun = (...args) => spawnSync(gh, args, { env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME, GH_PROMPT_DISABLED: '1', NO_COLOR: '1' }, encoding: 'utf8' });
   const cleanups = [];
   try {
     const host = real({ config: { git: { integration_branch: 'main' } }, store, env: ctx.env, root: ctx.root });
