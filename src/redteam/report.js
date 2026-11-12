@@ -88,3 +88,22 @@ export function sessionReport(result, { recorded = true, partial = false } = {})
   out.push(`next: ${SESSION_NEXT[result.state]}`, '');
   return out.join('\n');
 }
+
+// The run's last line (Jet, 2026-11-12): the verdict where the command ends, so a long run's
+// result isn't only at the top of its output. Passed only when green, recorded, and (for the
+// agents' run) the tested binary kept.
+const SHORT = Object.freeze({ red: 'don\'t launch: fix each failure above', blocker: 'no headless run: the decision comes back to you (above)', incomplete: 'run it again', stale: 'run it again', none: 'run it' });
+
+export function finalLine(state, { recorded = true, partial = false, kept = null, sessions = false } = {}) {
+  const what = sessions ? 'RED TEAM (your sessions)' : 'RED TEAM';
+  const label = `${String(state).toUpperCase()}${partial ? ' (a partial run)' : ''}`;
+  let verdict;
+  if (partial) verdict = 'NOT PASSED: a partial run is never recorded';
+  else if (state !== 'green') verdict = `NOT PASSED: ${SHORT[state] ?? 'see above'}`;
+  else if (!recorded) verdict = 'NOT PASSED: the result wasn\'t recorded';
+  else if (kept && kept.ok === false) verdict = 'PASSED, but agents stay on the Claude Code they ran before (above)';
+  else verdict = sessions ? 'PASSED: no promise is broken' : 'PASSED: headless launches may use this result';
+  const line = `${what}: ${label}, ${verdict}`;
+  const rule = '='.repeat(line.length);
+  return `${rule}\n${line}\n${rule}\n`;
+}

@@ -11,7 +11,7 @@ import { snapshot, trustedStrict } from '../../trust/snapshot.js';
 import { caseIndex } from '../../redteam/cases.js';
 import { frameworkHash, templateNames } from '../../redteam/key.js';
 import { DEFAULTS, redTeamStatus, runRedTeam } from '../../redteam/run.js';
-import { NEXT, partsText, report, SESSION_NEXT, sessionReport } from '../../redteam/report.js';
+import { finalLine, NEXT, partsText, report, SESSION_NEXT, sessionReport } from '../../redteam/report.js';
 import { listBlockers, listResults, readDecision, readResult, SESSIONS, writeDecision } from '../../redteam/store.js';
 import { loadSigner } from '../../sign/signer.js';
 import { PACKAGE_ROOT } from '../../install/parts.js';
@@ -166,6 +166,7 @@ export default {
       io.stdout.write(report(result, { recorded, partial }));
       if (kept?.ok) io.stdout.write(`agents now run Claude Code ${kept.version}, the binary this run tested\n`);
       else if (kept) io.stdout.write(`green, but MIRAI couldn't keep the binary it tested (${kept.why}): agents stay on the one they ran before\n`);
+      io.stdout.write(`\n${finalLine(result.state, { recorded, partial, kept })}`);
       return result.state === 'green' && recorded && kept?.ok !== false ? EXIT.OK : EXIT.NEEDS_HUMAN;
     } finally {
       for (const sig of SIGNALS) process.removeListener(sig, onInt);
@@ -273,6 +274,7 @@ async function sessions(action, arg, only, io) {
       onEvent: (ev) => { if (ev.type === 'run') io.stderr.write(`${ev.id}: ${ev.run}\n`); },
     });
     io.stdout.write(sessionReport(result, { recorded, partial }));
+    io.stdout.write(`\n${finalLine(result.state, { recorded, partial, sessions: true })}`);
     return result.state === 'green' && recorded ? EXIT.OK : EXIT.NEEDS_HUMAN;
   } finally {
     for (const sig of SIGNALS) process.removeListener(sig, onInt);
