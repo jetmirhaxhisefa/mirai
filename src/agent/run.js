@@ -142,7 +142,9 @@ export async function takeOver(store) {
     if (typeof was.launchDir === 'string' && dirname(was.launchDir) === realpathSync(join(store.repoHome, 'launches'))) removeLaunch(was.launchDir, was.scratchDir);
     rmSync(file, { force: true });
   }
-  writeRunState(store, 'stopped', { clear: true });
+  // The ticket stays on record (the step doesn't): `mirai resume` continues it after a refusal
+  // here, such as the dirty tree the crash left (unit 28's R2).
+  writeRunState(store, 'stopped', { clear: true, ...(state.ticket ? { ticket: state.ticket } : {}) });
   return `an earlier run (${state.run_id}) had crashed: ${notes.join('; ')}. Its result is unknown, and .git wasn't compared for it: look at your tree`;
 }
 

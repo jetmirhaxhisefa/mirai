@@ -28,22 +28,25 @@ import { setup } from './review-probes.js';
 //   the gate; the probe approves; `mirai run` again records the baseline, builds, reviews, signs the
 //   proofs and opens one PR on your GitHub sample app (on a throwaway base branch, as 27a's P1);
 //   again: built, nothing changes; `mirai show`. Clean-up: the PR closed, the branches deleted.
-// - r2 (about 25 min): the plan approved, `mirai run` in its own process is killed mid-build
+// - r2 (about 40 min): the plan approved, `mirai run` in its own process is killed mid-build
 //   (SIGKILL; Kai keeps running in his own process group). `mirai status`, then `mirai resume`: the
 //   crashed run taken over, its agent ended; uncommitted changes name `mirai discard` (the probe
-//   types the key), then resume builds again. The loop counters before and after.
+//   types the key), then resume builds again, reviews and signs the proofs; the clone has no
+//   remote, so the ship stops there and nothing is pushed. The loop counters before and after.
 //   node test/probes/run-probes.js --yes --probe r1|r2 [--repo owner/name] [--app <sample app>]
 
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 
 // A terminal for `mirai <argv>`: typed answers, its output kept.
-async function term(argv, { cwd, env }, answers = []) {
+async function term(argv, { cwd, env, claude = null, redTeamStatus = null }, answers = []) {
   const stdin = Readable.from([`${answers.join('\n')}\n`]);
   stdin.isTTY = true;
   let out = '';
   let err = '';
-  const code = await main(argv, { stdin, stdout: { isTTY: true, write: (t) => (out += t) }, stderr: { write: (t) => (err += t) }, env, cwd });
+  // As the in-process runs: the probe's Claude, and the red-team gate stubbed green (its home has
+  // no red-team result of its own).
+  const code = await main(argv, { stdin, stdout: { isTTY: true, write: (t) => (out += t) }, stderr: { write: (t) => (err += t) }, env, cwd, ...(claude ? { claude } : {}), ...(redTeamStatus ? { redTeamStatus } : {}) });
   return { code, out, err };
 }
 
@@ -223,14 +226,14 @@ await driveTicket({ cwd: ${JSON.stringify(ctx.root)}, env: ${JSON.stringify(ctx.
   const st = await term(['status'], io);
   for (const l of st.out.split('\n').filter((x) => /run|lock|heartbeat|SAMPLE-1/i.test(x)).slice(0, 8)) ctx.log(`  status| ${l}`);
 
-  let res = await term(['resume'], io);
-  for (const l of res.out.split('\n').filter((x) => x.trim()).slice(0, 20)) ctx.log(`  resume| ${l}`);
+  let res = await term(['resume'], { ...io, claude: ctx.claude, redTeamStatus: green });
+  for (const l of res.out.split('\n').filter((x) => x.trim()).slice(-40)) ctx.log(`  resume| ${l}`);
   ctx.log(`r2-resume: exit ${res.code}${res.err ? `; ${res.err.trim().split('\n').at(-1).slice(0, 200)}` : ''}; Kai still running: ${alive(agent.pid)}`);
   if (/mirai discard SAMPLE-1/.test(`${res.out}${res.err}`)) {
     const dis = await term(['discard', 'SAMPLE-1'], io, ['SAMPLE-1']);
     ctx.log(`r2-discard: exit ${dis.code}`);
-    res = await term(['resume'], io);
-    for (const l of res.out.split('\n').filter((x) => x.trim()).slice(0, 20)) ctx.log(`  resume2| ${l}`);
+    res = await term(['resume'], { ...io, claude: ctx.claude, redTeamStatus: green });
+    for (const l of res.out.split('\n').filter((x) => x.trim()).slice(-40)) ctx.log(`  resume2| ${l}`);
     ctx.log(`r2-resume2: exit ${res.code}`);
   }
   const after = readLoop(store, 'SAMPLE-1');

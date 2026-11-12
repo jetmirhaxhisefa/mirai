@@ -22,7 +22,8 @@ import { readTicketStatus } from '../../src/store/tickets.js';
 import { snapshot, trustedConfig } from '../../src/trust/snapshot.js';
 import { approvedTicket, claudeWith, done, PASSED, passed, passing, PLAN_TEXT, tty, watch } from '../proofs/fixture.js';
 import { buildRecordPath } from '../../src/agent/build.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installHooks } from '../../src/hooks/install.js';
 
@@ -225,6 +226,25 @@ test('28: resume after a crash: the dead run is taken over, your signed move con
   assert.equal(readRunState(store).run_id, crashed, 'the same run');
   const after = readLoop(store, 'PMT-31');
   assert.deepEqual([after.rounds_used, after.replans_used, after.granted], [loopBefore.rounds_used, loopBefore.replans_used, loopBefore.granted]);
+
+  // A crash that left uncommitted work: the takeover stops the run, the dirty tree refuses, and the
+  // run keeps its ticket, so the next `mirai resume` (after mirai discard) continues it (R2).
+  const h = await passed({ reviewed: false });
+  const hs = openStore(h.io);
+  startRun(hs, { preset: 'supervised' });
+  recordProgress(hs, { ticket: 'PMT-31', step: 'review' });
+  const crashedH = readRunState(hs).run_id;
+  installHooks({ store: hs, env: h.env, node: process.execPath, launcher: fileURLToPath(new globalThis.URL('../../bin/launch.js', import.meta.url)) });
+  const hio = { ...h.io, runSteps: steps({ runReview: async () => ({ outcome: 'pass', launch: { outcome: 'ok' } }), shipTicket: fakeShip }), caffeinate: awake().fn };
+  writeFileSync(join(h.root, 'half-done.txt'), 'a step cut short\n');
+  const refused = await tty(['resume'], hio);
+  assert.notEqual(refused.code, EXIT.OK);
+  assert.match(refused.err, /uncommitted changes/);
+  assert.deepEqual([readRunState(hs).state, readRunState(hs).ticket, readRunState(hs).run_id], ['stopped', 'PMT-31', crashedH], 'the taken-over run keeps its ticket');
+  rmSync(join(h.root, 'half-done.txt'));
+  const again = await tty(['resume'], hio);
+  assert.match(again.out, /in progress: PMT-31/, `${again.code} ${again.err}`);
+  assert.equal(readJournal(hs).events.filter((e) => e.type === 'run_resumed' && e.run_id === crashedH).length, 1);
 
   // --abandon: given up, recorded; nothing to resume after.
   const g = await passed({ reviewed: false });
