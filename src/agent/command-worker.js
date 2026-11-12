@@ -21,7 +21,8 @@ const LINES = 40;
 const OUTPUT_TAIL = 32 * 1024;
 const PARTIAL_MAX = 4 * 1024;
 // How long a command may run before it's stopped (21f review: a hung one hung forever).
-const MINUTES = { quick: 2, long: 90, agent: 240, redteam: 120 };
+// `run` (unit 28): a whole ticket, with up to run.max_wait_minutes paused for a usage limit.
+const MINUTES = { quick: 2, long: 90, agent: 240, redteam: 120, run: 600 };
 const here = dirname(fileURLToPath(import.meta.url));
 
 export async function runCommand({ store, id, checkout, env, raw, claude = null, signal = null, hardSignal = null, spawnFn = spawn, mirai = join(here, '..', '..', 'bin', 'mirai.js'), limits = MINUTES }) {
@@ -94,7 +95,7 @@ export async function runCommand({ store, id, checkout, env, raw, claude = null,
       // gone already
     }
   };
-  const kind2 = spec.quick ? 'quick' : spec.consent ? 'redteam' : spec.tty ? 'agent' : 'long';
+  const kind2 = spec.quick ? 'quick' : spec.consent ? 'redteam' : spec.run ? 'run' : spec.tty ? 'agent' : 'long';
   const deadline = setTimeout(() => {
     timedOut = true;
     stop('SIGINT');

@@ -84,6 +84,12 @@ export function clearBranch(store, { branch, creation_sha }) {
 }
 
 // The registered entries for a branch name (any creation commit).
+// The ticket's registered branches (unit 28: a build killed before its record was written leaves
+// only the registration), newest last.
+export function ticketBranches(store, ticket) {
+  return readRegistry(store).filter((e) => e.ticket === ticket).map((e) => e.branch);
+}
+
 export function lookupBranch(store, branch) {
   return readRegistry(store).filter((e) => e.branch === branch);
 }

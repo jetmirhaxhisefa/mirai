@@ -54,8 +54,11 @@ export function progressTracker({ root, agent = null, model = null, tools = null
   // with the message's id, and a subagent's carry parent_tool_use_id (21e review).
   const messages = new Set();
   let modelUsed = model;
+  // How often each tool was called (unit 28): the run log's per-launch summary, never each call.
+  const calls = new Map();
   const base = () => ({ agent, model: modelUsed, turns, minutes: Math.round((now() - started) / 600) / 100 });
   return {
+    toolCalls: () => [...calls].sort(([a], [b]) => a.localeCompare(b)).map(([tool, n]) => ({ tool, n })),
     seen(ev) {
       if (ev?.type === 'system' && ev.subtype === 'init') {
         if (typeof ev.model === 'string' && NAME.test(ev.model)) modelUsed = ev.model;
@@ -69,6 +72,11 @@ export function progressTracker({ root, agent = null, model = null, tools = null
       }
       // A content that isn't a list (a string, a number) says nothing: never a throw (21e review).
       const content = Array.isArray(ev.message?.content) ? ev.message.content : [];
+      for (const b of content.filter((x) => x?.type === 'tool_use')) {
+        const { tool } = describeTool(b, root, { tools, levels });
+        const name = tool === 'a tool' ? 'other' : tool;
+        if (calls.has(name) || calls.size < 40) calls.set(name, (calls.get(name) ?? 0) + 1);
+      }
       const call = content.filter((b) => b?.type === 'tool_use').at(-1);
       return call ? { kind: 'tool', ...base(), ...describeTool(call, root, { tools, levels }) } : null;
     },

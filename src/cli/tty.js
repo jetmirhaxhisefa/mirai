@@ -28,6 +28,15 @@ export function requireTtyOrSession(io, what, command) {
   requireTty(io, what);
 }
 
+// Where a command that isn't a gate came from (unit 28: the run stops before your key in a
+// session): 'terminal' or 'session', or the terminal check's refusal.
+export function viaOf(io, what, command) {
+  if (io.stdin?.isTTY === true && io.stdout?.isTTY === true) return 'terminal';
+  if (fromSession(io, command)) return 'session';
+  requireTty(io, what);
+  return 'terminal';
+}
+
 function fromSession(io, command) {
   const id = io.env?.MIRAI_SESSION_REQUEST;
   if (typeof id !== 'string' || !REQUEST_ID.test(id)) return false;

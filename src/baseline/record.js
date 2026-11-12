@@ -31,7 +31,9 @@ import { BASELINE_FOLDER, BASELINE_SCHEMA_VERSION, latestOther, readBaseline, wr
 //   `refused`, the baseline `complete: false`, and knownFailures() gives null for it ("can't
 //   tell");
 // - `growth` lists the known failures added since the previous baseline (AR3-11: the list may
-//   only shrink automatically); `refuseGrowth` makes an automatic refresh stop on any.
+//   only shrink automatically); `refuseGrowth` makes an automatic refresh stop on any;
+// - a test flaky in the previous baseline and not caught this time is carried over, flaky, with
+//   `carried_from` (unit 28): it's no growth, and a test on a branch failing it stays known.
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const resultHash = (dir) => sha256(readFileSync(join(dir, 'result.json')));
@@ -74,6 +76,14 @@ function summarize(kind, r, now) {
 }
 
 // A known failure's key, for comparing two baselines.
+// What grew, said as what it is (unit 28, decision 4b): a newly flaky test isn't "something broke".
+export function growthMessage(added, prevSha) {
+  const flaky = added.filter((a) => a.state === 'flaky').length;
+  const broke = added.length - flaky;
+  const parts = [...(broke ? [`${broke} new known failure${broke === 1 ? '' : 's'}`] : []), ...(flaky ? [`${flaky} newly flaky test${flaky === 1 ? '' : 's'}`] : [])];
+  return `${parts.join(' and ')} since the previous baseline (${String(prevSha).slice(0, 12)})`;
+}
+
 const keyOf = (name, k) => `${name}\0${k.scope}\0${k.scope === 'test' ? k.id : k.kind}`;
 
 // Records the baseline. Options: `levels` (names to run, merged into the commit's baseline),
@@ -203,9 +213,22 @@ export async function recordBaseline({ cwd, env, levels: only = null, force = fa
     // Growth since the previous baseline (AR3-11: the known-failure list may only shrink
     // automatically): what's known now that wasn't then.
     const prev = latestOther(store, trust.baseSha);
+    // Unit 28 (decision 4b): a test that was flaky in the previous baseline and wasn't caught this
+    // time (it passed on its first try, so it was never run again) is carried over as flaky, so it
+    // can't drop off and come back next time as "new". Only into a level that ran and was judged.
+    if (prev) {
+      for (const [n, e] of Object.entries(ordered)) {
+        if (!Array.isArray(e.known_failures) || !['pass', 'fail'].includes(e.state)) continue;
+        const now = new Set(e.known_failures.map((k) => keyOf(n, k)));
+        for (const k of prev.baseline.levels?.[n]?.known_failures ?? []) {
+          if (k.scope !== 'test' || k.state !== 'flaky' || now.has(keyOf(n, k))) continue;
+          e.known_failures.push({ id: k.id, scope: 'test', state: 'flaky', runs: 0, failed: 0, carried_from: k.carried_from ?? prev.baseline.sha });
+        }
+      }
+    }
     const before = new Set(prev ? Object.entries(prev.baseline.levels ?? {}).flatMap(([n, e]) => (e.known_failures ?? []).map((k) => keyOf(n, k))) : []);
-    const added = prev ? Object.entries(ordered).flatMap(([n, e]) => e.known_failures.filter((k) => !before.has(keyOf(n, k))).map((k) => ({ level: n, scope: k.scope, ...(k.scope === 'test' ? { id: k.id } : { kind: k.kind }) }))) : [];
-    if (refuseGrowth && added.length) throw new StoreError(`${added.length} known failure${added.length === 1 ? '' : 's'} appeared since the previous baseline (${prev.baseline.sha.slice(0, 12)})`, { code: 'baseline-grew', hint: 'a test broke on the integration branch: look at it, then record the baseline yourself (mirai baseline)' });
+    const added = prev ? Object.entries(ordered).flatMap(([n, e]) => e.known_failures.filter((k) => !before.has(keyOf(n, k))).map((k) => ({ level: n, scope: k.scope, ...(k.scope === 'test' ? { id: k.id } : { kind: k.kind }), ...(k.state ? { state: k.state } : {}) }))) : [];
+    if (refuseGrowth && added.length) throw new StoreError(growthMessage(added, prev.baseline.sha), { code: 'baseline-grew', hint: added.every((a) => a.state === 'flaky') ? 'a test there fails only sometimes: look at it, then record the baseline yourself (mirai baseline)' : 'a test broke on the integration branch: look at it, then record the baseline yourself (mirai baseline)' });
     // The tree and HEAD once more before signing.
     gateRecheck(store.checkout, gate, env);
     sameCommit();

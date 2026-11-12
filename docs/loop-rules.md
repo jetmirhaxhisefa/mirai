@@ -43,12 +43,12 @@ Claude Code has reported, in each run's stream seen so far, how much of your wee
 It stops **before** a ticket that could cross a cap, and says which cap and the numbers.
 
 - **What it can't tell, it refuses in an unattended run** and warns about in your terminal: no reading yet, a reading out of date (older than 12 hours, or its week has reset), or caps in a file it can't read. Readings come only from launches, so an out-of-date one needs a tiny launch to refresh it before the night's first ticket (your decision in unit 20; unit 28 makes it).
-- **A usage limit** (the stream ends on a window Claude Code `rejected`) on a run that didn't finish, other than by running out of turns, is that run's outcome, `usage-limit`, with the window and when it resets in the log. A warning (`allowed_warning`) isn't a limit. The pause and resume are unit 28's.
+- **A usage limit** (the stream ends on a window Claude Code `rejected`) on a run that didn't finish, other than by running out of turns, is that run's outcome, `usage-limit`, with the window and when it resets in the log. A warning (`allowed_warning`) isn't a limit. In `mirai run` (unit 28) a 5-hour limit pauses the run until the reset, then the same step runs again (`run.on_limit`, `run.max_wait_minutes`, `run.stop_by`); a weekly limit stops it for `mirai resume` (docs/run.md).
 
 The reading is undocumented, so a Claude Code update could change it. `mirai agent run` says when a run had none.
 
 ## Parking
 
-A parked ticket goes to `blocked` with its reason (`cap`, `repeat`, `no-progress`, `budget`, `environment`, `scope`, …) and a short note naming the evidence. **Three environment faults in a row** will stop the night with one message instead of parking every ticket (`[loop] breaker`; unit 28 calls it).
+A parked ticket goes to `blocked` with its reason (`cap`, `repeat`, `no-progress`, `budget`, `environment`, `scope`, …) and a short note naming the evidence. **Three environment faults in a row** will stop the night with one message instead of parking every ticket (`[loop] breaker`). `mirai run` counts them across its launches (unit 28): a single fault runs the step again, a good launch resets the count.
 
 **A scope refusal** (unit 19b) parks the ticket and names its evidence file. Resetting the tree to the checkpoint is unit 22's; until then the files stay for you.

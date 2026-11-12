@@ -58,8 +58,15 @@ mirai baseline show [<commit>]    # print a stored one (the integration branch's
 **Growth.** The known-failure list may only shrink automatically (AR3-11). Each baseline records the
 previous commit's (`growth.previous`, with its file's hash) and the known failures it adds
 (`growth.added`). `mirai baseline` shows them prominently (something broke on the integration
-branch); an automatic refresh (unit 28) passes `refuseGrowth`, which stops with `baseline-grew`
-so you look first.
+branch, or a test there turned out flaky: each said as what it is); `mirai run` (unit 28) passes
+`refuseGrowth` when it records the baseline before a build, which stops with `baseline-grew` so
+you look first.
+
+**A flaky test is carried over** (unit 28). The baseline reruns only tests that failed, so a flaky
+test that passes on its first try isn't seen. A test that was flaky in the previous baseline and
+wasn't caught this time is kept as flaky, with `carried_from: <the commit it was first seen on>`.
+It's no growth, and a branch failing it is still a known failure. A test never seen failing that
+turns out flaky is growth, said as "a newly flaky test".
 
 ## What it keeps
 
@@ -94,8 +101,8 @@ repo (`baseline-busy`).
 
 - **Compare a branch with it:** units 25 (the gate record), 26 (pre-push) and 52 (rerunning a
   flaky test at ticket time).
-- **Refresh itself:** the orchestrator (units 28, 52) calls the same library at the start of every
-  run, with `refuseGrowth`; the baseline is then signed with your key unattended, as gate runs
-  are. Until then, run `mirai baseline` after the integration branch moves.
+- **Refresh itself:** `mirai run` (unit 28) records the integration branch's baseline before a
+  build when its commit has none, with `refuseGrowth`, signed with your key (you're there). Night
+  runs (unit 55) need row 29b's machine key for it.
 - **Find flaky tests that passed:** only failing tests are rerun. A flaky test that passed in the
   baseline shows up when it fails in a ticket, where unit 52 reruns it.

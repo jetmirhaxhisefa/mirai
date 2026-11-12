@@ -69,7 +69,8 @@ export const usageLimit = (readings) => readings.find((r) => r.status === 'rejec
 
 // A reading still describes now: its window hasn't reset, and it's recent.
 export const FRESH_MS = 12 * 3600_000;
-export const freshReading = (r, now = Date.now()) => Boolean(r) && (!r.resets_at || r.resets_at * 1000 > now) && now - Date.parse(r.ts) < FRESH_MS;
+// `freshMs`: `usage.stale_hours` in your global config (unit 28), 12 hours by default.
+export const freshReading = (r, now = Date.now(), freshMs = FRESH_MS) => Boolean(r) && (!r.resets_at || r.resets_at * 1000 > now) && now - Date.parse(r.ts) < freshMs;
 
 // Your caps, from ~/.config/mirai/config.toml (D-57), with the defaults. A file that's there but
 // can't be read gives { error }: your caps are never swapped for the defaults without a word.
@@ -94,7 +95,7 @@ export function usageCheck({ env, largest = 0, unattended = true, caps = usageCa
   const unknown = (why) => (unattended ? { go: false, cap: 'unknown', why, numbers: {} } : { go: true, warn: `${why}, so the caps weren't checked`, numbers: {} });
   if (caps.error) return unknown(`your usage caps can't be read (${caps.error})`);
   const latest = latestWeekly(env);
-  if (!freshReading(latest, now)) {
+  if (!freshReading(latest, now, Number.isInteger(caps.stale_hours) ? caps.stale_hours * 3_600_000 : FRESH_MS)) {
     // Readings come only from launches, so an old one needs a tiny launch to refresh it (D-18's probe,
     // unit 28): `probe` says so.
     // Its age, so you can tell a day-old reading from an hour-old one (unit 21e).

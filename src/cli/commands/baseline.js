@@ -1,7 +1,7 @@
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
 import { escapeInvisible, shown } from '../../status/text.js';
-import { recordBaseline } from '../../baseline/record.js';
+import { growthMessage, recordBaseline } from '../../baseline/record.js';
 import { readBaseline } from '../../baseline/store.js';
 import { openStore } from '../../store/home.js';
 import { baseCommit } from '../../trust/snapshot.js';
@@ -26,13 +26,14 @@ export function report(b, { reused = false } = {}) {
     const by = (s) => e.known_failures.filter((k) => k.state === s);
     for (const s of ['failing', 'flaky', 'unchecked']) {
       const list = by(s);
-      for (const k of list.slice(0, SHOWN)) out.push(`  ${s.padEnd(9)} ${plain(k.id ?? `(the whole level: ${k.kind})`)} — failed ${k.failed} of ${k.runs}${k.reason ? `; ${plain(k.reason)}` : ''}`);
+      for (const k of list.slice(0, SHOWN)) out.push(`  ${s.padEnd(9)} ${plain(k.id ?? `(the whole level: ${k.kind})`)} — ${k.carried_from ? `carried from ${String(k.carried_from).slice(0, 12)} (it passed on its first try here)` : `failed ${k.failed} of ${k.runs}`}${k.reason ? `; ${plain(k.reason)}` : ''}`);
       if (list.length > SHOWN) out.push(`  … and ${list.length - SHOWN} more ${s}`);
     }
   }
   const added = b.growth?.added ?? [];
   if (added.length) {
-    out.push('', `NEW known failures since the previous baseline (${b.growth.previous.sha.slice(0, 12)}): ${added.length}; something broke on ${plain(b.branch)}`);
+    const flaky = added.filter((a) => a.state === 'flaky').length;
+    out.push('', `NEW since the previous baseline (${b.growth.previous.sha.slice(0, 12)}): ${growthMessage(added, b.growth.previous.sha).replace(/ since the previous baseline.*$/, '')}${flaky === added.length ? `; a test on ${plain(b.branch)} fails only sometimes` : `; something broke on ${plain(b.branch)}`}`);
     for (const a of added.slice(0, SHOWN)) out.push(`  ${plain(a.level)}: ${plain(a.id ?? `(the whole level: ${a.kind})`)}`);
     if (added.length > SHOWN) out.push(`  … and ${added.length - SHOWN} more`);
   }

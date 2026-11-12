@@ -36,7 +36,7 @@ import { newDependencies } from './deps.js';
 import { planInputs } from './inputs.js';
 import { AGENT, AGENT_LABEL, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
 import { checkLaunchToken } from './requests.js';
-import { launchInRun, preGate, withRun } from './run.js';
+import { inRun, launchInRun, preGate } from './run.js';
 import { checkNothingHidden } from './scope.js';
 
 // The build step (unit 21b; design/01 §7, R-M4, R3-C2, R3-M2). Kai, as author, works from the plan
@@ -346,7 +346,7 @@ export function preflight({ cwd, env, store, ticket, unattended, state = 'in-pro
 // `parked`, or the launch's own (agent-failed, refused, env-fault, usage-limit, killed).
 // With `recheck`, no launch: MIRAI's checks again, on exactly the tree the last build left (its
 // fingerprint in build.json), after you fixed what stopped it outside the tree (a baseline, Docker).
-export async function runBuild({ cwd, env, ticket, launchToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, now = () => new Date() }) {
+export async function runBuild({ cwd, env, ticket, launchToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, now = () => new Date() }) {
   if (!recheck) checkLaunchToken(launchToken);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   // The first sign of life (unit 21e), before MIRAI's own checks.
@@ -355,7 +355,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
   } catch {
     // a display only
   }
-  return await withRun({ cwd, env }, async ({ store, runId, tookOver }) => {
+  return await inRun({ cwd, env, run: outerRun }, async ({ store, runId, tookOver, outer }) => {
     const { keys, plan, usage, trust, config, registry, given, fm } = preflight({ cwd, env, store, ticket, unattended });
     const rules = protectionRules(registry, config);
     if (recheck) return await recheckBuild({ cwd, env, store, runId, fm, ticket, keys, plan, trust, config, registry, rules, tests, testRun, watch, now, tookOver });
@@ -388,7 +388,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
       let r;
       try {
         r = await launch({
-          ...watch, cwd, env, store, runId, startRun: true, ownsRun: false, launchToken, agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
+          ...watch, cwd, env, store, runId, startRun: !outer, ownsRun: false, launchToken, agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
           prompt: buildPrompt({ ticket, branch }), item: ticket, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs: given.inputs, jsonSchema: HANDOVER_SCHEMA, now,
           // Kept for a fix round to resume (unit 21c); a new build starts a new session.
           session: { keep: true },
@@ -412,7 +412,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
       return { ...result, ...after };
     } finally {
       const run = readRunState(store);
-      if (run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
+      if (!outer && run?.state === 'running' && run.run_id === runId) writeRunState(store, endState, { clear: true });
     }
   });
 }

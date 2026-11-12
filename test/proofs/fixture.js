@@ -66,7 +66,8 @@ export const watch = (claude) => ({ claude: claude.path, status: green, check: (
 export const done = { status: 'done', summary: 'Changed app/Team.php.', tests_run: ['unit: pass'], checks_run: [] };
 
 // PMT-31 built by Kai and, unless `reviewed: false`, passed by Rex: in-review, on its branch.
-export async function passed({ reviewed = true, baseline = { unit: PASSED, feature: PASSED }, config = CONFIG } = {}) {
+// PMT-31 approved by you, nothing else yet: ready-for-dev (unit 28's run starts here).
+export async function approvedTicket({ config = CONFIG } = {}) {
   const f = installed({ config, files: FILES });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
@@ -76,6 +77,13 @@ export async function passed({ reviewed = true, baseline = { unit: PASSED, featu
   f.git('commit', '-qm', 'key');
   const io = { cwd: f.root, env: f.env };
   assert.equal((await tty(['approve', 'PMT-31', '--file', 'docs/mirai/tickets/PMT-31.md'], io, ['a', 'PMT-31'])).code, EXIT.OK);
+  return { ...f, io };
+}
+export const PLAN_TEXT = PLAN;
+
+export async function passed({ reviewed = true, baseline = { unit: PASSED, feature: PASSED }, config = CONFIG } = {}) {
+  const f = await approvedTicket({ config });
+  const io = f.io;
   const p = await runPlan({ cwd: f.root, env: f.env, ticket: 'PMT-31', launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions: watch(claudeWith([{ plan: PLAN }])) });
   assert.equal(p.outcome, 'waiting', JSON.stringify(p.problems));
   assert.equal((await tty(['approve', 'PMT-31', '--plan'], io, ['a', 'PMT-31'])).code, EXIT.OK);
