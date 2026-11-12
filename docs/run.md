@@ -40,7 +40,7 @@ Each stop ends with one line saying what to do next, ending in the exact command
 - **The breaker:** `loop.breaker` environment faults in a row (3 by default). A single fault runs the step again.
 - **A usage limit** it can't wait out (below), or Ctrl-C.
 
-The exit code: 0 for the MR, 5 for a gate or a stop for you, 4 for a park, 130 for Ctrl-C.
+The exit code: 0 for the MR, 5 for a gate or a stop for you, 4 for a park or a refusal (such as no `origin` remote, or a closed MR), 130 for Ctrl-C.
 
 ## Usage limits
 
