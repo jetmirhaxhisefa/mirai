@@ -48,6 +48,17 @@ const fail = (message, code, exit = EXIT.BLOCKED, hint) => Object.assign(new Mir
 
 export const planPath = (store, ticket) => join(store.dir, 'tickets', ticket, 'plan.md');
 export const approvalPath = (store, ticket) => join(store.dir, 'tickets', ticket, 'plan-approval.json');
+// The lint problems of a plan that parked `bad-plan` (unit 28's session check): the status note is
+// one short line, so `mirai show` reads them here, tied to the plan they're about by its hash.
+export const planLintPath = (store, ticket) => join(store.dir, 'tickets', ticket, 'plan-lint.json');
+export function readPlanLint(store, ticket, planText) {
+  try {
+    const r = JSON.parse(readFileSync(planLintPath(store, ticket), 'utf8'));
+    return planText !== null && r?.plan_sha256 === contentHash(planText) && Array.isArray(r.problems) ? r.problems : null;
+  } catch {
+    return null;
+  }
+}
 export const planContext = (store) => `mirai/plan-approval/1:${store.repoId}`;
 
 export function readPlan(store, ticket) {
@@ -313,7 +324,13 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
       result.outcome = 'bad-plan';
       if (stored) {
         toInProgress();
-        parkTicket(store, ticket, { reason: 'bad-plan', why: `its plan failed MIRAI's lint twice (${result.problems.length} problem(s))`, evidence: [`tickets/${ticket}/plan.md`] });
+        // Each problem, for `mirai show` (the parking note has room for the count only).
+        const planText = readPlan(store, ticket);
+        if (planText !== null) {
+          const problems = result.problems.slice(0, 50).map((p) => ({ line: Number.isSafeInteger(p.line) ? p.line : null, code: typeof p.code === 'string' ? p.code.slice(0, 40) : null, reason: String(p.reason ?? '').slice(0, 400), ...(p.hint ? { hint: String(p.hint).slice(0, 400) } : {}) }));
+          atomicWrite(planLintPath(store, ticket), `${JSON.stringify({ plan_sha256: contentHash(planText), problems })}\n`);
+        }
+        parkTicket(store, ticket, { reason: 'bad-plan', why: `its plan failed MIRAI's lint twice (${result.problems.length} problem(s): mirai show ${ticket} lists them)`, evidence: [`tickets/${ticket}/plan.md`] });
         result.why = 'parked: bad-plan';
       } else result.why = 'no plan came back twice; the ticket stays ready-for-dev';
       return result;

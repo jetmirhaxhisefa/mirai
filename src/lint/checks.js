@@ -7,10 +7,36 @@ export const sameKey = (a, b) => typeof a === 'string' && typeof b === 'string' 
 
 const SEPARATOR = /^ {0,3}\|?(?: *:?-+:? *\|)+ *:?-*:? *$|^ {0,3}\|? *:?-+:? *$/;
 
+// The symbols a Code map or test row's cell names: its comma-separated parts (a comma inside a
+// code span or parentheses doesn't split), each the code span it starts with, or else its text up
+// to a parenthesis. So "`A::b`, `A::c` (inherited from `B`)" names A::b and A::c (unit 28's
+// session check: the note in parentheses made "A::c" look missing).
+export function symbolsIn(raw) {
+  const parts = [];
+  let cur = '';
+  let code = false;
+  let depth = 0;
+  for (const ch of String(raw ?? '')) {
+    if (ch === '`') code = !code;
+    else if (!code && ch === '(') depth++;
+    else if (!code && ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && !code && depth === 0) {
+      parts.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  parts.push(cur);
+  return parts.map((p) => {
+    const t = p.trim();
+    const span = /^`([^`]+)`/.exec(t);
+    return (span ? span[1] : t.replace(/\s*\(.*$/s, '').replace(/`/g, '')).trim();
+  }).filter(Boolean);
+}
+
 // The one table in a ## section, read as GFM renders it: a header row, a separator row with
 // dashes, then the run of non-blank lines after it (with or without a leading pipe). Returns
-// { columns, rows: [{ line, cells }], line, problems } with cells by lower-cased column name
-// (code-span backticks removed), or null when the section has no table. `problems` lists rows
+// { columns, rows: [{ line, cells, raw }], line, problems } with cells by lower-cased column name
+// (code-span backticks removed; `raw` keeps them), or null when the section has no table. `problems` lists rows
 // an HTML comment could hide and pipe lines outside the one table, so nothing slips past a rule
 // by being written oddly.
 export function tableIn(doc, section) {
@@ -30,7 +56,8 @@ export function tableIn(doc, section) {
     }
   }
   if (start === -1) return null;
-  const split = (text) => text.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim().replace(/`/g, ''));
+  const splitRaw = (text) => text.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim());
+  const split = (text) => splitRaw(text).map((c) => c.replace(/`/g, ''));
   const columns = split(inSection[start].visible).map((c) => c.toLowerCase());
   const rows = [];
   let i = start + 2;
@@ -44,8 +71,9 @@ export function tableIn(doc, section) {
       continue;
     }
     if (/^ {4}/.test(l.visible)) break;
-    const cells = split(l.visible);
-    rows.push({ line: l.line, cells: Object.fromEntries(columns.map((c, k) => [c, cells[k] ?? ''])) });
+    const raw = splitRaw(l.visible);
+    const cells = raw.map((c) => c.replace(/`/g, ''));
+    rows.push({ line: l.line, cells: Object.fromEntries(columns.map((c, k) => [c, cells[k] ?? ''])), raw: Object.fromEntries(columns.map((c, k) => [c, raw[k] ?? ''])) });
   }
   for (const l of inSection.slice(i)) {
     if (l.kind === 'text' && (/^ {0,3}\S/.test(l.visible) || l.hadComment) && l.visible.includes('|')) {
@@ -131,7 +159,7 @@ export const CHECKS = Object.freeze({
     for (const r of map?.rows ?? []) {
       const change = r.cells.change.toLowerCase();
       if (!CHANGES.includes(change)) add({ code: 'plan-table', ...row(r), reason: `a Code map row's Change must be one of: ${CHANGES.join(', ')}` });
-      const symbols = r.cells.symbols.split(',').map((x) => x.trim()).filter(Boolean);
+      const symbols = symbolsIn(r.raw.symbols);
       if (change === 'add' && symbols.length === 0) add({ code: 'plan-table', ...row(r), reason: 'a Code map row that adds code names its new symbols', hint: 'each new symbol gets a stub step before its red test' });
       for (const symbol of symbols) {
         if (!changesOf.has(symbol)) changesOf.set(symbol, new Set());
@@ -167,13 +195,16 @@ export const CHECKS = Object.freeze({
       if (!KINDS.includes(kind)) add({ code: 'plan-test', ...where, reason: `a test row's Kind must be one of: ${KINDS.join(', ')}` });
       if (kind === 'after' && value.tdd === 'first') add({ code: 'plan-test', ...where, reason: 'with tdd: first, tests come before the code, so no row is "after"' });
       if (kind === 'red' && value.tdd === 'after') add({ code: 'plan-test', ...where, reason: 'with tdd: after there is no red check, so no row is "red"', hint: 'use after' });
-      const symbol = r.cells.symbol;
+      const named = symbolsIn(r.raw.symbol);
       if (kind === 'characterization') {
-        if (!changesOf.get(symbol)?.has('change')) {
+        if (named.length === 0 || named.some((x) => !changesOf.get(x)?.has('change'))) {
           add({ code: 'plan-characterization', ...where, reason: 'a characterization test must name, in Symbol, a symbol the Code map marks "change"', hint: 'characterization tests cover only the existing functions or methods this ticket changes (D-45)' });
         }
-      } else if (symbol !== '' && !changesOf.has(symbol)) {
-        add({ code: 'plan-test', ...where, reason: "a test row's Symbol is not in the Code map" });
+      } else {
+        // The symbol by name, and the map's, so a fix launch can act on it.
+        const missing = named.filter((x) => !changesOf.has(x));
+        const known = [...changesOf.keys()].slice(0, 12).join(', ');
+        if (missing.length) add({ code: 'plan-test', ...where, reason: `a test row's Symbol ${missing.map((x) => `"${x.slice(0, 80)}"`).join(', ')} is not in the Code map`, hint: `name it exactly as a Code map row's Symbols do (${known || 'the Code map names none'}), or add it there` });
       }
     }
     acs.forEach((ac, i) => {

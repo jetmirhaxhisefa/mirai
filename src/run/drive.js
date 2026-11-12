@@ -46,13 +46,17 @@ const REFUSED_STATES = Object.freeze({
   waiting: 'it waits for another ticket (stacking, unit 53)',
 });
 
+// The unpark command, whole (unit 28's session check: "mirai unpark T" alone is refused): a
+// disputed park takes your choice of finding; any other, --retry.
+export const unparkCommand = (ticket, reason) => (reason === 'disputed' ? `mirai unpark ${ticket} --retry (or --accept <finding-id>, as mirai show ${ticket} names them)` : `mirai unpark ${ticket} --retry`);
+
 // What to do next for `ticket`, from the store and the checkout (the spec's table). Returns
 // { step } for a step to run, or { stop: { kind, why, next } } for a stop, or { done: { mr } }.
 export function nextStep({ store, ticket, trust, config, keys }) {
   const status = readTicketStatus(store, ticket)?.status ?? null;
   if (!status) throw fail(`${ticket} has no status in MIRAI`, 'unknown-ticket', `approve the ticket first: mirai approve ${ticket} --file <path>`);
   if (REFUSED_STATES[status.state]) throw fail(`${ticket} is ${status.state}: ${REFUSED_STATES[status.state]}`, 'not-runnable');
-  if (status.state === 'blocked') return { stop: { kind: 'parked', why: `${ticket} is parked (${status.park_reason ?? 'no reason'})${status.note ? `: ${status.note}` : ''}`, next: `look at it: mirai show ${ticket}; then mirai unpark ${ticket}` } };
+  if (status.state === 'blocked') return { stop: { kind: 'parked', why: `${ticket} is parked (${status.park_reason ?? 'no reason'})${status.note ? `: ${status.note}` : ''}`, next: `look at it: mirai show ${ticket}; then ${unparkCommand(ticket, status.park_reason)}` } };
   if (status.state === 'ready-for-dev') return { step: 'plan' };
   let last = null;
   try {
@@ -144,7 +148,7 @@ export function afterStep(step, r, ticket) {
   // An environment fault runs the step again; the breaker (loop.breaker in a row) stops the run.
   if (o === 'env-fault') return { go: true };
   if (o === 'killed') return stop('interrupted', `continue: mirai resume (or mirai run ${ticket})`);
-  if (o === 'parked' || o === 'bad-plan') return stop('parked', `look at it: mirai show ${ticket}; then mirai unpark ${ticket}`);
+  if (o === 'parked' || o === 'bad-plan') return stop('parked', `look at it: mirai show ${ticket}; then ${unparkCommand(ticket, o === 'bad-plan' ? 'bad-plan' : r.park_reason ?? null)}`);
   switch (step) {
     case 'plan': return o === 'waiting' ? stop('gate-plan', `read the plan, then: mirai approve ${ticket} --plan; then mirai run ${ticket}`, r.gate?.why?.join('; ') ?? null) : stop('needs-you', `mirai show ${ticket}`);
     case 'build': return ['handed-over', 'checks-failed'].includes(o) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);

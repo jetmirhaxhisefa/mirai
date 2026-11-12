@@ -1,13 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 import { buildRecordPath } from '../agent/build.js';
-import { planApproval, planPath } from '../agent/plan.js';
+import { planApproval, planPath, readPlanLint } from '../agent/plan.js';
 import { readDisputes, reviewsOf } from '../agent/review.js';
 import { ROUND_DEFAULTS, readLoop } from '../loop/guard.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { branchKeys } from '../sign/keys.js';
 import { blobAt, commitOf } from '../store/git.js';
 import { openStore } from '../store/home.js';
+import { unparkCommand } from './drive.js';
 import { readJournal, ticketFacts } from '../store/journal.js';
 import { readTicketStatus } from '../store/tickets.js';
 import { plain } from '../status/text.js';
@@ -76,6 +77,7 @@ export function showData({ cwd, env, ticket }) {
   }
   return {
     ticket, title, state: status?.state ?? null, park_reason: status?.park_reason ?? null, note: status?.note ?? null, risk,
+    plan_lint: status?.state === 'blocked' && status?.park_reason === 'bad-plan' ? readPlanLint(store, ticket, planText) : null,
     branch: build?.branch ?? null, head,
     plan: planText === null ? null : { round: planFm?.round ?? 1, approved: planApproval(store, ticket, keys).ok, decision: lastApproval?.decision ?? null, at: lastApproval?.ts ?? null, key_id: lastApproval?.signature?.key_id ?? null, text: planText },
     build: build ? { outcome: build.outcome ?? null, why: build.why ?? null, at: build.at ?? null, launch: build.launch ?? null, tests: (build.tests?.runs ?? []).map((t) => ({ name: t.name, verdict: t.verdict })) } : null,
@@ -108,7 +110,11 @@ export function showText(d, { full = false } = {}) {
   row('MR', d.mr ? `${d.mr.state}${d.mr.url ? ` ${plain(d.mr.url)}` : ''}` : 'not yet');
   row('Rounds', `${d.rounds.used} of ${d.rounds.of} used · re-plans ${d.rounds.replans} of ${d.rounds.replans_of}`);
   row('Usage', `${d.usage.turns} turns · ${d.usage.tokens >= 1e6 ? `${(d.usage.tokens / 1e6).toFixed(1)} M` : `${Math.round(d.usage.tokens / 1000)} k`} tokens · ${d.usage.minutes} min`);
-  row('Parked', d.state === 'blocked' ? `${plain(d.park_reason ?? '')}${d.note ? `: ${plain(d.note).slice(0, full ? 2000 : 200)}` : ''} · then: mirai unpark ${d.ticket}` : '—');
+  row('Parked', d.state === 'blocked' ? `${plain(d.park_reason ?? '')}${d.note ? `: ${plain(d.note).slice(0, full ? 2000 : 200)}` : ''} · then: ${unparkCommand(d.ticket, d.park_reason)}` : '—');
+  // A bad plan's lint problems: what Kai's plan got wrong, so you can judge it.
+  const lint = d.plan_lint ?? [];
+  for (const p of lint.slice(0, full ? lint.length : 5)) out.push(`  plan.md${p.line ? `:${p.line}` : ''}  ${plain(p.reason)}${full && p.hint ? ` (${plain(p.hint)})` : ''}`);
+  if (!full && lint.length > 5) out.push(`  … ${lint.length - 5} more: mirai show ${d.ticket} --full`);
   row('QA', 'not yet (unit 51)');
   if (full && d.plan?.text) out.push('', '--- plan ---', ...String(d.plan.text).split('\n').map(plain));
   return `${out.join('\n')}\n`;

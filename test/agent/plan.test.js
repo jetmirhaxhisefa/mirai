@@ -4,7 +4,8 @@ import { Readable } from 'node:stream';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { AGENT, approvalPath, declaredChanges, gateFor, planApproval, planFrom, planPath, readPlan, runPlan, withFrontmatter } from '../../src/agent/plan.js';
+import { AGENT, approvalPath, declaredChanges, gateFor, planApproval, planFrom, planPath, readPlan, readPlanLint, runPlan, withFrontmatter } from '../../src/agent/plan.js';
+import { showData, showText } from '../../src/run/show.js';
 import { planInputs, ticketAcs } from '../../src/agent/inputs.js';
 import { agentFor, checkAgentRole } from '../../src/agent/run.js';
 import { mintLaunchToken } from '../../src/agent/requests.js';
@@ -191,6 +192,13 @@ test('T5b: a plan that fails lint gets one fix launch, then the ticket parks bad
   const status = readTicketStatus(g.store, 'PMT-31').status;
   assert.equal(status.state, 'blocked');
   assert.equal(status.park_reason, 'bad-plan');
+  // Each problem is kept for mirai show, tied to the stored plan (unit 28's session check).
+  assert.match(status.note, /mirai show PMT-31 lists them/);
+  const kept = readPlanLint(g.store, 'PMT-31', readPlan(g.store, 'PMT-31'));
+  assert.ok(kept.length >= 1 && kept.every((x) => typeof x.reason === 'string' && x.reason.length > 0), JSON.stringify(kept));
+  assert.equal(readPlanLint(g.store, 'PMT-31', 'another plan'), null, 'only for the plan they are about');
+  const page = showText(showData({ cwd: g.root, env: g.env, ticket: 'PMT-31' }));
+  assert.ok(page.includes(`plan.md${kept[0].line ? `:${kept[0].line}` : ''}  ${kept[0].reason.slice(0, 40)}`), page);
 
   // No plan at all, twice: nothing stored, the ticket stays ready-for-dev.
   const h = await repo();

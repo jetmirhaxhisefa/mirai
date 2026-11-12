@@ -137,7 +137,8 @@ test('28: the next step is read from the ticket: review, proofs, ship; refused s
   assert.deepEqual(afterStep('build', { outcome: 'env-fault' }, 'T-1'), { go: true }, 'a fault runs the step again; the breaker stops the run');
   assert.equal(afterStep('build', { outcome: 'needs-you', why: 'a protected path' }, 'T-1').stop.kind, 'needs-you');
   assert.equal(afterStep('fix', { outcome: 'parked' }, 'T-1').stop.kind, 'parked');
-  assert.match(afterStep('fix', { outcome: 'parked' }, 'T-1').stop.next, /mirai unpark T-1/);
+  assert.match(afterStep('fix', { outcome: 'parked' }, 'T-1').stop.next, /mirai unpark T-1 --retry$/);
+  assert.match(afterStep('plan', { outcome: 'bad-plan' }, 'T-1').stop.next, /mirai unpark T-1 --retry$/);
   assert.equal(afterStep('build', { outcome: 'killed' }, 'T-1').stop.kind, 'interrupted');
   assert.deepEqual(afterStep('plan', { outcome: 'usage-limit' }, 'T-1'), { limit: true });
   assert.equal(afterStep('ship', { outcome: 'unchanged' }, 'T-1').shipped, true);

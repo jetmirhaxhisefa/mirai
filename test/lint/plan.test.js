@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { loadRegistry } from '../../src/config/registry.js';
 import { REGISTRY_DIR } from '../../src/cli/commands/lint.js';
 import { lintText, LIMITS } from '../../src/lint/lint.js';
+import { symbolsIn } from '../../src/lint/checks.js';
 import { frozenBlock, frozenBlockHash, approvalHash, verifyPlanApproval } from '../../src/lint/frozen.js';
 import { signObject } from '../../src/sign/sign.js';
 import { keyIdOf } from '../../src/sign/keys.js';
@@ -90,6 +91,13 @@ test('T7: a characterization test names, in Symbol, a symbol the Code map marks 
   assert.deepEqual(codes(twice), []);
   // Other rows' symbols must be in the Code map too.
   assert.deepEqual(only(replace(PLAN, RED3, RED3.replace('`TeamSlugRedirect::handle`', '`Nope::x`'))), ['plan-test']);
+  // The name in a missing symbol's problem, so a fix launch can act on it.
+  const nope = problems(replace(PLAN, RED3, RED3.replace('`TeamSlugRedirect::handle`', '`Nope::x`'))).find((p) => p.code === 'plan-test');
+  assert.match(nope.reason, /"Nope::x" is not in the Code map/);
+  assert.match(nope.hint, /TeamSlugRedirect::handle/);
+  // A note after a symbol in the Code map (unit 28's session check): the symbol still counts.
+  const noted = replace(PLAN, '| `app/Http/Middleware/TeamSlugRedirect.php` | `TeamSlugRedirect::handle` | add |', '| `app/Http/Middleware/TeamSlugRedirect.php` | `TeamSlugRedirect::boot`, `TeamSlugRedirect::handle` (inherited from `Middleware`) | add |');
+  assert.deepEqual(codes(noted), []);
   // Code map rows: a known Change; an "add" row names its symbols (for the stub step).
   assert.deepEqual(only(replace(PLAN, '| `routes/web.php` | `teams.show` | read |', '| `routes/web.php` | `teams.show` | look |')), ['plan-table']);
   assert.deepEqual(only(replace(PLAN, '| `app/Http/Middleware/TeamSlugRedirect.php` | `TeamSlugRedirect::handle` | add |', '| `app/Http/Middleware/TeamSlugRedirect.php` | | add |')), ['plan-table', 'plan-test', 'plan-test']);
@@ -210,4 +218,13 @@ test('T11: registry: may_be_empty and frozen_sections name listed sections; froz
   assert.deepEqual(registryProblems(`${head}frozen_sections = ["C"]\n`), ['8 range', '8 unknown-section']);
   assert.deepEqual(registryProblems(`${head}frozen_sections = ["B"]\n`), ['8 range']);
   assert.deepEqual(registryProblems(`${head}lint_checks = ["plans"]\n`), ['8 enum']);
+});
+
+test('T7b: the symbols in a cell: comma-separated, each its first code span or its text up to a parenthesis', () => {
+  assert.deepEqual(symbolsIn('`A::b`, `A::c` (inherited from `B`)'), ['A::b', 'A::c']);
+  assert.deepEqual(symbolsIn("`Route::put('/t', [X::class, 'y'])` inside the `auth` group"), ["Route::put('/t', [X::class, 'y'])"]);
+  assert.deepEqual(symbolsIn('teams.show, rules (shared, from StoreTaskRequest)'), ['teams.show', 'rules']);
+  assert.deepEqual(symbolsIn('`A::b`'), ['A::b']);
+  assert.deepEqual(symbolsIn(''), []);
+  assert.deepEqual(symbolsIn(' , '), []);
 });
