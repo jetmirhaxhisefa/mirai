@@ -285,3 +285,23 @@ test('28: a launch\'s progress goes to the run log as a summary: each tool and h
   const { buildRunLine } = await import('../../src/store/run-log.js');
   assert.doesNotThrow(() => buildRunLine('r-20261112-000000-abcd', 1, { item: 'T-1', event: 'agent_run', launch_id: 'l1', step: 'build', role: 'developer', round: 1, tier: 'standard', model: 'm', tokens_in: 0, tokens_out: 0, turns: 1, minutes: 0, limit_share_source: 'unknown', verdict: 'pass', tool_calls: t.toolCalls() }));
 });
+
+test('28: a build killed before its record: the run names mirai discard; discard works from the registered branch; then the run builds again', async () => {
+  const f = await passed({ reviewed: false });
+  const store = openStore(f.io);
+  // As if Kai was killed mid-build: no build record yet, his edit uncommitted, the ticket in progress.
+  const { rmSync, appendFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { writeTicketStatus } = await import('../../src/store/tickets.js');
+  rmSync(buildRecordPath(store, 'PMT-31'));
+  appendFileSync(join(f.root, 'app', 'Team.php'), '// half done\n');
+  const cur = readTicketStatus(store, 'PMT-31');
+  writeTicketStatus(store, { ticket: 'PMT-31', state: 'in-progress' }, { expectSeq: cur.seq });
+  await assert.rejects(drive(f), (e) => e.code === 'dirty-tree' && /mirai discard PMT-31; then mirai resume/.test(e.hint));
+  const d = await tty(['discard', 'PMT-31'], f.io, ['PMT-31']);
+  assert.equal(d.code, EXIT.OK, d.err);
+  let built = 0;
+  const r = await drive(f, { steps: steps({ runBuild: async () => { built++; return { outcome: 'needs-you', why: 'stop here' }; } }) });
+  assert.equal(built, 1, 'the next step is the build again');
+  assert.equal(r.stop.kind, 'needs-you');
+});

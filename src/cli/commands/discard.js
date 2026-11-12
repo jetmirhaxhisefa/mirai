@@ -11,6 +11,7 @@ import { plain } from '../../status/text.js';
 import { atomicWrite } from '../../store/files.js';
 import { commitOf, commitsSince, isAncestor, resetTo, symbolicBranch, workTreeChanges } from '../../store/git.js';
 import { readTicketStatus } from '../../store/tickets.js';
+import { ticketBranches } from '../../store/branches.js';
 import { withRun } from '../../agent/run.js';
 import { openStore } from '../../store/home.js';
 import { appendEvent } from '../../store/journal.js';
@@ -61,7 +62,10 @@ async function discard(ticket, io, store) {
   const cp = dirty ? { n: last0 ? `${last0.n}+` : 'HEAD', step: 'uncommitted work only', sha: head } : last0;
   if (!cp?.sha) throw new MiraiError(`${ticket} has no checkpoint to go back to`, EXIT.BLOCKED);
   const branch = symbolicBranch(store.checkout, 'HEAD', store.gitEnv);
-  if (!last?.branch || branch !== last.branch) throw new MiraiError(`the checkout isn't on ${ticket}'s branch${last?.branch ? ` (${last.branch})` : ''}`, EXIT.BLOCKED);
+  // The build record's branch, or (unit 28) one registered to the ticket: a build killed before its
+  // record was written leaves only the registration, and its uncommitted work.
+  const own = last?.branch ? [last.branch] : dirty ? ticketBranches(store, ticket) : [];
+  if (!own.includes(branch)) throw new MiraiError(`the checkout isn't on ${ticket}'s branch${own.length ? ` (${own.at(-1)})` : ''}`, EXIT.BLOCKED);
   // The checkpoint must be in this branch's history: never a reset to another branch's commit.
   if (!isAncestor(store.checkout, cp.sha, 'HEAD', store.gitEnv)) throw new MiraiError(`the checkpoint ${cp.sha.slice(0, 12)} isn't in ${branch}'s history`, EXIT.BLOCKED);
   const commits = commitsSince(store.checkout, cp.sha, 'HEAD', store.gitEnv) ?? [];
@@ -82,15 +86,15 @@ async function discard(ticket, io, store) {
   try {
     const trust = snapshot({ cwd: io.cwd, env: io.env });
     const now = ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules: protectionRules(trustedRegistry(trust), trustedConfig(trust)) });
-    const before = last.ignored_before ?? {};
+    const before = last?.ignored_before ?? {};
     ignored = [...new Set([...Object.keys(now), ...Object.keys(before)])].filter((p) => now[p] !== before[p]).sort();
   } catch {
     ignored = [];
   }
   // Where fix rounds start again (21c re-review): the failing step the reset went back to, if it's one;
   // else none, and the next step is a build.
-  const fixFrom = [last.fix_from, last.fix_from_prev].find((x) => x?.commit === cp.sha) ?? null;
-  atomicWrite(buildRecordPath(store, ticket), `${JSON.stringify({ ...last, outcome: 'discarded', discarded_to: cp.sha, commit: null, fingerprint: null, checked_fingerprint: null, head: commitOf(store.checkout, 'HEAD', store.gitEnv), fix_from: fixFrom, fix_from_prev: null }, null, 2)}\n`);
+  const fixFrom = [last?.fix_from, last?.fix_from_prev].find((x) => x?.commit === cp.sha) ?? null;
+  atomicWrite(buildRecordPath(store, ticket), `${JSON.stringify({ ...(last ?? { branch }), outcome: 'discarded', discarded_to: cp.sha, commit: null, fingerprint: null, checked_fingerprint: null, head: commitOf(store.checkout, 'HEAD', store.gitEnv), fix_from: fixFrom, fix_from_prev: null }, null, 2)}\n`);
   appendEvent(store, { type: 'note', by: 'script', item: ticket, message: `discarded the last step: ${branch} back to checkpoint ${cp.n} (${cp.sha.slice(0, 12)})` });
   io.stdout.write(`discarded: ${branch} is back at checkpoint ${cp.n}; ${ticket} stays in-progress\n`);
   if (ignored.length) io.stdout.write(`  ignored files under protected paths that changed, left as they are: ${ignored.slice(0, 20).map(plain).join(', ')}\n`);

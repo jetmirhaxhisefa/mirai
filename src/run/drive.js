@@ -18,6 +18,7 @@ import { usageCheck } from '../loop/ledger.js';
 import { shipTicket } from '../ship/ship.js';
 import { contentHash } from '../sign/sign.js';
 import { branchKeys } from '../sign/keys.js';
+import { ticketBranches } from '../store/branches.js';
 import { acquireRunLock } from '../store/global.js';
 import { commitOf, isAncestor, symbolicBranch, switchBranch, workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
@@ -155,19 +156,24 @@ export function afterStep(step, r, ticket) {
   }
 }
 
-// Where the run may start: the integration branch with a clean tree, or the ticket's own branch.
+// Where the run may start: the integration branch with a clean tree, or the ticket's own branch
+// (its build record's, or one registered to it: a build killed before its record leaves only that).
 function checkStart(store, ticket, trust) {
-  if (workTreeChanges(store.checkout, store.gitEnv).length) throw fail('the work tree has uncommitted changes', 'dirty-tree', 'commit or stash them first');
-  const here = symbolicBranch(store.checkout, 'HEAD', store.gitEnv);
-  if (here === trust.branch) return;
   let last = null;
   try {
     last = JSON.parse(readFileSync(buildRecordPath(store, ticket), 'utf8'));
   } catch {
     last = null;
   }
-  if (last?.branch && here === last.branch) return;
-  throw fail(`the checkout is on ${here ?? 'no branch'}; a run starts on ${trust.branch} or on ${ticket}'s own branch`, 'wrong-branch', `git switch ${last?.branch ?? trust.branch}`);
+  const own = new Set([...(last?.branch ? [last.branch] : []), ...ticketBranches(store, ticket)]);
+  if (workTreeChanges(store.checkout, store.gitEnv).length) {
+    // A step cut short (a crash, a kill) leaves its work uncommitted: throwing it away is yours.
+    const mid = readTicketStatus(store, ticket)?.status?.state === 'in-progress' && own.has(symbolicBranch(store.checkout, 'HEAD', store.gitEnv));
+    throw fail('the work tree has uncommitted changes', 'dirty-tree', mid ? `a step of ${ticket} was cut short: throw it away (your typed key): mirai discard ${ticket}; then mirai resume` : 'commit or stash them first');
+  }
+  const here = symbolicBranch(store.checkout, 'HEAD', store.gitEnv);
+  if (here === trust.branch || own.has(here)) return;
+  throw fail(`the checkout is on ${here ?? 'no branch'}; a run starts on ${trust.branch} or on ${ticket}'s own branch`, 'wrong-branch', `git switch ${[...own].at(-1) ?? trust.branch}`);
 }
 
 // A stopped run of another ticket is open until it's resumed or given up (decision 6).
