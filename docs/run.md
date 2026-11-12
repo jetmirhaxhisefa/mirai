@@ -102,4 +102,6 @@ Parked     —
 QA         not yet (unit 51)
 ```
 
+A plan parked `bad-plan` lists its lint problems under `Parked` (the first 5; `--full` all, with their hints), so you can judge the plan: `--full` prints it whole.
+
 `--full` adds every finding's text, the plan and the parking note whole; `--json` is for scripts.
