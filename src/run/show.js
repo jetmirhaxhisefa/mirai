@@ -8,6 +8,7 @@ import { readFrontmatter } from '../lint/frontmatter.js';
 import { branchKeys } from '../sign/keys.js';
 import { blobAt, commitOf } from '../store/git.js';
 import { openStore } from '../store/home.js';
+import { unparkCommand } from './drive.js';
 import { readJournal, ticketFacts } from '../store/journal.js';
 import { readTicketStatus } from '../store/tickets.js';
 import { plain } from '../status/text.js';
@@ -109,7 +110,7 @@ export function showText(d, { full = false } = {}) {
   row('MR', d.mr ? `${d.mr.state}${d.mr.url ? ` ${plain(d.mr.url)}` : ''}` : 'not yet');
   row('Rounds', `${d.rounds.used} of ${d.rounds.of} used · re-plans ${d.rounds.replans} of ${d.rounds.replans_of}`);
   row('Usage', `${d.usage.turns} turns · ${d.usage.tokens >= 1e6 ? `${(d.usage.tokens / 1e6).toFixed(1)} M` : `${Math.round(d.usage.tokens / 1000)} k`} tokens · ${d.usage.minutes} min`);
-  row('Parked', d.state === 'blocked' ? `${plain(d.park_reason ?? '')}${d.note ? `: ${plain(d.note).slice(0, full ? 2000 : 200)}` : ''} · then: mirai unpark ${d.ticket}` : '—');
+  row('Parked', d.state === 'blocked' ? `${plain(d.park_reason ?? '')}${d.note ? `: ${plain(d.note).slice(0, full ? 2000 : 200)}` : ''} · then: ${unparkCommand(d.ticket, d.park_reason)}` : '—');
   // A bad plan's lint problems: what Kai's plan got wrong, so you can judge it.
   const lint = d.plan_lint ?? [];
   for (const p of lint.slice(0, full ? lint.length : 5)) out.push(`  plan.md${p.line ? `:${p.line}` : ''}  ${plain(p.reason)}${full && p.hint ? ` (${plain(p.hint)})` : ''}`);

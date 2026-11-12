@@ -22,7 +22,7 @@ The next step is read from the ticket every time, never remembered. So running `
 | `in-review`, review passed | signs the proofs (your terminal), or stops (your session) |
 | `in-review`, proofs valid at the head | ships: pushes and opens the MR |
 | `built` (an MR with valid proofs at its head) | nothing: prints the MR |
-| `blocked` | stops with the parking note and `mirai unpark` |
+| `blocked` | stops with the parking note and `mirai unpark <ticket> --retry` |
 | `draft`, `dropped`, `done`, `waiting` | refused, with why |
 
 **Where it starts:** on the integration branch with a clean tree, or on the ticket's own branch. The build step makes the ticket's branch, named by `[git] branch_pattern` (default `feature/{ticket}-{slug}`). After the MR, the run goes back to the integration branch. After any other stop, it stays where it is, and says which branch you're on.
@@ -34,7 +34,7 @@ The next step is read from the ticket every time, never remembered. So running `
 Each stop ends with one line saying what to do next, ending in the exact command:
 
 - **A gate:** the plan approval; or, from your session, the proofs.
-- **A park** (the loop guard, a bad plan): the reason, then `mirai unpark`.
+- **A park** (the loop guard, a bad plan): the reason, then `mirai unpark <ticket> --retry` (a disputed finding: `--accept <finding-id>`).
 - **Needs you:** a protected path, a step MIRAI couldn't judge, a failing gate.
 - **The baseline:** a new known failure on the integration branch (`baseline-grew`) or an incomplete baseline. A test that was flaky before and passed first time is carried over, not new.
 - **The breaker:** `loop.breaker` environment faults in a row (3 by default). A single fault runs the step again.
