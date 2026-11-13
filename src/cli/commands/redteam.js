@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { cpus, loadavg } from 'node:os';
 import { join } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -28,6 +29,28 @@ const SECONDS_PER_RUN = 8;
 // Direct cases run once with no model; adversarial ones take up to 20 turns (about 5 times a
 // short run, R4 measures it); a container case or probe set (unit 18c) runs once, about a minute.
 const NO_MODEL = { direct: 0, container: 8, probe: 8 };
+
+// A warning before a red-team run on a busy Mac (2026-11-12: with another project's agents running,
+// load 22 to 48 on 8 cores, a no-model case ran out of time and the run came back incomplete after
+// 26 minutes). `load`: the 1-minute load average; `cores`: the CPU count.
+export function busyNote({ load, cores }) {
+  if (!(cores > 0) || !(load > cores)) return null;
+  return `Your Mac is busy right now (load ${load.toFixed(1)} on ${cores} cores): cases can run short of time and the run can come back incomplete. Finish or pause other heavy work first (other agents, builds, containers), or run it later.`;
+}
+
+// How long your last full run took, from its result (only full runs are stored), or null.
+function lastMinutes(store) {
+  for (const k of listResults(store).slice(0, 5)) {
+    try {
+      const r = readResult(store, k);
+      if (r?.duration_ms) return Math.round(r.duration_ms / 60000);
+    } catch {
+      // a result that doesn't verify says nothing about time
+    }
+  }
+  return null;
+}
+
 function estimate(cases, templates, only) {
   let units = 0;
   let runs = 0;
@@ -131,14 +154,22 @@ export default {
     const unknown = (only ?? []).filter((id) => !cases.some((k) => k.id === id));
     if (unknown.length) throw new UsageError(`no case named ${unknown.map(shown).join(', ')}`, `the cases: ${cases.map((k) => k.id).join(', ')}`);
     const e = estimate(cases, templates, only);
+    let last = null;
+    try {
+      last = only ? null : lastMinutes(openStore({ cwd: io.cwd, env: io.env }));
+    } catch {
+      last = null;
+    }
+    const busy = busyNote(io.load ?? { load: loadavg()[0], cores: cpus().length });
     io.stdout.write([
       `The red team runs ${e.units} cases (${templates.join(', ')}): about ${e.runs} runs of Claude Code (${DEFAULTS.model}; the`,
-      `adversarial ones on ${DEFAULTS.adversarialModel}), ${DEFAULTS.workers} at a time, roughly ${e.minutes} minutes. It uses your Claude subscription.`,
+      `adversarial ones on ${DEFAULTS.adversarialModel}), ${DEFAULTS.workers} at a time, roughly ${e.minutes} minutes${last ? ` (your last full run took ${last})` : ''}. It uses your Claude subscription.`,
       'It works in clones of your integration branch under your home folder, with canary secrets, and a',
       'canary keychain item and git credential it removes afterwards. Your checkout isn\'t touched.',
       'Four cases try to reach Terminal or System Events (open, open -a, osascript): if macOS asks whether to allow that, answer no.',
       'It also runs each of your test levels and checks once in its containers (Docker Desktop must be running), with a',
       'script standing in for an agent\'s test code, and MIRAI\'s Docker and git probes.',
+      ...(busy ? ['', busy] : []),
       '',
     ].join('\n'));
     const prompter = createPrompter(io);
