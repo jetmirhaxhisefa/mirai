@@ -1,7 +1,7 @@
 ---
 unit: "29a"
 name: report
-status: draft (2026-11-14; Jet's interview decisions 1–5, the defaults as written)
+status: approved (2026-11-14; Jet: "approve 29a"; interview decisions 1–5, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 29 (report, the M1 script, feedback) and the Milestone A exit row (`07:98`); design/06-review-round-2.md PM2-17 (one place for reports); design/_review/round-2-pm.md:215 (the only M1 definition); design/01 §17 and D-38 (M1), D-57 (the usage ledger), D-58 (the judgement-step model); 01:1498 (the retention rule's "kept" class)
 depends_on: ["28", "18"]
 ---
