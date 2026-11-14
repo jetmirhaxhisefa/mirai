@@ -1,7 +1,7 @@
 ---
 unit: "29c"
 name: doctor
-status: draft (2026-11-14; Jet's interview decisions 1–3, the defaults as written)
+status: approved (2026-11-14; Jet: "approve 29c, P1 and P2 OK"; interview decisions 1–3, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 29 (minimal `mirai doctor`) and row 47 (the full doctor, which extends it); design/03's `mirai-doctor` row; design/01 §9 (what doctor reports) and the merge-gate line (R-M21); D-57 (the plan and the week's share); the 05a/05b specs (repairs deferred to 29)
 depends_on: ["29a", "28", "18"]
 ---
@@ -71,7 +71,7 @@ Already built (the research, 2026-11-14): `redTeamStatus` (`src/redteam/run.js`,
 - The full doctor (unit 47): stack health, verifier rungs, `business.md` age, Docker disk, the public-repo warning, the managed settings, the ledger rewrite from the run log.
 - Running the red team again from doctor (unit 47, through the same `[y/N]`).
 
-## Probes (with your OK)
+## Probes (with your OK: yes, 2026-11-14)
 
 - **P1, on the sample app (no model, writes nothing):** `mirai doctor` on your sample app as it is: green but for the expected yellows (merge gate local-only; the agents' binary is Intel on this Mac), each with its hint.
 - **P2, seeded faults in a throwaway clone with its own MIRAI home (no model, nothing outside a temp folder):** the hook's Node removed, `gh` pointed at a missing path, a dead process's lock and breaker, the run state deleted, the branch registry deleted, one journal line broken. `mirai doctor` names each one red with its hint; `mirai doctor --fix` repairs the lock, the breaker, the run state and the registry, and leaves the broken journal line red, named with its line.
