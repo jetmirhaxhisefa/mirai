@@ -75,7 +75,9 @@ export const EVENT_TYPES = Object.freeze({
       item: f.ticket,
       // A plan (unit 21a): `path` is its place in the store, `content_hash` its approvalHash (08b),
       // or, for a rejected plan with no frozen block, the hash of its whole text.
-      kind: { type: 'enum', values: ['ticket', 'plan'] },
+      // `merge` (unit 29d): you merged the ticket's MR from MIRAI; `path` is `mr/<number>` and
+      // `content_hash` the code hash at the head you merged.
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo (a ticket) or in the store (a plan)' },
       content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
       decision: { type: 'enum', values: ['accepted', 'edited', 'rejected'] },
@@ -365,7 +367,7 @@ export function allTicketFacts(events) {
     const mrFacts = { ...(t.number ? { number: t.number } : {}), ...(t.url ? { url: t.url } : {}), ...(t.lastPush ? { lastPush: t.lastPush } : {}) };
     if (t.merged) facts.set(ticket, { mr: 'merged', mergedInto: t.merged.target, epicMerged: t.merged.target === 'epic' && mergedEpics.has(t.merged.epic), ...mrFacts, ...(t.merged.head ? { finalHead: t.merged.head } : {}), ...(t.merged.merge_sha ? { mergeSha: t.merged.merge_sha } : {}) });
     // Unit 27a: MIRAI pushes a head only after its proofs checked (`proofs: "pass"` on the push).
-    else if (t.latestMr?.type === 'mr_opened') facts.set(ticket, { mr: 'open', pushSeq: t.pushSeq ?? t.openSeq, head: t.head, proofsValidAtHead: t.proofs, ...(t.url ? { url: t.url } : {}) });
+    else if (t.latestMr?.type === 'mr_opened') facts.set(ticket, { mr: 'open', pushSeq: t.pushSeq ?? t.openSeq, head: t.head, proofsValidAtHead: t.proofs, ...mrFacts });
     else if (t.latestMr?.type === 'mr_closed') facts.set(ticket, { mr: 'closed', closeSeq: t.closeSeq, ...mrFacts });
     else facts.set(ticket, { mr: 'none', ...(t.head ? { head: t.head } : {}) });
   }

@@ -202,8 +202,60 @@ export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
       const r = withBodyFile(body, (file) => gh(['pr', 'edit', String(number), '--repo', repo, '--title', title, '--body-file', file]));
       if (!r.ok) throw failed('gh pr edit', r);
     },
+    // Unit 29d: the MR as the review and the merge need it: { state, head, mergeable: true |
+    // false | null (still being worked out), why, ci: { state: 'none' | 'pending' | 'passed' |
+    // 'failed', checks: [{ name, state }] } }.
+    mrState(number) {
+      let pr = null;
+      for (let i = 0; i < 6; i++) {
+        pr = api(`repos/${repo}/pulls/${Number(number)}`);
+        if (!pr || pr.state !== 'open' || pr.mergeable !== null) break;
+        sleep(2000); // GitHub works out mergeability a few seconds after a push
+      }
+      if (!pr) throw hostError(`${repo} has no pull request #${number}`, 'no-mr');
+      const head = pr.head?.sha;
+      if (!SHA.test(head ?? '')) throw hostError('the host named a head MIRAI can\'t read', 'host-failed');
+      const state = pr.merged ? 'merged' : pr.state === 'open' ? 'open' : 'closed';
+      const why = { dirty: 'it has conflicts with its base', blocked: 'a branch rule blocks it (a review or a check it requires)', behind: 'its branch is behind its base and the repo requires it up to date', draft: 'it\'s a draft', unknown: 'GitHub hasn\'t worked it out yet' }[pr.mergeable_state] ?? null;
+      const runs = api(`repos/${repo}/commits/${head}/check-runs?per_page=100`)?.check_runs ?? [];
+      const statuses = api(`repos/${repo}/commits/${head}/status`)?.statuses ?? [];
+      const checks = [
+        ...runs.map((c) => ({ name: String(c.name ?? 'check').slice(0, 80), state: c.status !== 'completed' ? 'pending' : ['success', 'neutral', 'skipped'].includes(c.conclusion) ? 'passed' : 'failed' })),
+        ...statuses.map((c) => ({ name: String(c.context ?? 'status').slice(0, 80), state: c.state === 'success' ? 'passed' : c.state === 'pending' ? 'pending' : 'failed' })),
+      ];
+      return { state, head, mergeable: state === 'open' ? (pr.mergeable === true && !why ? true : pr.mergeable === null ? null : false) : false, why, ci: { state: ciState(checks), checks } };
+    },
+    // Merges with a merge commit, only if the head is still `head` (GitHub's own sha check).
+    // Returns { mergeSha }. A head that moved is `mr-head-moved`; one GitHub can't merge, `mr-not-mergeable`.
+    mergeMr(number, { head }) {
+      if (!SHA.test(head ?? '')) throw new TypeError('the head is a full commit id');
+      const r = withJsonFile({ merge_method: 'merge', sha: head }, (file) => gh(['api', '--method', 'PUT', `repos/${repo}/pulls/${Number(number)}/merge`, '--input', file]));
+      if (!r.ok) {
+        const text = `${r.err} ${r.out}`;
+        if (/HTTP 409/.test(text)) throw hostError(`GitHub refused: #${number}'s head isn't ${head.slice(0, 7)} any more`, 'mr-head-moved', 'someone pushed after your review: review it again: mirai review-mr');
+        if (/HTTP 405|HTTP 422/.test(text)) throw hostError(`GitHub can't merge #${number}: ${(/"message":"([^"]{1,200})"/.exec(text)?.[1]) ?? 'not mergeable'}`, 'mr-not-mergeable', 'see the pull request on GitHub');
+        throw failed('gh api merge', r);
+      }
+      const out = JSON.parse(r.out || '{}');
+      if (out.merged !== true || !SHA.test(out.sha ?? '')) throw hostError('GitHub didn\'t say the merge happened', 'host-failed');
+      return { mergeSha: out.sha };
+    },
+    // Deletes the branch on the host; one that's already gone is fine.
+    deleteBranch(branch) {
+      const r = gh(['api', '--method', 'DELETE', `repos/${repo}/git/refs/heads/${branch.split('/').map(encodeURIComponent).join('/')}`]);
+      if (!r.ok && !/HTTP 404|HTTP 422/.test(r.err ?? '')) throw failed('gh api delete branch', r);
+    },
   };
 }
+
+// The CI state of a head from its checks (unit 29d).
+export function ciState(checks) {
+  if (!checks.length) return 'none';
+  if (checks.some((c) => c.state === 'failed')) return 'failed';
+  if (checks.some((c) => c.state === 'pending')) return 'pending';
+  return 'passed';
+}
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 // The host for a project: { name, hostUrl, repo } from hostConfig, its CLI from the store.
 export function hostFor({ config, remoteUrl, store, env, root, cliHome }) {

@@ -193,6 +193,46 @@ export function gitlabHost({ hostUrl, repo, cli, env, cliHome = env.HOME }, deps
     updateMr(number, { title, body }) {
       api('PUT', `${project}/merge_requests/${Number(number)}`, { body: { title, description: body } });
     },
+    // Unit 29d: the MR for the review and the merge (as the GitHub host's): its state, head,
+    // whether it can be merged, and the head pipeline as CI.
+    mrState(number) {
+      let m = null;
+      for (let i = 0; i < 6; i++) {
+        m = api('GET', `${project}/merge_requests/${Number(number)}`, { missing: /Not Found/i });
+        if (!m || m.state !== 'opened' || !['checking', 'unchecked', 'preparing', 'approvals_syncing'].includes(m.detailed_merge_status)) break;
+        sleep(2000);
+      }
+      if (!m) throw hostError(`${repo} has no merge request !${number}`, 'no-mr');
+      if (!/^[0-9a-f]{40}$/.test(m.sha ?? '')) throw hostError('the host named a head MIRAI can\'t read', 'host-failed');
+      const state = STATES[m.state] ?? String(m.state);
+      const dms = m.detailed_merge_status;
+      const WHY = { conflict: 'it has conflicts with its base', draft_status: 'it\'s a draft', not_approved: 'it needs an approval', discussions_not_resolved: 'it has open threads', ci_must_pass: 'its pipeline must pass first', ci_still_running: 'its pipeline is still running', need_rebase: 'it needs a rebase', blocked_status: 'another MR blocks it', not_open: 'it isn\'t open' };
+      const p = m.head_pipeline ?? null;
+      const ps = p?.status;
+      const checks = p ? [{ name: `pipeline ${p.id ?? ''}`.trim(), state: ps === 'success' ? 'passed' : ['failed', 'canceled'].includes(ps) ? 'failed' : ['skipped', 'manual'].includes(ps) ? 'passed' : 'pending' }] : [];
+      const ci = checks.length ? (checks[0].state === 'passed' ? 'passed' : checks[0].state) : 'none';
+      return { state, head: m.sha, mergeable: state === 'open' ? (dms === 'mergeable' ? true : ['checking', 'unchecked', 'preparing'].includes(dms) ? null : false) : false, why: dms === 'mergeable' ? null : WHY[dms] ?? (dms ? `GitLab says ${dms}` : null), ci: { state: ci, checks } };
+    },
+    // Merges with a merge commit, only if the head is still `head` (GitLab's own sha check), and
+    // removes the source branch. Returns { mergeSha }.
+    mergeMr(number, { head }) {
+      if (!/^[0-9a-f]{40}$/.test(head ?? '')) throw new TypeError('the head is a full commit id');
+      let m;
+      try {
+        m = api('PUT', `${project}/merge_requests/${Number(number)}/merge`, { body: { sha: head, should_remove_source_branch: true, squash: false } });
+      } catch (err) {
+        const text = String(err.message ?? '');
+        if (/\b409\b|SHA does not match/i.test(text)) throw hostError(`GitLab refused: !${number}'s head isn't ${head.slice(0, 7)} any more`, 'mr-head-moved', 'someone pushed after your review: review it again: mirai review-mr');
+        if (/\b405\b|\b406\b|\b422\b/.test(text)) throw hostError(`GitLab can't merge !${number}`, 'mr-not-mergeable', 'see the merge request on GitLab');
+        throw err;
+      }
+      const sha = m?.merge_commit_sha ?? null;
+      if (m?.state !== 'merged' || !/^[0-9a-f]{40}$/.test(sha ?? '')) throw hostError('GitLab didn\'t say the merge happened', 'host-failed');
+      return { mergeSha: sha };
+    },
+    deleteBranch(branch) {
+      api('DELETE', `${project}/repository/branches/${encodeURIComponent(branch)}`, { missing: /Branch Not Found|Not Found/i });
+    },
   };
   return self;
 }
