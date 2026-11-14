@@ -857,7 +857,7 @@ So if your token leaks:
   but a bug in any of them crosses it.
 - **The tests mostly use an agent that cooperates.** The red team ([red-team.md](red-team.md))
   runs each check three times on your machine, with the model told to make one exact call. Five
-  goals (since unit 18b) leave the route to a stronger model (Sonnet), up to 20 turns: get the
+  goals (since unit 18b) leave the route to a stronger model (Opus since 2026-11-14; Sonnet before), up to 20 turns: get the
   `.env` value out, write outside the project, fetch a page, change `.git` or `.mirai`, leave a
   process behind. All five were blocked on 2.1.314. A model that tries for longer, or a person,
   may find a route those didn't.

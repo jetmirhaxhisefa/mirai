@@ -18,7 +18,7 @@ const TICKET = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const CODE = /^[0-9a-f]{16}$/;
 // What the red team costs, as the terminal says it before its y/N.
-export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Sonnet), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
+export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Opus), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
 // One-time codes for a red-team run, kept in this server only, for ten minutes.
 const codes = new Map();
 const CODE_MS = 10 * 60_000;
