@@ -26,6 +26,11 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installHooks } from '../../src/hooks/install.js';
+import { readSavedReport, writeRunReport } from '../../src/reports/run-report.js';
+import { renderRunReport } from '../../src/reports/render.js';
+import { existsSync } from 'node:fs';
+import logEvent from '../../src/mcp/tools/log-event.js';
+import { LOG_TYPES, SESSION_LOG_TYPES } from '../../src/store/journal.js';
 
 // Unit 28: `mirai run`, supervised, one ticket. The real steps with a stand-in claude and test
 // run; stand-ins only for the baseline refresh, the host (ship) and the usage probe.
@@ -52,6 +57,8 @@ const steps = (extra = {}) => ({
   runFix: (o) => runFix({ ...o, testRun: passing }),
   recordProofs: (o) => recordProofs({ ...o, run: passing }),
   shipTicket: fakeShip,
+  // Unit 29a: the report at a run's end, with a stand-in red team (no Docker, no binary hash).
+  writeRunReport: (o) => writeRunReport({ ...o, redTeam: async () => ({ state: 'green', result: { created_at: '2026-11-14T10:23:12.723Z' }, parts: { claude_code: { version: '2.1.319' } } }) }),
   ...extra,
 });
 const baselineFor = (f) => {
@@ -325,4 +332,76 @@ test('28: a build killed before its record: the run names mirai discard; discard
   const r = await drive(f, { steps: steps({ runBuild: async () => { built++; return { outcome: 'needs-you', why: 'stop here' }; } }) });
   assert.equal(built, 1, 'the next step is the build again');
   assert.equal(r.stop.kind, 'needs-you');
+});
+
+test('29a: each run saves its report: the ticket\'s whole path (an earlier run\'s steps marked), usage, the MR, the red team; mirai report prints it; feedback from you and your session', async () => {
+  const f = await approvedTicket();
+  const r1 = await drive(f, { launchOptions: watch(claudeWith([{ plan: PLAN_TEXT }])) });
+  assert.equal(r1.stop.kind, 'gate-plan');
+  const store = openStore(f.io);
+  const first = readSavedReport(store, r1.runId);
+  assert.ok(first, 'saved at the run\'s end');
+  assert.deepEqual(first.tickets[0].steps.map((x) => [x.kind, x.text, x.earlier]), [['approval', 'ticket approved by you, signed', true], ['launch', "Kai's plan", false]]);
+  assert.equal(first.inbox[0].kind, 'plan');
+
+  assert.equal((await tty(['approve', 'PMT-31', '--plan'], f.io, ['a', 'PMT-31'])).code, EXIT.OK);
+  baselineFor(f);
+  const claude = claudeWith([done, { verdict: 'pass', findings: [] }], ['printf "// renamed\\n" >> app/Team.php']);
+  const r2 = await drive(f, { launchOptions: watch(claude) });
+  assert.equal(r2.outcome, 'finished', JSON.stringify(r2.stop));
+  const d = readSavedReport(store, r2.runId);
+  const k = d.tickets[0];
+  assert.deepEqual(k.steps.map((x) => [x.kind, x.text, x.earlier]), [
+    ['approval', 'ticket approved by you, signed', true], ['launch', "Kai's plan", true], ['approval', 'plan approved by you, signed', true],
+    ['launch', "Kai's build", false], ['launch', "Rex's review", false], ['push', `proofs checked, pushed ${k.steps[5].text.slice(-7)}`, false], ['mr', 'MR #7 opened', false],
+  ]);
+  assert.ok(k.steps.filter((x) => x.kind === 'launch').every((x) => x.model && Number.isInteger(x.turns) && x.round === 1));
+  assert.deepEqual([k.rounds.of, k.rounds.replans_of, k.mr.state, k.mr.url], [2, 1, 'open', MR_URL]);
+  assert.deepEqual(d.done, [{ ticket: 'PMT-31', title: k.title, mr: MR_URL }]);
+  assert.deepEqual(d.usage.map((u) => u.ticket), ['PMT-31'], 'this run\'s launches only');
+  assert.equal(d.red_team.state, 'green');
+  assert.ok(existsSync(join(store.dir, 'reports', `${r2.runId}.md`)));
+  const md = readFileSync(join(store.dir, 'reports', `${r2.runId}.md`), 'utf8');
+  assert.match(md, /^## Tickets$/m);
+  assert.match(md, /Kai's plan: .*\(earlier run\)$/m);
+  assert.match(md, /^green \(2026-11-14T10:23:12\.723Z\) for the Claude Code agents run, 2\.1\.319\.$/m);
+
+  // mirai report: the last run, as text; --json; an unknown run id.
+  const out = await tty(['report'], f.io, []);
+  assert.equal(out.code, EXIT.OK, out.err);
+  assert.match(out.out, /^Run r-\d{8}-\d{6}-[0-9a-f]{4}, \d{4}-\d{2}-\d{2}\n=+/);
+  assert.match(out.out, /PMT-31: .*rounds 0 of 2, re-plans 0 of 1/);
+  assert.equal(JSON.parse((await tty(['report', '--json'], f.io, [])).out).run.id, r2.runId);
+  assert.equal((await tty(['report', r1.runId], f.io, [])).code, EXIT.OK);
+  assert.notEqual((await tty(['report', 'r-20200101-000000-0000'], f.io, [])).code, EXIT.OK);
+  assert.notEqual((await tty(['report', 'nope'], f.io, [])).code, EXIT.OK);
+
+  // Feedback from your terminal: signed, in show and in the report.
+  assert.equal((await tty(['feedback', 'PMT-31', 'Kai planned the 404 case well'], f.io, [])).code, EXIT.OK);
+  assert.notEqual((await tty(['feedback', 'PMT-31', '   '], f.io, [])).code, EXIT.OK);
+  assert.notEqual((await tty(['feedback', 'PMT-31', 'x'.repeat(2001)], f.io, [])).code, EXIT.OK);
+  const human = readJournal(store, { keys: branchKeys(store.checkout, store.branch, store.gitEnv) }).events.filter((e) => e.type === 'feedback');
+  assert.deepEqual(human.map((e) => [e.by, e.text, Boolean(e.signature)]), [['human', 'Kai planned the 404 case well', true]]);
+  // Your session's: through log_event's feedback type, marked as the session's.
+  appendEvent(store, { type: 'feedback', by: 'session', registration_id: 's-0123456789ab', item: 'PMT-31', ticket: 'PMT-31', text: 'Rex was too quick' });
+  // Never an agent's.
+  assert.throws(() => appendEvent(store, { type: 'feedback', by: 'agent', launch_id: '20261114124501-56ec4465', item: 'PMT-31', ticket: 'PMT-31', text: 'all good' }), /written only by MIRAI/);
+  assert.throws(() => appendEvent(store, { type: 'feedback', by: 'unverified', item: 'PMT-31', ticket: 'PMT-31', text: 'all good' }), /written only by MIRAI/);
+  const page = showText(showData({ cwd: f.root, env: f.env, ticket: 'PMT-31' }));
+  assert.match(page, /^Feedback {3}2$/m);
+  assert.match(page, /from you .*: Kai planned the 404 case well/);
+  assert.match(page, /from your session .*: Rex was too quick/);
+  const again = renderRunReport(await (await import('../../src/reports/run-report.js')).runReportData({ cwd: f.root, env: f.env, runId: r2.runId, redTeam: async () => ({ state: 'green' }) }), { format: 'text' });
+  assert.match(again, /Feedback from you, .*: Kai planned the 404 case well/);
+  assert.match(again, /Feedback from your session, .*: Rex was too quick/);
+
+  // log_event: feedback is on your session's list only, and never in an agent run.
+  const policy = (kind, types) => ({ kind, tools: { log_event: { types, max_message: 4000, max_events: 10 } } });
+  assert.ok(!LOG_TYPES.includes('feedback') && SESSION_LOG_TYPES.includes('feedback'));
+  assert.ok(logEvent.check({ type: 'feedback', ticket: 'PMT-31', message: 'x' }, policy('headless', [...LOG_TYPES])).refused);
+  assert.match(logEvent.check({ type: 'feedback', ticket: 'PMT-31', message: 'x' }, policy('headless', [...SESSION_LOG_TYPES])).refused, /own session/);
+  assert.deepEqual(logEvent.check({ type: 'feedback', ticket: 'PMT-31', message: ' Fine work ' }, policy('interactive', [...SESSION_LOG_TYPES])).args, { type: 'feedback', item: 'PMT-31', ticket: 'PMT-31', text: 'Fine work' });
+  assert.ok(logEvent.check({ type: 'feedback', ticket: 'PMT-31', message: 'two\nlines' }, policy('interactive', [...SESSION_LOG_TYPES])).refused);
+  assert.ok(logEvent.check({ type: 'feedback', message: 'no ticket' }, policy('interactive', [...SESSION_LOG_TYPES])).refused);
+  assert.ok(logEvent.check({ type: 'note', ticket: 'PMT-31', message: 'x' }, policy('interactive', [...SESSION_LOG_TYPES])).refused);
 });

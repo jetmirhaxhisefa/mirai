@@ -112,7 +112,7 @@ export function sessionServer({ store, trust, env, write = true }) {
   // The same tools a read-write agent run gets (what the trust root's config offers), plus lint;
   // the caps are your session's.
   const tools = mcpPolicyTools(trustedStrict(trust, MODES[0]));
-  if (tools.log_event) Object.assign(tools.log_event, SESSION_LOG_CAPS);
+  if (tools.log_event) Object.assign(tools.log_event, SESSION_LOG_CAPS, { types: [...new Set([...tools.log_event.types, 'feedback'])] });
   tools.lint = {};
   // Unit 19c: starting agents and session run ids. The worker needs claude's path, as found now.
   const claude = findClaude(env, checkout);

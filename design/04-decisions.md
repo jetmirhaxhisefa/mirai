@@ -1452,7 +1452,10 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   Calibration sets only the budgets, never the pass marks.**
   - **Pass marks** (proposed values; judged on 15 pilot tickets after 5 calibration tickets):
     - **Value:** at least 60% of MIRAI MRs merged with no hand edits (derived from git, a tier-0
-      script that already exists in the first milestone's minimal report).
+      script that already exists in the first milestone's minimal report). **"No hand edits"
+      (unit 29a, Jet's decision 2, 2026-11-14):** the MR's final head has the same code hash as
+      MIRAI's last push (`01` §17); a rebase or "Update branch" isn't an edit, nor is a change
+      outside `gate.code_paths`.
     - **Shipped** means an MR with valid proofs that you merge within 48 hours.
     - **Your time:** under 15 minutes of **active** review per shipped ticket, measured
       directly: `mirai review <ticket>` opens the MR and starts a timer, the merge event stops

@@ -77,13 +77,14 @@ export function isManaged(profile, path) {
 export const isMiraiName = (name) => name.toLowerCase().startsWith('mirai-');
 
 // `/mirai <command>` in your own Claude Code session (unit 21f): one command file, written only
-// into your work tree (never a headless run's plugin folder). It names only MIRAI's two session
-// tools; the commands, their checks and the gates are the server's (src/mcp/tools/commands.js).
+// into your work tree (never a headless run's plugin folder). It names only MIRAI's session tools
+// (mirai_command and mirai_status; log_event for /mirai feedback, unit 29a); the commands, their
+// checks and the gates are the server's (src/mcp/tools/commands.js).
 export const MIRAI_COMMAND_FILE = 'mirai.md';
 export const commandPath = (profile) => (profile.interactive.commands ? `${profile.interactive.commands}/${MIRAI_COMMAND_FILE}` : null);
 export const MIRAI_COMMAND = `---
-description: Run a MIRAI command here, as \`mirai <command>\` in your terminal (status, run, resume, show, plan, build, fix, review, ship, baseline, lint, test, redteam status, …)
-argument-hint: <command> [ticket] [--recheck | --kept | --abandon | --full | --json | level]
+description: Run a MIRAI command here, as \`mirai <command>\` in your terminal (status, run, resume, show, report, feedback, plan, build, fix, review, ship, baseline, lint, test, redteam status, …)
+argument-hint: <command> [ticket] [--recheck | --kept | --abandon | --full | --json | --m1 | level]
 allowed-tools: mcp__mirai__mirai_status
 disable-model-invocation: true
 ---
@@ -91,6 +92,7 @@ Run MIRAI's command \`$ARGUMENTS\` through MIRAI's own tools, and nothing else:
 
 1. Read the command from the arguments: the command's words (such as \`status\`, \`run\`, \`resume\`, \`show\`, \`plan\`, \`build\`, \`review\`, \`ship\`, \`baseline show\`, \`redteam run\`), then a ticket key or a level name where it takes one, and \`--recheck\` (build), \`--kept\` (redteam run), \`--abandon\` (resume), \`--full\` or \`--json\` (show). Don't guess a ticket: if one is needed and missing, ask.
 2. Call \`mcp__mirai__mirai_command\` with \`command\` and those arguments. Claude Code asks the person first, every time. Never run \`mirai\` or its files with Bash yourself.
+   For \`feedback <ticket> <text>\` only: call \`mcp__mirai__log_event\` with \`type\` \`feedback\`, \`ticket\`, and \`message\` set to the person's words exactly as they wrote them, on one line. Never write feedback in your own words, and never without the person asking for it.
 3. If the answer says \`yours\` (an approval, signing the proofs, a discard, an unpark, the key or the token): show the terminal command it gives, word for word, and say the person must type it in a terminal. Don't run it.
 4. If the answer says \`confirm\` (the red team): show its \`cost\` word for word and ask the person whether to go ahead. Only if they say yes, call \`mcp__mirai__mirai_command\` again with the same command and \`confirm\` set to the code it gave.
 5. If it gives a \`request\`: call \`mcp__mirai__mirai_status\` with it about every 30 seconds. Each time, show only the new \`lines\`, exactly as given. Stop when \`state\` is \`done\` or \`lost\`. After 30 minutes, stop asking (for \`run\` and \`resume\`, after 3 hours: a run can wait for a usage limit), give the person the request id, and say \`/mirai show <ticket>\` or \`/mirai status\` picks it up again.

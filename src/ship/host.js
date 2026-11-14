@@ -14,7 +14,7 @@ import { gitlabHost } from './gitlab.js';
 // it comes from the remote. GitHub (`gh`) is built here; GitLab (`glab`, unit 27b) in gitlab.js.
 //
 // A host: { name, hostUrl, repo, pushUrl, helper, renderAs, checkAuth(), branchTip(branch),
-// findMr(branch), openMr({ base, head, title, body }), updateMr(number, { title, body }) }.
+// findMr(branch) (with `mergeSha`, the commit a merged MR became: unit 29a), openMr({ base, head, title, body }), updateMr(number, { title, body }) }.
 
 export const CLOUD = Object.freeze({ github: 'https://github.com', gitlab: 'https://gitlab.com' });
 const CLI = Object.freeze({ github: 'gh', gitlab: 'glab' });
@@ -185,9 +185,9 @@ export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
     // The MR whose head is `branch`: an open one first, else the newest. { number, state:
     // 'open' | 'closed' | 'merged', url, body, title, base, head } or null.
     findMr(branch) {
-      const r = gh(['pr', 'list', '--repo', repo, '--head', branch, '--state', 'all', '--limit', '30', '--json', 'number,state,url,body,title,baseRefName,headRefOid']);
+      const r = gh(['pr', 'list', '--repo', repo, '--head', branch, '--state', 'all', '--limit', '30', '--json', 'number,state,url,body,title,baseRefName,headRefOid,mergeCommit']);
       if (!r.ok) throw failed('gh pr list', r);
-      const list = JSON.parse(r.out).map((p) => ({ number: p.number, state: String(p.state).toLowerCase(), url: p.url, body: p.body ?? '', title: p.title ?? '', base: p.baseRefName, head: p.headRefOid }));
+      const list = JSON.parse(r.out).map((p) => ({ number: p.number, state: String(p.state).toLowerCase(), url: p.url, body: p.body ?? '', title: p.title ?? '', base: p.baseRefName, head: p.headRefOid, mergeSha: p.mergeCommit?.oid ?? null }));
       return list.find((p) => p.state === 'open') ?? list.sort((a, b) => b.number - a.number)[0] ?? null;
     },
     openMr({ base, head, title, body }) {

@@ -182,7 +182,7 @@ export function gitlabHost({ hostUrl, repo, cli, env, cliHome = env.HOME }, deps
     findMr(branch) {
       const list = api('GET', `${project}/merge_requests?source_branch=${encodeURIComponent(branch)}&state=all&order_by=created_at&sort=desc&per_page=100`);
       if (!Array.isArray(list)) throw hostError('the host\'s merge request list isn\'t a list', 'host-failed');
-      const mrs = list.filter((m) => m.source_branch === branch).map((m) => ({ number: m.iid, state: STATES[m.state] ?? String(m.state), url: m.web_url, body: m.description ?? '', title: m.title ?? '', base: m.target_branch, head: m.sha }));
+      const mrs = list.filter((m) => m.source_branch === branch).map((m) => ({ number: m.iid, state: STATES[m.state] ?? String(m.state), url: m.web_url, body: m.description ?? '', title: m.title ?? '', base: m.target_branch, head: m.sha, mergeSha: m.squash_commit_sha ?? m.merge_commit_sha ?? null }));
       return mrs.find((m) => m.state === 'open') ?? mrs.sort((a, b) => b.number - a.number)[0] ?? null;
     },
     openMr({ base, head, title, body }) {

@@ -127,6 +127,8 @@ const RUN = () => ({
   known_failures: ['LegacyTest::test_flaky_clock'],
   branch_warnings: [{ branch: 'feature/PMT-32-slug-history', files: ['.vscode/tasks.json', 'package.json'] }],
   clean_due: true,
+  tickets: [],
+  red_team: { state: 'green', at: '2026-10-24T01:00:00.000Z', claude_code: '2.1.319' },
 });
 
 test('T7: the QA and run reports render their template\'s sections from checked data, escaped', () => {
@@ -149,15 +151,16 @@ test('T7: the QA and run reports render their template\'s sections from checked 
   assert.deepEqual(structure(report).headings, ['1 Run r-20261024-010203-abc1, 2026-10-24', ...h2('run-report').map((s) => `2 ${s}`)]);
   assert.equal(h2('run-report')[1], 'Branch warnings'); // first after the summary (D-54)
   assert.match(report, /^2 tickets done, 1 parked; the run finished \(supervised\)\.$/m);
-  assert.match(report, /\| Total \| 53 \| 2,230,000 \| 28\.5 \| `\$4\.00` \(estimate\) \|/);
+  assert.match(report, /\| Total \| 53 \| 2,230,000 \| 28\.5 \| unknown \| `\$4\.00` \(estimate\) \|/);
+  assert.match(report, /^green \(2026-10-24T01:00:00\.000Z\) for the Claude Code agents run, 2\.1\.319\.$/m);
   assert.match(report, /\| PMT-31 \| 41 \| 1,830,000 \| 22\.5 \|/);
   assert.match(report, /^- PMT-31: Renaming a team hides its members, https:\/\/git\.example\/mr\/7$/m);
   assert.match(report, /Paused: usage-limit, resets 2026-10-24T05:00\+02:00/);
   assert.match(report, /due for `mirai clean`/);
   // Unknown cost stays unknown; empty sections say None.
   const quiet = renderRunReport({ ...RUN(), done: [], parked: [], paused: [], followups: [], inbox: [], template_gaps: [], known_failures: [], branch_warnings: [], clean_due: false, usage: [{ ticket: 'PMT-31', turns: 1, tokens: 10, minutes: 1 }] });
-  assert.match(quiet, /\| Total \| 1 \| 10 \| 1 \| unknown \|/);
-  assert.equal((quiet.match(/^None\.$/gm) ?? []).length, 7); // warnings, done, parked, follow-ups, inbox, gaps, failures
+  assert.match(quiet, /\| Total \| 1 \| 10 \| 1 \| unknown \| unknown \|/);
+  assert.equal((quiet.match(/^None\.$/gm) ?? []).length, 8); // warnings, tickets, done, parked, follow-ups, inbox, gaps, failures
   assert.throws(() => renderRunReport({ ...RUN(), extra: 1 }), ReportError);
   assert.throws(() => renderRunReport({ ...RUN(), parked: [{ ticket: 'PMT-40', reason: 'x', note: '# heading\nnext' }] }), ReportError);
   // MR links: no control or bidi characters, no credentials; times are ISO; no NaN.
@@ -172,7 +175,7 @@ test('T7: the QA and run reports render their template\'s sections from checked 
   assert.match(text, /^Run r-20261024-010203-abc1, 2026-10-24\n=+\n/);
   assert.match(text, /^Branch warnings\n-+$/m);
   assert.match(text, /^- PMT_31: Fix https:\/\/x\.example\/a_b and \*stars\*$/m);
-  assert.match(text, /^Total\s+53 turns\s+2,230,000 tokens\s+28\.5 min {2}\$4\.00 \(estimate\)$/m);
+  assert.match(text, /^Total\s+53 turns\s+2,230,000 tokens\s+28\.5 min\s+unknown of your limit {2}\$4\.00 \(estimate\)$/m);
   assert.throws(() => renderRunReport(RUN(), { format: 'html' }), ReportError);
 });
 

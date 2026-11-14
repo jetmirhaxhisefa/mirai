@@ -20,6 +20,8 @@ import { containsToken } from '../../sign/token.js';
 // journal lock with the line itself.
 
 const TEXT_MAX = 200;
+const FEEDBACK_MAX = 2000;
+const TICKET_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 // How long a call waits for the journal lock: the server answers nothing while it waits, so not
 // the CLI's 30 seconds.
 export const LOCK_WAIT_MS = 2000;
@@ -59,14 +61,15 @@ function countSoFar(file) {
 
 export default Object.freeze({
   name: 'log_event',
-  description: (policy) => `Write a note, or a template gap (a section a MIRAI template is missing), to MIRAI's journal ${policy.kind === 'headless' ? 'for this run' : 'as your session\'s'}. Returns the line's number.`,
+  description: (policy) => `Write a note, or a template gap (a section a MIRAI template is missing)${policy.tools.log_event.types.includes('feedback') ? ', or the person\'s feedback on a ticket (/mirai feedback)' : ''}, to MIRAI's journal ${policy.kind === 'headless' ? 'for this run' : 'as your session\'s'}. Returns the line's number.`,
   exclusive: false,
   contexts: Object.freeze(['headless', 'interactive']),
   enabled: (policy) => Boolean(policy.tools.log_event),
   schema: (policy) => ({
     type: 'object',
     properties: {
-      type: { type: 'string', enum: [...policy.tools.log_event.types], description: 'note, or template_gap' },
+      type: { type: 'string', enum: [...policy.tools.log_event.types], description: policy.tools.log_event.types.includes('feedback') ? 'note, template_gap, or feedback (the person\'s own words on how the work with an agent went, for one ticket: only what they said, in one line)' : 'note, or template_gap' },
+      ...(policy.tools.log_event.types.includes('feedback') ? { ticket: { type: 'string', minLength: 1, maxLength: 64, description: 'with feedback: the ticket key' } } : {}),
       message: { type: 'string', minLength: 1, maxLength: policy.tools.log_event.max_message, description: 'what to record' },
       template: { type: 'string', minLength: 1, maxLength: TEXT_MAX, description: 'with template_gap: the template' },
       section: { type: 'string', minLength: 1, maxLength: TEXT_MAX, description: 'with template_gap: the missing section' },
@@ -79,6 +82,17 @@ export default Object.freeze({
     if (typeof args.type !== 'string' || !types.includes(args.type)) return { refused: `${JSON.stringify(args.type)} isn't a type agents may log; types: ${types.join(', ')}` };
     const bad = textProblem('message', args.message, max);
     if (bad) return { refused: bad };
+    // Unit 29a: your feedback, from your own session only (never an agent run), one line.
+    if (args.type === 'feedback') {
+      if (policy.kind !== 'interactive') return { refused: 'feedback is the person\'s, from their own session' };
+      if (typeof args.ticket !== 'string' || !TICKET_KEY.test(args.ticket)) return { refused: 'feedback needs ticket, a ticket key' };
+      if (args.template !== undefined || args.section !== undefined) return { refused: 'template and section are for template_gap' };
+      const bad = textProblem('message', args.message, FEEDBACK_MAX);
+      if (bad) return { refused: bad };
+      if (/[\n\r]/.test(args.message)) return { refused: 'feedback is one line' };
+      return { args: { type: 'feedback', item: args.ticket, ticket: args.ticket, text: args.message.trim() } };
+    }
+    if (args.ticket !== undefined) return { refused: 'ticket is for feedback' };
     const gap = args.type === 'template_gap';
     for (const k of ['template', 'section']) {
       const problem = gap && textProblem(k, args[k], TEXT_MAX);
@@ -104,7 +118,7 @@ export default Object.freeze({
     } catch {
       return refuse('token-unreadable', 'the login token couldn\'t be read, so the text can\'t be checked for it');
     }
-    for (const text of [event.message, event.template, event.section].filter((t) => t !== undefined)) {
+    for (const text of [event.message, event.template, event.section, event.text].filter((t) => t !== undefined)) {
       if (token && containsToken(text, token)) return refuse('secret', 'the text holds the Claude login token');
       const hit = secrets.find((s) => new RegExp(s.regex, 'u').test(text));
       if (hit) return refuse('secret', `the text holds a secret (${hit.name}); leave it out`);
