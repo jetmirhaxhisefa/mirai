@@ -11,6 +11,7 @@ import { openStore } from '../store/home.js';
 import { unparkCommand } from './drive.js';
 import { readJournal, ticketFacts } from '../store/journal.js';
 import { readTicketStatus } from '../store/tickets.js';
+import { deriveTicketState } from '../status/derive.js';
 import { plain } from '../status/text.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
 
@@ -75,9 +76,11 @@ export function showData({ cwd, env, ticket }) {
   } catch {
     disputes = [];
   }
+  // The state `mirai status` shows: derived from the journal where it can be (built, done).
+  const effective = status ? deriveTicketState(status, facts).state : null;
   return {
-    ticket, title, state: status?.state ?? null, park_reason: status?.park_reason ?? null, note: status?.note ?? null, risk,
-    plan_lint: status?.state === 'blocked' && status?.park_reason === 'bad-plan' ? readPlanLint(store, ticket, planText) : null,
+    ticket, title, state: effective ?? status?.state ?? null, park_reason: status?.park_reason ?? null, note: status?.note ?? null, risk,
+    plan_lint: effective === 'blocked' && status?.park_reason === 'bad-plan' ? readPlanLint(store, ticket, planText) : null,
     branch: build?.branch ?? null, head,
     plan: planText === null ? null : { round: planFm?.round ?? 1, approved: planApproval(store, ticket, keys).ok, decision: lastApproval?.decision ?? null, at: lastApproval?.ts ?? null, key_id: lastApproval?.signature?.key_id ?? null, text: planText },
     build: build ? { outcome: build.outcome ?? null, why: build.why ?? null, at: build.at ?? null, launch: build.launch ?? null, tests: (build.tests?.runs ?? []).map((t) => ({ name: t.name, verdict: t.verdict })) } : null,
@@ -96,7 +99,8 @@ export function showText(d, { full = false } = {}) {
   const out = [];
   const built = d.mr?.state === 'open' && d.mr.proofs_at_head;
   out.push(`${d.ticket}: ${plain(d.title ?? '(no title)')}          ${built ? 'built' : d.state ?? 'unknown'}${d.mr?.url ? ` · MR ${plain(d.mr.url)}` : ''}`);
-  out.push(`  ${d.branch ? `branch ${plain(d.branch)}${d.head ? ` at ${d.head.slice(0, 7)}` : ''}` : 'no branch yet'}${d.mr ? ` · proofs ${d.mr.proofs_at_head ? 'valid at head' : 'not at head'}` : ''} · ${d.risk ?? 'normal'} risk`);
+  // A merged MR: the proofs did their job; "not at head" would read like a problem.
+  out.push(`  ${d.branch ? `branch ${plain(d.branch)}${d.head ? ` at ${d.head.slice(0, 7)}` : ''}` : 'no branch yet'}${d.mr?.state === 'open' ? ` · proofs ${d.mr.proofs_at_head ? 'valid at head' : 'not at head'}` : ''} · ${d.risk ?? 'normal'} risk`);
   out.push('');
   const row = (k, v) => out.push(`${k.padEnd(11)}${v}`);
   row('Plan', d.plan ? `round ${d.plan.round}, ${d.plan.approved ? `approved by you ${ago(d.plan.at)}${d.plan.key_id ? ` (${d.plan.key_id.slice(0, 6)}…)` : ''}` : d.plan.decision === 'rejected' ? 'rejected by you' : 'waits for your approval'}` : 'not yet');
