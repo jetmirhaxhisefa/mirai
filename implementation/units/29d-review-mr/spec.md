@@ -94,3 +94,11 @@ No model: as 29a's P1, the probe makes MIRAI's side itself (a branch with one co
 ## Open points for you
 
 - None beyond the approval.
+
+## Changes during the build (2026-11-14/15)
+
+- **The probes merge into throwaway base branches, never your main:** each case is the unit tests' fixture (planned, built and reviewed by a stand-in claude, proofs signed with a probe key), pushed to the real host on `mirai-probe/base-<id>`, which its MR targets. Nothing landed on the sample app's main, and every probe branch was deleted (the spec had planned one probe merge on main).
+- **GitLab only through its own config folder:** this laptop's glab also knows a work GitLab. P2 runs only with `GLAB_CONFIG_DIR` set to a folder logged in to gitlab.com alone (`~/.config/glab-personal`, made 2026-11-15), and every call it makes names `--hostname gitlab.com`; it refuses to run without that folder. MIRAI's own GitLab code already names the server on every call.
+- **The packet for a merged MR** compares with the base its build started from (main holds its code by then), and says `merged at <head>` instead of checking proofs. A review's commit differing from the head isn't flagged when only the proofs commit came after it: only code changed after the review is.
+- **The diff in the packet** counts the code files only (MIRAI's records left out, as in Files); follow-ups show Rex's words, not their ids.
+- **An open MR's facts** (unit 29a's journal facts) now carry its number and MIRAI's last push too; only merged and closed ones had them.

@@ -755,4 +755,17 @@ export function fetchObjects(root, url, ref, env, { helper = null, ca = null, ti
   return { ok: r.ok };
 }
 
+// Fetches the integration branch from the host into refs/remotes/origin/<branch> (unit 29d: your
+// main after mirai merge), through the host's credential helper as the push. Returns its commit.
+export function fetchBranch(root, url, branch, env, { helper = null, ca = null, timeout = 300_000 } = {}) {
+  checkGuards(root);
+  checkRepo(root, env);
+  if (!HOST_URL(url)) throw new StoreError('MIRAI reads from an https URL', { code: 'bad-url' });
+  if (!BRANCH_NAME.test(branch)) throw new StoreError(`${JSON.stringify(branch.slice(0, 60))} isn't a branch name MIRAI uses`, { code: 'bad-branch' });
+  const { path: excludesFile } = excludesFor(env, root, gitBinary);
+  const r = exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...hostArgs(helper, ca), 'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--', url, `+refs/heads/${branch}:refs/remotes/origin/${branch}`], pinEnv({ top: root }), { timeout });
+  if (!r.ok) throw new StoreError(`git couldn't fetch ${branch} from the host`, { code: 'fetch-failed' });
+  return commitOf(root, `refs/remotes/origin/${branch}`, env);
+}
+
 const shQuote = (s) => `'${String(s).replace(/'/g, '\'\\\'\'')}'`;

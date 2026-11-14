@@ -129,3 +129,7 @@ so the MR is never a draft.
 | `fetch-first`, `base-not-pushed` | `git fetch`, or push the integration branch first |
 | `mr-merged`, `mr-closed`, `mr-locked`, `remote-moved` | look at the MR on the host |
 | `secret`, `trailer-mix`, … | the push check's codes: `docs/pre-push.md` |
+
+## Merging from MIRAI (unit 29d)
+
+Your merge is the gate. You can make it on the host, or from MIRAI: `mirai review-mr <ticket>` shows the MR on one screen and, in your terminal, ends with the decision; `mirai merge <ticket>` merges with a merge commit pinned to the head you reviewed. See `docs/review-mr.md`.

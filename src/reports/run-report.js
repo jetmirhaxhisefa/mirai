@@ -110,7 +110,7 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
       const at = iso(e.ts) ? { at: e.ts } : {};
       const earlier = e.seq < startSeq;
       const later = e.seq > endSeq ? { later: true } : {};
-      if (e.type === 'approval') steps.push({ seq: e.seq, kind: 'approval', earlier, ...later, ...at, text: `${e.kind === 'plan' ? 'plan' : 'ticket'} ${e.decision === 'accepted' ? 'approved' : e.decision} by you${e.by === 'human' ? ', signed' : ''}` });
+      if (e.type === 'approval') steps.push({ seq: e.seq, kind: 'approval', earlier, ...later, ...at, text: e.kind === 'merge' ? `MR merged by you from MIRAI${e.by === 'human' ? ', signed' : ''}` : `${e.kind === 'plan' ? 'plan' : 'ticket'} ${e.decision === 'accepted' ? 'approved' : e.decision} by you${e.by === 'human' ? ', signed' : ''}` });
       else if (e.type === 'pushed') steps.push({ seq: e.seq, kind: 'push', earlier, ...later, ...at, text: `${e.proofs === 'pass' ? 'proofs checked, ' : ''}pushed ${e.sha.slice(0, 7)}` });
       else if (e.type === 'mr_opened') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: `MR ${e.number ? `#${e.number} ` : ''}opened` });
       else if (e.type === 'mr_merged') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: `MR merged into ${e.target === 'epic' ? `feature/${e.epic}` : 'the integration branch'}` });
