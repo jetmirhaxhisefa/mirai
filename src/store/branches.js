@@ -19,7 +19,7 @@ export const EMPTY_REGISTRY = `${JSON.stringify({ schema_version: BRANCHES_SCHEM
 const file = (store) => join(store.dir, 'branches.json');
 
 function corrupt(path, why) {
-  return new StoreError(`${path}: ${why}`, { path, code: 'registry', hint: 'run: mirai doctor (it rebuilds the registry from the branch records)' });
+  return new StoreError(`${path}: ${why}`, { path, code: 'registry', hint: 'run: mirai doctor --fix (it rebuilds the registry from the branch records)' });
 }
 
 // The registry's entries. A missing or unreadable file is a StoreError with code `registry`.
@@ -128,7 +128,7 @@ export function pushScope(store, { branch, hasTrailer = false, hasBranchRecord =
       path: indexError.path,
       code: 'registry-blocked',
       exitCode: EXIT.BLOCKED,
-      hint: 'run: mirai doctor to rebuild it from the branch records',
+      hint: 'run: mirai doctor --fix to rebuild it from the branch records',
     });
     return { scope: 'blocked', reasons: ['the registry is missing or corrupt', ...reasons], registered: false, entries: [], error };
   }

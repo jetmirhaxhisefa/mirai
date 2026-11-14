@@ -160,6 +160,9 @@ export function hooksState({ store, env }) {
     return { state: 'changed', why: err.message, record: null };
   }
   if (!record) return { state: 'off', why: 'MIRAI\'s hooks aren\'t installed on this machine', record: null };
+  // Unit 29c: the hook runs the Node it recorded; one that's gone (a moved machine, an nvm or brew
+  // upgrade) fails every push, so the hooks aren't ok.
+  if (!executable(record.node)) return { state: 'changed', why: `the pre-push hook runs ${record.node}, which isn't there, so every push fails`, record };
   const dir = hooksDir(store);
   const configured = configuredHooksPath(store.checkout, store.gitEnv ?? env);
   if (!configured || real(configured) !== real(dir)) {

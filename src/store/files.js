@@ -403,7 +403,7 @@ function breakLock(path, seenText) {
   if (!tryCreate(breaker, mine)) {
     const other = readLock(breaker);
     if (holderDead(other)) {
-      throw storeError(breaker, 'was left behind by a crash while a stale lock was being broken', 'stale-breaker', 'run: mirai doctor');
+      throw storeError(breaker, 'was left behind by a crash while a stale lock was being broken', 'stale-breaker', 'run: mirai doctor --fix');
     }
     return false; // someone else is breaking it; try again
   }

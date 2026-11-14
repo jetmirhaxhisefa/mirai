@@ -53,6 +53,8 @@ export const COMMANDS = Object.freeze({
   show: { quick: true, needs: ['ticket'], flags: ['full', 'json'], argv: (a) => ['show', a.ticket, ...(a.full ? ['--full'] : []), ...(a.json ? ['--json'] : [])] },
   ship: { needs: ['ticket'], argv: (a) => ['ship', a.ticket] },
   // Read-only, or a draft for you to review (unit 28, the standing rule).
+  // Unit 29c (decision 3): doctor and its safe repairs, from your session too.
+  doctor: { quick: true, flags: ['fix', 'json'], argv: (a) => ['doctor', ...(a.fix ? ['--fix'] : []), ...(a.json ? ['--json'] : [])] },
   // Unit 29a: the last run's report, or the M1 rate (read-only; it saves a report not saved yet).
   report: { quick: true, flags: ['json', 'm1'], argv: (a) => ['report', ...(a.json ? ['--json'] : []), ...(a.m1 ? ['--m1'] : [])] },
   'config check': { quick: true, argv: () => ['config', 'check'] },
@@ -102,7 +104,7 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'm1'].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'm1', 'fix'].includes(k)) return { refused: `${k} isn't an argument here` };
   }
   if (args.ticket !== undefined) {
     if (typeof args.ticket !== 'string' || !TICKET.test(args.ticket)) return { refused: 'ticket must be a ticket key' };
@@ -116,7 +118,7 @@ export function checkCommand(args) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
   }
-  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'm1']) {
+  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'm1', 'fix']) {
     if (args[flag] === undefined) continue;
     if (typeof args[flag] !== 'boolean') return { refused: `${flag} is true or false` };
     if (!(spec.flags ?? []).includes(flag)) return { refused: `${command} doesn't take ${flag}` };
@@ -148,6 +150,7 @@ export const miraiCommand = Object.freeze({
       full: { type: 'boolean', description: 'with show: every finding\'s text, the plan, the parking note whole' },
       json: { type: 'boolean', description: 'with show or report: as JSON' },
       m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every merged or closed MR' },
+      fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
     },
     required: ['command'],
     additionalProperties: false,
