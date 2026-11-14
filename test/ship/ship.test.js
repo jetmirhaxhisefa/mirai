@@ -201,6 +201,24 @@ test('27a: a branch someone else moved, a closed MR, a merged one: refused, neve
   assert.equal(ticketFacts(readJournal(f.store).events, 'PMT-31').mr, 'merged');
 });
 
+test('ship after your merge: on main, the gate finds nothing to prove, the merge is still recorded, once', async () => {
+  const f = await shippable();
+  assert.equal((await f.ship()).outcome, 'opened');
+  const branch = f.git('rev-parse', '--abbrev-ref', 'HEAD');
+  // You merge the PR on the host and pull: main holds the ticket's code, and you are on main.
+  f.git('switch', '-q', 'main');
+  f.git('merge', '-q', '--no-ff', '-m', 'Merge pull request #1', branch);
+  f.gh.write((s) => {
+    s.prs[0].state = 'MERGED';
+  });
+  await assert.rejects(f.ship(), (e) => e.code === 'mr-merged');
+  assert.equal(ticketFacts(readJournal(f.store).events, 'PMT-31').mr, 'merged');
+  assert.equal(readJournal(f.store).events.filter((e) => e.type === 'mr_merged').length, 1);
+  // Again: refused the same way, recorded once.
+  await assert.rejects(f.ship(), (e) => e.code === 'mr-merged');
+  assert.equal(readJournal(f.store).events.filter((e) => e.type === 'mr_merged').length, 1);
+});
+
 test('27a: pushBranch: to a bare repo by path, a lease that no longer holds is refused, bad names refused', async () => {
   const f = await passed();
   const bare = join(tempDir('push'), 'p.git');

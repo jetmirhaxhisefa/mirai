@@ -21,7 +21,9 @@ import { cleanTitle, hostFor } from './host.js';
 // pushes a reviewed ticket's branch and opens or updates its one MR against the integration
 // branch. No human step: your merge is the gate (D-34). In order, each refusal before anything
 // leaves the machine:
-//   1. the ticket in review, HEAD on its branch, a clean tree;
+//   1. the ticket in review; an MR MIRAI opened already that is now merged or closed → recorded
+//      and refused, from any branch (the merge makes the gate check below find nothing to prove);
+//      then HEAD on its branch, a clean tree;
 //   2. `gate check` passes at HEAD (the review and gate proofs for this code);
 //   3. the host (config + remote), its CLI and your login;
 //   4. the push check (26a's `prePushCheck`, the hook's own check);
@@ -34,6 +36,18 @@ import { cleanTitle, hostFor } from './host.js';
 // Returns { ticket, outcome: 'opened' | 'updated' | 'unchanged', mr: { number, url }, head, pushed }.
 
 const fail = (message, code, hint, exitCode = EXIT.BLOCKED) => Object.assign(new MiraiError(message, exitCode), { code, ...(hint ? { hint } : {}) });
+
+// A merged or closed MR: recorded once in the journal (merged derives `done`), then refused.
+function endedMr(store, ticket, mr, known) {
+  if (mr?.state === 'merged') {
+    if (known !== 'merged') appendEvent(store, { type: 'mr_merged', by: 'script', ticket, target: 'integration' });
+    throw fail(`${ticket}'s MR ${mr.url} is merged`, 'mr-merged', 'nothing to ship: it\'s done');
+  }
+  if (mr?.state === 'closed') {
+    if (known !== 'closed') appendEvent(store, { type: 'mr_closed', by: 'script', ticket });
+    throw fail(`${ticket}'s MR ${mr.url} is closed`, 'mr-closed', `closing it was your decision, and MIRAI never reopens it: drop the ticket (mirai drop ${ticket}), or reopen the MR yourself and run it again`);
+  }
+}
 
 // `hostOf` (tests): the host for { config, remoteUrl, store, env, root }; hostFor by default.
 export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hostOf = hostFor }) {
@@ -49,6 +63,18 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   }
   const branch = last?.branch;
   if (typeof branch !== 'string') throw fail(`${ticket} has no branch MIRAI built`, 'no-branch', `mirai build ${ticket}`);
+
+  // 1b. An MR MIRAI opened already: its state first, from any branch. Once you merge it, the
+  // integration branch holds the code, so the gate check finds nothing to prove and would hide the
+  // merge; and you are on main by then, not on the ticket's branch.
+  const known = ticketFacts(readJournal(store, { keys: branchKeys(store.checkout, store.branch, store.gitEnv) }).events, ticket);
+  if (known.mr === 'merged') throw fail(`${ticket}'s MR is merged`, 'mr-merged', 'nothing to ship: it\'s done');
+  if (known.mr === 'open') {
+    const config = trustedConfig(snapshot({ cwd, env, now }));
+    const host = hostOf({ config, remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null, store, env, root: store.checkout });
+    host.checkAuth();
+    endedMr(store, ticket, host.findMr(branch), 'open');
+  }
   let gate;
   try {
     gate = gateCheck(store.checkout, branch, store.gitEnv);
@@ -89,14 +115,7 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   const facts = ticketFacts(events, ticket);
   const lastPushed = [...events].reverse().find((e) => e.type === 'pushed' && e.ticket === ticket && e.branch === branch)?.sha ?? null;
   const mr = host.findMr(branch);
-  if (mr?.state === 'merged') {
-    if (facts.mr !== 'merged') appendEvent(store, { type: 'mr_merged', by: 'script', ticket, target: 'integration' });
-    throw fail(`${ticket}'s MR ${mr.url} is merged`, 'mr-merged', 'nothing to ship: it\'s done');
-  }
-  if (mr?.state === 'closed') {
-    if (facts.mr !== 'closed') appendEvent(store, { type: 'mr_closed', by: 'script', ticket });
-    throw fail(`${ticket}'s MR ${mr.url} is closed`, 'mr-closed', `closing it was your decision, and MIRAI never reopens it: drop the ticket (mirai drop ${ticket}), or reopen the MR yourself and run it again`);
-  }
+  endedMr(store, ticket, mr, facts.mr);
   if (mr?.state === 'locked') throw fail(`${ticket}'s MR ${mr.url} is locked: GitLab is merging it`, 'mr-locked', 'run it again in a minute');
   let lease = null;
   if (remoteSha && remoteSha !== head) {
