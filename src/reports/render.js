@@ -165,7 +165,9 @@ const AC = { type: 'string', maxLength: 80, pattern: '^AC-[A-Za-z0-9][A-Za-z0-9.
 // A link: an https URL with none of the excluded, markup, quote or backslash characters.
 const url = { type: 'string', maxLength: 512, pattern: `^https://[^\\s${EX}<>()\\[\\]"'\`\\\\]+$` };
 const repoPath = { type: 'string', maxLength: 512, pattern: '^(?!/)(?!(?:.*/)?\\.{1,2}(?:/|$))[A-Za-z0-9._/-]+$' };
-const isoTime = { type: 'string', maxLength: 25, pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?(?:Z|[+-]\\d{2}:\\d{2})$' };
+const isoTime = { type: 'string', maxLength: 30, pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,3})?)?(?:Z|[+-]\\d{2}:\\d{2})$' };
+const share = { type: 'number', minimum: 0, maximum: 10000 }; // percent of your usage limit (the run log's unit)
+const model = { type: 'string', maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._:@/\\[\\]-]{0,127}$' };
 
 const MR_INPUT = compileSchema(obj({
   ticket: obj({ id, title: text(200) }),
@@ -189,7 +191,19 @@ const RUN_INPUT = compileSchema(obj({
   parked: arr(obj({ ticket: id, reason: text(64), note: text(500) }), 200),
   paused: arr(obj({ reason: text(64), resets_at: isoTime }), 10),
   followups: arr(obj({ ticket: id, text: text(200) }), 500),
-  usage: arr(obj({ ticket: id, turns: count(1e6), tokens: count(1e12), minutes: { type: 'number', minimum: 0, maximum: 1e6 }, cost_usd: { type: 'number', minimum: 0, maximum: 1e6 } }, ['ticket', 'turns', 'tokens', 'minutes']), 200),
+  usage: arr(obj({ ticket: id, turns: count(1e6), tokens: count(1e12), minutes: { type: 'number', minimum: 0, maximum: 1e6 }, cost_usd: { type: 'number', minimum: 0, maximum: 1e6 }, limit_share: share }, ['ticket', 'turns', 'tokens', 'minutes']), 200),
+  // Unit 29a: each ticket's whole path so far, and the red team's state (the Milestone A evidence).
+  tickets: arr(obj({
+    ticket: id, title: text(200), state: text(40), risk: { enum: ['normal', 'high'] },
+    rounds: obj({ used: count(100), of: count(100), replans: count(10), replans_of: count(10) }),
+    steps: arr(obj({
+      kind: { enum: ['launch', 'approval', 'push', 'mr'] }, earlier: { type: 'boolean' }, later: { type: 'boolean' }, at: isoTime, text: text(200),
+      step: text(40), round: count(100), model: model, model_used: model, turns: count(1e6), tokens: count(1e12), minutes: { type: 'number', minimum: 0, maximum: 1e6 }, limit_share: share, verdict: text(40),
+    }, ['kind', 'earlier', 'text']), 200),
+    mr: obj({ url, state: { enum: ['open', 'merged', 'closed'] }, m1: { enum: ['as-is', 'edited', 'closed', 'unknown'] }, m1_why: text(300) }, ['state']),
+    feedback: arr(obj({ by: { enum: ['you', 'your session'] }, at: isoTime, text: text(2000) }), 50),
+  }, ['ticket', 'title', 'state', 'rounds', 'steps', 'feedback']), 200),
+  red_team: obj({ state: text(40), at: isoTime, claude_code: text(40), note: text(300) }, ['state']),
   inbox: arr(obj({ kind: text(40), item: id, text: text(200) }), 200),
   template_gaps: arr(obj({ template: text(80), section: text(120), message: text(300) }), 100),
   known_failures: arr(text(256), 200),
@@ -295,13 +309,42 @@ export function renderQaReport({ ticket, round, verdict }) {
 const none = (items, render) => (items.length ? render(items) : 'None.');
 const number = (n) => (Number.isInteger(n) ? n.toLocaleString('en-US') : n.toFixed(1));
 
+// One ticket's block (unit 29a): a heading line, then its path, one bullet per step.
+// Your local time, as the terminal's clock shows it: 2026-11-14 13:52.
+const localTime = (at) => {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+const M1_TEXT = { 'as-is': 'merged as is', edited: 'edited before the merge', closed: 'closed without merge', unknown: 'M1 unknown' };
+function ticketBlock(k, { t, md, pct }) {
+  const head = `${t(k.ticket)}: ${t(k.title)}, ${t(k.state)}, ${k.risk ?? 'normal'} risk; rounds ${k.rounds.used} of ${k.rounds.of}, re-plans ${k.rounds.replans} of ${k.rounds.replans_of}`;
+  const lines = k.steps.map((s) => {
+    const when = s.at ? `${localTime(s.at)} ` : '';
+    const mark = s.earlier ? ' (earlier run)' : s.later ? ' (later run)' : '';
+    if (s.kind !== 'launch') return `- ${when}${t(s.text)}${mark}`;
+    const model = s.model_used && s.model && s.model_used !== s.model ? `${t(s.model)} (ran ${t(s.model_used)})` : t(s.model_used ?? s.model ?? 'model unknown');
+    const nums = [s.round ? `round ${s.round}` : null, `${number(s.turns ?? 0)} turns`, `${number(s.tokens ?? 0)} tokens`, `${number(s.minutes ?? 0)} min`, `${pct(s.limit_share)} of your limit`].filter(Boolean).join(', ');
+    return `- ${when}${t(s.text)}: ${model}, ${nums}${s.verdict ? `, ${t(s.verdict)}` : ''}${mark}`;
+  });
+  if (k.mr) lines.push(`- MR ${k.mr.state}${k.mr.url ? ` ${k.mr.url}` : ''}${k.mr.m1 ? `: ${M1_TEXT[k.mr.m1]}${k.mr.m1_why ? ` (${t(k.mr.m1_why)})` : ''}` : ''}`);
+  for (const f of k.feedback) lines.push(`- Feedback from ${f.by}${f.at ? `, ${localTime(f.at)}` : ''}: ${t(f.text)}`);
+  return md ? `### ${head}\n\n${lines.join('\n')}` : `${head}\n${lines.map((l) => `  ${l}`).join('\n')}`;
+}
+
 // `options.format`: "markdown" (the stored file, every value escaped) or "text" (the terminal:
 // no escapes, only control and invisible characters made visible).
 export function renderRunReport(data, { format = 'markdown' } = {}) {
   checked(RUN_INPUT, data, 'run report');
+  // Unit 29a's two parts, optional for data from before them: none, and a red team not known.
+  data = { tickets: [], red_team: { state: 'unknown' }, ...data };
   if (format !== 'markdown' && format !== 'text') throw new ReportError(`unknown format "${format}"`);
   for (const [i, d] of data.done.entries()) {
     if (linkHasCredential(d.mr)) throw new ReportError('an MR link looks like it contains a credential', [{ path: `/done/${i}/mr`, code: 'credential' }]);
+  }
+  for (const [i, k] of data.tickets.entries()) {
+    if (k.mr?.url && linkHasCredential(k.mr.url)) throw new ReportError('an MR link looks like it contains a credential', [{ path: `/tickets/${i}/mr/url`, code: 'credential' }]);
   }
   const md = format === 'markdown';
   // Every bullet below begins with the ticket or a fixed word, so values never start a line.
@@ -309,18 +352,21 @@ export function renderRunReport(data, { format = 'markdown' } = {}) {
   const bullets = (items) => items.map((x) => `- ${x}`).join('\n');
   const totals = data.usage.reduce((s, u) => ({ turns: s.turns + u.turns, tokens: s.tokens + u.tokens, minutes: s.minutes + u.minutes, cost: s.cost + (u.cost_usd ?? 0) }), { turns: 0, tokens: 0, minutes: 0, cost: 0 });
   const costKnown = data.usage.every((u) => u.cost_usd !== undefined);
+  const pct = (x) => (x === undefined ? 'unknown' : `${x.toFixed(1)}%`);
+  const shareTotal = data.usage.every((u) => u.limit_share !== undefined) ? data.usage.reduce((a, u) => a + u.limit_share, 0) : undefined;
   const cost = (c) => (c === undefined ? 'unknown' : `$${c.toFixed(2)} (estimate)`);
   const usage = (u) => {
-    const rows = [...u.map((x) => [x.ticket, number(x.turns), number(x.tokens), number(x.minutes), cost(x.cost_usd)]),
-      ['Total', number(totals.turns), number(totals.tokens), number(totals.minutes), costKnown ? cost(totals.cost) : 'unknown']];
-    if (md) return table(['Ticket', 'Turns', 'Tokens', 'Minutes', 'Cost'], rows);
-    return rows.map((r) => `${plain(r[0]).padEnd(12)} ${r[1].padStart(8)} turns ${r[2].padStart(14)} tokens ${r[3].padStart(8)} min  ${r[4]}`).join('\n');
+    const rows = [...u.map((x) => [x.ticket, number(x.turns), number(x.tokens), number(x.minutes), pct(x.limit_share), cost(x.cost_usd)]),
+      ['Total', number(totals.turns), number(totals.tokens), number(totals.minutes), pct(shareTotal), costKnown ? cost(totals.cost) : 'unknown']];
+    if (md) return table(['Ticket', 'Turns', 'Tokens', 'Minutes', 'Limit share', 'Cost'], rows);
+    return rows.map((r) => `${plain(r[0]).padEnd(12)} ${r[1].padStart(8)} turns ${r[2].padStart(14)} tokens ${r[3].padStart(8)} min ${r[4].padStart(8)} of your limit  ${r[5]}`).join('\n');
   };
   return fill('run-report', `Run ${data.run.id}, ${data.run.date}`, {
     Summary: `${plural(data.done.length, 'ticket')} done, ${data.parked.length} parked; the run ${data.run.state} (${data.run.preset}).`,
     'Branch warnings': none(data.branch_warnings, (w) => bullets(w.map((x) => `${t(x.branch)} touches files that run by themselves: ${x.files.map(t).join(', ')}. Read them on the host before you open the branch in your IDE.`))),
     // The MR link is checked by its pattern (https, no markup, quote or control characters) and
     // for credentials, so it's shown as it is, to stay clickable in a terminal.
+    Tickets: none(data.tickets, (ts) => ts.map((k) => ticketBlock(k, { t, md, pct })).join('\n\n')),
     Done: none(data.done, (d) => bullets(d.map((x) => `${t(x.ticket)}: ${t(x.title)}, ${x.mr}${x.stacked_on ? ` (stacked on ${t(x.stacked_on)})` : ''}`))),
     Parked: none([...data.parked, ...data.paused], () => bullets([
       ...data.parked.map((p) => `${t(p.ticket)}: ${t(p.reason)}. ${t(p.note)}`),
@@ -328,6 +374,7 @@ export function renderRunReport(data, { format = 'markdown' } = {}) {
     ])),
     'Follow-ups': none(data.followups, (f) => bullets(f.map((x) => `${t(x.ticket)}: ${t(x.text)}`))),
     Usage: none(data.usage, usage),
+    'Red team': `${t(data.red_team.state)}${data.red_team.at ? ` (${data.red_team.at})` : ''}${data.red_team.claude_code ? ` for the Claude Code agents run, ${t(data.red_team.claude_code)}` : ''}${data.red_team.note ? `. ${t(data.red_team.note)}` : '.'}`,
     'Waiting for you': none(data.inbox, (i) => bullets(i.map((x) => `${t(x.kind)}: ${t(x.item)}, ${t(x.text)}`))),
     'Template gaps': none(data.template_gaps, (g) => bullets(g.map((x) => `${t(x.template)}, ${t(x.section)}: ${t(x.message)}`))),
     'Known test failures': none(data.known_failures, (k) => bullets(k.map(t))),

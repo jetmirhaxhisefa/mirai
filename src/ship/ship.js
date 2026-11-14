@@ -40,7 +40,8 @@ const fail = (message, code, hint, exitCode = EXIT.BLOCKED) => Object.assign(new
 // A merged or closed MR: recorded once in the journal (merged derives `done`), then refused.
 function endedMr(store, ticket, mr, known) {
   if (mr?.state === 'merged') {
-    if (known !== 'merged') appendEvent(store, { type: 'mr_merged', by: 'script', ticket, target: 'integration' });
+    const sha = (x) => (typeof x === 'string' && /^[0-9a-f]{40}$/.test(x) ? x : undefined);
+    if (known !== 'merged') appendEvent(store, { type: 'mr_merged', by: 'script', ticket, target: 'integration', ...(sha(mr.head) ? { head: mr.head } : {}), ...(sha(mr.mergeSha) ? { merge_sha: mr.mergeSha } : {}) });
     throw fail(`${ticket}'s MR ${mr.url} is merged`, 'mr-merged', 'nothing to ship: it\'s done');
   }
   if (mr?.state === 'closed') {

@@ -105,3 +105,9 @@ QA         not yet (unit 51)
 A plan parked `bad-plan` lists its lint problems under `Parked` (the first 5; `--full` all, with their hints), so you can judge the plan: `--full` prints it whole.
 
 `--full` adds every finding's text, the plan and the parking note whole; `--json` is for scripts.
+
+`Feedback` lists your feedback on the ticket (`mirai feedback`, unit 29a).
+
+## The run's report
+
+When a run ends, MIRAI saves its report in the store (`reports/<run-id>.md` and `.json`): each ticket the run touched with its whole path so far, its usage and limit share, the MR and the red team's state. `mirai report` prints the last one; see `docs/report.md`.

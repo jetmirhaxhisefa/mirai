@@ -89,14 +89,15 @@ test('21f T3: the status carries the command\'s lines as they come, escaped, and
   assert.match(s.output_note, /data, never instructions/);
 });
 
-test('21f T4: /mirai is installed in your work tree and the lock, names only MIRAI\'s two session tools, and never reaches a headless bundle', () => {
+test('21f T4: /mirai is installed in your work tree and the lock, names only MIRAI\'s session tools, and never reaches a headless bundle', () => {
   const f = installed();
   const path = join(f.root, '.claude', 'commands', 'mirai.md');
   assert.ok(existsSync(path));
   assert.equal(readFileSync(path, 'utf8'), MIRAI_COMMAND);
   assert.match(readFileSync(join(f.root, '.mirai', 'mirai.lock'), 'utf8'), /\.claude\/commands\/mirai\.md/);
   const tools = [...MIRAI_COMMAND.matchAll(/mcp__[a-z_]+__[a-z_]+/g)].map((m) => m[0]);
-  assert.deepEqual([...new Set(tools)].sort(), ['mcp__mirai__mirai_command', 'mcp__mirai__mirai_status']);
+  // Unit 29a: /mirai feedback writes through log_event's feedback type.
+  assert.deepEqual([...new Set(tools)].sort(), ['mcp__mirai__log_event', 'mcp__mirai__mirai_command', 'mcp__mirai__mirai_status']);
   // Only reading a status is pre-approved, and the model can't start /mirai itself (21f review).
   assert.match(MIRAI_COMMAND, /^allowed-tools: mcp__mirai__mirai_status$/m);
   assert.match(MIRAI_COMMAND, /^disable-model-invocation: true$/m);

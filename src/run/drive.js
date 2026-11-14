@@ -12,6 +12,7 @@ import { reviewsOf, runReview } from '../agent/review.js';
 import { launchInRun, takeOver } from '../agent/run.js';
 import { checkProofs } from '../proofs/check.js';
 import { recordProofs } from '../proofs/record.js';
+import { writeRunReport } from '../reports/run-report.js';
 import { protectionRules } from '../trust/protected.js';
 import { recordFault } from '../loop/guard.js';
 import { usageCheck } from '../loop/ledger.js';
@@ -119,7 +120,7 @@ export async function probeUsage({ cwd, env, store, runId, launchOptions = {} })
 }
 
 // The step functions, replaceable in tests.
-export const STEPS = Object.freeze({ runPlan, runBuild, runFix, runReview, recordProofs, shipTicket, recordBaseline, probeUsage });
+export const STEPS = Object.freeze({ runPlan, runBuild, runFix, runReview, recordProofs, shipTicket, recordBaseline, probeUsage, writeRunReport });
 
 // One step, under the run. Returns its result with `outcome` (and `launch`/`launches` as the step
 // gives them). A thrown refusal is left to the caller.
@@ -365,6 +366,14 @@ export async function driveTicket({ cwd, env, ticket, via = 'terminal', resume =
     } finally {
       awake.stop();
       release();
+    }
+    // Unit 29a: the run's report, saved once it has ended (a failure is a note, never the run's).
+    if (steps.writeRunReport) {
+      try {
+        await steps.writeRunReport({ cwd, env, runId });
+      } catch (err) {
+        notes.push(`the run's report wasn't saved: ${err.message}; mirai report ${runId} builds it`);
+      }
     }
   }
   const here = symbolicBranch(store.checkout, 'HEAD', store.gitEnv);

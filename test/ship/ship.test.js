@@ -208,12 +208,19 @@ test('ship after your merge: on main, the gate finds nothing to prove, the merge
   // You merge the PR on the host and pull: main holds the ticket's code, and you are on main.
   f.git('switch', '-q', 'main');
   f.git('merge', '-q', '--no-ff', '-m', 'Merge pull request #1', branch);
+  const mergeSha = f.git('rev-parse', 'main');
   f.gh.write((s) => {
     s.prs[0].state = 'MERGED';
+    s.prs[0].mergeCommit = { oid: mergeSha };
   });
   await assert.rejects(f.ship(), (e) => e.code === 'mr-merged');
   assert.equal(ticketFacts(readJournal(f.store).events, 'PMT-31').mr, 'merged');
   assert.equal(readJournal(f.store).events.filter((e) => e.type === 'mr_merged').length, 1);
+  // Unit 29a: the MR's final head and merge commit, for M1.
+  const merged = readJournal(f.store).events.find((e) => e.type === 'mr_merged');
+  assert.deepEqual([merged.head, merged.merge_sha, merged.schema_version], [f.gh.read().prs[0].headRefOid, mergeSha, 6]);
+  const facts = ticketFacts(readJournal(f.store).events, 'PMT-31');
+  assert.deepEqual([facts.finalHead, facts.mergeSha, facts.number, Boolean(facts.lastPush)], [merged.head, mergeSha, 1, true]);
   // Again: refused the same way, recorded once.
   await assert.rejects(f.ship(), (e) => e.code === 'mr-merged');
   assert.equal(readJournal(f.store).events.filter((e) => e.type === 'mr_merged').length, 1);

@@ -53,6 +53,8 @@ export const COMMANDS = Object.freeze({
   show: { quick: true, needs: ['ticket'], flags: ['full', 'json'], argv: (a) => ['show', a.ticket, ...(a.full ? ['--full'] : []), ...(a.json ? ['--json'] : [])] },
   ship: { needs: ['ticket'], argv: (a) => ['ship', a.ticket] },
   // Read-only, or a draft for you to review (unit 28, the standing rule).
+  // Unit 29a: the last run's report, or the M1 rate (read-only; it saves a report not saved yet).
+  report: { quick: true, flags: ['json', 'm1'], argv: (a) => ['report', ...(a.json ? ['--json'] : []), ...(a.m1 ? ['--m1'] : [])] },
   'config check': { quick: true, argv: () => ['config', 'check'] },
   'config show': { quick: true, argv: () => ['config', 'show'] },
   protected: { quick: true, argv: () => ['protected'] },
@@ -66,6 +68,7 @@ export const NOT_FROM_SESSION = Object.freeze({
   agent: 'its session form is the start_agent tool (19c)',
   hook: 'git runs it, never you or a session',
   log: 'its session form is the log_event tool, which marks a note as the session\'s (15b)',
+  feedback: 'its session form is the log_event tool\'s feedback type, which marks the line as your session\'s (29a)',
   session: 'its session form is the session_start and session_end tools (19c)',
   init: 'a session\'s copy of MIRAI can\'t bring a newer one, and it rewrites files in your work tree (21f)',
   render: 'it rewrites files in your work tree (21f)',
@@ -99,7 +102,7 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json'].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'm1'].includes(k)) return { refused: `${k} isn't an argument here` };
   }
   if (args.ticket !== undefined) {
     if (typeof args.ticket !== 'string' || !TICKET.test(args.ticket)) return { refused: 'ticket must be a ticket key' };
@@ -113,7 +116,7 @@ export function checkCommand(args) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
   }
-  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json']) {
+  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'm1']) {
     if (args[flag] === undefined) continue;
     if (typeof args[flag] !== 'boolean') return { refused: `${flag} is true or false` };
     if (!(spec.flags ?? []).includes(flag)) return { refused: `${command} doesn't take ${flag}` };
@@ -143,7 +146,8 @@ export const miraiCommand = Object.freeze({
       confirm: { type: 'string', pattern: CODE.source, description: 'with redteam run: the one-time code its first answer gave, once the person agreed to the cost' },
       abandon: { type: 'boolean', description: 'with resume: give the stopped run up instead' },
       full: { type: 'boolean', description: 'with show: every finding\'s text, the plan, the parking note whole' },
-      json: { type: 'boolean', description: 'with show: the page as JSON' },
+      json: { type: 'boolean', description: 'with show or report: as JSON' },
+      m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every merged or closed MR' },
     },
     required: ['command'],
     additionalProperties: false,

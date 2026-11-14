@@ -69,7 +69,8 @@ export function showData({ cwd, env, ticket }) {
   const loop = readLoop(store, ticket);
   const risk = planFm?.risk ?? reviews.at(-1)?.risk ?? null;
   const rounds = (risk === 'high' ? config.loop?.rounds_high_risk ?? ROUND_DEFAULTS.rounds_high_risk : config.loop?.rounds ?? ROUND_DEFAULTS.rounds) + (loop.granted ?? 0);
-  const facts = ticketFacts(readJournal(store).events, ticket);
+  const events = readJournal(store).events;
+  const facts = ticketFacts(events, ticket);
   let disputes = [];
   try {
     disputes = readDisputes(store, ticket) ?? [];
@@ -89,6 +90,8 @@ export function showData({ cwd, env, ticket }) {
     mr: facts.mr === 'none' ? null : { state: facts.mr, url: facts.url ?? null, head: facts.head ?? null, proofs_at_head: facts.proofsValidAtHead === true && facts.head === head },
     rounds: { used: loop.rounds_used, of: rounds, replans: loop.replans_used, replans_of: 1 },
     usage: { turns: loop.budget.turns, tokens: loop.budget.tokens + loop.budget.tokens_cached, minutes: Math.round(loop.budget.minutes * 10) / 10 },
+    // Unit 29a: your feedback on the ticket, yours (signed) or your session's.
+    feedback: events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : 'your session', at: e.ts ?? null, text: e.text })),
   };
 }
 
@@ -119,6 +122,9 @@ export function showText(d, { full = false } = {}) {
   const lint = d.plan_lint ?? [];
   for (const p of lint.slice(0, full ? lint.length : 5)) out.push(`  plan.md${p.line ? `:${p.line}` : ''}  ${plain(p.reason)}${full && p.hint ? ` (${plain(p.hint)})` : ''}`);
   if (!full && lint.length > 5) out.push(`  … ${lint.length - 5} more: mirai show ${d.ticket} --full`);
+  const fb = d.feedback ?? [];
+  row('Feedback', fb.length ? `${fb.length}` : '—');
+  for (const f of fb.slice(full ? 0 : -3)) out.push(`  from ${f.by}${f.at ? ` ${ago(f.at)}` : ''}: ${plain(f.text).slice(0, full ? 2000 : 160)}`);
   row('QA', 'not yet (unit 51)');
   if (full && d.plan?.text) out.push('', '--- plan ---', ...String(d.plan.text).split('\n').map(plain));
   return `${out.join('\n')}\n`;

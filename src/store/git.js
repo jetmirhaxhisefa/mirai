@@ -614,6 +614,13 @@ export function revList(root, range, env, { reverse = false, max = 10_000, first
 
 // The best common ancestor of two commits, or null (unit 12: a change is measured from where its
 // branch left the base, so later commits on the base don't count as the branch's).
+// The first-parent commits of `range`, each with its parents (unit 29a: the merge commit an MR
+// became, when the host didn't name it): [{ sha, parents: [..] }], newest first.
+export function firstParentsWithParents(root, range, env, { max = 5_000 } = {}) {
+  const r = git(root, ['rev-list', '--first-parent', '--parents', `--max-count=${max}`, range], env, { maxBuffer: 16 * MAX_OUTPUT });
+  if (!r.ok) return null;
+  return r.out.split('\n').map((l) => l.trim().split(' ')).filter((ids) => ids.length && ids.every((x) => /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(x))).map(([sha, ...parents]) => ({ sha, parents }));
+}
 export function mergeBase(root, a, b, env) {
   const r = git(root, ['merge-base', a, b], env);
   return r.ok && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(r.out) ? r.out : null;
@@ -688,6 +695,19 @@ export function pushBranch(root, url, branch, sha, env, { helper = null, lease =
   if (!(/^https:\/\/[^\s'"\\@]+$/.test(url) || (url.startsWith('/') && !/[\s'"\\]/.test(url)))) throw new StoreError('a push goes to an https URL', { code: 'bad-url' });
   if (!BRANCH_NAME.test(branch)) throw new StoreError(`${JSON.stringify(branch.slice(0, 60))} isn't a branch name MIRAI uses`, { code: 'bad-branch' });
   if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha) || (lease !== null && !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(lease))) throw new StoreError('a push names full commit ids', { code: 'bad-sha' });
+  const extra = hostArgs(helper, ca);
+  const { path: excludesFile } = excludesFor(env, root, gitBinary);
+  const args = ['--no-replace-objects', ...pinArgs({ excludesFile }), ...extra, 'push', '--porcelain', '--no-verify',
+    ...(lease ? [`--force-with-lease=refs/heads/${branch}:${lease}`] : []), url, `${sha}:refs/heads/${branch}`];
+  const r = exec(root, args, pinEnv({ top: root }), { timeout });
+  if (r.ok) return { ok: true, out: r.out };
+  const line = String(r.out ?? '').split('\n').find((l) => /^[!=*+ -]\t/.test(l)) ?? '';
+  return { ok: false, why: line.split('\t').slice(2).join(' ').trim() || 'git refused the push' };
+}
+
+// The host's credential helper and TLS settings for one git call (pushBranch, remoteRef,
+// fetchObjects): see pushBranch.
+function hostArgs(helper, ca) {
   const extra = [];
   if (helper) {
     const { command, home, configDir, configVar, vars = {} } = helper;
@@ -702,13 +722,37 @@ export function pushBranch(root, url, branch, sha, env, { helper = null, lease =
     if (typeof ca !== 'string' || !ca.startsWith('/') || /[\n\0]/.test(ca)) throw new StoreError('a certificate authority file is an absolute path', { code: 'bad-ca' });
     extra.push('-c', `http.sslCAInfo=${ca}`);
   }
+  return extra;
+}
+
+const HOST_URL = (url) => /^https:\/\/[^\s'"\\@]+$/.test(url) || (url.startsWith('/') && !/[\s'"\\]/.test(url));
+// An MR's head ref on the host (unit 29a, M1): refs/pull/<n>/head (GitHub) or
+// refs/merge-requests/<n>/head (GitLab).
+const MR_REF = /^refs\/(pull|merge-requests)\/[1-9][0-9]{0,9}\/head$/;
+
+// The commit an MR's head ref names on the host, or null when it has none (unit 29a). Reads only.
+export function remoteRef(root, url, ref, env, { helper = null, ca = null, timeout = 60_000 } = {}) {
+  checkGuards(root);
+  checkRepo(root, env);
+  if (!HOST_URL(url)) throw new StoreError('MIRAI reads from an https URL', { code: 'bad-url' });
+  if (!MR_REF.test(ref)) throw new StoreError(`${JSON.stringify(ref.slice(0, 60))} isn't an MR's head ref`, { code: 'bad-ref' });
   const { path: excludesFile } = excludesFor(env, root, gitBinary);
-  const args = ['--no-replace-objects', ...pinArgs({ excludesFile }), ...extra, 'push', '--porcelain', '--no-verify',
-    ...(lease ? [`--force-with-lease=refs/heads/${branch}:${lease}`] : []), url, `${sha}:refs/heads/${branch}`];
-  const r = exec(root, args, pinEnv({ top: root }), { timeout });
-  if (r.ok) return { ok: true, out: r.out };
-  const line = String(r.out ?? '').split('\n').find((l) => /^[!=*+ -]\t/.test(l)) ?? '';
-  return { ok: false, why: line.split('\t').slice(2).join(' ').trim() || 'git refused the push' };
+  const r = exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...hostArgs(helper, ca), 'ls-remote', '--', url, ref], pinEnv({ top: root }), { timeout });
+  if (!r.ok) throw new StoreError(`git couldn't read ${ref} from the host`, { code: 'remote-failed' });
+  const m = /^([0-9a-f]{40}([0-9a-f]{24})?)\t/.exec(String(r.out));
+  return m ? m[1] : null;
+}
+
+// Fetches an MR head ref's commits into the object store only: no ref, no FETCH_HEAD, no tags
+// (unit 29a: a squash-merged MR's head isn't on the integration branch).
+export function fetchObjects(root, url, ref, env, { helper = null, ca = null, timeout = 300_000 } = {}) {
+  checkGuards(root);
+  checkRepo(root, env);
+  if (!HOST_URL(url)) throw new StoreError('MIRAI reads from an https URL', { code: 'bad-url' });
+  if (!MR_REF.test(ref)) throw new StoreError(`${JSON.stringify(ref.slice(0, 60))} isn't an MR's head ref`, { code: 'bad-ref' });
+  const { path: excludesFile } = excludesFor(env, root, gitBinary);
+  const r = exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...hostArgs(helper, ca), 'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--', url, ref], pinEnv({ top: root }), { timeout });
+  return { ok: r.ok };
 }
 
 const shQuote = (s) => `'${String(s).replace(/'/g, '\'\\\'\'')}'`;

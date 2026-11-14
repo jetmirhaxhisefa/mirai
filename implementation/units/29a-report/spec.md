@@ -115,3 +115,12 @@ What's missing: the `report` command and the saved reports, the M1 classificatio
 ## Open points for you
 
 - None beyond the approval.
+
+## Changes during the build (2026-11-14)
+
+- **Your session's feedback goes through `log_event`, not `mirai_command`:** the command tool takes no free text. In your session only, `log_event` gets a `feedback` type with a `ticket` (`SESSION_LOG_TYPES`); an agent run's policy can't offer it (the server refuses the type for a headless policy, and the tool refuses it outside an interactive one). Its caps and secret check are the session's own. The `/mirai` file names `log_event` for `/mirai feedback` only; `feedback` is on 21f's "not from the session" list with that reason.
+- **The merge commit is recorded too:** M1 needs the integration branch as it was just before the merge, so `mr_merged` carries `merge_sha` (GitHub's `mergeCommit`, GitLab's squash or merge commit) beside `head`. For an older merge, the merge commit is found on the integration branch (the merge whose parents include the head); a squash merge recorded before 29a stays `unknown`, with why.
+- **No `FETCH_HEAD` either:** an older merge's head is read with `ls-remote` and its commits fetched with `--no-write-fetch-head`, through the host's credential helper, as `ship` pushes. Nothing is written in your repo but objects.
+- **Two template sections:** the run-report template's sections are fixed, so it gains `Tickets` and `Red team`; `Usage` gains the limit share.
+- **Steps after a run** are marked `(later run)` in its report, and Known test failures come from the baseline the run was judged against (the newest one recorded before it ended), not the current main's.
+- **Times** in the report are your local time.

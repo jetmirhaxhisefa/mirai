@@ -24,8 +24,9 @@ import { signObject, verifySigned } from '../sign/sign.js';
 // adds `by: "agent"` lines, written through MIRAI's MCP server; version 4 (unit 15b) adds
 // `by: "session"` lines, from your own Claude Code sessions through the same server; version 5
 // (unit 27a) adds `proofs` to `pushed` (MIRAI checked the proofs at that head before pushing it)
-// and the MR's `number` and `url` to `mr_opened`. Older lines read unchanged.
-export const JOURNAL_SCHEMA_VERSION = 5;
+// and the MR's `number` and `url` to `mr_opened`; version 6 (unit 29a) adds the MR's final `head`
+// and `merge_sha` to `mr_merged` (for M1), and the `feedback` event. Older lines read unchanged.
+export const JOURNAL_SCHEMA_VERSION = 6;
 const SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
 
@@ -49,9 +50,11 @@ export const EVENT_TYPES = Object.freeze({
   pushed: { privileged: true, fields: { ticket: f.ticket, branch: f.branch, sha: f.sha, proofs: { type: 'enum', values: ['pass'] } }, required: ['ticket', 'branch', 'sha'] },
   mr_opened: { privileged: true, fields: { ticket: f.ticket, head: f.sha, target: f.branch, number: { type: 'integer', min: 1 }, url: { type: 'string', pattern: /^https:\/\/[^\s"'<>\\]{1,500}$/, patternHint: 'the MR\'s https URL' } }, required: ['ticket', 'head', 'target'] },
   // A merge into feature/<epic> names the epic, so `done` can be derived once the epic merges.
+  // Unit 29a: the MR's final head and the commit the host merged it as (merge or squash), when
+  // the host names them, so M1 can compare the code you merged with MIRAI's last push.
   mr_merged: {
     privileged: true,
-    fields: { ticket: f.ticket, target: f.target, epic: f.ticket },
+    fields: { ticket: f.ticket, target: f.target, epic: f.ticket, head: f.sha, merge_sha: f.sha },
     required: ['ticket', 'target'],
     check(e, report) {
       if (e.target === 'epic' && e.epic === undefined) report('epic', 'a merge into an epic branch needs epic');
@@ -101,6 +104,9 @@ export const EVENT_TYPES = Object.freeze({
       if ((e.via === 'terminal') !== (e.by === 'human')) report('by', 'a resume from your terminal is yours, signed; one from your session is MIRAI\'s line');
     },
   },
+  // Your words on how the work with an agent went (unit 29a, Jet's decision 3): signed from your
+  // terminal (`human`), or your session's line (`session`); never an agent's (not in LOG_TYPES).
+  feedback: { privileged: true, human: true, session: true, fields: { ticket: f.ticket, text: { type: 'string', pattern: /^(?=[^]*\S)[^\n\r]{1,2000}$/, patternHint: 'one line, up to 2,000 characters' } }, required: ['ticket', 'text'] },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },
 });
@@ -108,6 +114,8 @@ export const EVENT_TYPES = Object.freeze({
 // The types you (`mirai log`) and agents (`log_event`) may write: an allowlist, so any type
 // added later is MIRAI's own until someone decides otherwise (D-17, D-53).
 export const LOG_TYPES = Object.freeze(['note', 'template_gap']);
+// Your own session may also log your feedback (unit 29a, Jet's decision 3), never an agent run.
+export const SESSION_LOG_TYPES = Object.freeze([...LOG_TYPES, 'feedback']);
 
 // A privileged type is written by MIRAI itself (`script`), or, for the types marked `human`, by
 // you with a signature. An `unverified` mr_merged must never derive `done` (D-17). `agent` is an
@@ -141,8 +149,8 @@ const paths = (store) => ({ counter: join(store.dir, 'seq'), journal: join(store
 function eventProblems(event) {
   const spec = EVENT_TYPES[event.type];
   if (!spec) return [`unknown event type ${JSON.stringify(String(event.type)).slice(0, 40)}`];
-  if (spec.privileged && event.by !== 'script' && !(event.by === 'human' && spec.human)) {
-    return [`${event.type} is written only by MIRAI itself${spec.human ? ' or by you, signed' : ''} (by must be script${spec.human ? ' or human' : ''})`];
+  if (spec.privileged && event.by !== 'script' && !(event.by === 'human' && spec.human) && !(event.by === 'session' && spec.session)) {
+    return [`${event.type} is written only by MIRAI itself${spec.human ? ' or by you, signed' : ''}${spec.session ? ' or by your session' : ''} (by must be script${spec.human ? ' or human' : ''}${spec.session ? ' or session' : ''})`];
   }
   if (!spec.privileged && event.by === 'human') return [`${event.type} is never a signed human line`];
   if ((event.by === 'human') !== (event.signature !== undefined)) return [event.by === 'human' ? 'a human line must be signed' : 'only a human line carries a signature'];
@@ -338,24 +346,27 @@ export function allTicketFacts(events) {
   for (const e of events) {
     if (e.type === 'epic_merged') mergedEpics.add(e.epic);
     if (e.ticket === undefined) continue;
-    if (!seen.has(e.ticket)) seen.set(e.ticket, { merged: null, latestMr: null, pushSeq: undefined, openSeq: undefined, closeSeq: undefined, head: undefined, proofs: false, url: undefined });
+    if (!seen.has(e.ticket)) seen.set(e.ticket, { merged: null, latestMr: null, pushSeq: undefined, openSeq: undefined, closeSeq: undefined, head: undefined, proofs: false, url: undefined, number: undefined, lastPush: undefined });
     const t = seen.get(e.ticket);
     if (e.type === 'mr_merged' && (t.merged === null || e.target === 'integration')) t.merged = e;
     if (e.type === 'mr_opened' || e.type === 'mr_closed') t.latestMr = e;
-    if (e.type === 'pushed') [t.pushSeq, t.head, t.proofs] = [e.seq, e.sha, e.proofs === 'pass'];
+    if (e.type === 'pushed') [t.pushSeq, t.head, t.proofs, t.lastPush] = [e.seq, e.sha, e.proofs === 'pass', e.sha];
     if (e.type === 'mr_opened') {
       if (e.head !== t.head) t.proofs = false;
       [t.openSeq, t.head] = [e.seq, e.head];
       if (e.url) t.url = e.url;
+      if (e.number) t.number = e.number;
     }
     if (e.type === 'mr_closed') t.closeSeq = e.seq;
   }
   const facts = new Map();
   for (const [ticket, t] of seen) {
-    if (t.merged) facts.set(ticket, { mr: 'merged', mergedInto: t.merged.target, epicMerged: t.merged.target === 'epic' && mergedEpics.has(t.merged.epic) });
+    // Unit 29a: what M1 needs: MIRAI's last push, and the MR's final head and merge commit.
+    const mrFacts = { ...(t.number ? { number: t.number } : {}), ...(t.url ? { url: t.url } : {}), ...(t.lastPush ? { lastPush: t.lastPush } : {}) };
+    if (t.merged) facts.set(ticket, { mr: 'merged', mergedInto: t.merged.target, epicMerged: t.merged.target === 'epic' && mergedEpics.has(t.merged.epic), ...mrFacts, ...(t.merged.head ? { finalHead: t.merged.head } : {}), ...(t.merged.merge_sha ? { mergeSha: t.merged.merge_sha } : {}) });
     // Unit 27a: MIRAI pushes a head only after its proofs checked (`proofs: "pass"` on the push).
     else if (t.latestMr?.type === 'mr_opened') facts.set(ticket, { mr: 'open', pushSeq: t.pushSeq ?? t.openSeq, head: t.head, proofsValidAtHead: t.proofs, ...(t.url ? { url: t.url } : {}) });
-    else if (t.latestMr?.type === 'mr_closed') facts.set(ticket, { mr: 'closed', closeSeq: t.closeSeq });
+    else if (t.latestMr?.type === 'mr_closed') facts.set(ticket, { mr: 'closed', closeSeq: t.closeSeq, ...mrFacts });
     else facts.set(ticket, { mr: 'none', ...(t.head ? { head: t.head } : {}) });
   }
   return facts;

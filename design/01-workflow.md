@@ -1560,7 +1560,8 @@ moving it back when they drop (Q6). Metrics never flip a gate by themselves.
 
 Each agent run writes one line (fields in `00-interview-log.md` Q6, plus `tier`, `model`, and the
 ticket's `tdd` and `tests` values). Status changes, gate decisions, human decisions, parking, loop
-events, `template_gap` events and `feedback` events (`mirai feedback <ticket> "<text>"`, your reasons for back-and-forth with an agent; kept as structured data for the post-MVP evaluation, `09`) are lines in the same run file.
+events and `template_gap` events are lines in the same run file. **`feedback` events** (`mirai feedback <ticket> "<text>"`, your reasons for back-and-forth with an agent; kept as structured data for the post-MVP evaluation, `09`) are journal lines on the ticket instead (unit 29a, Jet's decision 3: feedback is often given with no run going): signed from your terminal, or your session's line through `log_event`; never an agent's.
+- **M1, the acceptance rate (unit 29a, Jet's decision 2):** an MR MIRAI opened is **merged as is** when the MR's final head has the same code hash (the proofs' hash over `gate.code_paths`, unit 25a) as MIRAI's last push, each taken from where it meets the integration branch just before the merge; **edited** when it differs; **closed** when it was closed without merge. A rebase or GitHub's "Update branch" keeps the hash, and a change only outside `gate.code_paths` isn't an edit. `mirai report --m1` prints it.
 - **Format:** JSON Lines. Every line carries `{schema_version, run_id, seq, ts, item, by}`.
 - **One file per run.**
 - **Written only by MIRAI.** Agents log through the MCP broker's `log` tool (they can't run the

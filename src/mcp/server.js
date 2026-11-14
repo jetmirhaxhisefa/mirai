@@ -4,7 +4,7 @@ import { isAbsolute } from 'node:path';
 
 import { checkArgs, toolList, toolNamed, TOOLS } from './tools.js';
 import { inlineResult, INLINE_TAIL_BYTES } from './tools/tests.js';
-import { LOG_TYPES, REGISTRATION_ID } from '../store/journal.js';
+import { LOG_TYPES, REGISTRATION_ID, SESSION_LOG_TYPES } from '../store/journal.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { repoState } from '../store/repo-state.js';
 import { readToken } from '../sign/token.js';
@@ -91,7 +91,7 @@ export function checkPolicy(p) {
   if (needsStore.length && (!abs(p.store?.dir) || !REPO_ID.test(p.store?.repo_id ?? ''))) throw new PolicyError(`the policy's ${needsStore[0]} needs the store`);
   if (p.tools.lint !== undefined && (p.tools.lint === null || typeof p.tools.lint !== 'object' || Object.keys(p.tools.lint).length)) throw new PolicyError('the policy\'s lint takes no settings');
   if (le !== undefined) {
-    if (!names(le?.types) || le.types.some((t) => !LOG_TYPES.includes(t)) || !count(le.max_events, 1000) || !count(le.max_message, 4096)) {
+    if (!names(le?.types) || le.types.some((t) => !(p.kind === 'interactive' ? SESSION_LOG_TYPES : LOG_TYPES).includes(t)) || !count(le.max_events, 1000) || !count(le.max_message, 4096)) {
       throw new PolicyError('the policy\'s log_event needs types agents may log and its caps');
     }
     const regex = (r) => {
