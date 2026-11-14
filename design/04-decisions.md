@@ -1357,7 +1357,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
 
 
 - **Update (unit 18e):** on standard and full tracks the orchestrator merges the docs MR after your ticket-set approval, and an overnight run starts from an approved set. So an approval forged from a session (D-17's update) can reach an agent run with no human merge between; `mirai-verify` accepts it too. Your merge protects only ticket code. Same fix: row 29b.
-- **Update (2026-11-14, Jet's decision):** you may review and merge a ticket's MR without opening the host. Review: `mirai review-mr <ticket>` in your terminal or `/mirai review-mr` in your session (read-only; unit 29). Merge: `mirai merge <ticket>` in a real terminal only, with the ticket key typed (unit 46). Reviewing and merging on GitHub or GitLab stays a choice, and MIRAI notices a host merge at the ticket's next `ship` or `run`. The merge stays yours: it is never on the session's list.
+- **Update (2026-11-14, Jet's decision):** you may review and merge a ticket's MR without opening the host. Review: `mirai review-mr <ticket>` in your terminal or `/mirai review-mr` in your session (read-only; unit 29). In the terminal the review ends with your decision: merge (the ticket key typed), send back with a note, or later; `mirai merge <ticket>` is the same decision without the packet (unit 29; the inbox opens it, unit 46). Reviewing and merging on GitHub or GitLab stays a choice, and MIRAI notices a host merge at the ticket's next `ship` or `run`. The merge stays yours: it is never on the session's list.
 ### D-35 · One ID chain from requirement to evidence; `mirai trace`
 
 - **Context:** version 1 broke the SDD chain (R-M10): the PRD used `AC-FR-n.m` and tickets used
