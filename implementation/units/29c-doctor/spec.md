@@ -101,3 +101,11 @@ Already built (the research, 2026-11-14): `redTeamStatus` (`src/redteam/run.js`,
 ## Open points for you
 
 - None beyond the approval.
+
+## Changes during the build (2026-11-14)
+
+- **A store that can't be opened is the finding:** a damaged journal (or counter) makes the store refuse to open, so doctor shows the Store item red (the file, and what you can do by hand) and the login, and nothing else; `--fix` has nothing to repair there.
+- **The registry keeps what it can't check:** an entry whose record's commit isn't in this clone (on the sample app: SAMPLE-2's first, discarded build from the old Mac) is kept, and named in the ok line. Red only when the registry and the journal's branch lines with their records disagree.
+- **The token's age:** yellow from 330 days, MIRAI's existing renew mark (`RENEW_AFTER_DAYS`), not 300.
+- **`run`, `review` and `resume` refuse too** when the hook's Node is gone (`hooksState` isn't ok), before a push would fail.
+- **`--fix` checks again after each repair** and repairs what's newly red (the Store item shows its first problem, so a dead lock can hide a missing run state), each kind once.

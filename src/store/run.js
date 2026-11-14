@@ -43,7 +43,7 @@ export function newRunId(now = new Date()) {
 }
 
 function bad(file, why) {
-  return new StoreError(`${file}: ${why}`, { path: file, code: 'corrupt', hint: 'run: mirai doctor' });
+  return new StoreError(`${file}: ${why}`, { path: file, code: 'corrupt', hint: 'run: mirai doctor --fix (it rebuilds the run state from the run log)' });
 }
 
 // The current run's state, or null when there has been no run.
