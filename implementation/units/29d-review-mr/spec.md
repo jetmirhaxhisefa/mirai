@@ -1,7 +1,7 @@
 ---
 unit: "29d"
 name: review-mr
-status: draft (2026-11-14; Jet's interview decisions 1–4, the defaults as written)
+status: approved (2026-11-14; Jet: "approve 29d"; interview decisions 1–4, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 29 ("Review a ticket's MR without the host", Jet 2026-11-14) and row 46 (the inbox opens it; send back); D-34's update of 2026-11-14 (review and merge from MIRAI; the merge stays yours)
 depends_on: ["29a", "29c", "27a", "27b"]
 ---
