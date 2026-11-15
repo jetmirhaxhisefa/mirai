@@ -6,7 +6,8 @@ import { readLoop } from '../../loop/guard.js';
 import { plain } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { signHumanMove } from '../../store/tickets.js';
-import { loadSigner } from '../../sign/signer.js';
+import { decisionSigner } from '../../sign/signer.js';
+import { branchKeys } from '../../sign/keys.js';
 import { acceptDispute, openDisputes, readDisputes, upholdDisputes } from '../../agent/review.js';
 
 // mirai unpark <ticket> --retry | --accept <finding-id>[,<finding-id>…] (a minimal one, 2026-11-04;
@@ -38,8 +39,8 @@ export default {
     if (acceptIds && (acceptIds.length === 0 || !acceptIds.every((id) => ID.test(id)))) throw new UsageError('--accept takes finding ids, comma-separated, as the parking note names them');
     requireTty(io, 'mirai unpark');
     const store = openStore({ cwd: io.cwd, env: io.env });
-    const signer = loadSigner(io.env, store);
-    const current = ticketNow(store, ticket, signer.keys);
+    const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
+    const current = ticketNow(store, ticket, keys);
     if (current.state !== 'blocked') throw new MiraiError(`${ticket} is ${current.state}, not parked`, EXIT.BLOCKED);
     if (readLoop(store, ticket).parked) throw new MiraiError(`${ticket} was parked by the loop guard (${plain(readLoop(store, ticket).parked.reason)}): it needs rounds granted, which unit 46's unpark does`, EXIT.BLOCKED);
     const disputed = current.status?.park_reason === 'disputed';
@@ -49,7 +50,7 @@ export default {
       const unknown = acceptIds.filter((id) => !open.some((x) => x.id === id));
       if (unknown.length) throw new MiraiError(`${unknown.join(', ')} ${unknown.length === 1 ? 'isn\'t an open disputed finding' : 'aren\'t open disputed findings'} of ${ticket} (open: ${open.map((x) => x.id).join(', ') || 'none'})`, EXIT.BLOCKED);
     }
-    io.stdout.write(`ticket: ${ticket} (parked: ${plain(current.status?.park_reason ?? '?')})\nwhy:    ${plain(current.status?.note ?? '')}\nkey:    ${signer.keyId}\n`);
+    io.stdout.write(`ticket: ${ticket} (parked: ${plain(current.status?.park_reason ?? '?')})\nwhy:    ${plain(current.status?.note ?? '')}\n`);
     for (const x of open) io.stdout.write(`  disputed ${plain(x.id)}: ${plain(x.finding?.claim ?? '')} (${plain(x.finding?.file ?? '?')}:${x.finding?.line ?? '?'})\n    Kai: ${plain(x.reason ?? '')}\n`);
     const stand = acceptIds ? open.filter((x) => !acceptIds.includes(x.id)) : open;
     const to = acceptIds && stand.length === 0 ? 'in-review' : 'in-progress';
@@ -58,7 +59,7 @@ export default {
     try {
       const note = await prompter.ask('note (one line, why it can go on): ');
       if (!/\S/.test(note) || note.length > 500) throw new UsageError('the note is one line of at most 500 characters; nothing was written');
-      await confirmByTyping(prompter, ticket);
+      const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });
       const choice = to === 'in-review' ? 'accept' : 'retry';
       const seq = signHumanMove(store, signer, { ticket, state: to, note, ...(current.status?.replans !== undefined ? { replans: current.status.replans } : {}) }, { expectSeq: current.seq, move: { choice, note } });
       // The rulings, after your signed move: what you dropped, then what stands.

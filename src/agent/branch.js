@@ -87,8 +87,9 @@ export function prepareBranch({ store, env, trust, config, keys, signer, ticket,
     }
   }
   // A new branch is signed with your key: from your terminal only.
-  if (unattended) throw refuse(`making ${branch} needs your key, and nothing unattended signs before row 29b`, 'needs-terminal');
+  // Unit 29b: a branch record is MIRAI's record: unattended, only the machine key signs it.
   const key = signer();
+  if (unattended && key.kind !== 'machine') throw refuse(`making ${branch} needs a key MIRAI may sign with unattended: the machine key isn't set up`, 'needs-terminal', 'mirai key new --machine, then commit its .machine.pub by itself and push it');
   const changes = workTreeChanges(root, genv);
   if (changes.length) throw refuse(`the work tree has ${changes.length} uncommitted change(s), which switching to ${branch} would carry over`, 'dirty-tree', 'commit or stash them first');
   switchBranch(root, branch, trust.baseSha, genv);

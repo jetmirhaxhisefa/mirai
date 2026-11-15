@@ -13,6 +13,9 @@ import { validTime } from './time.js';
 //   ~/.config/mirai/signing.json      { key_id, label, created_at }
 //   <project>/.mirai/keys/<id>.pub    the public key (SPKI PEM), committed by you
 //   <project>/.mirai/keys/<id>.revoked { revoked_at, reason? }, committed by you
+// Unit 29b: your key's file is encrypted with your passphrase (PKCS#8, AES-256) once you protect
+// it; the machine key (machine.ed25519, plain, 0600) signs MIRAI's records, never your decisions,
+// and its public key is committed as <id>.machine.pub.
 // The key id is derived from the public key, so a file can't claim another key's id. Public keys
 // count only when they're on the integration branch (never the work tree): any branch can edit
 // the work tree's .mirai/keys/.
@@ -23,7 +26,7 @@ const KEYS_DIR = '.mirai/keys';
 export function keyPaths(env) {
   if (!env.HOME || !isAbsolute(env.HOME)) throw new StoreError('HOME is not set to an absolute path', { code: 'no-home' });
   const dir = join(env.HOME, '.config', 'mirai');
-  return { dir, privateKey: join(dir, 'signing.ed25519'), meta: join(dir, 'signing.json') };
+  return { dir, privateKey: join(dir, 'signing.ed25519'), meta: join(dir, 'signing.json'), machineKey: join(dir, 'machine.ed25519'), machineMeta: join(dir, 'machine.json') };
 }
 
 // The key id of a public key: k- and the first 16 hex characters of SHA-256 over its raw bytes.
@@ -36,7 +39,7 @@ export function keyIdOf(publicKey) {
 // signing.ed25519.old-<time>, for you to revoke). Returns { keyId, label, publicPem }; the
 // private key never leaves this function except into its file. (With one key per machine and
 // many repos, `mirai key new` in another repo publishes the existing key instead: publicPemOf.)
-export function createKeyPair(env, { label = hostname(), replace = false, now = () => new Date() } = {}) {
+export function createKeyPair(env, { label = hostname(), replace = false, passphrase = null, now = () => new Date() } = {}) {
   const p = keyPaths(env);
   mkdirSync(join(env.HOME, '.config'), { recursive: true, mode: 0o700 });
   ensurePrivateDir(p.dir);
@@ -47,22 +50,28 @@ export function createKeyPair(env, { label = hostname(), replace = false, now = 
   }
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const keyId = keyIdOf(publicKey);
-  atomicWrite(p.privateKey, privateKey.export({ type: 'pkcs8', format: 'pem' }));
-  atomicWrite(p.meta, `${JSON.stringify({ key_id: keyId, label: String(label).slice(0, 64), created_at: now().toISOString() }, null, 2)}\n`);
-  return { keyId, label, publicPem: publicKey.export({ type: 'spki', format: 'pem' }) };
+  atomicWrite(p.privateKey, privateKey.export({ type: 'pkcs8', format: 'pem', ...(passphrase !== null ? { cipher: 'aes-256-cbc', passphrase: checkPassphrase(passphrase) } : {}) }));
+  const publicPem = publicKey.export({ type: 'spki', format: 'pem' });
+  atomicWrite(p.meta, `${JSON.stringify({ key_id: keyId, label: String(label).slice(0, 64), created_at: now().toISOString(), public_pem: publicPem }, null, 2)}\n`);
+  return { keyId, label, publicPem };
 }
 
 // Your signing key: { keyId, label, privateKey, publicKey }. The private key file gets the
 // store's checks (real file, yours, 0600). The id is derived again, so an edited signing.json
 // can't change it.
-export function loadSigningKey(env) {
+// Unit 29b: a protected key needs `passphrase`; without one it's `key-locked`, with a wrong one
+// `bad-passphrase` (nothing about the key is said either way).
+export function loadSigningKey(env, { passphrase } = {}) {
   const p = keyPaths(env);
   const pem = readPrivateFile(p.privateKey, { maxBytes: 4096, optional: true });
   if (pem === null) throw new StoreError('there is no signing key on this machine', { code: 'no-key', hint: 'make one: mirai key new' });
+  const encrypted = ENCRYPTED.test(pem);
+  if (encrypted && (passphrase === undefined || passphrase === null)) throw new StoreError('your key is protected: this needs your passphrase', { code: 'key-locked', hint: 'run it in your terminal, where MIRAI asks for it' });
   let privateKey;
   try {
-    privateKey = createPrivateKey(pem);
+    privateKey = encrypted ? createPrivateKey({ key: pem, format: 'pem', passphrase }) : createPrivateKey(pem);
   } catch {
+    if (encrypted) throw new StoreError('that isn\'t your passphrase', { code: 'bad-passphrase', hint: 'try again; a forgotten passphrase can\'t be recovered: mirai key new --replace, then mirai key revoke <old id>' });
     throw new StoreError(`${p.privateKey}: is not a readable private key`, { path: p.privateKey, code: 'bad-key', hint: 'make a new one: mirai key new --replace' });
   }
   if (privateKey.asymmetricKeyType !== 'ed25519') throw new StoreError(`${p.privateKey}: is not an Ed25519 key`, { path: p.privateKey, code: 'bad-key' });
@@ -76,14 +85,98 @@ export function loadSigningKey(env) {
       label = null;
     }
   }
-  return { keyId: keyIdOf(publicKey), label, privateKey, publicKey };
+  return { keyId: keyIdOf(publicKey), label, privateKey, publicKey, protected: encrypted };
+}
+
+// Unit 29b: a passphrase is at least 12 characters, one line.
+export const PASSPHRASE_MIN = 12;
+const ENCRYPTED = /^-----BEGIN ENCRYPTED PRIVATE KEY-----/;
+export function checkPassphrase(passphrase) {
+  if (typeof passphrase !== 'string' || [...passphrase].length < PASSPHRASE_MIN || /[\n\r]/.test(passphrase)) throw new StoreError(`a passphrase is at least ${PASSPHRASE_MIN} characters, on one line`, { code: 'weak-passphrase', hint: 'choose a longer one' });
+  return passphrase;
+}
+
+// Whether your key file is protected (encrypted), without reading the key.
+export function keyIsProtected(env) {
+  const pem = readPrivateFile(keyPaths(env).privateKey, { maxBytes: 4096, optional: true });
+  return pem !== null && ENCRYPTED.test(pem);
+}
+
+// Encrypts your key in place with a passphrase (unit 29b): the same key, so its id and every
+// signature so far stay valid. `current`: the passphrase it has now, to change it.
+export function protectKey(env, passphrase, { current } = {}) {
+  const key = loadSigningKey(env, { passphrase: current });
+  const pem = key.privateKey.export({ type: 'pkcs8', format: 'pem', cipher: 'aes-256-cbc', passphrase: checkPassphrase(passphrase) });
+  atomicWrite(keyPaths(env).privateKey, pem);
+  // The public half beside it, so mirai key show and status need no passphrase.
+  const meta = (() => {
+    try {
+      return JSON.parse(readPrivateFile(keyPaths(env).meta, { maxBytes: 8192, optional: true }) ?? '{}');
+    } catch {
+      return {};
+    }
+  })();
+  atomicWrite(keyPaths(env).meta, `${JSON.stringify({ ...meta, key_id: key.keyId, public_pem: key.publicKey.export({ type: 'spki', format: 'pem' }) }, null, 2)}\n`);
+  // Read back with it before saying so: a key that can't be opened again would lock you out.
+  if (loadSigningKey(env, { passphrase }).keyId !== key.keyId) throw new StoreError('the protected key didn\'t read back as yours', { code: 'bad-key' });
+  return { keyId: key.keyId, was: key.protected ? 'protected' : 'plain' };
+}
+
+// The machine key (unit 29b, decision 2): MIRAI's records only. Plain (MIRAI signs with nobody
+// there), 0600 in ~/.config/mirai. One per machine, as yours.
+export function createMachineKey(env, { replace = false, now = () => new Date() } = {}) {
+  const p = keyPaths(env);
+  mkdirSync(join(env.HOME, '.config'), { recursive: true, mode: 0o700 });
+  ensurePrivateDir(p.dir);
+  if (checkPrivateFile(p.machineKey)) {
+    if (!replace) throw new StoreError('a machine key already exists on this machine', { code: 'key-exists', hint: 'its public key: mirai key show; to rotate it: mirai key new --machine --replace' });
+    renameSync(p.machineKey, `${p.machineKey}.old-${now().toISOString().replace(/[:.]/g, '-')}`);
+  }
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const keyId = keyIdOf(publicKey);
+  atomicWrite(p.machineKey, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  atomicWrite(p.machineMeta, `${JSON.stringify({ key_id: keyId, kind: 'machine', created_at: now().toISOString() }, null, 2)}\n`);
+  return { keyId, publicPem: publicKey.export({ type: 'spki', format: 'pem' }) };
+}
+
+// The machine key, or null when this machine has none.
+export function loadMachineKey(env) {
+  const p = keyPaths(env);
+  const pem = readPrivateFile(p.machineKey, { maxBytes: 4096, optional: true });
+  if (pem === null) return null;
+  let privateKey;
+  try {
+    privateKey = createPrivateKey(pem);
+  } catch {
+    throw new StoreError(`${p.machineKey}: is not a readable private key`, { path: p.machineKey, code: 'bad-key', hint: 'make a new one: mirai key new --machine --replace' });
+  }
+  if (privateKey.asymmetricKeyType !== 'ed25519') throw new StoreError(`${p.machineKey}: is not an Ed25519 key`, { code: 'bad-key' });
+  const publicKey = createPublicKey(privateKey);
+  return { keyId: keyIdOf(publicKey), privateKey, publicKey, kind: 'machine' };
 }
 
 // .mirai and .mirai/keys must be real folders, so the file lands in the repo.
-// Your existing key's public half, as written into a repo.
+// Your existing key's public half, as written into a repo. A protected key's comes from
+// signing.json (written with it), checked: the id is derived from it again.
 export function publicPemOf(env) {
+  if (keyIsProtected(env)) {
+    let meta = null;
+    try {
+      meta = JSON.parse(readPrivateFile(keyPaths(env).meta, { maxBytes: 8192, optional: true }) ?? 'null');
+    } catch {
+      meta = null;
+    }
+    let publicKey = null;
+    try {
+      publicKey = meta?.public_pem ? createPublicKey(meta.public_pem) : null;
+    } catch {
+      publicKey = null;
+    }
+    if (!publicKey || publicKey.asymmetricKeyType !== 'ed25519') throw new StoreError('your protected key\'s public half isn\'t on record', { code: 'no-public', hint: 'mirai key passphrase writes it again (it asks your passphrase)' });
+    return { keyId: keyIdOf(publicKey), label: meta.label ?? null, publicPem: publicKey.export({ type: 'spki', format: 'pem' }), publicKey };
+  }
   const key = loadSigningKey(env);
-  return { keyId: key.keyId, label: key.label, publicPem: key.publicKey.export({ type: 'spki', format: 'pem' }) };
+  return { keyId: key.keyId, label: key.label, publicPem: key.publicKey.export({ type: 'spki', format: 'pem' }), publicKey: key.publicKey };
 }
 
 function keysDirIn(checkout) {
@@ -100,16 +193,17 @@ function keysDirIn(checkout) {
 }
 
 // Writes your public key into the project, for you to commit and push (the bootstrap path).
-export function writePublicKeyFile(checkout, keyId, publicPem) {
+export function writePublicKeyFile(checkout, keyId, publicPem, { machine = false } = {}) {
   if (!KEY_ID.test(keyId)) throw new TypeError('not a key id');
-  const file = join(keysDirIn(checkout), `${keyId}.pub`);
+  const name = `${keyId}${machine ? '.machine' : ''}.pub`;
+  const file = join(keysDirIn(checkout), name);
   try {
     writeFileSync(file, publicPem, { flag: 'wx', mode: 0o644 });
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
-    if (readFileSync(file, 'utf8') !== publicPem) throw new StoreError(`${KEYS_DIR}/${keyId}.pub already exists with another key`, { code: 'key-mismatch' });
+    if (readFileSync(file, 'utf8') !== publicPem) throw new StoreError(`${KEYS_DIR}/${name} already exists with another key`, { code: 'key-mismatch' });
   }
-  return `${KEYS_DIR}/${keyId}.pub`;
+  return `${KEYS_DIR}/${name}`;
 }
 
 // Writes a revocation for a key id, for you to commit.
@@ -155,27 +249,32 @@ export function readCommittedKeys(checkout, ref, env) {
   const revoked = new Map();
   const problems = [];
   for (const e of entries) {
-    const m = /^\.mirai\/keys\/(k-[0-9a-f]{16})\.(pub|revoked)$/.exec(e.path);
+    const m = /^\.mirai\/keys\/(k-[0-9a-f]{16})(?:(\.machine)\.pub|\.(pub|revoked))$/.exec(e.path);
     if (!m) {
       problems.push({ path: e.path, reason: 'not a key or revocation file' });
       continue;
     }
+    const ext = m[2] ? 'pub' : m[3];
+    const kind = m[2] ? 'machine' : 'human';
     const bytes = blobs.get(e.sha);
     if (!bytes) {
       problems.push({ path: e.path, reason: 'too large or unreadable' });
-      if (m[2] === 'revoked') revoked.set(m[1], 0);
+      if (ext === 'revoked') revoked.set(m[1], 0);
       continue;
     }
     const text = bytes.toString('utf8');
-    if (m[2] === 'pub') {
+    if (ext === 'pub') {
       let publicKey = null;
       try {
         publicKey = createPublicKey(text);
       } catch {
         publicKey = null;
       }
-      if (publicKey?.asymmetricKeyType === 'ed25519' && keyIdOf(publicKey) === m[1]) keys.set(m[1], publicKey);
-      else problems.push({ path: e.path, reason: 'not an Ed25519 key with this id' });
+      // One key, one kind: a key committed as both yours and the machine's counts as the machine's.
+      if (publicKey?.asymmetricKeyType === 'ed25519' && keyIdOf(publicKey) === m[1]) {
+        if (keys.has(m[1])) problems.push({ path: e.path, reason: 'the same key is committed twice; it counts as a machine key only' });
+        keys.set(m[1], { publicKey, kind: keys.get(m[1])?.kind === 'machine' || kind === 'machine' ? 'machine' : 'human' });
+      } else problems.push({ path: e.path, reason: 'not an Ed25519 key with this id' });
     } else {
       let at = 0;
       try {
@@ -189,14 +288,14 @@ export function readCommittedKeys(checkout, ref, env) {
     }
   }
   const result = Object.freeze({
-    keys: new Map([...keys].map(([id, publicKey]) => [id, Object.freeze({ publicKey, revokedAt: revoked.has(id) ? revoked.get(id) : null })])),
+    keys: new Map([...keys].map(([id, k]) => [id, Object.freeze({ publicKey: k.publicKey, kind: k.kind, revokedAt: revoked.has(id) ? revoked.get(id) : null })])),
     problems: Object.freeze(problems),
   });
   cache.set(`${checkout}\0${tree}`, result);
   return result;
 }
 
-// The keys committed at a ref: key id → { publicKey, revokedAt }.
+// The keys committed at a ref: key id → { publicKey, kind: 'human' | 'machine', revokedAt }.
 export function committedKeys(checkout, ref, env) {
   return readCommittedKeys(checkout, ref, env).keys;
 }

@@ -1,10 +1,11 @@
+import { randomBytes } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdirSync, symlinkSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { init } from '../install/init.js';
-import { createKeyPair, keyPaths, writePublicKeyFile } from '../sign/keys.js';
+import { createKeyPair, keyPaths, protectKey, writePublicKeyFile } from '../sign/keys.js';
 import { openStore } from '../store/home.js';
 import { snapshot } from '../trust/snapshot.js';
 import { sessionServer } from '../mcp/session.js';
@@ -24,6 +25,8 @@ export const TICKET = 'PROJ-1';
 export const TICKET_FILE = 'tickets/PROJ-1.md';
 export const MODES = Object.freeze(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions']);
 export const OUTCOMES = Object.freeze(['holds', 'known-limit', 'failed', 'inconclusive']);
+// The fixture key's passphrase (unit 29b): MIRAI's harness knows it; no session is ever given it.
+export const FIXTURE_PASSPHRASE = `fixture-${randomBytes(12).toString('hex')}`;
 const TURNS = '4';
 
 const FIXTURE_GIT = (home) => ({ PATH: '/usr/bin:/bin', HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
@@ -54,6 +57,8 @@ export function buildSessionFixture({ workdir, checkout, branch }) {
   init({ cwd: realRoot, env, refresh: true });
   const key = createKeyPair(env, { label: 'session-fixture' });
   writePublicKeyFile(realRoot, key.keyId, key.publicPem);
+  // Unit 29b: the fixture's key is protected as yours is, with a passphrase the session never sees.
+  protectKey(env, FIXTURE_PASSPHRASE);
   mkdirSync(join(realRoot, 'tickets'), { recursive: true });
   writeFileSync(join(realRoot, TICKET_FILE), `# ${TICKET}\n\nA fixture ticket.\n`);
   git('add', '-A');

@@ -5,7 +5,8 @@ import { viaOf } from '../tty.js';
 import { plain } from '../../status/text.js';
 import { driveTicket } from '../../run/drive.js';
 import { requireHooks } from '../../hooks/install.js';
-import { loadSigner } from '../../sign/signer.js';
+import { decisionSigner } from '../../sign/signer.js';
+import { createPrompter } from '../tty.js';
 import { runLockHolder } from '../../store/global.js';
 import { openStore } from '../../store/home.js';
 import { readHeartbeat, readRunState, resumeRun, writeRunState } from '../../store/run.js';
@@ -55,7 +56,16 @@ export default {
     io.stdout.write(`last run: ${s.run_id}, ${s.state}${s.state === 'running' ? ' (its process is gone: it crashed)' : ''}\n`);
     io.stdout.write(`  in progress: ${ticket}${s.step ? `, ${s.step}` : ''}${beat?.progress ? ` (last: ${plain(beat.progress)})` : ''}\n`);
     io.stdout.write(`  ${ticket} is ${t?.state ?? 'unknown'}${t?.state === 'blocked' ? `, parked: ${plain(t.park_reason ?? '')}${t.note ? `: ${plain(t.note)}` : ''}` : ''}\n`);
-    const signer = via === 'terminal' ? loadSigner(io.env, store) : null;
+    // Unit 29b: your resume is a decision: your passphrase from the terminal (none for a plain key).
+    let signer = null;
+    if (via === 'terminal') {
+      const p = createPrompter(io);
+      try {
+        signer = await decisionSigner(io, store, { prompter: p, ticket, confirm: async () => {} });
+      } finally {
+        p.close();
+      }
+    }
     const request = via === 'session' ? io.env.MIRAI_SESSION_REQUEST : null;
     if (args.values.abandon) {
       if (s.state !== 'stopped') throw Object.assign(new MiraiError(`run ${s.run_id} is ${s.state}: run mirai resume to take it over first`, EXIT.BLOCKED), { code: 'not-stopped' });

@@ -66,6 +66,30 @@ export function createPrompter(io) {
       if (/[\u0000-\u001f]/.test(answer) || escapeInvisible(answer) !== answer) throw new MiraiError('the answer has control or invisible characters; nothing was written', EXIT.USAGE);
       return answer;
     },
+    // Unit 29b: one line without echo (your passphrase). On a real terminal the input goes to raw
+    // mode for that line, so nothing typed shows; backspace edits it; Ctrl-C or Ctrl-D stops.
+    async askHidden(question) {
+      io.stdout.write(question);
+      const raw = typeof io.stdin.setRawMode === 'function';
+      if (raw) io.stdin.setRawMode(true);
+      let value;
+      let done;
+      try {
+        ({ value, done } = await lines.next());
+      } finally {
+        if (raw) io.stdin.setRawMode(false);
+        io.stdout.write('\n');
+      }
+      if (done) throw new MiraiError('no answer (the input closed); nothing was written', EXIT.INTERRUPTED);
+      let line = '';
+      for (const ch of value) {
+        if (ch === '\u0003' || ch === '\u0004') throw new MiraiError('stopped; nothing was written', EXIT.INTERRUPTED);
+        if (ch === '\u007f' || ch === '\b') line = line.slice(0, -1);
+        else line += ch;
+      }
+      if (line.length > ANSWER_MAX) throw new MiraiError(`the answer is longer than ${ANSWER_MAX} characters; nothing was written`, EXIT.USAGE);
+      return line;
+    },
     close() {
       rl.close();
     },

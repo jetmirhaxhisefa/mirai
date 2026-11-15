@@ -11,7 +11,7 @@ import { reviewsOf } from '../agent/review.js';
 import { parkTicket } from '../loop/park.js';
 import { frameworkHash } from '../redteam/key.js';
 import { RUNNING_VERSION } from '../install/lock.js';
-import { loadSigner } from '../sign/signer.js';
+import { loadRecordSigner } from '../sign/signer.js';
 import { contentHash } from '../sign/sign.js';
 import { verifyBranchAt } from '../store/branch-record.js';
 import { readPrivateFile } from '../store/files.js';
@@ -102,7 +102,8 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
   }
   const head = gate.head;
   const before = treeState(store);
-  const signer = loadSigner(env, store);
+  // Unit 29b: a record: the machine key once it's set up, else your key.
+  const signer = loadRecordSigner(env, store);
   const { keys } = signer;
   const mine = verifyBranchAt({ root: store.checkout, env: store.gitEnv, branch, keys, repoId: store.repoId });
   if (!mine.ok || mine.record.ticket !== ticket) throw fail(`${branch} isn't ${ticket}'s MIRAI branch: ${mine.ok ? `its record is for ${mine.record.ticket}` : mine.reason}`, 'wrong-branch');

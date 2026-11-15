@@ -6,7 +6,7 @@ import { StoreError, UsageError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
 import { RUNNING_VERSION } from '../install/lock.js';
 import { canonicalSha256, checkInit, finishLaunch, prepareLaunch, removeLaunch } from '../launch/strict.js';
-import { loadSigner } from '../sign/signer.js';
+import { loadRecordSigner } from '../sign/signer.js';
 import { readToken } from '../sign/token.js';
 import { acquireLock, ensurePrivateDir } from '../store/files.js';
 import { openStore } from '../store/home.js';
@@ -344,7 +344,7 @@ export async function runRedTeam({
   const trust = snapshot({ cwd, env: storeEnv });
   const strict = trustedRegistry(trust).adapters['claude-code']?.strict;
   if (!strict) throw new StoreError('this MIRAI copy has no strict bundle rules', { code: 'no-strict', hint: 'run: mirai init --refresh, and commit it' });
-  const sign = signer ?? loadSigner(storeEnv, store);
+  const sign = signer ?? loadRecordSigner(storeEnv, store);
   const token = readToken(env);
   if (!token) throw new StoreError('there is no Claude login token for agent runs', { code: 'no-token', exitCode: EXIT.NEEDS_HUMAN, hint: 'in your terminal: claude setup-token, then mirai token set' });
   ensurePrivateDir(join(store.dir, RESULT_FOLDER));

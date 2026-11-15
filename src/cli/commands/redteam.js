@@ -14,7 +14,7 @@ import { frameworkHash, templateNames } from '../../redteam/key.js';
 import { DEFAULTS, redTeamStatus, runRedTeam } from '../../redteam/run.js';
 import { finalLine, NEXT, partsText, report, SESSION_NEXT, sessionReport } from '../../redteam/report.js';
 import { listBlockers, listResults, readDecision, readResult, SESSIONS, writeDecision } from '../../redteam/store.js';
-import { loadSigner } from '../../sign/signer.js';
+import { decisionSigner, loadRecordSigner } from '../../sign/signer.js';
 import { PACKAGE_ROOT } from '../../install/parts.js';
 import { runSessions, sessionEstimate, sessionStatus } from '../../redteam/sessions.js';
 
@@ -249,7 +249,15 @@ async function acceptBlocker(arg, note, io) {
   const store = openStore({ cwd: io.cwd, env: io.env });
   const blocker = listBlockers(store).find((b) => b.id === arg);
   if (!blocker) throw new UsageError(`${shown(arg)} isn't a blocker on record here`, 'see: mirai redteam status');
-  writeDecision(store, blocker.id, note, loadSigner(io.env, store));
+  // Unit 29b: a decision: your passphrase (none for a plain key).
+  const p = createPrompter(io);
+  let signer;
+  try {
+    signer = await decisionSigner(io, store, { prompter: p, ticket: `blocker ${blocker.id.slice(0, 8)}`, confirm: async () => {} });
+  } finally {
+    p.close();
+  }
+  writeDecision(store, blocker.id, note, signer);
   io.stdout.write(`recorded, signed: you accept the blocker of ${blocker.created_at}. Launches may go ahead once a current result is green.\n`);
   return EXIT.OK;
 }

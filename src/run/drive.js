@@ -12,6 +12,7 @@ import { reviewsOf, runReview } from '../agent/review.js';
 import { launchInRun, takeOver } from '../agent/run.js';
 import { checkProofs } from '../proofs/check.js';
 import { recordProofs } from '../proofs/record.js';
+import { machineReady } from '../sign/signer.js';
 import { writeRunReport } from '../reports/run-report.js';
 import { protectionRules } from '../trust/protected.js';
 import { recordFault } from '../loop/guard.js';
@@ -276,8 +277,9 @@ export async function driveTicket({ cwd, env, ticket, via = 'terminal', resume =
         break;
       }
       // The session stops before your key signs (decision 2).
-      if (n.step === 'proofs' && via === 'session') {
-        stopped = { kind: 'gate-proofs', why: `${ticket}'s review passed; its proofs are signed with your key, in your terminal only (until row 29b)`, next: `in your terminal: mirai gate record ${ticket}; then /mirai run ${ticket}` };
+      // Unit 29b: unless the machine key signs MIRAI's records here.
+      if (n.step === 'proofs' && via === 'session' && !machineReady(env, store)) {
+        stopped = { kind: 'gate-proofs', why: `${ticket}'s review passed; its proofs are signed with your key, in your terminal only, until the machine key is set up (mirai key new --machine)`, next: `in your terminal: mirai gate record ${ticket}; then /mirai run ${ticket}` };
         break;
       }
       // The ticket's branch, for the steps that work on it.

@@ -728,6 +728,7 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - You approve from a terminal, not by telling the agent "approved". That is a deliberate bit of
     friction.
 
+- **Update (unit 29b, Jet's decisions, 2026-11-15):** your key is encrypted with a passphrase, asked for each decision in place of the typed ticket key, so a session that reads the file, or drives a terminal, can't sign as you while it's locked. A separate machine key signs MIRAI's records (baseline, red team, branch records, proofs), never a decision: the journal, plan approvals and accepted blockers refuse its signature. `[signing] unlock` (your global config) may keep your key unlocked up to 30 days; while it is, a session can sign as you again. Touch ID is later work (an Apple-signed helper). The token stays a plain file, behind user-level deny rules.
 ### D-18 · The orchestrator is a plain state machine with loop rules, caps and budgets
 
 - **Context:** your main worry is endless agent back-and-forth that burns money (Q5).

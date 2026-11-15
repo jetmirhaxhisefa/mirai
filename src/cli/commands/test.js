@@ -7,7 +7,7 @@ import { escapeInvisible } from '../../status/text.js';
 import { changedLines, commitOf, mergeBase } from '../../store/git.js';
 import { diffCoverage } from '../../tests/diff-coverage.js';
 import { openStore } from '../../store/home.js';
-import { loadSigner } from '../../sign/signer.js';
+import { loadRecordSigner } from '../../sign/signer.js';
 import { gateCheck } from '../../tests/gate.js';
 import { runTest } from '../../tests/run.js';
 
@@ -68,7 +68,7 @@ export default {
         return EXIT.USAGE;
       }
       const store = openStore({ cwd: io.cwd, env: io.env });
-      gate = { ...gateCheck(store.checkout, args.values.branch, io.env), signer: loadSigner(io.env, store) };
+      gate = { ...gateCheck(store.checkout, args.values.branch, io.env), signer: loadRecordSigner(io.env, store) };
     }
     let base = null;
     if (args.values.against !== undefined) {

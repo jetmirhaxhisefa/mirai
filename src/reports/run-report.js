@@ -123,7 +123,7 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
       const cls = config.gate?.code_paths && config.git?.integration_branch ? classifyTicket({ root: store.checkout, env: store.gitEnv, ticket, facts: f, codePaths: config.gate.code_paths, integration: config.git.integration_branch, host }) : null;
       mr = { state: f.mr, ...(f.url ? { url: f.url } : {}), ...(cls ? { m1: cls.class, ...(cls.why ? { m1_why: cls.why.slice(0, 300) } : {}) } : {}) };
     }
-    const feedback = events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : 'your session', ...(iso(e.ts) ? { at: e.ts } : {}), text: e.text }));
+    const feedback = events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : e.by === 'script' ? 'your terminal' : 'your session', ...(iso(e.ts) ? { at: e.ts } : {}), text: e.text }));
     const title = page?.title ?? '(no title)';
     tickets.push({
       ticket, title, state: page?.state ?? 'unknown', ...(page?.risk ? { risk: page.risk } : {}),

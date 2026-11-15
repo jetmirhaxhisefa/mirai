@@ -89,7 +89,7 @@ export function approvalHash(documentText) {
 // plan's ticket, and the frozen block, the declared changes and the approved fields are
 // unchanged.
 export function verifyPlanApproval(approval, documentText, keys, { context }) {
-  const v = verifySigned(approval, keys, { context });
+  const v = verifySigned(approval, keys, { context, decision: true });
   if (!v.ok) return v;
   if (approval.kind !== 'plan') return { ok: false, reason: 'not a plan approval' };
   let ticket = null;
