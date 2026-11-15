@@ -40,8 +40,11 @@ test('29b: protect keeps your key\'s id and every signature; a protected key nee
   // Everything signed before still verifies (the approval in the fixture).
   const events = readJournal(store, { keys: before.keys }).events;
   assert.ok(events.some((e) => e.type === 'approval' && e.signature));
-  // A new passphrase; a short one refused.
-  assert.throws(() => protectKey(f.env, 'short', { current: PASS }), (e) => e.code === 'weak-passphrase');
+  // A new passphrase: any length (no minimum), but not empty.
+  assert.throws(() => protectKey(f.env, '', { current: PASS }), (e) => e.code === 'weak-passphrase');
+  protectKey(f.env, 'x', { current: PASS });
+  assert.equal(loadSigningKey(f.env, { passphrase: 'x' }).keyId, before.keyId);
+  protectKey(f.env, PASS, { current: 'x' });
   protectKey(f.env, 'another long passphrase', { current: PASS });
   assert.throws(() => loadSigningKey(f.env, { passphrase: PASS }), (e) => e.code === 'bad-passphrase');
   assert.equal(loadSigningKey(f.env, { passphrase: 'another long passphrase' }).keyId, before.keyId);
