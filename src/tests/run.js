@@ -486,6 +486,8 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
         ...(file.bytes ? { report_sha256: createHash('sha256').update(file.bytes).digest('hex') } : {}),
         cases_sha256: createHash('sha256').update(casesText).digest('hex'),
         tests: r.tests, failing: r.failing.slice(0, STORED_FAILING), failing_total: r.failing.length,
+        // The files its cases are in (unit 23: which files are tests is the runner's word).
+        case_files: [...new Set(r.cases.map((c) => (typeof c.id === 'string' && c.id.includes('::') ? c.id.slice(0, c.id.indexOf('::')) : null)).filter(Boolean))].sort().slice(0, 5000),
       });
       // A run that couldn't load its tests, or ran none it was asked for, fails; one that should
       // have left a report and didn't is an environment fault, whatever its exit code (P5).

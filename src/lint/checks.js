@@ -86,7 +86,7 @@ export function tableIn(doc, section) {
 
 const KINDS = ['red', 'after', 'characterization'];
 const CHANGES = ['add', 'change', 'remove', 'read'];
-const DECLARED = ['protected-path', 'dependency', 'none'];
+const DECLARED = ['protected-path', 'dependency', 'test-change', 'none'];
 // A protected path is a repo-relative path or glob; a dependency is <ecosystem>:<name>, so the
 // broker can match an install exactly (npm:left-pad, composer:guzzlehttp/guzzle).
 const REPO_PATH = /^(?![A-Za-z]:)(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\\\u0000-\u001f]+$/;
@@ -171,6 +171,7 @@ export const CHECKS = Object.freeze({
     // can select; characterization rows name a changed symbol.
     const tests = need('Test list', ['test', 'test id', 'symbol', 'ac', 'level', 'kind']);
     const covered = new Set();
+    const tddRows = [];
     for (const r of tests?.rows ?? []) {
       const where = row(r);
       const rowAcs = r.cells.ac.split(',').map((x) => x.trim()).filter(Boolean);
@@ -180,7 +181,11 @@ export const CHECKS = Object.freeze({
         covered.add(ac);
       }
       const level = r.cells.level;
-      const kind = r.cells.kind.toLowerCase();
+      // `after: <reason>` (unit 23): an after row that says why it isn't red.
+      const kindCell = r.cells.kind.trim();
+      const kind = kindCell.split(':')[0].trim().toLowerCase();
+      const kindReason = kindCell.includes(':') ? kindCell.slice(kindCell.indexOf(':') + 1).trim() : null;
+      if (kindReason !== null && (kind !== 'after' || kindReason === '')) add({ code: 'plan-test', ...where, reason: kind === 'after' ? '"after:" needs its reason' : 'only an after row takes a reason ("after: <why not red>")' });
       const noTest = /^no-test\b/i.test(level);
       if (level === '') {
         add({ code: 'plan-level', ...where, reason: 'a test row has no level', hint: 'name the lowest level that really proves the AC, or write no-test: <reason>' });
@@ -196,6 +201,7 @@ export const CHECKS = Object.freeze({
       if (kind === 'after' && value.tdd === 'first') add({ code: 'plan-test', ...where, reason: 'with tdd: first, tests come before the code, so no row is "after"' });
       if (kind === 'red' && value.tdd === 'after') add({ code: 'plan-test', ...where, reason: 'with tdd: after there is no red check, so no row is "red"', hint: 'use after' });
       const named = symbolsIn(r.raw.symbol);
+      tddRows.push({ kind, reason: kindReason, symbols: named, where });
       if (kind === 'characterization') {
         if (named.length === 0 || named.some((x) => !changesOf.get(x)?.has('change'))) {
           add({ code: 'plan-characterization', ...where, reason: 'a characterization test must name, in Symbol, a symbol the Code map marks "change"', hint: 'characterization tests cover only the existing functions or methods this ticket changes (D-45)' });
@@ -205,6 +211,21 @@ export const CHECKS = Object.freeze({
         const missing = named.filter((x) => !changesOf.has(x));
         const known = [...changesOf.keys()].slice(0, 12).join(', ');
         if (missing.length) add({ code: 'plan-test', ...where, reason: `a test row's Symbol ${missing.map((x) => `"${x.slice(0, 80)}"`).join(', ')} is not in the Code map`, hint: `name it exactly as a Code map row's Symbols do (${known || 'the Code map names none'}), or add it there` });
+      }
+    }
+    // Unit 23, `tdd: auto` (Jet's decision 3): a bug's plan has a red row, its reproduction; a
+    // symbol the Code map adds or changes, named by a test row, has a red row, or its after row
+    // says why not.
+    if (value.tdd !== 'after' && value.ticket_type === 'bug' && tests && !tddRows.some((t) => t.kind === 'red')) {
+      const h = doc.scan.headings.find((x) => x.level === 2 && x.text === 'Test list');
+      add({ code: 'plan-tdd', line: h?.line ?? 1, column: 1, reason: 'a bug\'s plan needs a red row: the test that reproduces the bug, failing before the fix', hint: 'mark the reproducing test\'s row red' });
+    }
+    if (value.tdd === 'auto') {
+      const red = new Set(tddRows.filter((t) => t.kind === 'red').flatMap((t) => t.symbols));
+      for (const t of tddRows) {
+        if (t.kind !== 'after' || t.reason) continue;
+        const logic = t.symbols.filter((x) => (changesOf.get(x)?.has('add') || changesOf.get(x)?.has('change')) && !red.has(x));
+        if (logic.length) add({ code: 'plan-tdd', ...t.where, reason: `${logic.map((x) => `"${x.slice(0, 80)}"`).join(', ')} is new or changed code with no red row`, hint: 'make the row red (a stub first, then the test fails by its check), or write after: <why not red>' });
       }
     }
     acs.forEach((ac, i) => {
@@ -227,6 +248,7 @@ export const CHECKS = Object.freeze({
       }
       if (r.cells.item === '' || r.cells.why === '') add({ code: 'plan-table', ...where, reason: 'a declared change needs its Item and its Why' });
       else if (kind === 'protected-path' && (!REPO_PATH.test(r.cells.item) || /[*?[\]{}]/.test(r.cells.item))) add({ code: 'plan-table', ...where, reason: 'a protected path is one exact file path inside the repo (no patterns: a plan names each file, unit 12)', hint: 'no *, ?, [ ] or { }, no leading /, no drive letter, no ..' });
+      else if (kind === 'test-change' && (!REPO_PATH.test(r.cells.item) || /[*?[\]{}]/.test(r.cells.item))) add({ code: 'plan-table', ...where, reason: 'a test-change is one exact test file path inside the repo (no patterns)', hint: 'name each existing test file whose lines change, with why' });
       else if (kind === 'dependency' && !DEPENDENCY.test(r.cells.item)) add({ code: 'plan-table', ...where, reason: 'a dependency is written <ecosystem>:<name>', hint: 'for example npm:left-pad or composer:guzzlehttp/guzzle' });
       if (kind === 'dependency') dependency = true;
     }

@@ -202,6 +202,8 @@ const RUN_INPUT = compileSchema(obj({
     }, ['kind', 'earlier', 'text']), 200),
     mr: obj({ url, state: { enum: ['open', 'merged', 'closed'] }, m1: { enum: ['as-is', 'edited', 'closed', 'unknown'] }, m1_why: text(300) }, ['state']),
     feedback: arr(obj({ by: { enum: ['you', 'your terminal', 'your session'] }, at: isoTime, text: text(2000) }), 50),
+    // Unit 23: the plan's rows by kind, and whether a red check confirmed red (after how many rounds).
+    tdd: obj({ red: count(1000), after: count(1000), characterization: count(1000), no_test: count(1000), confirmed: { type: 'boolean' }, rounds: count(10) }, ['red', 'after', 'characterization', 'no_test', 'confirmed']),
   }, ['ticket', 'title', 'state', 'rounds', 'steps', 'feedback']), 200),
   red_team: obj({ state: text(40), at: isoTime, claude_code: text(40), note: text(300) }, ['state']),
   inbox: arr(obj({ kind: text(40), item: id, text: text(200) }), 200),
@@ -329,6 +331,7 @@ function ticketBlock(k, { t, md, pct }) {
     return `- ${when}${t(s.text)}: ${model}, ${nums}${s.verdict ? `, ${t(s.verdict)}` : ''}${mark}`;
   });
   if (k.mr) lines.push(`- MR ${k.mr.state}${k.mr.url ? ` ${k.mr.url}` : ''}${k.mr.m1 ? `: ${M1_TEXT[k.mr.m1]}${k.mr.m1_why ? ` (${t(k.mr.m1_why)})` : ''}` : ''}`);
+  if (k.tdd) lines.push(`- Test-first: ${k.tdd.red} red, ${k.tdd.characterization} characterization, ${k.tdd.after} after${k.tdd.no_test ? `, ${k.tdd.no_test} no-test` : ''}; ${k.tdd.confirmed ? `red confirmed by MIRAI's run${k.tdd.rounds ? ` after ${k.tdd.rounds} red round(s)` : ''}` : k.tdd.red + k.tdd.characterization ? 'red not confirmed' : 'no red check'}`);
   for (const f of k.feedback) lines.push(`- Feedback from ${f.by}${f.at ? `, ${localTime(f.at)}` : ''}: ${t(f.text)}`);
   return md ? `### ${head}\n\n${lines.join('\n')}` : `${head}\n${lines.map((l) => `  ${l}`).join('\n')}`;
 }

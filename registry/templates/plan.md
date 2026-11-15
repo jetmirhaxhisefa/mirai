@@ -62,14 +62,14 @@ it in the store. mirai lint flags any line left word for word from this template
 
 ## Test list
 
-<!-- done when: every AC in acs has a row; each row names the lowest level that really proves it, the Test ID the level's runner selects (a file or a test name), and its kind: red (fails first; not with tdd: after), after (not with tdd: first), or characterization (passes at baseline; its Symbol is one the Code map marks change). Without a test, the level is no-test: <reason>, with no Test ID or kind. One row per edge case where it can be. -->
+<!-- done when: every AC in acs has a row; each row names the lowest level that really proves it, the Test ID the level's runner selects (a file or a test name), and its kind: red (fails first, by its check: a stub for each new symbol first; not with tdd: after), after (not with tdd: first; with tdd: auto, a new or changed symbol's after row reads "after: <why not red>"), or characterization (passes at baseline; its Symbol is one the Code map marks change). Without a test, the level is no-test: <reason>, with no Test ID or kind. One row per edge case where it can be. -->
 | Test | Test ID | Symbol | AC | Level | Kind |
 |---|---|---|---|---|---|
 | exampleFunction keeps today's results | `tests/example.test.js` | `exampleFunction` | AC-PMT-1.1 | unit | characterization |
 
 ## Declared changes
 
-<!-- done when: every protected path the ticket touches (one exact file path each, no patterns) and every new dependency it needs (<ecosystem>:<name>, such as npm:left-pad), each with why; or one row "none" -->
+<!-- done when: every protected path the ticket touches (one exact file path each, no patterns), every new dependency it needs (<ecosystem>:<name>, such as npm:left-pad) and every existing test file whose lines change or go (test-change, one exact path; adding new tests to a file isn't a change), each with why; or one row "none" -->
 | Kind | Item | Why |
 |---|---|---|
 | none | | |

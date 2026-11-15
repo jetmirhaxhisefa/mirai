@@ -44,3 +44,9 @@ required = true
 [frontmatter.fields.round]
 type = "integer"
 required = true
+
+# The ticket's type (unit 23): a bug's plan needs a red row, its reproduction. MIRAI writes it
+# from the ticket; plans from before unit 23 have none.
+[frontmatter.fields.ticket_type]
+type = "enum"
+values = ["story", "bug"]

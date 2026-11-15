@@ -633,6 +633,9 @@ const TEST_ADAPTER = {
         // A case named after its own file is the file's failure to load (a runner that reports a
         // file it couldn't import as one case).
         file_cases_are_load: { type: 'boolean' },
+        // A new line in a test file matching one of these skips or focuses a test (unit 23's floor
+        // guard): never a way to a pass.
+        skip_markers: REGEX_LIST,
       },
     },
   },

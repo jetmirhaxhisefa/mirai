@@ -24,6 +24,8 @@ test = ["{path}", "-t", '(?:^| ){name:regex}$']
 join = " "
 
 [classify]
+# Lines that skip or focus a test (unit 23's floor guard): a new one stops the ticket.
+skip_markers = ['\b(it|test|describe|suite|bench)\.(skip|only|todo|skipIf|runIf)\b', '\bx(it|test|describe)\s*\(', '\bf(it|describe)\s*\(']
 # Every failure is a <failure>: its type says whether it's an assertion.
 assertion_types = ['^AssertionError$']
 # Matchers that throw a plain Error (such as Testing Library's) start with "expect(".

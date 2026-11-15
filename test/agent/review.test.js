@@ -68,10 +68,12 @@ test('24a: only Rex reviews: any other agent is refused for the review step, and
 const TOKEN = `sk-ant-oat01-${'Ag3_-k'.repeat(16)}`;
 const INIT = '{"type":"system","subtype":"init","permissionMode":"dontAsk"}';
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
-const PLAN = readFileSync(join(REGISTRY_DIR, 'examples', 'plan.md'), 'utf8');
+// Unit 23: these tests aren't about test-first, so their plan's rows are `after` (one handover);
+// test/agent/tdd.test.js builds from the red rows.
+const PLAN = readFileSync(join(REGISTRY_DIR, 'examples', 'plan.md'), 'utf8').replace(/\| (characterization|red) \|$/gm, '| after: not what this test is about |');
 const CONFIG = '\n[[testing.levels]]\nname = "unit"\ncommand = ["run-tests"]\nservice = "app"\n\n[[testing.levels]]\nname = "feature"\ncommand = ["run-tests"]\nservice = "app"\n\n[compose]\nfiles = ["compose.yml"]\nenv_file = ".env.test"\n';
 const doc = (fm, body) => `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(', ')}]` : v}`).join('\n')}\n---\n${body}`;
-const ticketDoc = (risk) => doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"."', risk, size: 'M', verify: '"Rename a team on staging."', tdd: 'first' },
+const ticketDoc = (risk) => doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"."', risk, size: 'M', verify: '"Rename a team on staging."', tdd: 'auto' },
   '# Renaming a team hides its members\n\n## Acceptance criteria\n\n- AC-PMT-31.1: the members stay after a rename\n- AC-PMT-31.2: the old slug redirects\n');
 const files = (risk = 'normal') => ({ 'docs/mirai/tickets/PMT-31.md': ticketDoc(risk), 'package.json': '{\n  "name": "app",\n  "dependencies": { "express": "^4" }\n}\n', 'app/Team.php': '<?php\n// one\n// two\n' });
 const PASSED = { state: 'pass', known_failures: [], tests: { total: 3, skipped: 0 } };
