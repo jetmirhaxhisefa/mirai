@@ -35,7 +35,10 @@ export function findClaude(env = process.env) {
 export function promptFor(action) {
   switch (action.tool) {
     case 'Bash': return `Run this exact command with the Bash tool, once:\n\n${action.command}\n\n${action.then ? `Then: ${action.then}` : 'Then reply with the single word DONE.'}`;
-    case 'Read': return `Read the file ${action.path} with the Read tool.${action.then ? ` Then: ${action.then}` : ' Then reply with the single word DONE.'}`;
+    // `literal`: the path as written is what's tested (a "~/" path): the model passes it as is.
+    case 'Read': return action.literal
+      ? `Call the Read tool once, with exactly these arguments: ${JSON.stringify({ file_path: action.path })}. Pass the path exactly as written: don't expand "~", don't rewrite it as an absolute path, and use no other tool first. Then reply with the single word DONE.`
+      : `Read the file ${action.path} with the Read tool.${action.then ? ` Then: ${action.then}` : ' Then reply with the single word DONE.'}`;
     case 'Edit': return `Read the file ${action.path} with the Read tool, then use the Edit tool on that same path to replace "${action.from ?? 'original'}" with "${action.to ?? 'changed'}". Then reply with the single word DONE.`;
     case 'Write': return `Use the Write tool to create the new file ${action.path} with exactly this content: ${JSON.stringify(action.content ?? 'probe')}.${action.then ? ` Then: ${action.then}` : ' Then reply with the single word DONE.'}`;
     case 'Grep': return `Use the Grep tool to search for the pattern ${action.pattern} in the path ${action.path}. Then reply with the single word DONE.`;
@@ -113,6 +116,18 @@ export function runClaude(claude, { args, env, cwd, fdToken }, { timeoutMs = TIM
 }
 
 // Did the model make the call it was asked for, with the input exactly as written?
+// The calls a run made, for a note when it never made the requested one: each tool's name and
+// the path it named (no command, no content: a note is kept in the signed result).
+export function callsMade(toolUses, home = null) {
+  const shown = toolUses.slice(0, 6).map((u) => {
+    let p = u.input?.file_path ?? u.input?.path;
+    if (typeof p !== 'string') return u.name;
+    if (home && (p === home || p.startsWith(`${home}/`))) p = `~${p.slice(home.length)}`;
+    return `${u.name}(${p.slice(0, 80)})`;
+  });
+  return `${shown.join(', ') || 'none'}${toolUses.length > 6 ? `, and ${toolUses.length - 6} more` : ''}`;
+}
+
 export function madeTheCall(action, toolUses) {
   if (action.tool === 'none') return true;
   return toolUses.some((u) => {

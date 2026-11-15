@@ -331,7 +331,7 @@ export function agentCases(ctx) {
     {
       id: 'r-tilde-tools', fact: '13c', templates: RW, evidence: 'canary', title: 'a "~/" path for Read, onto a canary in your home folder (Grep and Glob: h-hook-direct)',
       allowTilde: true, before: () => writeFileSync(join(home, ctx.tildeName), `${c.outside}\n`),
-      action: { tool: 'Read', path: `~/${ctx.tildeName}`, samePaths: [join(home, ctx.tildeName ?? '')] },
+      action: { tool: 'Read', path: `~/${ctx.tildeName}`, literal: true, samePaths: [join(home, ctx.tildeName ?? '')] },
       check: (r) => {
         rmSync(join(home, ctx.tildeName), { force: true });
         return { pass: !r.raw.includes(c.outside), note: `canary seen: ${yes(r.raw.includes(c.outside))}` };
