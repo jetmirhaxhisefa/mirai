@@ -41,7 +41,7 @@ export default {
       const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
       const recheck = Boolean(args.values.recheck);
       // Your terminal mints it (D-14); a recheck launches nothing.
-      const r = await runBuild({ cwd: io.cwd, env: io.env, ticket, recheck, launchToken: recheck ? null : mintLaunchToken(), launchOptions, ...(io.testRun ? { testRun: io.testRun } : {}) });
+      const r = await runBuild({ cwd: io.cwd, env: io.env, ticket, recheck, launchToken: recheck ? null : mintLaunchToken(), nextToken: mintLaunchToken, launchOptions, ...(io.testRun ? { testRun: io.testRun } : {}) });
       if (r.warn) io.stdout.write(`note: ${plain(r.warn)}\n`);
       if (r.tookOver) io.stdout.write(`note: ${plain(r.tookOver)}\n`);
       io.stdout.write(`branch: ${r.branch}\n`);

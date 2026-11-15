@@ -21,6 +21,8 @@ file = ["{path}"]
 test = ["--filter", '/::{name:regex}(?: with data set .*)?$/', "{path}"]
 
 [classify]
+# Lines that skip a test (unit 23's floor guard): a new one stops the ticket.
+skip_markers = ['markTestSkipped\s*\(', 'markTestIncomplete\s*\(', '@group\s+(skip|incomplete)', '#\[\s*Group\s*\(\s*.(skip|incomplete)']
 # A file that doesn't parse stops the whole run: exit 255, this line, an empty report. Exit 255
 # without the line (a missing autoloader, a memory fatal) isn't a load failure, so it's left to
 # the report: none, and it's an environment fault.

@@ -76,6 +76,24 @@ fix rounds (21c); the loop guard's rounds (20); the signed gate proof (25a).
   stub, the red handover, the locked tests, the declared test change.
 - **From your session and at night:** the same flow; nothing in it needs you except the stops.
 
+## Settled while building (2026-11-15; say if you want them otherwise)
+
+- **"Only grows", not "untouched":** decision 2 as written would stop SAMPLE-5's own build, which
+  added its tests to the existing `TaskApiTest.php`. So an existing test file may get **new lines**
+  (new tests, an import); a **removed or changed** line is what needs the declared `test-change`.
+  The red lock is the same rule from the red commit on, with no declaration that lifts it. What it
+  can't catch: a new line that weakens a test without a marker (an early `return`); Rex reads the
+  whole diff, and so do you in `review-mr`.
+- **Kai's instructions, not a separate skill:** the red handover, the stub, the lock and
+  `test-change` are in Kai's agent definition (`mirai-developer.md`), which every build launch
+  loads. A `mirai-tdd` skill would add a file to the launch bundle that S3 and the red team check,
+  for no gain: Kai would still need the prompt to say which half he's in.
+- **Which files are tests:** the runner's word: a file that holds a case in MIRAI's own run of a
+  level (`case_files` on each test result), and the red rows' Test ID files.
+- **The plan's frontmatter gains `ticket_type`** (`story` or `bug`, written by MIRAI from the
+  ticket), so the lint knows a bug's plan; plans from before have none, and it isn't in the
+  approval hash, so no approval changes.
+
 ## Scope
 
 **In.**

@@ -28,6 +28,8 @@ test = ['{path:regex}$', "-g", '(?:^| ){name:regex}$']
 join = " "
 
 [classify]
+# Lines that skip or focus a test (unit 23's floor guard): a new one stops the ticket.
+skip_markers = ['\btest\.(skip|only|fixme|fail)\b', '\btest\.describe\.(skip|only|fixme)\b']
 # An expect() that fails is a <failure>, a throw or a timeout an <error>: the defaults.
 # A file that doesn't load stops the run before any test (exit 1, an empty report): its error
 # is printed at the start of a line. "No tests found." alone is a name or file that matched

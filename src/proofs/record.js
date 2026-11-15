@@ -76,6 +76,16 @@ function usedRounds(store, ticket, kind) {
   return entries.map((e) => PROOF_NAME.exec(e.path.split('/').pop())).filter((m) => m && m[1] === kind).map((m) => Number(m[2]));
 }
 
+// The build record's test-first facts for a proof (unit 23): null for a build from before it.
+export function tddEvidence(last) {
+  if (!last?.tdd) return null;
+  const red = last.red ?? null;
+  return {
+    rows: last.tdd.rows ?? null,
+    red: red ? { commit: red.commit ?? null, rounds: red.rounds ?? 0, rows: (red.rows ?? []).map((r) => ({ test: r.id, kind: r.kind, verdict: r.verdict, message: r.message ?? null })) } : null,
+  };
+}
+
 export async function recordProofs({ cwd, env, ticket, unattended = false, run = runTest, signal = null, onCheck = null, now = () => new Date() }) {
   const store = openStore({ cwd, env });
   const status = readTicketStatus(store, ticket)?.status ?? null;
@@ -198,6 +208,9 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
       known_failures: Object.fromEntries(tests.runs.map((x) => [x.name, (knownFailures(baseline, x.name) ?? []).map(({ id, scope, kind }) => ({ id: id ?? null, scope, kind: kind ?? null }))])),
     },
     diff_coverage: diffCoverage,
+    // Unit 23: test-first, as MIRAI saw it: the plan's rows by kind, and the red check's evidence
+    // (each row's verdict and assertion message, the red commit) when the build had one.
+    tdd: tddEvidence(last),
   };
   const written = [];
   const files = [];

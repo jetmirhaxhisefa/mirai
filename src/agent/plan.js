@@ -129,8 +129,8 @@ export function declaredChanges(text) {
 
 // The frontmatter MIRAI gives a plan: the ticket's fields, never the agent's. `risk` is high when
 // the ticket is, or when the plan declares a new dependency (design/01 §6).
-export function planFrontmatter({ ticket, acs, risk, tdd, tests, round }) {
-  return ['---', `id: ${ticket}-plan`, 'type: plan', 'template: plan@v1', `ticket: ${ticket}`, `acs: [${acs.join(', ')}]`, `risk: ${risk}`, `tdd: ${tdd}`, `tests: ${tests}`, `round: ${round}`, '---', ''].join('\n');
+export function planFrontmatter({ ticket, acs, risk, tdd, tests, round, ticketType = null }) {
+  return ['---', `id: ${ticket}-plan`, 'type: plan', 'template: plan@v1', `ticket: ${ticket}`, `acs: [${acs.join(', ')}]`, `risk: ${risk}`, `tdd: ${tdd}`, `tests: ${tests}`, `round: ${round}`, ...(ticketType ? [`ticket_type: ${ticketType}`] : []), '---', ''].join('\n');
 }
 
 // The plan with MIRAI's frontmatter in place of whatever the agent wrote there: the approved
@@ -163,6 +163,8 @@ export function gateFor({ preset, text }) {
   const rows = declaredChanges(text);
   if (rows.some((r) => r.kind === 'protected-path')) required.push('it declares protected paths');
   if (rows.some((r) => r.kind === 'dependency')) required.push('it declares new dependencies');
+  // Unit 23 (decision 2): changing an existing test is always yours to see.
+  if (rows.some((r) => r.kind === 'test-change')) required.push('it changes existing tests');
   const byPreset = PRESETS[preset]?.plan ?? 'human';
   const why = [...(byPreset === 'human' ? [`the ${preset} preset`] : []), ...required];
   return { gate: why.length ? 'human' : 'auto', required: required.length > 0, why };
@@ -248,6 +250,8 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
       // Every plan you rejected and the orchestrator's re-plan (the loop counters', L4) count apart,
       // so a later plan is never an earlier round. A plan cut short isn't a round.
       round: 1 + record.rejections + readLoop(store, ticket).replans_used,
+      // Unit 23: a bug's plan needs a red row (the lint's tdd rule).
+      ticketType: fm.type === 'bug' ? 'bug' : 'story',
     };
     if (fields.acs.length === 0) throw fail(`${ticket} has no acceptance criteria (AC-${ticket}.n) on the integration branch`, 'no-acs');
     const result = { ticket, outcome: null, problems: [], gate: null, launches: [], path: planPath(store, ticket), why: null, warn: usage.warn ?? null, tookOver, inputs: given.index };

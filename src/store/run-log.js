@@ -116,6 +116,16 @@ export const RUN_EVENTS = Object.freeze({
     outcome: { type: 'enum', values: ['fixed', 'disputed', 'false'] },
   },
   template_gap: { template: text, section: text, message: text },
+  // Unit 23's red check, after Kai's red handover: each red or characterization row's verdict
+  // (its message stays in the build record).
+  red_check: {
+    round: count,
+    verdict: { type: 'enum', values: ['ok', 'fail', 'unknown'] },
+    rows: {
+      type: 'array',
+      items: { type: 'table', fields: { test: text, kind: { type: 'enum', values: ['red', 'characterization'] }, verdict: { type: 'enum', values: ['ok', 'passes', 'wrong-reason', 'fails', 'unknown'] } }, required: ['test', 'kind', 'verdict'] },
+    },
+  },
   // Your authoring session's run id (unit 19c): its start, with the skill, and its end.
   session_started: { skill: { type: 'string', pattern: /^[a-z][a-z0-9-]{0,63}$/, patternHint: 'a skill name' } },
   session_ended: { note: { type: 'string', pattern: /^[^\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]{1,500}$/, patternHint: 'one line' } },
@@ -125,7 +135,7 @@ export const RUN_EVENTS = Object.freeze({
 const OPTIONAL = {
   finding: ['symbol', 'line', 'basis_ref', 'downgraded'],
   session_ended: ['note'],
-  // What tdd resolved to is unit 23's to record (its red check); until then MIRAI can't tell.
+  // What tdd resolved to (unit 23): first when a red check confirmed the plan's red rows.
   checks: ['tdd_applied'],
   agent_run: ['tool_calls', 'rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'agent', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
 };

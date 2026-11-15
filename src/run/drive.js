@@ -132,7 +132,7 @@ async function runStep(step, { cwd, env, ticket, run, launchOptions, steps }) {
   const common = { cwd, env, ticket, run, launchOptions };
   switch (step) {
     case 'plan': return await steps.runPlan({ ...common, launchTokens: [mintLaunchToken(), mintLaunchToken()] });
-    case 'build': return await steps.runBuild({ ...common, launchToken: mintLaunchToken() });
+    case 'build': return await steps.runBuild({ ...common, launchToken: mintLaunchToken(), nextToken: mintLaunchToken });
     case 'fix': return await steps.runFix({ ...common, nextToken: mintLaunchToken });
     case 'review': return await steps.runReview({ ...common, launchToken: mintLaunchToken(), nextToken: mintLaunchToken });
     case 'proofs': return await steps.recordProofs({ cwd, env, ticket, signal: launchOptions.signal ?? null, onCheck: launchOptions.onCheck ?? null });

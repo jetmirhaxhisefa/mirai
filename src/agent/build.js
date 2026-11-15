@@ -38,6 +38,8 @@ import { AGENT, AGENT_LABEL, declaredChanges, LAUNCH_OPTIONS, planApproval, tick
 import { checkLaunchToken } from './requests.js';
 import { inRun, launchInRun, preGate } from './run.js';
 import { checkNothingHidden } from './scope.js';
+import { trustedAdapters } from '../tests/adapters.js';
+import { floorGuard, markersOf, MAX_RED_ROUNDS, redCheck, redProblems, redRows, rowCounts, tddOf, testFilesOf, testRows } from './tdd.js';
 
 // The build step (unit 21b; design/01 §7, R-M4, R3-C2, R3-M2). Kai, as author, works from the plan
 // you approved, on the ticket's own branch, and runs the tests and checks itself through MIRAI's
@@ -49,10 +51,10 @@ import { checkNothingHidden } from './scope.js';
 export const BUILD_ROLE = 'author';
 export const BUILD_MAX_TURNS = 150;
 export const BUILD_TIMEOUT_MS = 60 * 60_000;
-export const HANDOVER_SCHEMA = Object.freeze({
+const handoverSchema = (statuses) => Object.freeze({
   type: 'object',
   properties: {
-    status: { type: 'string', enum: ['done', 'blocked'] },
+    status: { type: 'string', enum: statuses },
     summary: { type: 'string', description: 'what you changed, file by file, in a few lines' },
     tests_run: { type: 'array', items: { type: 'string' }, description: 'the test levels or files you ran, with their results' },
     checks_run: { type: 'array', items: { type: 'string' }, description: 'the named checks you ran, with their results' },
@@ -61,16 +63,19 @@ export const HANDOVER_SCHEMA = Object.freeze({
   required: ['status', 'summary'],
   additionalProperties: false,
 });
+export const HANDOVER_SCHEMA = handoverSchema(['done', 'blocked']);
+// Unit 23's red handover: the tests and the stubs, no implementation.
+export const RED_HANDOVER_SCHEMA = handoverSchema(['red', 'blocked']);
 
 const fail = (message, code, exit = EXIT.BLOCKED, hint) => Object.assign(new MiraiError(message, exit), { code, hint });
 const text = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').slice(0, max) : null);
 
 // The handover from the run's structured output, or { problem }. A file the agent wrote is never it.
-export function handoverFrom(structured) {
+export function handoverFrom(structured, { statuses = ['done', 'blocked'] } = {}) {
   const s = structured;
   if (s === null || typeof s !== 'object' || Array.isArray(s)) return { problem: 'the run\'s structured output has no handover' };
   if (Object.keys(s).some((k) => !Object.hasOwn(HANDOVER_SCHEMA.properties, k))) return { problem: 'the handover has fields MIRAI doesn\'t take' };
-  if (!['done', 'blocked'].includes(s.status) || typeof s.summary !== 'string') return { problem: 'the handover needs a status (done or blocked) and a summary' };
+  if (!statuses.includes(s.status) || typeof s.summary !== 'string') return { problem: `the handover needs a status (${statuses.join(' or ')}) and a summary` };
   const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 50).map((x) => text(x, 300)) : []);
   return { status: s.status, summary: text(s.summary, 4000), tests_run: list(s.tests_run), checks_run: list(s.checks_run), blocked_reason: text(s.blocked_reason, 1000) };
 }
@@ -80,6 +85,33 @@ export function buildPrompt({ ticket, branch }) {
     `Your step: build. The ticket: ${ticket}. You're on its branch, ${branch}.`,
     'The input folder holds plan.md (the plan the human approved: your only source of truth), ticket.md and index.json.',
     'Follow the plan\'s tasks and test list. Write tests the way this project already does. Change nothing the plan doesn\'t name, add no dependency it doesn\'t declare, and never commit.',
+    'Before you hand over, run the tests with mcp__mirai__run_tests and the named checks with mcp__mirai__run_check, and fix what fails.',
+    'Hand over with your structured output: status done, or blocked with the reason when you can\'t go on without guessing.',
+  ].join('\n');
+}
+
+// Unit 23: the red handover, a red round's, and the green resume after it.
+export function redPrompt({ ticket, branch }) {
+  return [
+    `Your step: build, its red half. The ticket: ${ticket}. You're on its branch, ${branch}.`,
+    'The input folder holds plan.md (the plan the human approved: your only source of truth), ticket.md and index.json.',
+    'Write the tests the plan\'s test list names (its red and characterization rows; after rows come later), the way this project already writes tests. For each new symbol they call, add a stub that compiles and returns a wrong value, so each red test fails by its check, not by an error. Write no implementation yet.',
+    'Run them with mcp__mirai__run_tests: red rows must fail by an assertion, characterization rows must pass. Change nothing else, add no dependency, and never commit.',
+    'Hand over with your structured output: status red, or blocked with the reason. MIRAI then runs them itself and, when it confirms red, sends you on to green.',
+  ].join('\n');
+}
+export function redRoundPrompt({ ticket, round }) {
+  return [
+    `Your step: build, red again (red round ${round}). The ticket: ${ticket}.`,
+    'MIRAI ran the red and characterization tests itself, and red.json in the input folder lists the rows that aren\'t right yet, with why.',
+    'Fix exactly those: a test that passes already doesn\'t test the new behaviour; one that fails with an error or a load failure needs its stub (a wrong value, not a missing symbol); a characterization test must pass on today\'s code. Still no implementation.',
+    'Hand over again with status red, or blocked with the reason.',
+  ].join('\n');
+}
+export function greenPrompt({ ticket }) {
+  return [
+    `Your step: build, its green half. The ticket: ${ticket}. MIRAI confirmed red: each red test fails by its check.`,
+    'Now write the implementation the plan\'s tasks name, and the after rows\' tests. The tests from your red handover are locked: don\'t change them (only a new plan unlocks them), and add no skip or focus marker anywhere.',
     'Before you hand over, run the tests with mcp__mirai__run_tests and the named checks with mcp__mirai__run_check, and fix what fails.',
     'Hand over with your structured output: status done, or blocked with the reason when you can\'t go on without guessing.',
   ].join('\n');
@@ -125,7 +157,7 @@ export async function testsAfter({ cwd, env, store, trust, config, keys, base, r
     const isNew = new Set(judged.fresh ?? []);
     const failing = Array.isArray(result.failing) ? [...result.failing].sort((a, b) => Number(isNew.has(b.id ?? b.name)) - Number(isNew.has(a.id ?? a.name))).slice(0, 50).map((f) => ({ id: f.id ?? null, ...(f.name ? { name: f.name } : {}), kind: f.kind ?? null, message: typeof f.message === 'string' ? f.message.slice(0, 500) : null })) : [];
     const tail = typeof result.output?.tail === 'string' ? result.output.tail.slice(-4000) : null;
-    runs.push({ name, outcome: result.outcome, id: result.id ?? null, tests: now ?? null, ...judged, ...(judged.verdict === 'fail' ? { failing, output_tail: tail } : {}) });
+    runs.push({ name, outcome: result.outcome, id: result.id ?? null, tests: now ?? null, case_files: Array.isArray(result.case_files) ? result.case_files : [], ...judged, ...(judged.verdict === 'fail' ? { failing, output_tail: tail } : {}) });
     told({ kind: 'check', name, state: judged.verdict === 'fail' ? `fail (${(judged.fresh ?? []).length} new)` : judged.verdict === 'pass' && result.outcome === 'fail' ? 'pass, only known failures' : judged.verdict === 'unknown' ? `unknown${judged.why ? `: ${String(judged.why).slice(0, 80)}` : ''}` : judged.verdict, seconds: (Date.now() - startedAt) / 1000 });
   }
   const incomplete = baseline && baseline.complete === false;
@@ -153,6 +185,16 @@ export function treeFingerprint(root, env, changes, ignored = {}) {
   }
   for (const k of Object.keys(ignored).sort()) h.update(`ignored ${k}\0${ignored[k]}\n`);
   return h.digest('hex');
+}
+
+// The levels' adapters for their skip markers; none when a project adapter doesn't load (the test
+// run then refuses on its own).
+function safeAdapters(trust) {
+  try {
+    return trustedAdapters(trust);
+  } catch {
+    return {};
+  }
 }
 
 // The paths the plan's code map says are removed.
@@ -184,7 +226,9 @@ export function observe({ store, base, rules, ignoredBefore }) {
 
 // `stepBase`: the step's checkpoint, what its changes are measured from; `branchBase`: the commit the
 // branch started from, whose baseline judges the test run.
-async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck = null, seen = null }) {
+// Unit 23: `stage` 'red' runs the red check (`rows`) in place of the test run; else `red`, the
+// confirmed red's { commit, files }, locks those tests. The floor guard runs either way.
+async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck = null, seen = null, stage = null, rows = [], red = null }) {
   const declared = declaredChanges(plan);
   const observed = seen ?? observe({ store, base: stepBase, rules, ignoredBefore });
   const { fingerprint } = observed;
@@ -233,6 +277,26 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
   if (deps.unchecked.length) stops.push(`a manifest MIRAI has no dependency data for changed, so its dependencies weren't checked: ${deps.unchecked.slice(0, 10).join(', ')}`);
   if (deleted.length) stops.push(`it deleted files the plan's code map doesn't remove: ${deleted.slice(0, 10).join(', ')}`);
   if (stops.length) return { ...base, outcome: 'needs-you', why: stops.join('; ') };
+  const markers = markersOf(config, safeAdapters(trust));
+  const testChanges = declared.filter((d) => d.kind === 'test-change').map((d) => d.item);
+  const guard = (testFiles) => floorGuard({ root: store.checkout, env: store.gitEnv, base: branchBase, red, testFiles, declared: testChanges, markers });
+  if (stage === 'red') {
+    let baseline = null;
+    try {
+      baseline = readBaseline(store, branchBase, { keys });
+    } catch (err) {
+      if (err.code !== 'baseline-invalid') throw err;
+      return { ...base, outcome: 'needs-you', why: `${err.message}: it may have been changed; record it again (mirai baseline --force)` };
+    }
+    const known = (level) => new Set((knownFailures(baseline, level) ?? []).filter((k) => k.scope === 'test' && typeof k.id === 'string').map((k) => k.id));
+    const check = await redCheck({ rows, run: testRun ?? runTest, cwd, env, store, trust, known, signal, onCheck });
+    const floor = guard(check.files);
+    if (floor.length) return { ...base, red_check: check, floor, outcome: 'needs-you', why: floor.map((f) => `${f.path}: ${f.why}`).join('; ') };
+    base.safe = true;
+    if (check.verdict === 'ok') return { ...base, red_check: check, outcome: 'red-confirmed' };
+    if (check.verdict === 'unknown') return { ...base, red_check: check, outcome: 'needs-you', why: `the red check couldn't judge every row: ${redProblems(check).map((p) => `${p.test}: ${p.problem}`).join('; ')}` };
+    return { ...base, red_check: check, outcome: 'red-failed', why: redProblems(check).map((p) => `${p.test}: ${p.problem}`).join('; ') };
+  }
   let t;
   try {
     t = await tests({ cwd, env, store, trust, config, keys, base: branchBase, signal, onCheck, ...(testRun ? { run: testRun } : {}) });
@@ -240,6 +304,10 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
     if (err.code !== 'baseline-invalid') throw err;
     return { ...base, outcome: 'needs-you', why: `${err.message}: it may have been changed; record it again (mirai baseline --force)` };
   }
+  // The floor guard (unit 23) on the test files MIRAI's own run saw: an existing test only grows,
+  // a locked red test doesn't change, no new skip or focus marker. A stop is yours, not committed.
+  const floor = guard([...testFilesOf(t.runs)]);
+  if (floor.length) return { ...base, tests: t, floor, outcome: 'needs-you', why: floor.map((f) => `${f.path}: ${f.why}`).join('; ') };
   // Past every safety check: what's left is the test run's word (unit 22 commits from here on).
   base.safe = true;
   if (t.verdict === 'fail') return { ...base, tests: t, outcome: 'checks-failed', why: t.runs.filter((x) => x.verdict === 'fail').map((x) => `${x.name}: ${x.why}`).join('; ') };
@@ -346,7 +414,7 @@ export function preflight({ cwd, env, store, ticket, unattended, state = 'in-pro
 // `parked`, or the launch's own (agent-failed, refused, env-fault, usage-limit, killed).
 // With `recheck`, no launch: MIRAI's checks again, on exactly the tree the last build left (its
 // fingerprint in build.json), after you fixed what stopped it outside the tree (a baseline, Docker).
-export async function runBuild({ cwd, env, ticket, launchToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, now = () => new Date() }) {
+export async function runBuild({ cwd, env, ticket, launchToken = null, nextToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, now = () => new Date() }) {
   if (!recheck) checkLaunchToken(launchToken);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   // The first sign of life (unit 21e), before MIRAI's own checks.
@@ -382,32 +450,82 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
     const result = { ticket, branch, outcome: null, why: null, handover: null, launch: null, protectedPaths: null, dependencies: null, tests: null, warn: usage.warn ?? null, tookOver };
     let endState = 'stopped';
     try {
-      // A build session isn't a round (unit 20): a fix after handover is (21c).
-      const guard = beforeLaunch(store, ticket, { round: false, risk });
-      if (!guard.go) return { ...result, outcome: 'parked', why: guard.park.why ?? guard.park.reason };
-      let r;
-      try {
-        r = await launch({
-          ...watch, cwd, env, store, runId, startRun: !outer, ownsRun: false, launchToken, agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
-          prompt: buildPrompt({ ticket, branch }), item: ticket, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs: given.inputs, jsonSchema: HANDOVER_SCHEMA, now,
-          // Kept for a fix round to resume (unit 21c); a new build starts a new session.
-          session: { keep: true },
-        });
-      } catch (err) {
-        settleLaunch(store, ticket, { launch: guard.launch, outcome: 'refused', refundable: true });
-        throw err;
+      // Unit 23: the plan's red and characterization rows (none with tdd: after) make the build two
+      // handovers in one session, red then green, with MIRAI's red check between them.
+      const reds = redRows(testRows(plan), tddOf(fm, config));
+      if (reds.length && typeof nextToken !== 'function') throw fail('a test-first build needs a token for each of its launches', 'no-launch-token', EXIT.BLOCKED);
+      const planHash = contentHash(Buffer.from(plan));
+      let base = stepBase;
+      let resumeFrom = null;
+      let red = null;
+      // One launch of Kai's, a build session (not a round, unit 20), resuming the last one when
+      // there is one; its checkpoint, record and MIRAI's checks after it.
+      const kai = async ({ token, prompt, schema, inputs, step, stage, what }) => {
+        const guard = beforeLaunch(store, ticket, { round: false, risk });
+        if (!guard.go) return { parked: guard.park.why ?? guard.park.reason };
+        let r;
+        try {
+          r = await launch({
+            ...watch, cwd, env, store, runId, startRun: !outer && resumeFrom === null && base === stepBase, ownsRun: false, launchToken: token, agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
+            prompt, item: ticket, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs, jsonSchema: schema, now,
+            // Kept for the next half or a fix round to resume (units 21c, 23); a new build starts a new session.
+            session: { keep: true, ...(resumeFrom ? { resumeFrom } : {}) },
+          });
+        } catch (err) {
+          settleLaunch(store, ticket, { launch: guard.launch, outcome: 'refused', refundable: true });
+          throw err;
+        }
+        settleLaunch(store, ticket, { launch: guard.launch, outcome: r.outcome, refundable: r.refundable, line: r.line });
+        addCheckpoint(store, ticket, { step, sha: base, creationSha: prep.creationSha, now });
+        result.launch = { id: r.launchId, outcome: r.outcome, why: r.why, line: r.line };
+        const record = (extra) => keepBuild(store, ticket, { branch, head: commitOf(store.checkout, 'HEAD', store.gitEnv), base: branchBase, step_base: base, creation_sha: prep.creationSha, launch: r.launchId, plan_sha256: planHash, at: now().toISOString(), ignored_before: ignoredBefore, tdd: { rows: rowCounts(testRows(plan)), red }, red, ...extra });
+        const checking = checkBeat({ store, runId, ticket, step: 'build', onCheck: watch.onCheck ?? null });
+        try {
+          const after = await afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase: base, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, onCheck: checking.onCheck, record, what, stage, rows: reds, red });
+          return { r, after };
+        } finally {
+          checking.stop();
+        }
+      };
+      if (reds.length) {
+        let problems = [];
+        let lastWhy = null;
+        for (let attempt = 0; attempt <= MAX_RED_ROUNDS && !red; attempt++) {
+          const k = await kai({
+            token: attempt === 0 ? launchToken : nextToken(),
+            prompt: attempt === 0 ? redPrompt({ ticket, branch }) : redRoundPrompt({ ticket, round: attempt }),
+            schema: RED_HANDOVER_SCHEMA,
+            inputs: attempt === 0 ? given.inputs : { ...given.inputs, 'red.json': `${JSON.stringify({ round: attempt, rows: problems }, null, 2)}\n` },
+            step: attempt === 0 ? 'build-red' : `build-red-${attempt}`, stage: 'red',
+            what: attempt === 0 ? 'red: the tests and stubs, before the code' : `red round ${attempt}`,
+          });
+          if (k.parked) return { ...result, outcome: 'parked', why: k.parked };
+          writeRedCheck(store, runId, ticket, attempt, k.after.red_check);
+          resumeFrom = k.r.launchId;
+          if (k.after.outcome === 'red-confirmed') {
+            red = { commit: k.after.commit, files: k.after.red_check.files, rows: k.after.red_check.rows, rounds: attempt };
+            base = k.after.commit;
+            break;
+          }
+          if (k.after.outcome !== 'red-failed') return { ...result, ...k.after };
+          problems = redProblems(k.after.red_check);
+          lastWhy = k.after.why;
+          base = k.after.commit ?? base;
+        }
+        if (!red) {
+          const why = `the red check failed ${MAX_RED_ROUNDS + 1} times; the plan's tests may not fit the code: ${lastWhy}`;
+          keepBuild(store, ticket, { ...JSON.parse(String(readPrivateFile(buildRecordPath(store, ticket), { maxBytes: 4 * 1024 * 1024 }))), outcome: 'needs-you', why });
+          return { ...result, outcome: 'needs-you', why };
+        }
       }
-      settleLaunch(store, ticket, { launch: guard.launch, outcome: r.outcome, refundable: r.refundable, line: r.line });
-      addCheckpoint(store, ticket, { step: 'build', sha: stepBase, creationSha: prep.creationSha, now });
-      result.launch = { id: r.launchId, outcome: r.outcome, why: r.why, line: r.line };
-      const record = (extra) => keepBuild(store, ticket, { branch, head: commitOf(store.checkout, 'HEAD', store.gitEnv), base: branchBase, step_base: stepBase, creation_sha: prep.creationSha, launch: r.launchId, plan_sha256: contentHash(Buffer.from(plan)), at: now().toISOString(), ignored_before: ignoredBefore, ...extra });
-      const checking = checkBeat({ store, runId, ticket, step: 'build', onCheck: watch.onCheck ?? null });
-      let after;
-      try {
-        after = await afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, onCheck: checking.onCheck, record, what: 'build from the approved plan' });
-      } finally {
-        checking.stop();
-      }
+      const k = await kai({
+        token: red ? nextToken() : launchToken,
+        prompt: red ? greenPrompt({ ticket }) : buildPrompt({ ticket, branch }),
+        schema: HANDOVER_SCHEMA, inputs: given.inputs, step: 'build', stage: null,
+        what: red ? 'green: the code, from the approved plan' : 'build from the approved plan',
+      });
+      if (k.parked) return { ...result, outcome: 'parked', why: k.parked };
+      const after = { ...k.after, ...(red ? { red } : {}) };
       if (after.outcome === 'handed-over') endState = 'finished';
       return { ...result, ...after };
     } finally {
@@ -420,12 +538,12 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
 // After a build's or a fix round's launch (units 21b, 21c, 22): the handover, MIRAI's checks, its
 // commit when the safety checks pass, the run log's checks line, the record, and the ticket's state.
 // Returns the result's fields: { outcome, why, handover, commit, protectedPaths, dependencies, tests }.
-export async function afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck = null, record, what }) {
+export async function afterLaunch({ r, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck = null, record, what, stage = null, rows = [], red = null }) {
   if (r.outcome !== 'ok') {
     record({ outcome: r.outcome, why: r.why });
     return { outcome: r.outcome, why: r.why };
   }
-  const handover = handoverFrom(r.structured);
+  const handover = handoverFrom(r.structured, { statuses: stage === 'red' ? ['red', 'blocked'] : ['done', 'blocked'] });
   if (handover.problem) {
     record({ outcome: 'agent-failed', why: handover.problem });
     return { outcome: 'agent-failed', why: handover.problem };
@@ -437,7 +555,7 @@ export async function afterLaunch({ r, cwd, env, store, runId, trust, config, re
   }
   let checked;
   try {
-    checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck });
+    checked = await checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck, stage, rows, red });
     // Past the safety checks, whatever the tests said: MIRAI commits what Kai produced, so the
     // next step starts from a clean tree (unit 22, open point 3). A safety stop never is.
     if (checked.safe) {
@@ -465,10 +583,16 @@ export async function afterLaunch({ r, cwd, env, store, runId, trust, config, re
     record({ outcome: 'error', why: String(err.message).slice(0, 500), handover, fingerprint });
     throw err;
   }
-  if (checked.tests) writeChecks(store, runId, ticket, { fm, t: checked.tests });
-  record({ outcome: checked.outcome, why: checked.why ?? null, handover, commit: checked.commit ?? null, checked_fingerprint: checked.checked_fingerprint ?? null, fingerprint: checked.fingerprint, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests });
+  if (checked.tests) writeChecks(store, runId, ticket, { fm, t: checked.tests, red });
+  record({ outcome: checked.outcome, why: checked.why ?? null, handover, commit: checked.commit ?? null, checked_fingerprint: checked.checked_fingerprint ?? null, fingerprint: checked.fingerprint, protectedPaths: checked.protectedPaths, dependencies: checked.dependencies, tests: checked.tests, ...(checked.red_check ? { red_check: checked.red_check } : {}), ...(checked.floor ? { floor: checked.floor } : {}) });
   settleTicket(store, ticket, checked);
   return { ...checked, handover, park: undefined, fingerprint: undefined, checked_fingerprint: undefined, safe: undefined };
+}
+
+// The run log's line for a red check (unit 23).
+function writeRedCheck(store, runId, ticket, round, check) {
+  if (!runId || !check) return;
+  withSeq(store, ({ take, runLine }) => runLine(runId, take(), { item: ticket, event: 'red_check', round, verdict: check.verdict, rows: check.rows.map((x) => ({ test: x.id, kind: x.kind, verdict: x.verdict })) }));
 }
 
 // `mirai build <ticket> --recheck`: no agent. The tree must be exactly what the last build left:
@@ -514,10 +638,10 @@ async function recheckBuild({ cwd, env, store, runId, fm = {}, ticket, keys, pla
 }
 
 // The run log's checks line (05b): MIRAI's own run, one result per level and check.
-function writeChecks(store, runId, ticket, { fm, t }) {
+function writeChecks(store, runId, ticket, { fm, t, red = null }) {
   const sum = (k) => t.runs.reduce((n, r) => n + (Number.isSafeInteger(r.tests?.[k]) ? r.tests[k] : 0), 0);
   const line = {
-    item: ticket, event: 'checks', tdd: ['auto', 'first', 'after'].includes(fm.tdd) ? fm.tdd : 'auto', tests_policy: fm.tests === 'optional' ? 'optional' : 'required',
+    item: ticket, event: 'checks', tdd: ['auto', 'first', 'after'].includes(fm.tdd) ? fm.tdd : 'auto', tdd_applied: red?.commit ? 'first' : 'after', tests_policy: fm.tests === 'optional' ? 'optional' : 'required',
     tests: { passed: sum('passed'), failed: sum('failed') + sum('errors'), skipped: sum('skipped') },
     named: t.runs.map((r) => ({ name: r.name, result: r.verdict })),
   };

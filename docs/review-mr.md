@@ -23,6 +23,7 @@ Diff       +41 −0 in 1 file (mirai review-mr SAMPLE-4 --diff for all of it)
 
 - **Files:** each changed code file (over `gate.code_paths`) with its row in the plan's Code map. A file the plan doesn't name, or one it only reads, is flagged.
 - **Tests:** the build's levels and checks, and the baseline's known failures.
+- **Test-first** (unit 23, [tdd.md](tdd.md)): the plan's rows by kind (red, characterization, after), the red commit MIRAI confirmed, and each red row's assertion message from its red check; and each existing test the plan declares it changes (`test-change`), whose diff `--diff` shows.
 - **Review:** Rex's last review, its model and minutes, and the files it read (while its launch is among the last 50 MIRAI keeps); a review that read only its input says so. Code changed after the review is named.
 - **The head:** the MR's head on the host. When it isn't what MIRAI pushed, someone pushed after MIRAI, and the packet says so.
 - **CI:** the host's checks on the head (GitHub's check runs and statuses, GitLab's pipeline): none, pending, passed or failed.

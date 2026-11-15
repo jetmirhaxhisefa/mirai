@@ -16,7 +16,7 @@ The next step is read from the ticket every time, never remembered. So running `
 |---|---|
 | `ready-for-dev` (also after a rejected plan or a re-plan) | plans, then stops at the plan gate |
 | `in-progress`, its plan waiting for you | stops: `mirai approve <ticket> --plan` |
-| `in-progress`, plan approved, no build yet | records the baseline if `main` moved, then builds |
+| `in-progress`, plan approved, no build yet | records the baseline if `main` moved, then builds (with red rows: red, MIRAI's red check, then green; see [tdd.md](tdd.md)) |
 | `in-progress` after failing checks or review changes | fix rounds |
 | `in-review`, no passed review of this code | Rex reviews |
 | `in-review`, review passed | signs the proofs (your terminal), or stops (your session) |

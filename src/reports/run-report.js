@@ -11,6 +11,7 @@ import { atomicWrite, checkPrivateDir, ensurePrivateDir, readPrivateFile } from 
 import { openStore } from '../store/home.js';
 import { allTicketFacts, readJournal } from '../store/journal.js';
 import { readRunLog, runIds } from '../store/run-log.js';
+import { buildRecordPath } from '../agent/build.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
 import { classifyTicket } from './m1.js';
 import { renderRunReport } from './render.js';
@@ -125,10 +126,19 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
     }
     const feedback = events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : e.by === 'script' ? 'your terminal' : 'your session', ...(iso(e.ts) ? { at: e.ts } : {}), text: e.text }));
     const title = page?.title ?? '(no title)';
+    // Unit 23's facts from the build record, when the build had them.
+    let tdd = null;
+    try {
+      const b = JSON.parse(String(readPrivateFile(buildRecordPath(store, ticket), { maxBytes: 4 * 1024 * 1024, optional: true }) ?? 'null'));
+      const rows = b?.tdd?.rows;
+      if (rows) tdd = { red: rows.red ?? 0, after: rows.after ?? 0, characterization: rows.characterization ?? 0, no_test: rows.no_test ?? 0, confirmed: Boolean(b.red?.commit), ...(b.red ? { rounds: Math.min(10, b.red.rounds ?? 0) } : {}) };
+    } catch {
+      tdd = null;
+    }
     tickets.push({
       ticket, title, state: page?.state ?? 'unknown', ...(page?.risk ? { risk: page.risk } : {}),
       rounds: { used: page?.rounds.used ?? 0, of: page?.rounds.of ?? 0, replans: page?.rounds.replans ?? 0, replans_of: page?.rounds.replans_of ?? 1 },
-      steps: steps.map(({ seq: _seq, ...s }) => s), ...(mr ? { mr } : {}), feedback,
+      steps: steps.map(({ seq: _seq, ...s }) => s), ...(mr ? { mr } : {}), feedback, ...(tdd ? { tdd } : {}),
     });
     const mine = launches.filter((x) => x.item === ticket && x.run === id);
     if (mine.length) {

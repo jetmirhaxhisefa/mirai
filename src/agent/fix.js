@@ -226,7 +226,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
         const checking = checkBeat({ store, runId, ticket, step: 'build', onCheck: watch.onCheck ?? null });
         let after;
         try {
-          after = await afterLaunch({ r: launched, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase: last.base, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, onCheck: checking.onCheck, record, what: `fix round ${round}` });
+          after = await afterLaunch({ r: launched, cwd, env, store, runId, trust, config, registry, keys, plan, fm, ticket, branchBase: last.base, stepBase, rules, ignoredBefore, tests, testRun, signal: watch.signal ?? null, onCheck: checking.onCheck, record, what: `fix round ${round}`, red: last.red ?? null });
         } finally {
           checking.stop();
         }

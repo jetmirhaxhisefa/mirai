@@ -9,6 +9,8 @@ import { tableIn } from '../lint/checks.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { scanMarkdown } from '../lint/markdown.js';
 import { codeFiles } from '../proofs/hash.js';
+import { tddEvidence } from '../proofs/record.js';
+import { declaredChanges } from '../agent/plan.js';
 import { checkProofs } from '../proofs/check.js';
 import { hostFor } from '../ship/host.js';
 import { branchKeys } from '../sign/keys.js';
@@ -162,6 +164,13 @@ export function packetData({ cwd, env, ticket, host = null, hostOf = hostFor, wi
 
   // The tests, against the baseline.
   out.tests = (build?.tests?.runs ?? []).map((t) => ({ name: t.name, verdict: t.verdict }));
+  // Unit 23: test-first as MIRAI saw it, and the existing tests the plan declared it changes.
+  out.tdd = tddEvidence(build);
+  try {
+    out.test_changes = declaredChanges(readFileSync(planPath(store, ticket), 'utf8')).filter((r) => r.kind === 'test-change').map((r) => ({ path: r.item, why: r.why }));
+  } catch {
+    out.test_changes = [];
+  }
   let known = [];
   try {
     const b = build?.base ? readBaseline(store, build.base, { keys }) : null;
@@ -210,6 +219,13 @@ export function packetText(d, { diff = false } = {}) {
   for (const f of d.files) out.push(`  ${plain(f.path)}${f.change ? `: ${plain(f.change)}` : ''}${f.flag ? `  ← ${f.flag}` : ''}`);
   const known = d.known_failures.length ? ` · the baseline knows ${d.known_failures.map((k) => `${plain(k.id.split('::').at(-1))} (${k.state})`).join(', ')}` : '';
   row('Tests', d.tests.length ? `${d.tests.map((t) => `${plain(t.name)} ${t.verdict}`).join(', ')}${known}` : 'no build record');
+  if (d.tdd) {
+    const c = d.tdd.rows ?? {};
+    const red = d.tdd.red;
+    row('Test-first', `${c.red ?? 0} red, ${c.characterization ?? 0} characterization, ${c.after ?? 0} after${c.no_test ? `, ${c.no_test} no-test` : ''} · ${red ? `red confirmed at ${String(red.commit ?? '').slice(0, 7)}${red.rounds ? ` after ${word(red.rounds, 'red round')}` : ''}` : 'no red check (no red rows)'}`);
+    for (const r of red?.rows ?? []) out.push(`  ${plain(r.test)}: ${r.kind === 'red' ? `failed first${r.message ? `: ${plain(r.message).slice(0, 160)}` : ''}` : 'passed on today\'s code'}`);
+  }
+  for (const t of d.test_changes ?? []) out.push(`  changes an existing test (declared): ${plain(t.path)}: ${plain(t.why)} (mirai review-mr ${d.ticket} --diff shows it)`);
   if (d.review) {
     const dp = d.review.depth;
     const depth = dp ? [dp.model ? `by ${plain(dp.model)}` : null, dp.minutes != null ? `${dp.minutes} min` : null, dp.kept ? `read ${word(dp.read.length, 'file')}${dp.read.length ? ` (${dp.read.slice(0, 6).map(plain).join(', ')}${dp.read.length > 6 ? ', …' : ''})` : ''}, ${word(dp.searches, 'search', 'searches')}` : 'what it read is no longer kept'].filter(Boolean).join(', ') : '';

@@ -28,9 +28,16 @@ can't write, and MIRAI refuses the run if anything changed.
    - **Intent, Boundaries, Edge cases** inside the frozen block: the human approves exactly
      these, so they must say what and why, not how;
    - **Code map, Tasks, Test list**: every file and symbol, one test row per AC at the lowest
-     level that really proves it, using only the project's test levels;
-   - **Declared changes**: every protected path and every new dependency, each with why, or one
-     row `none`. A dependency you don't declare is refused at the build;
+     level that really proves it, using only the project's test levels. Each row's Kind:
+     `red` (written first, it fails by its check before the code exists), `after` (written
+     after the code), or `characterization` (pins today's behaviour of a function the ticket
+     changes; it passes before the change). With `tdd: auto`, new or changed logic gets a red
+     row; an after row for it reads `after: <why not red>`; a bug's plan has a red row that
+     reproduces the bug;
+   - **Declared changes**: every protected path, every new dependency and every existing test
+     file whose lines you'd change or remove (`test-change`, one exact path; adding new tests to
+     a file isn't a change), each with why, or one row `none`. A dependency you don't declare is
+     refused at the build, and so is a change to an existing test;
    - **Verification**: the commands that show the work is done.
    Replace every line of the template's sample text; leave the three logs empty.
 3. Where an input you'd need is missing (the index says what was left out), say so in Design
@@ -49,9 +56,19 @@ truth: you're a fresh session, and nothing from the plan step carries over. You'
 ticket's own branch.
 
 1. Read the plan, the ticket and the code the plan's code map names.
-2. Work through the plan's tasks. For each test-list row, write the test the way this project
-   already writes its tests (its framework, folders and naming), at the level the row names.
-   With `tdd: first`, write the test before the code and see it fail; with `tdd: after`, after.
+2. **When the plan has red or characterization rows, your build has two halves** (the prompt
+   says which one you're in):
+   - **Red:** write those rows' tests the way this project already writes tests (its framework,
+     folders and naming), at the level each row names. For each new symbol a test calls, add a
+     **stub** that compiles and returns a wrong value, so the red test fails by its assertion,
+     not with an error or "not found". Write no implementation. Run them with
+     `mcp__mirai__run_tests`: red rows fail by an assertion, characterization rows pass. Hand
+     over with `status: red`. MIRAI runs them itself; if a row isn't right, it sends you
+     `red.json` with why, and you fix exactly that.
+   - **Green:** MIRAI confirmed red. Write the implementation and the after rows' tests. The
+     tests from your red handover are **locked**: change none of their lines (only a new plan
+     unlocks them).
+   With no red or characterization rows, there's one half: write the code and its tests.
 3. **Change only what the plan names.** No new dependency the plan doesn't declare under
    Declared changes, and no protected path it doesn't declare: MIRAI checks both after you hand
    over and stops the ticket if you did.
@@ -61,7 +78,9 @@ ticket's own branch.
    fails; a failure you fix here costs nothing. A test that already failed before your change may
    still fail: say so, don't hide it.
 6. **Never edit a test's expectation to make it pass,** never skip or delete a test, and never
-   lower a threshold. If the plan is wrong for the code as it is, stop.
+   lower a threshold. An existing test file only grows: removing or changing one of its lines
+   stops the ticket unless the plan declares a `test-change` for it, and a new skip or focus
+   marker stops it either way. If the plan is wrong for the code as it is, stop.
 7. Hand over with your structured output: `status: done` with a short summary (what changed,
    file by file), the tests and checks you ran with their results; or `status: blocked` with the
    reason, when you can't go on without guessing (a declared dependency that isn't installed, a
