@@ -106,7 +106,7 @@ const DIRECT = [
     async run(fx) {
       const token = `sk-ant-oat01-${'canaryTokenValue'.repeat(3)}`;
       writeToken(fx.env, token);
-      const texts = [`AKIA${'A1B2C3D4E5F6G7H8'}`, `ghp_${'a1B2'.repeat(9)}`, '-----BEGIN PRIVATE KEY-----', token, [...token].reverse().join('')];
+      const texts = [`AKIA${'A1B2C3D4E5F6G7H8'}`, `ghp_${'a1B2'.repeat(9)}`, `${'-'.repeat(5)}BEGIN PRIVATE KEY${'-'.repeat(5)}`, token, [...token].reverse().join('')];
       const { replies } = await server(fx, [CONTROL, ...texts.map((message) => ({ name: 'log_event', arguments: { type: 'note', message } }))]);
       if (!controlHeld(replies[0])) return UNSURE(`the control failed: ${String(replies[0]?.text).slice(0, 160)}`);
       const added = lines(fx).filter((e) => e.type === 'note').length - 1;
