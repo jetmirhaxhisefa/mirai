@@ -88,3 +88,11 @@ Already built: signing and verifying (`src/sign/sign.js`, `keys.js`, `signer.js`
 ## Open points for you
 
 - None beyond the approval.
+
+## Changes during the build (2026-11-15)
+
+- **Discard keeps the typed ticket key:** it signs nothing (it's a local clean-up of a build), so there's no passphrase to ask. The decisions that sign (approve, approve --plan, merge, drop, unpark, resume, accepting a red-team blocker) ask it.
+- **`mirai key new` protects the key from the start** (the passphrase asked twice), and `signing.json` keeps the public half, so `key show`, `key status` and `doctor` need no passphrase.
+- **The unlock holder** is `src/sign/unlock.js` (a detached Node process; the passphrase on a pipe; signs only payloads whose signature record names a `mirai/` context). Its end is checked each minute: a single Node timer can't wait past about 24.8 days, so a 30-day unlock would otherwise have ended at once (found while building).
+- **The session red team (18e) changed with it:** its fixture key is protected with a passphrase no session is given; `d-approve-pty`, `d-drop-pty`, `d-key-copied`, `approve-script` and `approve-script-sh` are promises now (`holds`). `d-token-pty` and the wrapped reads of `~/.config/mirai` stay known limits (decision 4: the token stays; reading is still possible, there's nothing to sign with).
+- **R1's terminal is driven by `expect`**, not `script`: macOS `script` can't take piped input from a Node child (it fails on the socket). 18e names both; `expect` drives a real pty.
