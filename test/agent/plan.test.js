@@ -239,6 +239,9 @@ test('T6: the gate: who approves, your signed approval, an edit caught, a reject
   const ok = await tty(['approve', 'PMT-31', '--plan'], io, ['a', 'PMT-31']);
   assert.equal(ok.code, EXIT.OK, ok.err);
   assert.match(ok.out, /approved: PMT-31's plan/);
+  // The plan itself is shown before the question, so what you approve is in front of you.
+  const shownAt = ok.out.indexOf(PLAN.split('\n').find((l) => l.startsWith('## ')));
+  assert.ok(shownAt >= 0 && shownAt < ok.out.indexOf('approved / rejected?'), 'the plan is shown before you answer');
   const verified = planApproval(f.store, 'PMT-31');
   assert.equal(verified.ok, true);
   assert.equal(verified.keyId, loadSigner(f.env, f.store).keyId);
@@ -286,10 +289,12 @@ test('review: a cut-short fix launch leaves the ticket ready-for-dev; a plan tha
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'ready-for-dev');
   assert.equal((await plan(f, claudeAnswering([{ plan: PLAN }]))).outcome, 'waiting');
   // A stored plan that fails a newer lint: approval refused, rejection recorded.
-  writeFileSync(planPath(f.store, 'PMT-31'), bad);
+  writeFileSync(planPath(f.store, 'PMT-31'), `${bad}\n\u001b[2Jcleared\n`);
   const io = { cwd: f.root, env: f.env };
   const refused = await tty(['approve', 'PMT-31', '--plan'], io, ['a', 'PMT-31']);
   assert.equal(refused.code, EXIT.BLOCKED);
+  // Shown, never acted on: an escape sequence in the plan reaches your terminal as text.
+  assert.ok(refused.out.includes('\\u001b[2Jcleared') && !refused.out.includes('\u001b'), 'the escape is shown as text');
   assert.match(refused.err, /fails the lint/);
   const no = await tty(['approve', 'PMT-31', '--plan'], io, ['r', 'broken', 'PMT-31']);
   assert.equal(no.code, EXIT.OK, no.err);

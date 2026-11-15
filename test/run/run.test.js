@@ -76,6 +76,7 @@ test('28: one ticket to its MR: the run stops at the plan gate; after your appro
   assert.equal(r1.outcome, 'stopped');
   assert.equal(r1.stop.kind, 'gate-plan');
   assert.match(r1.stop.next, /mirai approve PMT-31 --plan/);
+  assert.match(r1.stop.next, /less '[^']*\/tickets\/PMT-31\/plan\.md'/, 'how to read the plan, one shell word');
   assert.deepEqual(r1.steps.map((s) => [s.step, s.outcome]), [['plan', 'waiting']]);
   const store = openStore(f.io);
   assert.equal(readRunState(store).state, 'stopped');
@@ -84,6 +85,7 @@ test('28: one ticket to its MR: the run stops at the plan gate; after your appro
   assert.equal(readTicketStatus(store, 'PMT-31').status.state, 'in-progress');
   const again = await drive(f);
   assert.equal(again.stop.kind, 'gate-plan', 'still waiting, nothing launched');
+  assert.match(again.stop.next, /less '[^']*\/tickets\/PMT-31\/plan\.md'/);
   assert.deepEqual(again.steps, []);
 
   assert.equal((await tty(['approve', 'PMT-31', '--plan'], f.io, ['a', 'PMT-31'])).code, EXIT.OK);
