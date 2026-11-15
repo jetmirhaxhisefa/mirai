@@ -2,7 +2,7 @@ import { EXIT } from '../exit-codes.js';
 import { checkTicketArg, confirmByTyping } from '../human-move.js';
 import { createPrompter, requireTty } from '../tty.js';
 import { mergeChecks, mergeTicket } from '../../review/merge.js';
-import { loadSigner } from '../../sign/signer.js';
+import { decisionSigner } from '../../sign/signer.js';
 import { plain } from '../../status/text.js';
 
 // mirai merge <ticket> (unit 29d; D-34: your merge is the gate): the ticket's MR merged from MIRAI,
@@ -11,12 +11,12 @@ import { plain } from '../../status/text.js';
 // shows the packet first and ends with the same decision.
 export async function mergeDecided(ticket, io, { now = () => new Date(), checks = null, prompter = null } = {}) {
   const c = checks ?? mergeChecks({ cwd: io.cwd, env: io.env, ticket, ...(io.hostOf ? { hostOf: io.hostOf } : {}) });
-  const signer = loadSigner(io.env, c.store);
-  io.stdout.write(`merge ${ticket}'s MR #${c.facts.number} at ${c.head.slice(0, 7)} into ${c.integration}, with a merge commit, signed with ${signer.keyId}\n`);
+  io.stdout.write(`merge ${ticket}'s MR #${c.facts.number} at ${c.head.slice(0, 7)} into ${c.integration}, with a merge commit, signed with your key\n`);
   const p = prompter ?? createPrompter(io);
   const asked = now().getTime();
+  let signer;
   try {
-    await confirmByTyping(p, ticket);
+    signer = await decisionSigner(io, c.store, { prompter: p, ticket, confirm: confirmByTyping });
   } finally {
     if (!prompter) p.close();
   }

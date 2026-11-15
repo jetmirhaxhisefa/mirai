@@ -10,7 +10,9 @@ import { status as sessionStatus } from '../mcp/session.js';
 import { redTeamStatus } from '../redteam/run.js';
 import { readTested } from '../redteam/tested.js';
 import { TOOLS_FILE } from '../ship/host.js';
-import { branchKeys, loadSigningKey, readCommittedKeys, integrationRef } from '../sign/keys.js';
+import { branchKeys, keyIsProtected, loadMachineKey, publicPemOf, readCommittedKeys, integrationRef } from '../sign/keys.js';
+import { userSettings } from '../sign/denies.js';
+import { holderStatus } from '../sign/unlock.js';
 import { RENEW_AFTER_DAYS, readToken, tokenSetAt } from '../sign/token.js';
 import { readRegistry } from '../store/branches.js';
 import { blobAt, commitOf } from '../store/git.js';
@@ -284,7 +286,7 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
   await check('key', 'Your key', () => {
     let key;
     try {
-      key = loadSigningKey(env);
+      key = publicPemOf(env);
     } catch (err) {
       return red(`no signing key on this machine (${String(err.message).slice(0, 120)})`, 'mirai key new, in your terminal; then commit its .pub by itself');
     }
@@ -295,6 +297,23 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     const problems = readCommittedKeys(store.checkout, ref, store.gitEnv).problems ?? [];
     if (problems.length) return yellow(`${key.keyId} verifies; .mirai/keys has ${problems.length} file${problems.length === 1 ? '' : 's'} that aren't keys: ${problems[0].path} (${problems[0].reason})`, 'remove them from .mirai/keys on the integration branch');
     return ok(`${key.keyId} is on ${store.branch}; signatures verify`);
+  });
+  // Unit 29b: your key at rest: protected, unlocked (until when), the machine key, the denies.
+  await check('key-rest', 'Key at rest', () => {
+    const notes = [];
+    const held = holderStatus(env);
+    const protectedKey = keyIsProtected(env);
+    const m = loadMachineKey(env);
+    const mc = m ? keys.get(m.keyId) : null;
+    const machineOk = Boolean(mc && mc.kind === 'machine' && mc.revokedAt === null);
+    const deniesMissing = userSettings(env).filter((u) => u.missing.length);
+    if (!protectedKey) return yellow('your key is a plain file: a session that reads it can sign as you', 'mirai key protect, in your terminal');
+    if (!m) notes.push('no machine key: MIRAI\'s records need your passphrase, and a session run stops before the proofs');
+    else if (!machineOk) notes.push(`the machine key ${m.keyId} isn't on ${store.branch} yet`);
+    if (deniesMissing.length) notes.push(`MIRAI's deny rules are missing in ${deniesMissing.map((u) => u.file).join(', ')}`);
+    if (held) return yellow(`protected, but unlocked until ${new Date(held.until).toLocaleString()}: any program running as you can sign with it meanwhile${notes.length ? `; ${notes.join('; ')}` : ''}`, 'mirai key lock, when you\'re done');
+    if (notes.length) return yellow(`protected; ${notes.join('; ')}`, !m ? 'mirai key new --machine, then commit its .machine.pub by itself' : !machineOk ? `commit and push .mirai/keys/${m.keyId}.machine.pub` : 'mirai key status (mirai key protect or token set writes them)');
+    return ok(`protected with your passphrase; the machine key ${m.keyId} signs MIRAI's records; MIRAI's deny rules are in your Claude settings`);
   });
   await check('session', 'Session server', () => {
     const s = session({ store, env, trust });

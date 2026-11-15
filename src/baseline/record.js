@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { StoreError, UsageError } from '../cli/errors.js';
 import { RUNNING_VERSION } from '../install/lock.js';
-import { loadSigner } from '../sign/signer.js';
+import { loadRecordSigner } from '../sign/signer.js';
 import { acquireLock, ensurePrivateDir } from '../store/files.js';
 import { openStore } from '../store/home.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
@@ -95,7 +95,7 @@ export async function recordBaseline({ cwd, env, levels: only = null, force = fa
   const store = openStore({ cwd, env });
   const trust = snapshot({ cwd, env });
   const config = trustedConfig(trust);
-  const signer = loadSigner(env, store);
+  const signer = loadRecordSigner(env, store);
   const gate = { ...gateCheck(store.checkout, trust.branch, env), signer };
   const sameCommit = () => {
     if (gate.head !== trust.baseSha) throw new TestRunError(`HEAD (${gate.head.slice(0, 12)}) isn't ${trust.branch}'s commit (${trust.baseSha.slice(0, 12)})`, { code: 'gate-branch', hint: `the baseline is ${trust.branch}'s: pull or push it so the two agree` });

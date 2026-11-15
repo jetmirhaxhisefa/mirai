@@ -15,7 +15,8 @@ import { approvalHash } from '../../lint/frozen.js';
 import { plain } from '../../status/text.js';
 import { atomicWrite } from '../../store/files.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
-import { loadSigner } from '../../sign/signer.js';
+import { decisionSigner } from '../../sign/signer.js';
+import { branchKeys } from '../../sign/keys.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -41,16 +42,16 @@ export default {
       return approvePlan(ticket, io, now);
     }
     const store = openStore({ cwd: io.cwd, env: io.env });
-    const signer = loadSigner(io.env, store);
+    const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
     const file = readApprovedFile(store.checkout, io.cwd, args.values.file);
-    const current = ticketNow(store, ticket, signer.keys);
+    const current = ticketNow(store, ticket, keys);
     // A ticket already ready-for-dev may be approved again, as merged (unit 21a: a plan refuses a
     // ticket that isn't the file you approved): a new signed line, no move.
     const again = current.state === 'ready-for-dev';
     if (!again) move(TICKET, current.state, 'ready-for-dev', { by: 'human', item: ticket }); // refused unless draft
     const hash = contentHash(file.bytes);
 
-    io.stdout.write(`ticket: ${ticket} (${current.state})\nfile:   ${file.path}\nhash:   ${hash}\nkey:    ${signer.keyId}\n`);
+    io.stdout.write(`ticket: ${ticket} (${current.state})\nfile:   ${file.path}\nhash:   ${hash}\n`);
     const prompter = createPrompter(io);
     try {
       const asked = now().getTime();
@@ -64,7 +65,8 @@ export default {
         if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
         if (reason === '') reason = undefined;
       }
-      await confirmByTyping(prompter, ticket);
+      // Unit 29b: your passphrase (or the typed key, for a plain key or an unlocked one).
+      const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });
       // What you approved is what was shown: the file must not have changed while you answered.
       if (contentHash(readApprovedFile(store.checkout, io.cwd, args.values.file).bytes) !== hash) {
         throw new MiraiError(`${file.path} changed while you were answering; nothing was written`, EXIT.FAILURE);
@@ -104,13 +106,13 @@ const PLAN_DECISIONS = { a: 'accepted', r: 'rejected' };
 
 async function approvePlan(ticket, io, now) {
   const store = openStore({ cwd: io.cwd, env: io.env });
-  const signer = loadSigner(io.env, store);
-  const current = ticketNow(store, ticket, signer.keys);
+  const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
+  const current = ticketNow(store, ticket, keys);
   if (current.state !== 'in-progress') throw new MiraiError(`${ticket} is ${current.state}; a plan waits at the gate while the ticket is in-progress`, EXIT.BLOCKED);
   const text = readPlan(store, ticket);
   if (text === null) throw Object.assign(new MiraiError(`${ticket} has no plan yet`, EXIT.BLOCKED), { hint: `mirai plan ${ticket}` });
   // Already approved: you may still reject it, before the build (21a re-review).
-  const already = planApproval(store, ticket, signer.keys).ok;
+  const already = planApproval(store, ticket, keys).ok;
   if (already) io.stdout.write(`note: ${ticket}'s plan is already approved, as it is now; answer r to take that back\n`);
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(trust);
@@ -124,7 +126,7 @@ async function approvePlan(ticket, io, now) {
   const declared = declaredChanges(text).filter((r) => r.kind !== 'none');
 
   io.stdout.write(`ticket: ${ticket} (${current.state})\nplan:   ${planPath(store, ticket)}\nhash:   ${hash ?? 'none (no frozen block)'}\nwhy you: ${gate.why.join('; ')}\n`);
-  io.stdout.write(`declared: ${declared.length ? declared.map((r) => `${r.kind} ${plain(r.item)}`).join(', ') : 'none'}\nkey:    ${signer.keyId}\n`);
+  io.stdout.write(`declared: ${declared.length ? declared.map((r) => `${r.kind} ${plain(r.item)}`).join(', ') : 'none'}\n`);
   const prompter = createPrompter(io);
   try {
     const asked = now().getTime();
@@ -143,7 +145,7 @@ async function approvePlan(ticket, io, now) {
       if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
       if (reason === '') reason = undefined;
     }
-    await confirmByTyping(prompter, ticket);
+    const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });
     // What you approved is what was shown: the plan must not have changed while you answered.
     if (approvalHash(readPlan(store, ticket) ?? '') !== hash || (readPlan(store, ticket) ?? '') !== text) throw new MiraiError(`${ticket}'s plan changed while you were answering; nothing was written`, EXIT.FAILURE);
 

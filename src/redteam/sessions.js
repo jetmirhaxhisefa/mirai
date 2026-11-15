@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { UsageError, StoreError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
 import { RUNNING_VERSION } from '../install/lock.js';
-import { loadSigner } from '../sign/signer.js';
+import { loadRecordSigner } from '../sign/signer.js';
 import { readToken } from '../sign/token.js';
 import { acquireLock } from '../store/files.js';
 import { miraiHome, openStore } from '../store/home.js';
@@ -63,7 +63,7 @@ export async function runSessions({ cwd, env, storeEnv = env, consent = false, o
   if (consent !== true) throw new UsageError('this uses your Claude subscription; it needs your yes', 'run it yourself: mirai redteam run --sessions');
   const store = openStore({ cwd, env: storeEnv });
   const trust = snapshot({ cwd, env: storeEnv });
-  const sign = signer ?? loadSigner(storeEnv, store);
+  const sign = signer ?? loadRecordSigner(storeEnv, store);
   const cases = caseList().filter((k) => !only || only.includes(k.id) || only.includes(k.group));
   if (only && !cases.length) throw new UsageError(`no case named ${only.join(', ')}`);
   const c = resolveClaude(env, claude);

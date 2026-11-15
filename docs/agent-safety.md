@@ -248,6 +248,8 @@ With `mirai session-server install`, your session's MIRAI server also offers:
 
 ### What holds in your sessions (unit 18e)
 
+**Since unit 29b:** your key file is encrypted with your passphrase, and each decision asks for it. 18e's known limit "a session can read your key and sign" (through `sh -c`, `$(…)`, `perl`, and signing through `script`) is closed while your key is locked: the file read gives encrypted bytes, and a driven terminal doesn't know the passphrase (29b's R1, through `expect`). It's open again for the time `[signing] unlock` keeps your key unlocked, if you set one. The token stays readable (a session already has your own Claude login). 29b's R2 runs 18e's cases again.
+
 **Your sessions aren't a cage.** They have no sandbox and no hook. Here's what was tried on Claude Code
 2.1.316. Each promised attempt ran in bypass and default, and the main ones in `acceptEdits` and auto, plus the
 two reads in plan (plan refuses writes on its own, so a write there says nothing). A `.git` write ran in bypass and

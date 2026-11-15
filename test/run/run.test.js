@@ -31,6 +31,8 @@ import { renderRunReport } from '../../src/reports/render.js';
 import { existsSync } from 'node:fs';
 import logEvent from '../../src/mcp/tools/log-event.js';
 import { LOG_TYPES, SESSION_LOG_TYPES } from '../../src/store/journal.js';
+import { createMachineKey, protectKey, writePublicKeyFile } from '../../src/sign/keys.js';
+import { approvalPath, planApproval } from '../../src/agent/plan.js';
 
 // Unit 28: `mirai run`, supervised, one ticket. The real steps with a stand-in claude and test
 // run; stand-ins only for the baseline refresh, the host (ship) and the usage probe.
@@ -376,12 +378,12 @@ test('29a: each run saves its report: the ticket\'s whole path (an earlier run\'
   assert.notEqual((await tty(['report', 'r-20200101-000000-0000'], f.io, [])).code, EXIT.OK);
   assert.notEqual((await tty(['report', 'nope'], f.io, [])).code, EXIT.OK);
 
-  // Feedback from your terminal: signed, in show and in the report.
+  // Feedback from your terminal: unsigned since unit 29b (no decision), marked as your terminal's.
   assert.equal((await tty(['feedback', 'PMT-31', 'Kai planned the 404 case well'], f.io, [])).code, EXIT.OK);
   assert.notEqual((await tty(['feedback', 'PMT-31', '   '], f.io, [])).code, EXIT.OK);
   assert.notEqual((await tty(['feedback', 'PMT-31', 'x'.repeat(2001)], f.io, [])).code, EXIT.OK);
   const human = readJournal(store, { keys: branchKeys(store.checkout, store.branch, store.gitEnv) }).events.filter((e) => e.type === 'feedback');
-  assert.deepEqual(human.map((e) => [e.by, e.text, Boolean(e.signature)]), [['human', 'Kai planned the 404 case well', true]]);
+  assert.deepEqual(human.map((e) => [e.by, e.text, Boolean(e.signature)]), [['script', 'Kai planned the 404 case well', false]]);
   // Your session's: through log_event's feedback type, marked as the session's.
   appendEvent(store, { type: 'feedback', by: 'session', registration_id: 's-0123456789ab', item: 'PMT-31', ticket: 'PMT-31', text: 'Rex was too quick' });
   // Never an agent's.
@@ -389,10 +391,10 @@ test('29a: each run saves its report: the ticket\'s whole path (an earlier run\'
   assert.throws(() => appendEvent(store, { type: 'feedback', by: 'unverified', item: 'PMT-31', ticket: 'PMT-31', text: 'all good' }), /written only by MIRAI/);
   const page = showText(showData({ cwd: f.root, env: f.env, ticket: 'PMT-31' }));
   assert.match(page, /^Feedback {3}2$/m);
-  assert.match(page, /from you .*: Kai planned the 404 case well/);
+  assert.match(page, /from your terminal .*: Kai planned the 404 case well/);
   assert.match(page, /from your session .*: Rex was too quick/);
   const again = renderRunReport(await (await import('../../src/reports/run-report.js')).runReportData({ cwd: f.root, env: f.env, runId: r2.runId, redTeam: async () => ({ state: 'green' }) }), { format: 'text' });
-  assert.match(again, /Feedback from you, .*: Kai planned the 404 case well/);
+  assert.match(again, /Feedback from your terminal, .*: Kai planned the 404 case well/);
   assert.match(again, /Feedback from your session, .*: Rex was too quick/);
 
   // log_event: feedback is on your session's list only, and never in an agent run.
@@ -404,4 +406,35 @@ test('29a: each run saves its report: the ticket\'s whole path (an earlier run\'
   assert.ok(logEvent.check({ type: 'feedback', ticket: 'PMT-31', message: 'two\nlines' }, policy('interactive', [...SESSION_LOG_TYPES])).refused);
   assert.ok(logEvent.check({ type: 'feedback', message: 'no ticket' }, policy('interactive', [...SESSION_LOG_TYPES])).refused);
   assert.ok(logEvent.check({ type: 'note', ticket: 'PMT-31', message: 'x' }, policy('interactive', [...SESSION_LOG_TYPES])).refused);
+});
+
+test('29b: with the machine key set up, a session run signs the proofs with it and reaches the MR; your key, protected, is never asked; a plan approval signed by the machine key never counts', async () => {
+  const f = await passed();
+  const m = createMachineKey(f.env);
+  writePublicKeyFile(f.root, m.keyId, m.publicPem, { machine: true });
+  const here = f.git('branch', '--show-current').trim();
+  f.git('switch', '-q', 'main');
+  f.git('add', '.mirai/keys');
+  f.git('commit', '-qm', 'the machine key');
+  f.git('switch', '-q', here);
+  protectKey(f.env, 'correct horse battery staple');
+  const s = await drive(f, { extra: { via: 'session' } });
+  assert.equal(s.outcome, 'finished', JSON.stringify(s.stop));
+  assert.deepEqual(s.steps.map((x) => [x.step, x.outcome]), [['proofs', 'recorded'], ['ship', 'opened']]);
+  // The proofs on the branch are the machine key's.
+  const store = openStore(f.io);
+  const branch = JSON.parse(readFileSync(buildRecordPath(store, 'PMT-31'), 'utf8')).branch;
+  const files = f.git('ls-tree', '-r', '--name-only', branch, '.mirai/records/PMT-31').split('\n').filter((x) => /review-r1-|gate-r1-/.test(x));
+  assert.ok(files.length === 2, files.join(','));
+  for (const p of files) assert.equal(JSON.parse(f.git('show', `${branch}:${p}`)).signature.key_id, m.keyId);
+  // A plan approval re-signed with the machine key: it doesn't count.
+  const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
+  const file = approvalPath(store, 'PMT-31');
+  const approval = JSON.parse(readFileSync(file, 'utf8'));
+  const { signObject } = await import('../../src/sign/sign.js');
+  const { loadMachineKey } = await import('../../src/sign/keys.js');
+  const mk = loadMachineKey(f.env);
+  const { signature: _s, ...body } = approval;
+  writeFileSync(file, `${JSON.stringify(signObject(body, { privateKey: mk.privateKey, keyId: mk.keyId }, { context: `mirai/plan-approval/1:${store.repoId}` }), null, 2)}\n`, { mode: 0o600 });
+  assert.equal(planApproval(store, 'PMT-31', keys).ok, false);
 });

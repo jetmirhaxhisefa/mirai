@@ -31,7 +31,7 @@ import { verifyBranchAt } from '../store/branch-record.js';
 import { writeHeartbeat } from '../store/run.js';
 import { addCheckpoint } from './checkpoints.js';
 import { commitStep } from './commit.js';
-import { loadSigner } from '../sign/signer.js';
+import { loadRecordSigner } from '../sign/signer.js';
 import { newDependencies } from './deps.js';
 import { planInputs } from './inputs.js';
 import { AGENT, AGENT_LABEL, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
@@ -371,7 +371,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, recheck =
     await preGate({ cwd, env, store, trust, role: BUILD_ROLE, claude: watch.claude ?? null, ...(watch.status ? { status: watch.status } : {}) });
     // The ticket's branch (unit 22): made with its signed record and registered, or an existing
     // MIRAI branch as it is. Its base is the integration commit until stacking (D2) gives a parent.
-    const prep = prepareBranch({ store, env, trust, config, keys, signer: () => loadSigner(env, store), unattended, ticket, ticketText: given.ticket.text, now });
+    const prep = prepareBranch({ store, env, trust, config, keys, signer: () => loadRecordSigner(env, store), unattended, ticket, ticketText: given.ticket.text, now });
     const { branch } = prep;
     const branchBase = prep.base;
     // The step's start: its checkpoint, once the launch has run (a refused one adds none, so a

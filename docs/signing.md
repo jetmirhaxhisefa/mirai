@@ -50,6 +50,38 @@ Every ticket branch MIRAI makes starts with a commit of `.mirai/records/<ticket>
 
 `mirai gate record <ticket>` mints a ticket's **proofs** after Rex's review passed: a `review` proof and a `gate` proof in `.mirai/records/<ticket>/`, each its own immutable file (`review-r1-<hash>.json`, `gate-r1-<hash>.json`), signed with your key under `mirai/proof/1:<repo-id>`, and committed on the ticket's branch by MIRAI. They're bound to the ticket's **code hash** (D-16): a clean rebase keeps them, any code change doesn't. They say only that the review and the gate passed for that code, never what was found. `mirai gate check <ticket>` recomputes the hash and checks them with the integration branch's public keys only, as the pre-push hook (unit 26) and CI (unit 54) will. Like every record, they're signed from your terminal only; until row 29b's machine key, a night run parks the ticket for you (`sign-proofs`).
 
+## Your passphrase and the machine key (unit 29b)
+
+Two keys, each for its own kind of signature:
+
+| Your key | The machine key |
+|---|---|
+| your decisions: approving a ticket or a plan, merge, drop, unpark, resume, accepting a red-team blocker | MIRAI's records: the baseline, red-team results, the tested Claude Code, branch records, review and gate proofs |
+| `~/.config/mirai/signing.ed25519`, **encrypted with your passphrase** | `~/.config/mirai/machine.ed25519`, plain (MIRAI signs with nobody there) |
+| `.mirai/keys/<id>.pub` | `.mirai/keys/<id>.machine.pub` |
+
+**A decision signed by the machine key never counts**: the journal, plan approvals and accepted blockers verify only with your key. Records verify with either, so everything your key signed before stays valid.
+
+Setting it up, in your terminal:
+
+```
+mirai key protect          # your existing key, encrypted; same id, so its signatures still verify
+mirai key new --machine    # the machine key; commit .mirai/keys/<id>.machine.pub by itself, push it
+mirai key status           # both keys, and whether yours is unlocked
+```
+
+Each decision asks **your passphrase in place of typing the ticket key**. (A key that isn't protected still takes the typed key.) With the machine key on the integration branch, `/mirai run` from your session signs the proofs with it and goes on to the MR, so you're asked only at the plan and the merge. `mirai key passphrase` changes the passphrase; a forgotten one can't be recovered: `mirai key new --replace`, then revoke the old key.
+
+**How long it stays unlocked is your setting:** `[signing] unlock` in `~/.config/mirai/config.toml` (your global file only; a project can't set it).
+
+- `"each"` (the default): your passphrase for each decision; nothing stays unlocked.
+- a duration up to 30 days (`"8h"`, `"3d"`): after you type it, a small MIRAI process keeps your key unlocked that long; `mirai key lock` locks it, so does a restart.
+- **The cost:** while it's unlocked, any program running as you, a Claude session included, can ask that process to sign. The real-terminal check stays, but a session can fake a terminal (`expect`, `script`). So for the time you choose, a session can sign as you; outside it, it can't. `mirai doctor` and `mirai key status` show "unlocked until".
+
+Touch ID is later work: a key behind biometry needs an Apple-signed helper (the data-protection keychain refuses an unsigned one, error -34018).
+
+The Claude login token stays a plain file (only you can read it): a session already runs on your own Claude login, so MIRAI's token gives it nothing new. `mirai key new`, `key protect` and `token set` add MIRAI's deny rules (no reading or editing `~/.config/mirai` and MIRAI's home) to your user-level Claude Code settings, in each config that's there (`~/.claude-private`, which links to your synced `~/claude-config`, and `~/.claude`), so no session reads them by accident.
+
 ## When a key changes
 
 - **Rotate:** `mirai key new --replace`, then `mirai key revoke <old id>`. Commit both files by
@@ -71,7 +103,7 @@ This resists accidental and casual forgery:
 
 Agents run as your own user, without a container, so it is only as strong as what keeps them
 away from three things:
-- **The private key** (`~/.config/mirai/signing.ed25519`).
+- **The private key** (`~/.config/mirai/signing.ed25519`; encrypted with your passphrase since unit 29b).
 - **The human-only commands** (`mirai approve | drop | key`). The real-terminal check stops piped
   input and headless runs. It doesn't stop a process that drives a terminal itself, such as
   `expect`, `script`, `unbuffer` or a pty.
@@ -80,7 +112,9 @@ away from three things:
 
 The deny rules and the sandbox (units 13 and 18) close those paths for headless agents. Your own
 sessions have no sandbox, and a wrapped command there read the key and signed through `script`
-(unit 18e, probed); roadmap row 29b is the fix. The final check for code is CI, against the
+(unit 18e, probed). Since unit 29b, your key file is encrypted: a session that reads it gets nothing
+it can sign with, and one that drives a terminal doesn't know your passphrase (probed: R1). That
+holds while your key is locked (`signing.unlock = "each"`, or outside the time you set). The final check for code is CI, against the
 remote's base commit (unit 54), but a stolen key's signature passes it.
 
 A signature's time is written by the signer. Someone who holds a revoked key could backdate a

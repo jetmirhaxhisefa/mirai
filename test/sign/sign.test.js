@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { main } from '../../src/cli/main.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
 import { canonical } from '../../src/sign/canonical.js';
-import { branchKeys, committedKeys, keyPaths, loadSigningKey, readCommittedKeys } from '../../src/sign/keys.js';
+import { branchKeys, committedKeys, createKeyPair, keyPaths, loadSigningKey, readCommittedKeys, writePublicKeyFile } from '../../src/sign/keys.js';
 import { contentHash, signObject, validTime, verifyApproval, verifySigned } from '../../src/sign/sign.js';
 import { checkKeyChange } from '../../src/sign/key-rule.js';
 import { loadSigner } from '../../src/sign/signer.js';
@@ -35,9 +35,11 @@ async function run(argv, { cwd, env }, { answers = [], tty = true, stdoutTty = t
 async function withKey({ commit = true } = {}) {
   const s = setup();
   const store = createStore({ cwd: s.repo, env: s.env });
-  const r = await run(['key', 'new', '--label', 'test-mac'], { cwd: s.repo, env: s.env });
-  assert.equal(r.code, EXIT.OK, r.err);
-  const keyId = /made key (k-[0-9a-f]{16})/.exec(r.out)[1];
+  // Unit 29b: mirai key new now protects the key with a passphrase (test/sign/keys-at-rest.test.js);
+  // these tests use a plain key, as one made before 29b, whose decisions still take the typed key.
+  const made = createKeyPair(s.env, { label: 'test-mac' });
+  writePublicKeyFile(s.repo, made.keyId, made.publicPem);
+  const keyId = made.keyId;
   if (commit) commitKeys(s.repo, s.home, 'add my key');
   return { ...s, store: openStore({ cwd: s.repo, env: s.env }), keyId, firstStore: store };
 }
@@ -196,8 +198,8 @@ test('T4b: the integration branch is pinned in the store: a work-tree config poi
   // An agent's own key, committed on its own branch, and the config pointed at that branch.
   git(repo, ['checkout', '-q', '-b', 'agent-keys'], home);
   const agentHome = setup().env;
-  const made = await run(['key', 'new', '--label', 'agent'], { cwd: repo, env: agentHome });
-  assert.equal(made.code, EXIT.OK, made.err);
+  const agentKey = createKeyPair(agentHome, { label: 'agent' });
+  writePublicKeyFile(repo, agentKey.keyId, agentKey.publicPem);
   commitKeys(repo, home, 'agent key');
   git(repo, ['checkout', '-q', 'main'], home);
   const config = join(repo, '.mirai', 'config.toml');

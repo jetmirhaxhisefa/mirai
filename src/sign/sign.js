@@ -36,16 +36,21 @@ function payload(object, { alg, key_id, ts }, context) {
 
 // Signs a plain object with your key ({ privateKey, keyId }) for a context. Returns a new
 // object; the context isn't stored, the verifier supplies it.
-export function signObject(object, { privateKey, keyId }, { context, now = () => new Date() } = {}) {
+// `signBytes` (unit 29b): a signer that holds no key here signs through it (your unlocked key's
+// holder); it returns the 64 signature bytes for the payload.
+export function signObject(object, { privateKey, keyId, signBytes = null }, { context, now = () => new Date() } = {}) {
   if (!KEY_ID.test(keyId)) throw new TypeError('not a key id');
   const head = { alg: 'ed25519', key_id: keyId, ts: now().toISOString() };
-  const sig = edSign(null, payload(object, head, context), privateKey).toString('base64');
+  const bytes = payload(object, head, context);
+  const sig = (signBytes ? Buffer.from(signBytes(bytes)) : edSign(null, bytes, privateKey)).toString('base64');
   return { ...object, signature: { ...head, sig } };
 }
 
 // Checks a signed object against public keys (committedKeys: key id → { publicKey, revokedAt })
 // for a context. Returns { ok: true, keyId } or { ok: false, reason }.
-export function verifySigned(object, keys, { context } = {}) {
+// `decision` (unit 29b, decision 2): what's signed is one of your decisions, so only your key
+// counts: a machine key's signature is refused, whatever it signed.
+export function verifySigned(object, keys, { context, decision = false } = {}) {
   if (typeof context !== 'string' || !CONTEXT.test(context)) throw new TypeError('verifying needs the signature\'s context');
   const s = object?.signature;
   if (!s || typeof s !== 'object') return { ok: false, reason: 'not signed' };
@@ -56,6 +61,7 @@ export function verifySigned(object, keys, { context } = {}) {
   }
   const key = keys.get(s.key_id);
   if (!key) return { ok: false, reason: `key ${s.key_id} is not on the integration branch` };
+  if (decision && key.kind === 'machine') return { ok: false, reason: `key ${s.key_id} is MIRAI's machine key: a decision needs yours` };
   if (key.revokedAt !== null && Date.parse(s.ts) >= key.revokedAt) return { ok: false, reason: `key ${s.key_id} was revoked before this was signed` };
   let good = false;
   try {

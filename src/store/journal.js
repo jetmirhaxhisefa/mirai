@@ -251,7 +251,7 @@ function appendRaw(p, seq, event, signer, context) {
   if (line.by === 'human') {
     if (!signer) throw new TypeError(`journal event ${event.type}: a human line needs your signing key`);
     line = signObject(line, signer, { context });
-    const v = verifySigned(line, signer.keys, { context });
+    const v = verifySigned(line, signer.keys, { context, decision: true });
     if (!v.ok) throw new StoreError(`your signature can't be verified: ${v.reason}`, { code: 'unverifiable', hint: 'commit and push your public key (.mirai/keys/<id>.pub) to the integration branch, or pull it' });
   }
   const problems = eventProblems(line);
@@ -296,7 +296,8 @@ export function readJournal(store, { keys } = {}) {
     }
     if (value.by === 'human') {
       known ??= branchKeys(store.checkout, store.branch, store.gitEnv);
-      const v = verifySigned(value, known, { context: `mirai/journal/${value.schema_version}:${store.repoId}` });
+      // Unit 29b: a human line is one of your decisions: the machine key's signature never counts.
+      const v = verifySigned(value, known, { context: `mirai/journal/${value.schema_version}:${store.repoId}`, decision: true });
       if (!v.ok) {
         throw new StoreError(`${p.journal}:${line}: a signed line doesn't verify (${v.reason})`, { path: p.journal, line, code: 'bad-signature', hint: 'run: mirai doctor' });
       }

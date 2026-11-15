@@ -201,7 +201,7 @@ const RUN_INPUT = compileSchema(obj({
       step: text(40), round: count(100), model: model, model_used: model, turns: count(1e6), tokens: count(1e12), minutes: { type: 'number', minimum: 0, maximum: 1e6 }, limit_share: share, verdict: text(40),
     }, ['kind', 'earlier', 'text']), 200),
     mr: obj({ url, state: { enum: ['open', 'merged', 'closed'] }, m1: { enum: ['as-is', 'edited', 'closed', 'unknown'] }, m1_why: text(300) }, ['state']),
-    feedback: arr(obj({ by: { enum: ['you', 'your session'] }, at: isoTime, text: text(2000) }), 50),
+    feedback: arr(obj({ by: { enum: ['you', 'your terminal', 'your session'] }, at: isoTime, text: text(2000) }), 50),
   }, ['ticket', 'title', 'state', 'rounds', 'steps', 'feedback']), 200),
   red_team: obj({ state: text(40), at: isoTime, claude_code: text(40), note: text(300) }, ['state']),
   inbox: arr(obj({ kind: text(40), item: id, text: text(200) }), 200),

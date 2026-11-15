@@ -91,7 +91,7 @@ export function showData({ cwd, env, ticket }) {
     rounds: { used: loop.rounds_used, of: rounds, replans: loop.replans_used, replans_of: 1 },
     usage: { turns: loop.budget.turns, tokens: loop.budget.tokens + loop.budget.tokens_cached, minutes: Math.round(loop.budget.minutes * 10) / 10 },
     // Unit 29a: your feedback on the ticket, yours (signed) or your session's.
-    feedback: events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : 'your session', at: e.ts ?? null, text: e.text })),
+    feedback: events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : e.by === 'script' ? 'your terminal' : 'your session', at: e.ts ?? null, text: e.text })),
   };
 }
 

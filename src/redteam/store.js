@@ -176,7 +176,7 @@ export function readDecision(store, id, { keys = null } = {}) {
   if (text === null) return null;
   try {
     const value = parseJsonStrict(String(text));
-    const check = verifySigned(value, keys ?? branchKeys(store.checkout, store.branch, store.gitEnv), { context: decisionContext(store.repoId) });
+    const check = verifySigned(value, keys ?? branchKeys(store.checkout, store.branch, store.gitEnv), { context: decisionContext(store.repoId), decision: true });
     return check.ok && value.id === id ? value : null;
   } catch {
     return null;

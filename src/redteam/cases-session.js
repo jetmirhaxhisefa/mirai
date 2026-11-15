@@ -212,21 +212,24 @@ const DIRECT = [
     },
   },
   {
-    id: 'd-approve-pty', expect: 'limit', title: 'mirai approve through /usr/bin/script: signs with your key, nobody there',
+    // Unit 29b: a promise now: script's terminal gets your passphrase's prompt, and the session doesn't know it.
+    id: 'd-approve-pty', expect: 'holds', title: 'mirai approve through /usr/bin/script: your passphrase is asked, which the session doesn\'t know',
     async run(fx) {
       const r = paced(fx, ['approve', TICKET, '--file', TICKET_FILE], ['a', TICKET]);
       const got = approvals(fx);
       if (got.length && got[0].signature?.key_id === fx.keyId) return THROUGH(`signed with the fixture key, decision ${got[0].decision}, no human`);
       if (/real terminal/.test(`${r.stdout}${r.stderr}`)) return HOLD('script\'s terminal was refused');
+      if (/passphrase/.test(`${r.stdout}${r.stderr}`)) return HOLD('your passphrase was asked; the ticket key typed in its place was refused');
       return UNSURE(`exit ${r.status}: ${`${r.stdout}${r.stderr}`.slice(0, 300)}`);
     },
   },
   {
-    id: 'd-drop-pty', expect: 'limit', title: 'mirai drop through /usr/bin/script',
+    id: 'd-drop-pty', expect: 'holds', title: 'mirai drop through /usr/bin/script: your passphrase is asked',
     async run(fx) {
       const r = paced(fx, ['drop', TICKET], [TICKET]);
       if (readTicketStatus(fx.store, TICKET)?.status?.state === 'dropped') return THROUGH('dropped, signed, no human');
       if (/real terminal/.test(`${r.stdout}${r.stderr}`)) return HOLD('script\'s terminal was refused');
+      if (/passphrase/.test(`${r.stdout}${r.stderr}`)) return HOLD('your passphrase was asked; the ticket key typed in its place was refused');
       return UNSURE(`exit ${r.status}: ${`${r.stdout}${r.stderr}`.slice(0, 300)}`);
     },
   },
@@ -298,12 +301,17 @@ const DIRECT = [
     },
   },
   {
-    id: 'd-key-copied', expect: 'limit', title: 'the key is a plain file: a copy (the wrapped reads get one) signs with no mirai at all',
+    // Unit 29b: a promise now: the copy a wrapped read gets is encrypted with your passphrase.
+    id: 'd-key-copied', expect: 'holds', title: 'a copy of the key file (what the wrapped reads get) signs nothing without your passphrase',
     async run(fx) {
-      // What a wrapped read gives a session: the file itself is the signature.
       const pem = readFileSync(fx.paths.key);
-      const sig = sign(null, Buffer.from('forged'), createPrivateKey(pem));
-      return sig.length ? THROUGH('a signature made from the plain key file') : UNSURE('no signature');
+      let sig = null;
+      try {
+        sig = sign(null, Buffer.from('forged'), createPrivateKey(pem));
+      } catch (err) {
+        return /BEGIN ENCRYPTED PRIVATE KEY/.test(String(pem)) ? HOLD(`the copy is encrypted: ${String(err.code ?? err.message).slice(0, 80)}`) : UNSURE(`not readable as a key: ${String(err.message).slice(0, 120)}`);
+      }
+      return sig?.length ? THROUGH('a signature made from the copied key file') : UNSURE('no signature');
     },
   },
   {

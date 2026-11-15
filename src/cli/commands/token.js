@@ -1,6 +1,7 @@
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
 import { readHidden, requireTty } from '../tty.js';
+import { writeUserDenies } from '../../sign/denies.js';
 import { shown } from '../../status/text.js';
 import { clearToken, readToken, RENEW_AFTER_DAYS, tokenFingerprint, tokenPath, tokenSetAt, writeToken } from '../../sign/token.js';
 
@@ -40,6 +41,8 @@ export default {
     }
     const token = (await readHidden(io, 'paste the token from claude setup-token (it isn\'t shown): ')).trim();
     const fingerprint = writeToken(io.env, token);
+    // Unit 29b (decision 5): your user-level Claude Code denies, so no session reads it by accident.
+    for (const d of writeUserDenies(io.env)) if (d.added || d.skipped) io.stdout.write(`${d.skipped ? `note: ${d.file}: ${d.skipped}` : `added MIRAI's ${d.added} deny rule(s) to ${d.file}`}\n`);
     io.stdout.write(`token saved: ${tokenPath(io.env)}\nfingerprint: ${fingerprint}\n`);
     return EXIT.OK;
   },
