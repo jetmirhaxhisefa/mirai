@@ -103,6 +103,7 @@ note measures the same thing on real pilot work. So the first usage reading is u
 | **C** | Overnight | One unattended night of at least 3 small pilot tickets ends in MRs and a morning report inside the calibrated budgets; `permission_denials` show zero violations that got through; CI `mirai-verify` is green on every MR | MVP-core |
 | **D** | Reuse, full track, release | One quick-track ticket reaches an MR on a second project with no framework edits; one `full` feature goes PRD → design → tickets → MRs → released (release record) on the pilot | MVP-complete |
 | **E** | Sync-back | A framework change made in the pilot becomes a clean PR on the MIRAI repo; the leak scanner report is clean | MVP-complete |
+| **F** | The guide and the tour (Jet, 2026-11-15) | You take one test topic in a new small project from `mirai init` to released code, through every MIRAI feature; `docs/guide/` has a chapter for each stage written from that tour, and its test finds every command, both in the terminal and as `/mirai`, explained | MVP-complete (its last milestone) |
 
 **Unit count:** A 30 · Pilot 1 · B 18 · C 10 · D 15 (13 core + 2 "when needed") · E 3 ·
 **77 in total.** Unit 03 was split into 03a and 03b on 2026-10-23; the other numbers stay.
@@ -359,7 +360,29 @@ exists.
 |---|---|---|---|---|
 | 74 | `mirai promote`: move a custom overlay or a new skill into a framework path so `contribute` can carry it (R-M13); it changes the file's lock mark from `project` to `framework` | 70 | New files need a way into the framework | A promoted file appears in the lock as a framework file |
 | 75 | **Leak scanner** (R-M14, Q3, R2-M12, R3-M13, AR2-33):<br>• **Detectors:** the setup block list + secret patterns + generic detectors (emails, URLs, ticket-key patterns, proper nouns not in upstream).<br>• **What it scans:** files **and** the final PR title, body and commit messages.<br>• **Block list:** every `resources` link and ID is on it automatically.<br>• **Eligible files:** only `framework`-marked files; `rendered` files only as their framework template, never with project facts.<br>• **MIRAI repo pre-commit** | 39 | Needed before contribute | Seeded project names, paths, ticket keys, resource URLs and secrets are caught in files and in the PR text; a `project`-marked file is refused; a `rendered` file's project block is stripped |
-| 76 | `mirai contribute`: builds the contribution branch fresh from upstream with a neutral git identity, runs the scanner last, and shows you the final diff before opening the PR | 74, 75 | Last MVP unit | A framework change from the pilot becomes a clean PR on the MIRAI repo; no project history or identity leaks |
+| 76 | `mirai contribute`: builds the contribution branch fresh from upstream with a neutral git identity, runs the scanner last, and shows you the final diff before opening the PR | 74, 75 | Last feature unit (Milestone F comes after it) | A framework change from the pilot becomes a clean PR on the MIRAI repo; no project history or identity leaks |
+
+
+## Milestone F: The guide and the tour (MVP-complete, last)
+
+Added on 2026-11-15 at Jet's request: "a detailed documentation of all the details how to use
+MIRAI and how things work ... every MIRAI command both claude and terminal version ... easily
+understandable for a human", built during "a tour to build a topic ... from the first step to the
+full implementation ... so I touch all the MIRAI features and learn them". It comes after every
+other MVP unit, so it describes MIRAI as it ships. Jet's choices (2026-11-15):
+- **Where:** a new small personal project, not the sample app, so the tour also covers `init`,
+  `detect`, your keys and the first baseline, as a new user meets them.
+- **How:** the guide is written during the tour. Each stage is one session: the step explained,
+  then you do it, then that stage's chapter is written from what really happened, with real
+  output. Whatever confused you is fixed in the chapter, and whatever broke becomes a fix,
+  before the next stage.
+- **Format:** Markdown in this repo, `docs/guide/`, changed in the same PR as the code it
+  describes. Today's `docs/*.md` reference pages stay; the guide links to them for the details.
+
+| # | Unit | Depends on | Why here | Done when |
+|---|---|---|---|---|
+| 77 | **The guide's frame** (`docs/guide/`):<br>• **written for a person:** plain words, why before how, an example with real output for each step, what to do when it goes wrong;<br>• **chapters:** what MIRAI is and how it works (the agents, the store, your gates, your keys, the cage), then one per tour stage, then a **command reference**: every command, in the terminal and as `/mirai` in your session, with which ones are gates and why they need your terminal;<br>• **a test:** every command `mirai --help` lists, and every command on the session list, has its reference section; a new command without one fails the tests | 76 | The structure the tour fills in | The frame is merged; the reference test runs, and fails on a command left out |
+| 78 | **The tour** (one session per stage, each stage's chapter written in it):<br>1. a new small project: `init`, `detect`, the config, your key and the machine key, the red team, the baseline, `doctor`;<br>2. the topic as a PRD (with its brief), approved; then the design: ADR, HLD and LLD (the `full` track);<br>3. epics and tickets from it, approved from `mirai inbox`;<br>4. one ticket in the day, supervised: plan, your plan gate, build, review, proofs, `review-mr`, `merge`;<br>5. the same from your Claude Code session, through `/mirai`;<br>6. overnight: several tickets unattended, the morning report;<br>7. what goes wrong: a park, `unpark`, `discard`, send back, a usage limit, `resume`;<br>8. an epic released together, a release record, `mirai report`, `feedback`, `trace`;<br>9. upkeep: `update`, `clean`, `archive`, `contribute` | 77, and every MVP unit | You learn every feature by using it, and the guide is proven on a real topic | The topic is live in the tour project; every chapter is merged and was written from its stage; each command's section was used at least once on the tour, or says why not; whatever broke is fixed or listed as a follow-up |
 
 ---
 
