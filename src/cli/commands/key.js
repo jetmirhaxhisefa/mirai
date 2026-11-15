@@ -14,7 +14,7 @@ import { checkPrivateFile } from '../../store/files.js';
 const ACTIONS = ['new', 'show', 'revoke', 'protect', 'passphrase', 'unlock', 'lock', 'status'];
 
 async function newPassphrase(prompter) {
-  const a = await prompter.askHidden('choose a passphrase (at least 12 characters): ');
+  const a = await prompter.askHidden('choose a passphrase: ');
   checkPassphrase(a);
   const b = await prompter.askHidden('type it again: ');
   if (a !== b) throw new MiraiError('the two didn\'t match; nothing was changed', EXIT.FAILURE);

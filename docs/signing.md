@@ -70,7 +70,7 @@ mirai key new --machine    # the machine key; commit .mirai/keys/<id>.machine.pu
 mirai key status           # both keys, and whether yours is unlocked
 ```
 
-Each decision asks **your passphrase in place of typing the ticket key**. (A key that isn't protected still takes the typed key.) With the machine key on the integration branch, `/mirai run` from your session signs the proofs with it and goes on to the MR, so you're asked only at the plan and the merge. `mirai key passphrase` changes the passphrase; a forgotten one can't be recovered: `mirai key new --replace`, then revoke the old key.
+Each decision asks **your passphrase in place of typing the ticket key**. (A key that isn't protected still takes the typed key.) With the machine key on the integration branch, `/mirai run` from your session signs the proofs with it and goes on to the MR, so you're asked only at the plan and the merge. `mirai key passphrase` changes the passphrase; a forgotten one can't be recovered: `mirai key new --replace`, then revoke the old key. **Its length is yours to choose** (no minimum, only not empty): the key file stays readable, encrypted, so a copy can be guessed at offline with no lockout, and Node's encryption makes each guess cheap. A long passphrase keeps that impractical; a short one may not.
 
 **How long it stays unlocked is your setting:** `[signing] unlock` in `~/.config/mirai/config.toml` (your global file only; a project can't set it).
 

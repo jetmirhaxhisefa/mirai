@@ -38,7 +38,7 @@ Already built: signing and verifying (`src/sign/sign.js`, `keys.js`, `signer.js`
 - **A plain key after 29b** is yellow in `mirai doctor` with the hint `mirai key protect`; your decisions still work with it (no lock-out), the passphrase is only asked once it's protected.
 - **Feedback from your terminal** isn't a decision: it's recorded unsigned, marked "from your terminal" (still apart from "your session"; agents still can't write it).
 - **From your session:** a decision still names the terminal command (unchanged). `/mirai run` now signs the branch record and the proofs with the machine key, so a session run reaches the MR without the `gate record` stop.
-- **The passphrase:** at least 12 characters, asked twice when set, read without echo (as `token set` reads the token); `mirai key passphrase` changes it. Forgotten: the key can't be recovered; make a new one (`mirai key new --replace`) and revoke the old (unchanged).
+- **The passphrase:** any length, not empty (Jet, 2026-11-15: no 12-character minimum; the offline-guessing cost is in docs/signing.md), asked twice when set, read without echo (as `token set` reads the token); `mirai key passphrase` changes it. Forgotten: the key can't be recovered; make a new one (`mirai key new --replace`) and revoke the old (unchanged).
 - **The unlock holder:** one per machine, started by the first decision when `unlock` isn't `"each"`; it holds the decrypted key in memory only, listens on a socket in `~/.config/mirai/` (0600), signs only for MIRAI's commands' requests (journal lines and approvals, under their contexts), and exits at the time set or on `mirai key lock`. `mirai key status` shows it.
 
 ## Scope

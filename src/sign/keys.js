@@ -88,12 +88,13 @@ export function loadSigningKey(env, { passphrase } = {}) {
   return { keyId: keyIdOf(publicKey), label, privateKey, publicKey, protected: encrypted };
 }
 
-// Unit 29b: a passphrase is at least 12 characters, one line.
-export const PASSPHRASE_MIN = 12;
+// Unit 29b: a passphrase is any length you choose (Jet, 2026-11-15: no minimum), but not empty and
+// on one line. A short one is yours to weigh: the encrypted file can be guessed at offline.
+export const PASSPHRASE_MIN = 1;
 // Written as -{5}, so MIRAI's own source never looks like a key to the secret scan (registry/secrets).
 const ENCRYPTED = /^-{5}BEGIN ENCRYPTED PRIVATE KEY-{5}/;
 export function checkPassphrase(passphrase) {
-  if (typeof passphrase !== 'string' || [...passphrase].length < PASSPHRASE_MIN || /[\n\r]/.test(passphrase)) throw new StoreError(`a passphrase is at least ${PASSPHRASE_MIN} characters, on one line`, { code: 'weak-passphrase', hint: 'choose a longer one' });
+  if (typeof passphrase !== 'string' || [...passphrase].length < PASSPHRASE_MIN || /[\n\r]/.test(passphrase)) throw new StoreError('a passphrase can\'t be empty, and is one line', { code: 'weak-passphrase', hint: 'type at least one character' });
   return passphrase;
 }
 
