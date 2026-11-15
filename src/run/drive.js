@@ -31,6 +31,9 @@ import { readTicketStatus } from '../store/tickets.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { waitForReset } from './pause.js';
 
+// A path as one shell word, for a command you copy (the plan's folder has a space on macOS).
+const shellQuote = (p) => `'${String(p).replace(/'/g, "'\\''")}'`;
+
 // `mirai run <ticket>` (unit 28; design/01 §14, D-07's run machine): one ticket from wherever it is
 // to its merge request, under one run and one lock, stopping only where you're needed. The next step
 // is read from the ticket's state every time, never remembered, so running it again after any stop
@@ -69,7 +72,7 @@ export function nextStep({ store, ticket, trust, config, keys }) {
   if (status.state === 'in-progress') {
     if (!existsSync(planPath(store, ticket))) return { stop: { kind: 'needs-you', why: `${ticket} is in-progress with no plan`, next: `mirai show ${ticket}` } };
     const plan = readFileSync(planPath(store, ticket));
-    if (!planApproval(store, ticket, keys).ok) return { stop: { kind: 'gate-plan', why: `${ticket}'s plan waits for your approval`, next: `read it, then: mirai approve ${ticket} --plan` } };
+    if (!planApproval(store, ticket, keys).ok) return { stop: { kind: 'gate-plan', why: `${ticket}'s plan waits for your approval`, next: `read it (less ${shellQuote(planPath(store, ticket))}), then: mirai approve ${ticket} --plan` } };
     if (!last || last.plan_sha256 !== contentHash(plan)) return { step: 'build' };
     if (fixFrom(store, ticket, last)) return { step: 'fix' };
     if (CARRIED.includes(last.outcome)) return { step: 'build' };
@@ -152,7 +155,7 @@ export function afterStep(step, r, ticket) {
   if (o === 'killed') return stop('interrupted', `continue: mirai resume (or mirai run ${ticket})`);
   if (o === 'parked' || o === 'bad-plan') return stop('parked', `look at it: mirai show ${ticket}; then ${unparkCommand(ticket, o === 'bad-plan' ? 'bad-plan' : r.park_reason ?? null)}`);
   switch (step) {
-    case 'plan': return o === 'waiting' ? stop('gate-plan', `read the plan, then: mirai approve ${ticket} --plan; then mirai run ${ticket}`, r.gate?.why?.join('; ') ?? null) : stop('needs-you', `mirai show ${ticket}`);
+    case 'plan': return o === 'waiting' ? stop('gate-plan', `read the plan${r.path ? ` (less ${shellQuote(r.path)})` : ''}, then: mirai approve ${ticket} --plan; then mirai run ${ticket}`, r.gate?.why?.join('; ') ?? null) : stop('needs-you', `mirai show ${ticket}`);
     case 'build': return ['handed-over', 'checks-failed'].includes(o) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
     case 'fix': return ['handed-over', 'checks-failed', 'replan'].includes(o) || (o === 'needs-you' && /rounds in one command/.test(why ?? '')) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
     case 'review': return ['pass', 'changes', 'replan'].includes(o) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);

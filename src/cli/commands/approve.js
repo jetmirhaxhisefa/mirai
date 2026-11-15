@@ -125,6 +125,10 @@ async function approvePlan(ticket, io, now) {
   const gate = gateFor({ preset: config.preset, text });
   const declared = declaredChanges(text).filter((r) => r.kind !== 'none');
 
+  // The plan itself, so what you approve is in front of you (Jet, 2026-11-15): Kai's text, each
+  // line shown not acted on (no escape sequence reaches your terminal).
+  const rule = '─'.repeat(72);
+  io.stdout.write(`${rule}\n${text.replace(/\n$/, '').split('\n').map((l) => plain(l)).join('\n')}\n${rule}\n`);
   io.stdout.write(`ticket: ${ticket} (${current.state})\nplan:   ${planPath(store, ticket)}\nhash:   ${hash ?? 'none (no frozen block)'}\nwhy you: ${gate.why.join('; ')}\n`);
   io.stdout.write(`declared: ${declared.length ? declared.map((r) => `${r.kind} ${plain(r.item)}`).join(', ') : 'none'}\n`);
   const prompter = createPrompter(io);
