@@ -5,8 +5,9 @@ takes work from idea to deployment: brief → PRD → design → tickets → pla
 MR → release. Scripts decide and agents write. Every document and every merge needs your
 approval.
 
-**Status:** the design is approved (v5, 2026-10-23). Implementation hasn't started; it runs one
-unit at a time from `design/07-implementation-roadmap.md`.
+**Status:** the design is approved (v5, 2026-10-23). Implementation runs one unit at a time from
+`design/07-implementation-roadmap.md`; most of Milestone A (one ticket to its MR) is built, and
+[`implementation/PROGRESS.md`](implementation/PROGRESS.md) records each unit and what's next.
 
 This page is a summary for reading. The real source is the `design/` folder. When they disagree,
 `design/` wins.
@@ -141,7 +142,7 @@ Hooks, CI and MCP servers never use it: they call the trust root's copy by its f
 | [`design/04-decisions.md`](design/04-decisions.md) | Decision log D-01 to D-56 |
 | [`design/05-open-questions.md`](design/05-open-questions.md) | Open questions; §G lists the facts still to verify (G1–G29) |
 | [`design/06-review-round-*.md`](design/) | The three review rounds and your decisions |
-| [`design/07-implementation-roadmap.md`](design/07-implementation-roadmap.md) | 76 units in milestones A–E |
+| [`design/07-implementation-roadmap.md`](design/07-implementation-roadmap.md) | The units in milestones A–F, and the pilot checkpoint |
 | [`design/08-followup-discussion.md`](design/08-followup-discussion.md) | Follow-up agreements Q1–Q9 |
 | [`design/09-post-mvp-plan.md`](design/09-post-mvp-plan.md) | What happens after the MVP |
 | [`research/`](research/) | Analysis of prior art, skill vetting, Claude Code blocking rules |
