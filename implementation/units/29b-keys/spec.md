@@ -1,7 +1,7 @@
 ---
 unit: "29b"
 name: keys
-status: draft (2026-11-15; Jet's interview decisions 1–6, the defaults as written)
+status: approved (2026-11-15; Jet: "approve 29b"; interview decisions 1–6, the defaults as written)
 roadmap: design/07-implementation-roadmap.md, row 29b ("Your key and token at rest", proposed in 18e; "decide before building"); D-17 and its 18e update (a signature proves your key was used, not that you were there); docs/signing.md ("What it protects, honestly"); docs/agent-safety.md ("What holds in your sessions", unit 18e)
 depends_on: ["06", "13c", "18e", "25a", "29d"]
 ---
