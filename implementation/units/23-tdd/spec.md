@@ -1,7 +1,7 @@
 ---
 unit: "23"
 name: tdd
-status: draft (2026-11-15; interview decisions 1–3)
+status: approved (2026-11-15; Jet: "approve 23"; interview decisions 1–3, the defaults and the probes as written)
 roadmap: design/07-implementation-roadmap.md, row 23 ("`mirai-tdd` skill + floor guard + orchestrator red check"; Q7, Q8, R2-M7). Skipped by mistake after 22 (no decision recorded it); Jet, 2026-11-15: "Unit 23, then the pilot"
 depends_on: ["16a", "17b", "20", "21b", "21c", "22", "24a", "25a", "28"]
 ---
@@ -101,7 +101,7 @@ fix rounds (21c); the loop guard's rounds (20); the signed gate proof (25a).
 - ATDD for high-risk tickets by a separate agent (unit 68). E2E protection with QA (unit 51).
   Mutation testing. CI reading the red evidence (unit 54 will; the proof carries it now).
 
-## Probes (need your OK)
+## Probes (with your OK: "approve 23", 2026-11-15; SAMPLE-6 itself still needs your approval)
 
 - **R1, a real run on the sample app** (Sonnet, about 15 minutes): a new ticket SAMPLE-6, small
   logic with `tdd: auto` (written by me, for your approval), through `mirai run` to its MR: the
