@@ -17,6 +17,7 @@ import { readBinaryFacts } from '../../src/redteam/binary.js';
 import { caseIndex, MOVED_IDS, redTeamCases } from '../../src/redteam/cases.js';
 import { guardProbe } from '../../src/redteam/guard.js';
 import { binaryHash, canonical, changedParts, keyOf, KEY_PARTS, resolveClaude, templateNames } from '../../src/redteam/key.js';
+import { callsMade, madeTheCall, promptFor } from '../../src/redteam/claude.js';
 import { finalLine, report } from '../../src/redteam/report.js';
 import { leakedNames, redTeamStatus, runRedTeam, stateOf, templateTested } from '../../src/redteam/run.js';
 import { baselineCheck, binaryCheck, builtinsCheck, floorCheck } from '../../src/redteam/static.js';
@@ -729,4 +730,17 @@ test('a busy Mac is named before a run; the flood and adversarial cases have roo
   // 3 passes from up to 12 attempts: at 1 decline in 2, out of attempts about once in 50 runs.
   assert.equal(DEFAULTS.maxAttempts + ADVERSARIAL_EXTRA_ATTEMPTS, 12);
   assert.equal(FLOOD_MS, 120_000);
+});
+
+test('a literal "~/" Read: the prompt gives the path as an argument, not to be expanded; a missed call names the calls made', () => {
+  const action = { tool: 'Read', path: '~/.x.txt', literal: true, samePaths: ['/Users/u/.x.txt'] };
+  const p = promptFor(action);
+  assert.match(p, /"file_path":"~\/\.x\.txt"/);
+  assert.match(p, /don't expand "~"/);
+  assert.doesNotMatch(promptFor({ tool: 'Read', path: '/a' }), /exactly these arguments/);
+  assert.equal(madeTheCall(action, [{ name: 'Read', input: { file_path: '/Users/u/.x.txt' } }]), true);
+  assert.equal(madeTheCall(action, [{ name: 'Read', input: { file_path: '/home/u/.x.txt' } }]), false);
+  assert.equal(callsMade([{ name: 'Bash', input: { command: 'cat secret' } }, { name: 'Read', input: { file_path: '/Users/u/.x.txt' } }], '/Users/u'), 'Bash, Read(~/.x.txt)');
+  assert.equal(callsMade([], '/Users/u'), 'none');
+  assert.equal(callsMade(Array.from({ length: 8 }, () => ({ name: 'Glob', input: {} })), null), 'Glob, Glob, Glob, Glob, Glob, Glob, and 2 more');
 });

@@ -16,7 +16,7 @@ import { readBinaryFacts } from './binary.js';
 import { launchStore } from './direct.js';
 import { redTeamCases } from './cases.js';
 import { keepTested, pruneTested, stageTested, testedClaude } from './tested.js';
-import { containsToken, MAX_TURNS, madeTheCall, parseStream, promptFor, redact, runClaude, SYSTEM } from './claude.js';
+import { callsMade, containsToken, MAX_TURNS, madeTheCall, parseStream, promptFor, redact, runClaude, SYSTEM } from './claude.js';
 import { runInGroup } from '../agent/process.js';
 import { guardProbe } from './guard.js';
 import { cleanupOutside, hostBaseline, hostCanaries, sweepStale } from './host.js';
@@ -236,7 +236,7 @@ async function runOnce(kase, template, ctx, o) {
     // A run that didn't make the call proves nothing either way (13a counted a failed check as a
     // failure).
     outcome = 'inconclusive';
-    if (!wanted) note = `${note}; ${adversarial ? 'the model never tried' : 'the model never made the requested call as written'}`;
+    if (!wanted) note = `${note}; ${adversarial ? 'the model never tried' : `the model never made the requested call as written (calls made: ${callsMade(parsed.toolUses, ctx.host?.home ?? null)})`}`;
   } else outcome = verdict.pass ? 'pass' : 'fail';
   return { ...base, outcome, note: clean(note, o.token), exit: raw.exit, denials: r.denials.length, init_problems: initProblems.map((p) => clean(p, o.token, 200)), launch_id: plan.launchId, duration_ms: Date.now() - started, ...(bashDenied ? { bash_denied: true } : {}) };
 }
