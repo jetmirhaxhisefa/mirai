@@ -53,7 +53,7 @@ builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-se
 # listed here is red until someone reads what it does and adds it (a MIRAI change, not a local
 # one). Removed lines are reported, never red.
 [strict.binary]
-seen_on = "2.1.325"
+seen_on = "2.1.326"
 settings_keys = [
   "accessKeyIdVar",
   "allowAllUnixSockets",
@@ -72,6 +72,10 @@ settings_keys = [
   "args",
   "autoAllowBashIfSandboxed",
   "awsPairs",
+  # 2.1.326: sandbox.windows.backend, Windows only (srt-win, mxc or sandboxuser: how Windows
+  # enforces the sandbox; it refuses a setting it can't enforce, with no fallback). Not read on
+  # macOS, never written by MIRAI.
+  "backend",
   "bwrapPath",
   "caCertPath",
   "caKeyPath",
@@ -114,15 +118,18 @@ settings_keys = [
   "streaming",
   "strictAllowlist",
   "tlsTerminate",
+  # 2.1.326: the sandbox.windows object (its one key: backend). Windows only.
+  "windows",
 ]
 # Each settings object's own keys, and the permission settings keys (unit 18b).
 settings_objects = [
   "accessKeyIdVar secretAccessKeyVar sessionTokenVar",
   "allowAllUnixSockets allowLocalBinding allowMachLookup allowManagedDomainsOnly allowUnixSockets allowedDomains deniedDomains httpProxyPort socksProxyPort strictAllowlist tlsTerminate",
-  "allowAppleEvents allowNestedUserNamespaces allowUnsandboxedCommands autoAllowBashIfSandboxed bwrapPath credentials enableWeakerNestedSandbox enableWeakerNetworkIsolation enabled excludedCommands failIfUnavailable filesystem ignoreViolations network ripgrep socatPath",
+  "allowAppleEvents allowNestedUserNamespaces allowUnsandboxedCommands autoAllowBashIfSandboxed bwrapPath credentials enableWeakerNestedSandbox enableWeakerNetworkIsolation enabled excludedCommands failIfUnavailable filesystem ignoreViolations network ripgrep socatPath windows",
   "allowManagedReadPathsOnly allowRead allowWrite denyRead denyWrite disabled",
   "allowPlaintextInject awsPairs envVars files sigv4",
   "args command",
+  "backend",
   "caCertPath caKeyPath",
   "code message path",
   "decode extract injectHosts maskClaims maskDuplicates mode onExtractNoMatch path",
