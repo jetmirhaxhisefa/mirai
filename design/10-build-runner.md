@@ -5,6 +5,10 @@ version: 1
 
 # 10 — The build runner (MVP unit 29e)
 
+**When:** right after the pilot (unit 30), before Milestone B. The pilot was already running
+when this was decided, and the runner doesn't help it: the pilot's red-team run must be
+started by you in the pilot project.
+
 Decision PM-45. This is the only addendum that belongs to the MVP. It is a tool for **building
 MIRAI itself** and is never installed into a project.
 
