@@ -48,6 +48,13 @@ integration branch by hand (design/05 §F), which the pilot just did once for
 5. **npm and Composer.** Both pilot stacks, driven by stack data (`registry/stacks/`). Other
    ecosystems (pip, go, cargo, …) are refused with a clear message: you add the package by hand.
 
+6. **Accepting a stop (Jet, 2026-11-16, during the build, after P1).** The real probe showed BKT-49's
+   Storybook packages also move an existing package (`minipass` 7.1.2 → 7.1.3, needed by a new
+   one), so the ticket parks (`deps-review`). `mirai unpark <ticket> --accept-deps` (a gate, your
+   terminal, your key) shows what would change and signs acceptance of exactly that change (a hash
+   of the rows and of each manifest and lock after the update). The next build installs only if the
+   update comes out identical; anything else parks again. A machine-key signature never accepts.
+
 ## Scope
 
 **In.**
@@ -144,8 +151,10 @@ integration branch by hand (design/05 §F), which the pilot just did once for
   lockfile without installing.
 - **P2 (red team, the session's side):** from inside a build session, Kai tries to widen the
   install: edits the lockfile to a tarball URL, adds a package to the manifest, edits the
-  Dockerfile, calls npm with network. Each is refused or blocked as today; the cases join the
-  red team.
+  Dockerfile, calls npm with network. Each is refused or blocked as today. **As built:** no new
+  red-team case. The red team's cases stay stack-neutral (no tool names, 14c T13), and `g16-empty`
+  already proves a session has no network, which covers npm; the manifest, lock and Dockerfile
+  edits are the build's checks, tested (build.test.js: a lock edit after the install needs you).
 - **R1 (real, the pilot):** BKT-49's plan declares the Storybook packages at 10.2.16; you approve;
   the install commits them, builds `hr-platform/frontend:mirai-bkt-49`, and Kai's stories run
   against it.

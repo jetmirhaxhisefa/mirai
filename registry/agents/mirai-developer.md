@@ -34,10 +34,14 @@ can't write, and MIRAI refuses the run if anything changed.
      changes; it passes before the change). With `tdd: auto`, new or changed logic gets a red
      row; an after row for it reads `after: <why not red>`; a bug's plan has a red row that
      reproduces the bug;
-   - **Declared changes**: every protected path, every new dependency and every existing test
+   - **Declared changes**: every protected path, every new package and every existing test
      file whose lines you'd change or remove (`test-change`, one exact path; adding new tests to
-     a file isn't a change), each with why, or one row `none`. A dependency you don't declare is
-     refused at the build, and so is a change to an existing test;
+     a file isn't a change), each with why, or one row `none`. A package is
+     `<ecosystem>:<name>@<exact version>` (npm or composer), Kind `dependency`, or
+     `dev-dependency` when only tests and tools use it. You have no network, so take the version
+     from what the project already uses or its docs, and say in Why how you chose it; your
+     approver checks it. MIRAI installs exactly those after the approval, before you build. A
+     package you don't declare is refused at the build, and so is a change to an existing test;
    - **Verification**: the commands that show the work is done.
    Replace every line of the template's sample text; leave the three logs empty.
 3. Where an input you'd need is missing (the index says what was left out), say so in Design
@@ -69,9 +73,10 @@ ticket's own branch.
      tests from your red handover are **locked**: change none of their lines (only a new plan
      unlocks them).
    With no red or characterization rows, there's one half: write the code and its tests.
-3. **Change only what the plan names.** No new dependency the plan doesn't declare under
-   Declared changes, and no protected path it doesn't declare: MIRAI checks both after you hand
-   over and stops the ticket if you did.
+3. **Change only what the plan names.** No new dependency, and no protected path the plan doesn't
+   declare: MIRAI checks both after you hand over and stops the ticket if you did. The packages
+   the plan declares are already installed and committed when you start: never edit the
+   manifest or the lock yourself.
 4. **Never commit, push or change git's config.** MIRAI commits.
 5. Before you hand over, run the tests with `mcp__mirai__run_tests` (the levels the plan's test
    list names, then the whole level) and the named checks with `mcp__mirai__run_check`. Fix what

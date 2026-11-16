@@ -1,4 +1,5 @@
 import { readFileSync, rmSync } from 'node:fs';
+import { DEPENDENCY_KINDS } from './dependency-rows.js';
 import { join } from 'node:path';
 import { checkGap, moveAtStart } from '../redteam/move.js';
 import { runRedTeam } from '../redteam/run.js';
@@ -145,7 +146,7 @@ export function withFrontmatter(text, fields) {
   } catch {
     // unreadable frontmatter: the whole text is the body, and the lint will say what's wrong
   }
-  const dependency = declaredChanges(`---\n---\n${body}`).some((r) => r.kind === 'dependency');
+  const dependency = declaredChanges(`---\n---\n${body}`).some((r) => DEPENDENCY_KINDS.includes(r.kind));
   return `${planFrontmatter({ ...fields, risk: fields.risk === 'high' || dependency ? 'high' : 'normal' })}${body.replace(/^\n+/, '')}`;
 }
 
@@ -164,7 +165,7 @@ export function gateFor({ preset, text }) {
   if (risk === 'high') required.push('a high-risk ticket');
   const rows = declaredChanges(text);
   if (rows.some((r) => r.kind === 'protected-path')) required.push('it declares protected paths');
-  if (rows.some((r) => r.kind === 'dependency')) required.push('it declares new dependencies');
+  if (rows.some((r) => DEPENDENCY_KINDS.includes(r.kind))) required.push(`it declares new dependencies (${rows.filter((r) => DEPENDENCY_KINDS.includes(r.kind)).map((r) => r.item).join(', ').slice(0, 300)}), which MIRAI installs once you approve`);
   // Unit 23 (decision 2): changing an existing test is always yours to see.
   if (rows.some((r) => r.kind === 'test-change')) required.push('it changes existing tests');
   const byPreset = PRESETS[preset]?.plan ?? 'human';

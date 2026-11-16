@@ -180,8 +180,23 @@ test('T4: protected paths and new dependencies are checked against the plan', as
   const dep = await build(i, claudeWith([done], add));
   assert.equal(dep.outcome, 'needs-you');
   assert.match(dep.why, /dependencies the plan didn't declare: npm:left-pad \(package\.json\)/);
-  const j = await ready({ plan: PLAN.replace('risk: normal', 'risk: high').replace('| none | | |', '| dependency | npm:left-pad | padding |') });
-  assert.equal((await build(j, claudeWith([done], add))).outcome, 'handed-over');
+  // Unit 30b: a declared package is installed and committed by MIRAI before Kai starts (a stand-in
+  // install here), so Kai's own change to it is refused like any other.
+  const j = await ready({ plan: PLAN.replace('risk: normal', 'risk: high').replace('| none | | |', '| dependency | npm:left-pad@1.3.0 | padding |') });
+  const install = async ({ store, commit, declared }) => {
+    assert.deepEqual(declared.filter((d) => d.kind === 'dependency').map((d) => d.item), ['npm:left-pad@1.3.0']);
+    writeFileSync(join(store.checkout, 'package.json'), '{\n  "name": "app",\n  "dependencies": { "express": "^4", "left-pad": "1.3.0" }\n}\n');
+    commit('add npm:left-pad@1.3.0', 'installed');
+    return { installed: true, record: {} };
+  };
+  const own = await build(j, claudeWith([done], ['sed -i "" \'s/"left-pad": "1.3.0"/"left-pad": "^1"/\' package.json']), { install });
+  assert.equal(own.outcome, 'needs-you');
+  assert.match(own.why, /dependencies the plan didn't declare: npm:left-pad/);
+  // A big or odd install parks the ticket for you before Kai starts.
+  const k = await ready({ plan: PLAN.replace('risk: normal', 'risk: high').replace('| none | | |', '| dependency | npm:left-pad@1.3.0 | padding |') });
+  const stopped = await build(k, claudeWith([done]), { install: async () => ({ parked: 'express would change', problems: ['express would change'], code: 'deps-review' }) });
+  assert.equal(stopped.outcome, 'parked');
+  assert.equal(readTicketStatus(openStore({ cwd: k.root, env: k.env }), 'PMT-31').status.park_reason, 'deps-review');
 });
 
 test('T4b: dependencies from stack data: moved between keys isn\'t new; an unreadable manifest and a lock change alone are named', () => {
@@ -294,14 +309,30 @@ test('review: a declared dependency covers its manifest with the node pack on; s
   const withPack = { ...FILES, 'package-lock.json': '{}\n' };
   const add = ['sed -i "" \'s/"express": "\\^4"/"express": "^4", "left-pad": "^1"/\' package.json; echo "{\\"x\\":1}" > package-lock.json'];
   // The lock file is never covered by a dependency row: the plan declares it (21b re-review).
-  const plan = PLAN.replace('risk: normal', 'risk: high').replace('| none | | |', '| dependency | npm:left-pad | padding |\n| protected-path | package-lock.json | the lock for left-pad |');
+  // Unit 30b: MIRAI installs the plan's package and commits manifest and lock before Kai starts
+  // (a stand-in install here); Kai then changes neither, and the build hands over. Kai touching the
+  // lock afterwards is an undeclared protected path.
+  const plan = PLAN.replace('risk: normal', 'risk: high').replace('| none | | |', '| dependency | npm:left-pad@1.3.0 | padding |');
   const f = await ready({ plan, files: withPack });
   const cfg = join(f.root, '.mirai/config.toml');
   writeFileSync(cfg, `${readFileSync(cfg, 'utf8')}\n[gate]\npacks = ["node"]\n`);
   f.git('commit', '-qam', 'the node pack');
   writeBaseline(f.store, { schema_version: 1, sha: snapshot({ cwd: f.root, env: f.env }).baseSha, levels: { unit: PASSED, feature: PASSED } }, loadSigner(f.env, f.store));
-  const covered = await build(f, claudeWith([done], add));
+  const install = async ({ store, commit }) => {
+    writeFileSync(join(store.checkout, 'package.json'), '{\n  "name": "app",\n  "dependencies": { "express": "^4", "left-pad": "1.3.0" }\n}\n');
+    writeFileSync(join(store.checkout, 'package-lock.json'), '{"lockfileVersion": 3}\n');
+    commit('add npm:left-pad@1.3.0', 'installed');
+    return { installed: true, record: {} };
+  };
+  const covered = await build(f, claudeWith([done]), { install });
   assert.equal(covered.outcome, 'handed-over', covered.why);
+  const f2 = await ready({ plan, files: withPack });
+  writeFileSync(join(f2.root, '.mirai/config.toml'), `${readFileSync(join(f2.root, '.mirai/config.toml'), 'utf8')}\n[gate]\npacks = ["node"]\n`);
+  f2.git('commit', '-qam', 'the node pack');
+  writeBaseline(f2.store, { schema_version: 1, sha: snapshot({ cwd: f2.root, env: f2.env }).baseSha, levels: { unit: PASSED, feature: PASSED } }, loadSigner(f2.env, f2.store));
+  const lockEdit = await build(f2, claudeWith([done], ['echo "{\\"x\\":1}" > package-lock.json']), { install });
+  assert.equal(lockEdit.outcome, 'needs-you');
+  assert.match(lockEdit.why, /package-lock\.json/);
   // The same with an undeclared one: the manifest isn't covered, so it's also an undeclared protected path.
   const g = await ready({ files: withPack });
   writeFileSync(join(g.root, '.mirai/config.toml'), `${readFileSync(join(g.root, '.mirai/config.toml'), 'utf8')}\n[gate]\npacks = ["node"]\n`);

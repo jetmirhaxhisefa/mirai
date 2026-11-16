@@ -222,7 +222,7 @@ export function lintFile(file, ctx) {
   const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine, text: bytes.toString('utf8') };
   const linkTarget = (path) => resolveLink(dirname(abs), path, ctx);
   const template = inside ? templateOf(type, def, ctx) : null;
-  for (const p of checkDocument(doc, def, { linkTarget, file, project: ctx.project, template })) problems.push({ file, ...p });
+  for (const p of checkDocument(doc, def, { linkTarget, file, project: ctx.project, template, registry: ctx.registry })) problems.push({ file, ...p });
   return { linted: true, problems };
 }
 
@@ -363,6 +363,6 @@ export function lintText(text, { source = '<text>', registry, project = projectD
   const ctx = { registry, templates: new Map() };
   const template = templateOf(type, def, ctx);
   const linkTarget = () => ({ slugs: null });
-  for (const p of checkDocument(doc, def, { linkTarget, file: source, project, template })) problems.push({ file: source, ...p });
+  for (const p of checkDocument(doc, def, { linkTarget, file: source, project, template, registry })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

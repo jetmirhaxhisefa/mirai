@@ -1,4 +1,5 @@
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { readInstall, ticketImages } from '../agent/install.js';
 import { join } from 'node:path';
 
 import { readBaseline } from '../baseline/store.js';
@@ -152,7 +153,7 @@ export const historyHint = (err) => (HISTORY.has(err?.code)
   ? `MIRAI never rewrites its history. Keep a copy of ${err.path ?? 'the file'}, then${err.code === 'corrupt-line' ? ' remove the broken line by hand (a crash while writing leaves a torn last line), or' : ''} ask for help with the copy (docs/doctor.md)`
   : err?.hint ?? 'see docs/doctor.md');
 
-export async function runChecks({ cwd, env, now = () => new Date(), redTeam = redTeamStatus, session = sessionStatus }) {
+export async function runChecks({ cwd, env, now = () => new Date(), redTeam = redTeamStatus, session = sessionStatus, images = ticketImages }) {
   let store;
   try {
     store = openStore({ cwd, env });
@@ -336,6 +337,20 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     const b = readBaseline(store, sha, { keys });
     if (!b) return yellow(`none for ${store.branch} at ${sha.slice(0, 12)}: the next run records it first`, 'to record it now: mirai baseline');
     return ok(`recorded for ${sha.slice(0, 12)}${b.complete ? '' : ' (incomplete)'}`);
+  });
+  // Unit 30b: per-ticket images whose ticket no longer has an install record (done, dropped, or
+  // released while Docker was down).
+  await check('ticket-images', 'Ticket images', async () => {
+    let found;
+    try {
+      found = await images({ store, env });
+    } catch {
+      found = null;
+    }
+    if (found === null) return yellow('Docker didn\'t answer, so the tickets\' own images weren\'t checked', 'start Docker Desktop');
+    const left = found.filter((i) => !i.ticket || !readInstall(store, i.ticket));
+    if (left.length) return yellow(`${left.length} image(s) of tickets that no longer need them: ${left.slice(0, 4).map((i) => i.tag).join(', ')}`, `docker image rm ${left.slice(0, 4).map((i) => i.tag).join(' ')}`);
+    return ok(found.length ? `${found.length} ticket image(s), each for a ticket with installed packages` : 'no ticket has its own image');
   });
   return items;
 }

@@ -35,6 +35,19 @@ ecosystem = "composer"
 locks = ["composer.lock"]
 sources = ["repositories", "replace", "provide", "conflict", "minimum-stability", "prefer-stable"]
 
+# How MIRAI installs an approved one (unit 30b): as node's. `registry` for Composer is Packagist's
+# download notification address, which every package resolved from Packagist carries in the lock
+# (its files then come from where Packagist points, usually GitHub).
+[dependencies.install]
+command = ["composer", "require", "--no-install", "--no-scripts", "--no-plugins", "--no-interaction"]
+package = "{name}:{version}"
+lock = "composer.lock"
+dev = ["--dev"]
+dev_field = "require-dev"
+lock_format = "composer"
+registry = "https://packagist.org/downloads/"
+image_install = ['\bcomposer\s+install\b[^\n]*--no-scripts']
+
 # Commit-message rules (G8): CaptainHook's or GrumPHP's.
 [[commit_rules]]
 file = "captainhook.json"

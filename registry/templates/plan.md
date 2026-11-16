@@ -24,7 +24,8 @@ it in the store. mirai lint flags any line left word for word from this template
     or forbidden.
   - Edge cases: one row per meaningful input or state, each with its expected result and its
     error handling.
-- A new dependency in Declared changes makes the ticket high risk: set risk: high.
+- A new dependency in Declared changes makes the ticket high risk: set risk: high. Name its exact
+  version; MIRAI installs it after your approval, before the build (unit 30b).
 - Aim for about 900 to 1,600 tokens: boundaries and examples, not step-by-step instructions.
 -->
 # The plan for this ticket
@@ -69,7 +70,7 @@ it in the store. mirai lint flags any line left word for word from this template
 
 ## Declared changes
 
-<!-- done when: every protected path the ticket touches (one exact file path each, no patterns), every new dependency it needs (<ecosystem>:<name>, such as npm:left-pad) and every existing test file whose lines change or go (test-change, one exact path; adding new tests to a file isn't a change), each with why; or one row "none" -->
+<!-- done when: every protected path the ticket touches (one exact file path each, no patterns), every new package it needs (Kind dependency, or dev-dependency for one only tests and tools use; Item <ecosystem>:<name>@<exact version>, such as npm:left-pad@1.3.0; npm and composer only; MIRAI installs exactly it once you approve) and every existing test file whose lines change or go (test-change, one exact path; adding new tests to a file isn't a change), each with why; or one row "none" -->
 | Kind | Item | Why |
 |---|---|---|
 | none | | |
