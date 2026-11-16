@@ -27,7 +27,7 @@ with their store kind and judged apart, so the connector doesn't blur the result
 
 **"Close but not met"** (`09` §2.2) means: the safety and escape marks are met, and at most two
 of the other marks are missed, each by less than a fifth of its value. Anything worse is "far
-off". These two definitions are proposals for you to confirm when the review starts.
+off". These two definitions are defaults and config values (D-68).
 
 ## 2. What the MVP must log
 
@@ -97,10 +97,10 @@ No unit exists for these. Each names the signal that would create one.
 **Small numbers.** Twenty tickets give few parks (the pass mark is under 20%, so about four)
 and a handful of documents per type. A share of four parks proves little. So each signal has a
 **threshold and a minimum sample**. Below the sample the answer is "keep collecting", no unit
-is built, and the next retro looks again. The numbers are proposals for you to confirm at the
-review.
+is built, and the next retro looks again. The numbers are **defaults, and each is a config
+value** you can change (D-68). The data pack and the retro show the values they used.
 
-| Candidate | Build it when (proposed) | Design in brief |
+| Candidate | Build it when (default) | Design in brief |
 |---|---|---|
 | Extra coding rules for Kai | At least 10 `unnecessary` findings you agreed with, and one kind holds half of them | Add only the rules that kind points to. From research: offer the simpler option, trace every changed line to the request, no defensive code for impossible cases, no cleanup of untouched code, out-of-scope findings go to a list. Generic rule lists showed no measured gain |
 | Plan-against-diff check | A quarter of tickets changed files the plan didn't name | The plan lists files and an expected size. A script compares the real diff and flags the excess before review |
@@ -150,9 +150,8 @@ runner (`10`). It isn't a command in installed projects.
 interview, and it stands): one Claude Code version per ticket; MIRAI moves between tickets,
 never during one; with `[claude_code] move = "auto"` in your personal config it moves by itself
 at a ticket's start once the red team is green on the new version; it warns while a newer
-version waits and stops new tickets after 7 days. In the interview you agreed to "you approve
-the move with your key". 18h's consent setting is the newer and more specific decision, so
-P13 doesn't add a gate. If you want a keyed approval per move, that is a change to 18h.
+version waits and stops new tickets after 7 days. You confirmed this on 2026-11-16 (D-69):
+MIRAI moves by itself, and no keyed approval per move is added.
 
 P13 adds what 18h doesn't have:
 

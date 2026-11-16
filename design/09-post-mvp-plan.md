@@ -59,7 +59,7 @@ Some teammates won't use MIRAI at all.
 
 | Stage | When | Contents | Addendum |
 |---|---|---|---|
-| **MVP additions** | Inside the MVP, in units not built yet | The build runner (unit 29e), MIRAI's own CI on Ubuntu with the operating-system module (unit 30a), and small additions to units 31, 32, 34, 40, 42, 45, 46, 48, 54, 56 | `10`, §4 below |
+| **MVP additions** | Inside the MVP, in units not built yet | The build runner (unit 29e, after the pilot), MIRAI's own CI on Ubuntu with the operating-system module (unit 30a), and small additions to units 31, 32, 34, 40, 42, 45, 46, 48, 54, 56 | `10`, §4 below |
 | **0a · Team start** | The day the MVP is fully done (A–F) | Tag v1.0. The onboarding checklist. The team starts on Macs with tickets and documents in the repo | `12` P00 |
 | **0b · Platforms and connectors** | Right after 0a. It doesn't wait for the review | Ubuntu support, Windows through WSL, the Jira and Confluence connector with team behaviour. Built in the order of who is waiting | `11`, `12` |
 | **1 · The review** | After at least 20 real tickets | Read the logs with a strong model, go through the suggestions together, judge against D-38, re-order this plan | `13` |
@@ -105,10 +105,11 @@ This is the **second** judging. The first is inside the MVP, on the 15 pilot tic
 
 Several things in this plan use the same weekly limit as ticket work (D-57). The pass mark is
 one night at no more than 15% of the week. Each of these has a cap, counted in the same ledger,
-and each is skipped when the week's reserve is low. The numbers are proposals, set for real by
-calibration on each machine, since a teammate may be on a smaller plan than yours.
+and each is skipped when the week's reserve is low. The numbers are **defaults, and each is a
+config value** you can change (D-68). Calibration on each machine may replace them, since a
+teammate may be on a smaller plan than yours.
 
-| Consumer | When | Proposed cap |
+| Consumer | When | Default cap |
 |---|---|---|
 | Full red team while building MIRAI (`10`) | Once per night on the latest state, and before a merge | Building MIRAI only. Not on a project |
 | Red team on a new Claude Code version (P13, unit 18h) | Per release, per machine | One automatic try per binary per day, as 18h already says |
@@ -160,7 +161,7 @@ Each row is a decision you made. "Where" names the addendum that carries the des
 | ID | Decision | Where |
 |---|---|---|
 | PM-17 | Two functions on one base: **debug** an issue you found, and **learn** how something works. No automatic fix: a confirmed bug becomes a ticket with the evidence attached | `17` |
-| PM-18 | Evidence sources are configured per project: code, database, logs (files, GCP, AWS, and later tools like Datadog), and Playwright against the interface. Environments in this order: local, staging, production. Production gets its own setup step, an allow-list of what may be read, red-team cases, and your signed confirmation that this data may go to the model provider | `17` |
+| PM-18 | Evidence sources are configured per project: code, database, logs (files, GCP, AWS, and later tools like Datadog), and Playwright against the interface. Environments in this order: local, staging, production. Production gets its own setup step, an allow-list of what may be read, red-team cases, and your signed confirmation that this data may go to the model provider (D-67) | `17` |
 | PM-19 | A database skill writes queries for you, including data fixes. MIRAI never runs a write: it hands you the statement in a transaction, a before/after `SELECT` and the undo statement | `17` |
 | PM-20 | Nightly run in two layers: scripts **detect** (tagged journeys on staging, and new or abnormal things in live logs and metrics), an agent **diagnoses** the top few within a budget and explores what yesterday's merges changed. Staging by default. Production only if configured, behind a gate, with no data created or marked test data only | `17` |
 | PM-21 | Findings are drafts, not tickets. They are announced through the notification channels and shown in the hub. Their one home is your store, since they can hold production evidence | `17`, `15` |
@@ -201,7 +202,7 @@ Each row is a decision you made. "Where" names the addendum that carries the des
 | PM-41 | The first post-MVP step after the 20 tickets is to read the logs and re-check this plan | `13` |
 | PM-42 | A retro run, on a schedule and on demand, uses a strong model to investigate the logs and propose improvements. You go through them together and approve. Nothing changes by itself | `13` |
 | PM-43 | An approved change to an agent's instructions is proven on a regression set before it ships | `13` |
-| PM-44 | MIRAI notices a new Claude Code version, runs the red-team suite against it in the background and reports. **When it moves is decided by unit 18h**, built the same day: between tickets, by itself if you set `move = "auto"`, otherwise on your command. The project's proven version is recorded in the repo so teammates are told to run their own red team | `13` §7 |
+| PM-44 | MIRAI notices a new Claude Code version, runs the red-team suite against it in the background and reports. **It moves by itself** between tickets once the red team is green (unit 18h, confirmed in D-69: "I don't want to move it manually"). The project's proven version is recorded in the repo so teammates are told to run their own red team | `13` §7 |
 | PM-45 | **Building MIRAI itself gets faster:** a build runner runs red-team, probe and baseline jobs in your name from a fixed list. Partial red-team runs are feedback only. The green result always comes from a full run | `10` |
 
 ---
@@ -214,7 +215,7 @@ record the decisions.
 
 | # | Addition | Unit | Why it can't wait |
 |---|---|---|---|
-| 1 | **The build runner** | New unit **29e**, before the pilot | Every remaining unit waits on runs you start by hand (`10`) |
+| 1 | **The build runner** | New unit **29e**, right after the pilot (unit 30) and before Milestone B | Every remaining unit waits on runs you start by hand (`10`) |
 | 2 | Rex's finding category `unnecessary`, and your agree or disagree on each | 48 | The 20 tickets only produce this data if the category exists from the first judged ticket |
 | 3 | Two-layer documents: the top part in each template | 31, 32 | Templates are written once. Changing them later means rewriting documents |
 | 4 | `mirai-write`: a named reader and a word budget per template, three to five before/after examples, banned words in a lint script, the reader test on the top part | 34 | This is unit 34's purpose |
