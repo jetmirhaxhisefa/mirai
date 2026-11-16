@@ -27,6 +27,8 @@ import { cwdsUnder, processTable, runInGroup } from './process.js';
 import { checkLaunchToken, spendLaunchToken } from './requests.js';
 import { agentSessionDir, forgetSession, keepSession, restoreSession } from './session.js';
 import { testedClaude } from '../redteam/tested.js';
+import { claudeForLaunch, writePin } from '../redteam/pin.js';
+import { loadRecordSigner } from '../sign/signer.js';
 import { progressLine, progressTracker } from './progress.js';
 import { checkIgnoredCheckable, checkNothingHidden, checkPendingIgnored, findRole, IGNORED_ENTRY_BUDGET, ignoredState, recordPendingIgnored, scopeViolations, trustedRoles } from './scope.js';
 import { familyNote, pickTier, pickVerifier } from './tiers.js';
@@ -234,10 +236,11 @@ export async function inRun({ cwd, env, run = null }, fn) {
 
 // The red-team gate for a role, before anything is made for its launch (unit 21e: a refused build
 // had already made and switched to its branch). The launch checks it again, as ever.
-export async function preGate({ cwd, env, store, trust, role: roleName, claude = null, status = redTeamStatus }) {
+export async function preGate({ cwd, env, store, trust, role: roleName, ticket = null, claude = null, status = redTeamStatus }) {
   const role = findRole(trustedRoles(trust), roleName);
   const template = trustedStrict(trust, role.mode);
-  const tested = claude ? null : await testedClaude({ env, store });
+  // The ticket's pinned Claude Code (unit 18h), else the kept one.
+  const tested = claude ? null : (await claudeForLaunch({ env, store, item: ticket, tested: testedClaude })).claude;
   const c = tested ? { path: tested.path, real: tested.real } : resolveClaude(env, claude);
   checkRedTeam(await status({ cwd, env, trust, template, claude: c.real }), store);
 }
@@ -273,7 +276,9 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   // name (a test, a probe) as given. The gate below judges this same binary.
   // `fallbackClaude`: the broker worker's (found when your session server was registered), used only
   // while no tested one is kept (18g review: it had taken the test override's place).
-  const tested = claude ? null : await testedClaude({ env, store });
+  // Unit 18h: a ticket runs on one Claude Code, its pin; its first launch pins the kept one.
+  const chosen = claude ? { claude: null, toPin: null } : await claudeForLaunch({ env, store, item, tested: testedClaude });
+  const tested = chosen.claude;
   const c = tested ? { path: tested.path, real: tested.real, version: tested.version } : resolveClaude(env, claude ?? fallbackClaude);
   const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
   checkReviewAgent({ agent, role, step: picked.step });
@@ -296,6 +301,8 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   // The file it launches, not a link to it (18g re-review: an update could move a link in between).
   checkRedTeam(await status({ cwd, env, trust, template, claude: c.real }), store);
   stopped();
+  // The ticket's first launch pins the binary it runs, once every check has passed (18h).
+  if (chosen.toPin) writePin(store, chosen.toPin, tested, loadRecordSigner(env, store), { now });
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
   const levels = [...Object.keys(config.checks ?? {}), ...(config.testing?.levels ?? []).map((l) => l.name)];
   return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress, progressLabel, levels });
@@ -540,6 +547,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
       tokens_in: count(usage.input_tokens), tokens_cached: count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens), tokens_out: count(usage.output_tokens), turns: count(parsed.result?.num_turns), minutes: Math.round((Date.now() - started) / 600) / 100,
       ...(share === null ? { limit_share_source: 'unknown' } : { limit_share: share, limit_share_source: 'measured' }), ...(limited ? { limit_window: limited.window, ...(limited.resets_at ? { resets_at: new Date(limited.resets_at * 1000).toISOString() } : {}) } : {}), verdict: outcome === 'ok' ? 'pass' : outcome === 'agent-failed' ? 'fail' : 'error', outcome, survivors: survivors.length + suspects.length, unproven: unproven.length,
       settings_sha256: hashes.settings, canonical_sha256: hashes.canonical, token_fingerprint: tokenFingerprint(token),
+      ...(typeof c.version === 'string' && /^[0-9A-Za-z.+-]{1,40}$/.test(c.version) ? { claude_code: c.version } : {}),
       // The launch's progress as a summary (unit 28, from 21e): each tool and how often, never each call.
       ...(toolCalls().length ? { tool_calls: toolCalls() } : {}),
       ...(Number.isFinite(parsed.result?.total_cost_usd) && parsed.result.total_cost_usd >= 0 ? { cost_usd: parsed.result.total_cost_usd } : {}),

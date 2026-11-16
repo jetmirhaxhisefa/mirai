@@ -1,5 +1,7 @@
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkGap, moveAtStart } from '../redteam/move.js';
+import { runRedTeam } from '../redteam/run.js';
 
 import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
@@ -227,6 +229,13 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
   return await inRun({ cwd, env, run: outerRun }, async ({ store, runId, tookOver, outer }) => {
     const status = readTicketStatus(store, ticket)?.status ?? null;
     if (status?.state !== 'ready-for-dev') throw fail(`${ticket} is ${status?.state ?? 'not approved yet'}; a plan starts from ready-for-dev`, 'not-ready', EXIT.BLOCKED, status ? undefined : 'approve the ticket first: mirai approve <ticket> --file <path>');
+    // Unit 18h: a ticket with no pin starts on the newest Claude Code MIRAI can move to (a red team
+    // first, with your consent), and doesn't start once a move has waited too long. A Claude Code
+    // given for the launch (a test, a probe) is used as it is.
+    if (!watch.claude) {
+      await moveAtStart({ cwd, env, store, ticket, run: runRedTeam, say: watch.onCheck ?? (() => {}), now });
+      checkGap(store, ticket, { now });
+    }
     // The usage check before a ticket (unit 20), then the trust root and the inputs.
     const usage = usageCheck({ env, unattended });
     if (!usage.go) throw usageStop(usage);

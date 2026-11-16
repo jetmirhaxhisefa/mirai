@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { gapNote } from '../redteam/move.js';
 
 import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
@@ -380,6 +381,13 @@ export async function driveTicket({ cwd, env, ticket, via = 'terminal', resume =
         notes.push(`the run's report wasn't saved: ${err.message}; mirai report ${runId} builds it`);
       }
     }
+  }
+  // Unit 18h: what's waiting to move, on the run's last lines.
+  try {
+    const g = gapNote(store, { now });
+    if (g) notes.push(`${g.line} (next: ${g.next ?? 'mirai redteam run'})`);
+  } catch {
+    // a note only
   }
   const here = symbolicBranch(store.checkout, 'HEAD', store.gitEnv);
   return { ticket, runId, outcome: endState, stop: stopped, steps: done, mr, branch: branch ?? here, here, notes };

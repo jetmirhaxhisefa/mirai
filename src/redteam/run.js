@@ -16,6 +16,7 @@ import { readBinaryFacts } from './binary.js';
 import { launchStore } from './direct.js';
 import { redTeamCases } from './cases.js';
 import { keepTested, pruneTested, stageTested, testedClaude } from './tested.js';
+import { pinnedClaude, readPin } from './pin.js';
 import { callsMade, containsToken, MAX_TURNS, madeTheCall, parseStream, promptFor, redact, runClaude, SYSTEM } from './claude.js';
 import { runInGroup } from '../agent/process.js';
 import { guardProbe } from './guard.js';
@@ -334,7 +335,7 @@ function floorAll(templates, ctx, env) {
 // every worker has stopped and everything is cleaned up; nothing is recorded.
 export async function runRedTeam({
   cwd, env, storeEnv = env, consent = false, only = null, runs = DEFAULTS.runs, maxAttempts = DEFAULTS.maxAttempts, workers = DEFAULTS.workers,
-  model = DEFAULTS.model, adversarialModel = DEFAULTS.adversarialModel, adversarialTurns = DEFAULTS.adversarialTurns, escapeGraceMs = DEFAULTS.escapeGraceMs, claude = null, kept: useKept = false, allowScript = false, signer = null, workdir = null, keep = false, signal = null, onEvent = () => {}, now = () => new Date(),
+  model = DEFAULTS.model, adversarialModel = DEFAULTS.adversarialModel, adversarialTurns = DEFAULTS.adversarialTurns, escapeGraceMs = DEFAULTS.escapeGraceMs, claude = null, kept: useKept = false, ticket = null, allowScript = false, signer = null, workdir = null, keep = false, signal = null, onEvent = () => {}, now = () => new Date(),
   docker = {}, dockerVersion = null, launch = runInGroup, binaryFacts = readBinaryFacts,
   // For MIRAI's own tests only: other cases, stand-ins for the host canaries, a temp work folder.
   caseList = redTeamCases, host = HOST, allowTempWorkdir = false,
@@ -363,7 +364,18 @@ export async function runRedTeam({
     // The installed one: what a case that starts a nested claude from Bash aims at, beside the copy
     // (a target only). `--kept` doesn't need one on PATH (18g re-review).
     let installed = null;
-    if (useKept) {
+    if (ticket !== null) {
+      // Unit 18h: a ticket's pinned Claude Code, re-tested (after a MIRAI refresh, say), so the
+      // ticket can finish on it. Agents' kept copy doesn't change.
+      const pin = readPin(store, ticket);
+      if (!pin) throw new UsageError(`${ticket} has no pinned Claude Code (its first launch pins one)`);
+      c = await pinnedClaude({ env: storeEnv, store, pin });
+      try {
+        installed = resolveClaude(env, claude);
+      } catch {
+        installed = c;
+      }
+    } else if (useKept) {
       c = await testedClaude({ env: storeEnv, store });
       if (!c) throw new UsageError('MIRAI keeps no Claude Code yet: a green run without --kept keeps the one it tests');
       try {
@@ -508,14 +520,14 @@ export async function runRedTeam({
     // A green run is how MIRAI moves to the Claude Code it tested (unit 18g): agents run that copy. A
     // keep that fails is reported, never thrown away with the run (18g review).
     let kept = null;
-    if (recorded?.state === 'green') {
+    if (recorded?.state === 'green' && ticket === null) {
       try {
         keepTested({ env: storeEnv, store, staged: c, signer: sign, now });
         kept = { ok: true, version: c.version };
       } catch (err) {
         kept = { ok: false, version: c.version, why: String(err.message).slice(0, 300) };
       }
-    } else if (!useKept) pruneTested(storeEnv, { drop: [c.sha256] });
+    } else if (!useKept && ticket === null) pruneTested(storeEnv, { drop: [c.sha256] });
     return { result: recorded ?? result, recorded: recorded !== null, workdir: wd, partial, kept };
   } finally {
     if (canariesOn) host.canaries(ws.workers[0], false);

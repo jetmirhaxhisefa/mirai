@@ -9,6 +9,7 @@ import { usageCaps, usageCheck } from '../loop/ledger.js';
 import { status as sessionStatus } from '../mcp/session.js';
 import { redTeamStatus } from '../redteam/run.js';
 import { readTested } from '../redteam/tested.js';
+import { gapNote } from '../redteam/move.js';
 import { TOOLS_FILE } from '../ship/host.js';
 import { branchKeys, keyIsProtected, loadMachineKey, publicPemOf, readCommittedKeys, integrationRef } from '../sign/keys.js';
 import { userSettings } from '../sign/denies.js';
@@ -282,6 +283,12 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (cpu === 'universal' || cpu === here) return ok(`Claude Code ${t.current.version ?? ''} for ${cpu === 'universal' ? 'both CPU types' : here}`.replace('  ', ' '));
     if (cpu === 'x64' && here === 'arm64') return yellow(`the kept Claude Code ${t.current.version ?? ''} is an Intel binary: on this Mac agents run it through Rosetta`.replace('  ', ' '), 'agents move to a native one when a red-team run on a newer Claude Code is green (S1/S2 wait for MIRAI to list its new settings)');
     return red(`the kept Claude Code is for ${cpu ?? 'no CPU MIRAI knows'}, and this Mac is ${here}`, 'mirai redteam run, in your terminal, on the Claude Code installed here');
+  });
+  // Unit 18h: a newer Claude Code agents haven't moved to, and when new tickets stop for it.
+  await check('claude-move', 'Claude Code moves', () => {
+    const g = gapNote(store);
+    if (!g) return ok('agents run the newest Claude Code MIRAI could move to');
+    return (g.stopping ? red : yellow)(g.line, g.next ?? 'mirai redteam run, in your terminal');
   });
   await check('key', 'Your key', () => {
     let key;

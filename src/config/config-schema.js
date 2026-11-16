@@ -11,7 +11,7 @@ export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.integration_branch', 'git.host', 'git.host_url', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by', 'run.on_limit', 'run.max_wait_minutes'],
-  'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel', 'signing.unlock'],
+  'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel', 'signing.unlock', 'claude_code.move'],
 });
 
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -316,6 +316,10 @@ export const CONFIG_SCHEMA = {
     // Unit 29b (Jet's decision 3): how long your key stays unlocked after you type its passphrase:
     // "each" (every decision asks), or a duration up to 30 days ("8h", "3d", "90m"). Your global
     // file only: a project or a branch never sets it.
+    // Unit 18h (Jet's decision 2): your consent, once, to MIRAI moving agents to a newer Claude Code
+    // at a ticket's start by running the red team on it (about 15 minutes, on your subscription).
+    // "auto" or "off"; not set, MIRAI tells you once and doesn't move. Your global file only.
+    claude_code: { type: 'table', fields: { move: { type: 'enum', values: ['auto', 'off'] } } },
     signing: {
       type: 'table',
       fields: { unlock: { type: 'string', pattern: /^(each|[1-9][0-9]{0,4}[mhd])$/, patternHint: '"each", or a duration such as "8h" or "3d" (at most 30 days)' } },

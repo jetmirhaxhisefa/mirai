@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { readPin } from '../redteam/pin.js';
 
 import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
@@ -84,6 +85,16 @@ export function tddEvidence(last) {
     rows: last.tdd.rows ?? null,
     red: red ? { commit: red.commit ?? null, rounds: red.rounds ?? 0, rows: (red.rows ?? []).map((r) => ({ test: r.id, kind: r.kind, verdict: r.verdict, message: r.message ?? null })) } : null,
   };
+}
+
+// The ticket's pinned Claude Code for its evidence (unit 18h): { version, sha256 }, or null.
+export function claudeOf(store, ticket) {
+  try {
+    const pin = readPin(store, ticket);
+    return pin ? { version: pin.version ?? null, sha256: pin.sha256 } : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function recordProofs({ cwd, env, ticket, unattended = false, run = runTest, signal = null, onCheck = null, now = () => new Date() }) {
@@ -211,6 +222,8 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
     // Unit 23: test-first, as MIRAI saw it: the plan's rows by kind, and the red check's evidence
     // (each row's verdict and assertion message, the red commit) when the build had one.
     tdd: tddEvidence(last),
+    // Unit 18h: the Claude Code the ticket ran on (its pin), or null for a ticket from before.
+    claude_code: claudeOf(store, ticket),
   };
   const written = [];
   const files = [];

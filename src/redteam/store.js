@@ -8,6 +8,7 @@ import { parseJsonStrict } from '../findings/schema.js';
 import { signObject, verifySigned } from '../sign/sign.js';
 import { branchKeys } from '../sign/keys.js';
 import { changedParts, keyOf } from './key.js';
+import { pinnedIn } from './pin.js';
 
 // Red-team results (unit 18a): `<store>/redteam/<key>.json`, one per key (src/redteam/key.js),
 // signed with your key, so a result can't be written or edited by anything without that key:
@@ -55,8 +56,32 @@ export function writeResult(store, result, signer, { now = () => new Date(), kin
     atomicWrite(join(store.dir, RESULT_FOLDER, 'blockers', `${id}.json`), `${JSON.stringify(record, null, 2)}\n`);
   }
   const all = listResults(store, kind);
-  for (const old of all.slice(KEEP_RESULTS)) rmSync(join(dir, `${old}.json`), { force: true });
+  // Unit 18h: the newest green result of each binary a ticket pins is never rotated out, so the
+  // ticket's launches still find it.
+  const keep = kind === HEADLESS ? pinnedGreens(store, all) : new Set();
+  for (const old of all.slice(KEEP_RESULTS)) if (!keep.has(old)) rmSync(join(dir, `${old}.json`), { force: true });
   return signed;
+}
+
+// The newest green result's key for each pinned binary (unverified reads: they only keep more).
+function pinnedGreens(store, keys) {
+  const pinned = pinnedIn(store.dir);
+  const out = new Set();
+  if (!pinned.size) return out;
+  const seen = new Set();
+  for (const k of keys) {
+    try {
+      const v = parseJsonStrict(String(readPrivateFile(resultPath(store, k), { maxBytes: 16 * 1024 * 1024 })));
+      const sha = v?.parts?.claude_code?.sha256;
+      if (v?.state === 'green' && pinned.has(sha) && !seen.has(sha)) {
+        seen.add(sha);
+        out.add(k);
+      }
+    } catch {
+      // unreadable: not kept for a pin
+    }
+  }
+  return out;
 }
 
 // The keys of stored results, newest first.

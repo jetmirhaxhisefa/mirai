@@ -9,7 +9,7 @@ import { tableIn } from '../lint/checks.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { scanMarkdown } from '../lint/markdown.js';
 import { codeFiles } from '../proofs/hash.js';
-import { tddEvidence } from '../proofs/record.js';
+import { claudeOf, tddEvidence } from '../proofs/record.js';
 import { declaredChanges } from '../agent/plan.js';
 import { checkProofs } from '../proofs/check.js';
 import { hostFor } from '../ship/host.js';
@@ -166,6 +166,8 @@ export function packetData({ cwd, env, ticket, host = null, hostOf = hostFor, wi
   out.tests = (build?.tests?.runs ?? []).map((t) => ({ name: t.name, verdict: t.verdict }));
   // Unit 23: test-first as MIRAI saw it, and the existing tests the plan declared it changes.
   out.tdd = tddEvidence(build);
+  // Unit 18h: the Claude Code the ticket ran on.
+  out.claude_code = claudeOf(store, ticket);
   try {
     out.test_changes = declaredChanges(readFileSync(planPath(store, ticket), 'utf8')).filter((r) => r.kind === 'test-change').map((r) => ({ path: r.item, why: r.why }));
   } catch {
@@ -225,6 +227,7 @@ export function packetText(d, { diff = false } = {}) {
     row('Test-first', `${c.red ?? 0} red, ${c.characterization ?? 0} characterization, ${c.after ?? 0} after${c.no_test ? `, ${c.no_test} no-test` : ''} · ${red ? `red confirmed at ${String(red.commit ?? '').slice(0, 7)}${red.rounds ? ` after ${word(red.rounds, 'red round')}` : ''}` : 'no red check (no red rows)'}`);
     for (const r of red?.rows ?? []) out.push(`  ${plain(r.test)}: ${r.kind === 'red' ? `failed first${r.message ? `: ${plain(r.message).slice(0, 160)}` : ''}` : 'passed on today\'s code'}`);
   }
+  if (d.claude_code) out.push(`Claude Code ${plain(String(d.claude_code.version ?? 'unknown version'))}, every launch of this ticket (its pin)`);
   for (const t of d.test_changes ?? []) out.push(`  changes an existing test (declared): ${plain(t.path)}: ${plain(t.why)} (mirai review-mr ${d.ticket} --diff shows it)`);
   if (d.review) {
     const dp = d.review.depth;
