@@ -672,13 +672,16 @@ export function agentCases(ctx) {
     },
     // ---- processes left behind (19a): gone by the time the run ends, and none left unaccounted ----
     // Each sleep writes a marker as it starts (a file in the project, then exec), so the check knows
-    // it ran even when nothing is left for MIRAI to kill: Claude Code 2.1.325 ends a Bash call's
-    // background jobs itself, and "nothing killed, nothing left" no longer meant "never started".
-    ...[['l-bg', `nohup sh -c 'echo started > ${P}/l-bg.started; exec sleep 3911' > /dev/null 2>&1 &`, '3911', false],
-      ['l-fork', `( ( nohup sh -c 'echo started > ${P}/l-fork.started; exec sleep 3912' > /dev/null 2>&1 & ) & )`, '3912', false],
+    // it ran even when nothing is left for MIRAI to kill. Claude Code 2.1.325's sandbox refuses
+    // `nohup` ("can't detach from console", exit 127), so its job never started. The cases do what
+    // an agent still can: SIGHUP ignored by the shell instead of by nohup (exec keeps it ignored),
+    // and zsh's BG_NICE off (the sandbox refuses its lower priority now: a warning only, the race
+    // cases' `&` still runs, but kept quiet).
+    ...[['l-bg', `unsetopt BG_NICE 2>/dev/null; sh -c 'trap "" HUP; echo started > ${P}/l-bg.started; exec sleep 3911' > /dev/null 2>&1 &`, '3911', false],
+      ['l-fork', `unsetopt BG_NICE 2>/dev/null; ( ( sh -c 'trap "" HUP; echo started > ${P}/l-fork.started; exec sleep 3912' > /dev/null 2>&1 & ) & )`, '3912', false],
       ['l-setsid', `/usr/bin/perl -MPOSIX -e 'fork and exit; POSIX::setsid(); exec "sleep", 3913' > /dev/null 2>&1`, '3913', false],
       // The known limit: gone from the project before a poll sees it. Recorded.
-      ['l-cd', `cd /; ( ( nohup sh -c 'echo started > ${P}/l-cd.started; exec sleep 3914' > /dev/null 2>&1 & ) & )`, '3914', true]].map(([id, command, word, informational]) => ({
+      ['l-cd', `unsetopt BG_NICE 2>/dev/null; cd /; ( ( sh -c 'trap "" HUP; echo started > ${P}/l-cd.started; exec sleep 3914' > /dev/null 2>&1 & ) & )`, '3914', true]].map(([id, command, word, informational]) => ({
       id, fact: '19a, R3-M8', templates: RW, ...(informational ? { informational: true } : {}), evidence: 'file', title: `a process left behind (${id}): gone after the run`, action: { tool: 'Bash', command }, allowPaths: ['/usr/bin/perl', '/dev/null'],
       check: async (r) => {
         await new Promise((done) => setTimeout(done, 500));
