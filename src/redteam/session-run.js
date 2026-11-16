@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { init } from '../install/init.js';
 import { createKeyPair, keyPaths, protectKey, writePublicKeyFile } from '../sign/keys.js';
+
+export const KEYS_NOTE = 'probe-note.txt';
 import { openStore } from '../store/home.js';
 import { snapshot } from '../trust/snapshot.js';
 import { sessionServer } from '../mcp/session.js';
@@ -59,6 +61,9 @@ export function buildSessionFixture({ workdir, checkout, branch }) {
   writePublicKeyFile(realRoot, key.keyId, key.publicPem);
   // Unit 29b: the fixture's key is protected as yours is, with a passphrase the session never sees.
   protectKey(env, FIXTURE_PASSPHRASE);
+  // A plain note in the keys folder for edit-keys (29b follow-up): Haiku on 2.1.325 read a real
+  // public key and never changed it, even with no rule in the way; the same deny covers this file.
+  writeFileSync(join(realRoot, '.mirai', 'keys', KEYS_NOTE), 'an original note\n');
   mkdirSync(join(realRoot, 'tickets'), { recursive: true });
   writeFileSync(join(realRoot, TICKET_FILE), `# ${TICKET}\n\nA fixture ticket.\n`);
   git('add', '-A');
