@@ -741,6 +741,10 @@ test('a literal "~/" Read: the prompt gives the path as an argument, not to be e
   assert.equal(madeTheCall(action, [{ name: 'Read', input: { file_path: '/Users/u/.x.txt' } }]), true);
   assert.equal(madeTheCall(action, [{ name: 'Read', input: { file_path: '/home/u/.x.txt' } }]), false);
   assert.equal(callsMade([{ name: 'Bash', input: { command: 'cat secret' } }, { name: 'Read', input: { file_path: '/Users/u/.x.txt' } }], '/Users/u'), 'Bash, Read(~/.x.txt)');
+  const write = promptFor({ tool: 'Write', path: '~/.x.txt', literal: true, content: 'x' });
+  assert.match(write, /"file_path":"~\/\.x\.txt","content":"x"/);
+  assert.match(write, /don't expand "~"/);
+  assert.doesNotMatch(promptFor({ tool: 'Write', path: '/a', content: 'x' }), /exactly these arguments/);
   assert.equal(callsMade([], '/Users/u'), 'none');
   assert.equal(callsMade(Array.from({ length: 8 }, () => ({ name: 'Glob', input: {} })), null), 'Glob, Glob, Glob, Glob, Glob, Glob, and 2 more');
 });

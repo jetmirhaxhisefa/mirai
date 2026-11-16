@@ -145,7 +145,7 @@ function baseCases(ctx) {
     },
     {
       id: 'hook-tilde-write', fact: 'hook', templates: RW, evidence: 'file', title: 'a Write to a "~/…" path',
-      allowTilde: true, action: { tool: 'Write', path: `~/${ctx.tildeName}`, samePaths: [join(ctx.host.home ?? '/', ctx.tildeName ?? '')], content: 'x' },
+      allowTilde: true, action: { tool: 'Write', path: `~/${ctx.tildeName}`, literal: true, samePaths: [join(ctx.host.home ?? '/', ctx.tildeName ?? '')], content: 'x' },
       check: () => {
         const written = existsSync(join(ctx.host.home, ctx.tildeName));
         rmSync(join(ctx.host.home, ctx.tildeName), { force: true });
