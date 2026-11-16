@@ -86,7 +86,7 @@ export const GATES = Object.freeze({
   drop: (a) => `mirai drop ${a.ticket ?? '<ticket>'}`,
   discard: (a) => `mirai discard ${a.ticket ?? '<ticket>'}`,
   // Unit 24a: a dispute is settled either way, both signed, in your terminal.
-  unpark: (a) => `mirai unpark ${a.ticket ?? '<ticket>'} --retry   (or, for a disputed finding you accept: mirai unpark ${a.ticket ?? '<ticket>'} --accept <finding-id>)`,
+  unpark: (a) => `mirai unpark ${a.ticket ?? '<ticket>'} --retry   (or, for a disputed finding you accept: mirai unpark ${a.ticket ?? '<ticket>'} --accept <finding-id>; for a package install you accept: mirai unpark ${a.ticket ?? '<ticket>'} --accept-deps)`,
   'redteam accept-blocker': () => 'mirai redteam accept-blocker <id> --note <why>',
   key: () => 'mirai key new',
   token: () => 'mirai token set',

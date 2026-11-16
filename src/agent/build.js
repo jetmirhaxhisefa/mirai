@@ -32,6 +32,7 @@ import { writeHeartbeat } from '../store/run.js';
 import { addCheckpoint } from './checkpoints.js';
 import { commitStep } from './commit.js';
 import { loadRecordSigner } from '../sign/signer.js';
+import { installDependencies, releaseInstalls } from './install.js';
 import { newDependencies } from './deps.js';
 import { planInputs } from './inputs.js';
 import { AGENT, AGENT_LABEL, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
@@ -245,7 +246,9 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
     }
   };
   const change = { ...observed.change, changes: observed.change.changes.filter((p) => !staging(p)), ignored: new Set([...(observed.change.ignored ?? [])].filter((p) => !staging(p))) };
-  const deps = newDependencies({ root: store.checkout, env: store.gitEnv, base: stepBase, changed: change.changes, stacks: registry.stacks, declared: declared.filter((d) => d.kind === 'dependency').map((d) => d.item) });
+  // Unit 30b: the plan's packages are installed and committed before Kai starts, so any
+  // dependency change in a step is Kai's own, and refused: nothing is declared for it.
+  const deps = newDependencies({ root: store.checkout, env: store.gitEnv, base: stepBase, changed: change.changes, stacks: registry.stacks, declared: [] });
   // A manifest whose every change is a declared dependency is declared as a protected path too,
   // with its lock files (21b review: node's and php's packs protect them).
   const paths = classify({ change, rules, declared: [...declared.filter((d) => d.kind === 'protected-path').map((d) => d.item), ...deps.covered], actor: BUILD_ROLE });
@@ -414,7 +417,7 @@ export function preflight({ cwd, env, store, ticket, unattended, state = 'in-pro
 // `parked`, or the launch's own (agent-failed, refused, env-fault, usage-limit, killed).
 // With `recheck`, no launch: MIRAI's checks again, on exactly the tree the last build left (its
 // fingerprint in build.json), after you fixed what stopped it outside the tree (a baseline, Docker).
-export async function runBuild({ cwd, env, ticket, launchToken = null, nextToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, now = () => new Date() }) {
+export async function runBuild({ cwd, env, ticket, launchToken = null, nextToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, install = installDependencies, now = () => new Date() }) {
   if (!recheck) checkLaunchToken(launchToken);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   // The first sign of life (unit 21e), before MIRAI's own checks.
@@ -442,9 +445,27 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, nextToken
     const prep = prepareBranch({ store, env, trust, config, keys, signer: () => loadRecordSigner(env, store), unattended, ticket, ticketText: given.ticket.text, now });
     const { branch } = prep;
     const branchBase = prep.base;
+    // Unit 30b: the plan's approved packages, installed and committed by MIRAI before Kai starts,
+    // with the ticket's own image for its test runs. A big or odd install parks for you.
+    if (install === installDependencies) await releaseInstalls({ store, env, readKeys: () => keys }).catch(() => []);
+    const installed = await install({
+      store, env, trust, config, registry, ticket, declared: declaredChanges(plan), keys, now,
+      say: (line) => {
+        try {
+          watch.onCheck?.({ kind: 'check', name: line, state: 'note' });
+        } catch {
+          // a display only
+        }
+      },
+      commit: (what, body) => commitStep({ store, env, config, ticket, what, body }),
+    });
+    if (installed.parked) {
+      parkTicket(store, ticket, { reason: 'deps-review', why: installed.parked, evidence: [`tickets/${ticket}/plan.md`] });
+      return { ticket, branch, outcome: 'parked', why: installed.parked, handover: null, launch: null, protectedPaths: null, dependencies: { install: installed.problems }, tests: null, warn: usage.warn ?? null, tookOver };
+    }
     // The step's start: its checkpoint, once the launch has run (a refused one adds none, so a
-    // discard can still throw the last real step away: unit 22 review).
-    const stepBase = prep.head;
+    // discard can still throw the last real step away: unit 22 review). After an install, its commit.
+    const stepBase = installed.installed ? commitOf(store.checkout, 'HEAD', store.gitEnv) : prep.head;
     // Ignored files under protected paths as they are right before the launch (unit 12's change).
     const ignoredBefore = ignoredFingerprint({ root: store.checkout, env: store.gitEnv, rules });
     const result = { ticket, branch, outcome: null, why: null, handover: null, launch: null, protectedPaths: null, dependencies: null, tests: null, warn: usage.warn ?? null, tookOver };

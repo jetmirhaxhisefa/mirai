@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { imagesForCheckout } from '../agent/install.js';
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
@@ -357,6 +358,17 @@ async function runLocked({ store, trust, config, target, name, path, testName, a
       project, labels: { 'mirai.test-run': id, 'mirai.repo': store.repoId }, output: { service: target.service, source: outReal, target: config.compose.output ?? DEFAULT_OUTPUT },
     });
     if (!tightened.services?.[target.service]) throw new TestRunError(`${name} runs in ${target.service}, which the compose files don't have`, { code: 'no-service' });
+    // Unit 30b: on a ticket's branch with installed packages, its own images replace the trust
+    // root's for the services MIRAI rebuilt (the record is MIRAI's, in the store; never a red-team run).
+    const own = redTeam ? { ticket: null, images: {} } : imagesForCheckout(store, env);
+    const swapped = {};
+    for (const s of Object.values(tightened.services)) {
+      if (typeof s.image === 'string' && own.images[s.image]) {
+        swapped[s.image] = own.images[s.image];
+        s.image = own.images[s.image];
+      }
+    }
+    if (Object.keys(swapped).length) result.ticket_images = { ticket: own.ticket, images: swapped };
     const images = {};
     const workdirs = {};
     for (const s of Object.values(tightened.services)) {

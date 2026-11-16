@@ -19,6 +19,7 @@ const SAYS = Object.freeze({
   disputed: 'Kai disputes a review finding: yours to settle (mirai unpark <ticket> --retry: the finding stands; --accept <finding-id>: it\'s dropped).',
   'high-risk-review': 'The review passed, but the change touches a protected path (instruction files, hooks, auto-run config), which always waits for you.',
   'bad-verdict': 'Rex\'s verdict didn\'t come back as valid structured output.',
+  'deps-review': 'Installing its approved packages needs you: an existing version would change, a package comes from outside the registry, or too many are added. Nothing was committed.',
   'sign-proofs': 'It passed its review and is ready for its proofs, which are signed from your terminal only: mirai gate record <ticket>.',
 });
 

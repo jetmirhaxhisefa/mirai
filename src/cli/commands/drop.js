@@ -1,4 +1,5 @@
 import { EXIT } from '../exit-codes.js';
+import { releaseInstalls } from '../../agent/install.js';
 import { UsageError } from '../errors.js';
 import { checkTicketArg, confirmByTyping, ticketNow } from '../human-move.js';
 import { createPrompter, requireTty } from '../tty.js';
@@ -35,6 +36,9 @@ export default {
       const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });
       const seq = writeTicketStatus(store, { ticket, state: 'dropped', written_by: 'human', ...(note ? { note } : {}) }, { expectSeq: current.seq, signer });
       io.stdout.write(`dropped: ${ticket} (signed with ${signer.keyId}, seq ${seq})\n`);
+      // Unit 30b: its per-ticket images go with it.
+      const released = await releaseInstalls({ store, env: io.env, readKeys: () => branchKeys(store.checkout, store.branch, store.gitEnv) }).catch(() => []);
+      if (released.includes(ticket)) io.stdout.write(`removed ${ticket}'s own images (its installed packages)\n`);
       return EXIT.OK;
     } finally {
       prompter.close();

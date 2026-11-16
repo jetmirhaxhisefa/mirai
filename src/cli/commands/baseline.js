@@ -4,7 +4,8 @@ import { escapeInvisible, shown } from '../../status/text.js';
 import { growthMessage, recordBaseline } from '../../baseline/record.js';
 import { readBaseline } from '../../baseline/store.js';
 import { openStore } from '../../store/home.js';
-import { baseCommit } from '../../trust/snapshot.js';
+import { baseCommit, snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
+import { staleImages } from '../../agent/install.js';
 
 // mirai baseline [--level <name>]… [--force] | mirai baseline show [<commit>] (unit 17b): records
 // the test baseline of the integration branch's commit (src/baseline/record.js), or prints a
@@ -67,6 +68,17 @@ export default {
       return EXIT.OK;
     }
     if (action !== undefined) throw new UsageError(`unknown action ${shown(action)}`, 'see: mirai baseline --help');
+    // Unit 30b: after a merge that added packages, your images may predate them.
+    if (!io.docker) {
+      try {
+        const store = openStore({ cwd: io.cwd, env: io.env });
+        const trust = snapshot({ cwd: io.cwd, env: io.env });
+        const stale = await staleImages({ store, env: io.env, trust, config: trustedConfig(trust), registry: trustedRegistry(trust) });
+        for (const x of stale) io.stderr.write(`${x.image} (${x.service}) holds another ${x.lock} than ${store.branch}: its packages aren't the merged ones; rebuild it first: docker compose build ${x.service}\n`);
+      } catch {
+        // the baseline's own checks still run
+      }
+    }
     const { baseline, reused } = await recordBaseline({
       cwd: io.cwd, env: io.env, levels: args.values.level ?? null, force: args.values.force === true,
       // `io.docker`: a test's stand-in for Docker Desktop (never set by the CLI itself).

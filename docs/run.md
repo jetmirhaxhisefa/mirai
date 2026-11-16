@@ -29,6 +29,11 @@ The next step is read from the ticket every time, never remembered. So running `
 
 **Every plan waits for you.** There's no automatic approval until the autonomous preset (unit 55, with row 29b's machine key), whatever `[gates] plan` says.
 
+**New packages (unit 30b):** a plan that declares packages installs them right after your plan
+approval, before the build: one MIRAI commit with the manifest and lock, and the ticket's own image
+(`<image>:mirai-<ticket>`), named in the run's output. A big or odd install parks the ticket
+(`deps-review`). See `docs/agents.md`.
+
 ## Where it stops
 
 Each stop ends with one line saying what to do next, ending in the exact command:

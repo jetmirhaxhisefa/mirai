@@ -1,3 +1,5 @@
+import { DEPENDENCY_KINDS, installData, parseDependency } from '../agent/dependency-rows.js';
+
 // Built-in checks a document type switches on by name (`lint_checks = ["ticket"]`, unit 08a).
 // They cover what the generic rules can't express. Each adds problems like the rules do. The
 // names must match BUILT_IN_CHECKS in src/config/registry.js (a test pins it).
@@ -86,11 +88,10 @@ export function tableIn(doc, section) {
 
 const KINDS = ['red', 'after', 'characterization'];
 const CHANGES = ['add', 'change', 'remove', 'read'];
-const DECLARED = ['protected-path', 'dependency', 'test-change', 'none'];
+const DECLARED = ['protected-path', 'dependency', 'dev-dependency', 'test-change', 'none'];
 // A protected path is a repo-relative path or glob; a dependency is <ecosystem>:<name>, so the
 // broker can match an install exactly (npm:left-pad, composer:guzzlehttp/guzzle).
 const REPO_PATH = /^(?![A-Za-z]:)(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\\\u0000-\u001f]+$/;
-const DEPENDENCY = /^[a-z][a-z0-9+.-]{0,31}:\S+$/;
 
 export const CHECKS = Object.freeze({
   // A ticket (story or bug): its repo is one of the config's repos (D-42); it doesn't wait
@@ -249,8 +250,13 @@ export const CHECKS = Object.freeze({
       if (r.cells.item === '' || r.cells.why === '') add({ code: 'plan-table', ...where, reason: 'a declared change needs its Item and its Why' });
       else if (kind === 'protected-path' && (!REPO_PATH.test(r.cells.item) || /[*?[\]{}]/.test(r.cells.item))) add({ code: 'plan-table', ...where, reason: 'a protected path is one exact file path inside the repo (no patterns: a plan names each file, unit 12)', hint: 'no *, ?, [ ] or { }, no leading /, no drive letter, no ..' });
       else if (kind === 'test-change' && (!REPO_PATH.test(r.cells.item) || /[*?[\]{}]/.test(r.cells.item))) add({ code: 'plan-table', ...where, reason: 'a test-change is one exact test file path inside the repo (no patterns)', hint: 'name each existing test file whose lines change, with why' });
-      else if (kind === 'dependency' && !DEPENDENCY.test(r.cells.item)) add({ code: 'plan-table', ...where, reason: 'a dependency is written <ecosystem>:<name>', hint: 'for example npm:left-pad or composer:guzzlehttp/guzzle' });
-      if (kind === 'dependency') dependency = true;
+      else if (DEPENDENCY_KINDS.includes(kind)) {
+        // Unit 30b: an exact version, for an ecosystem MIRAI can install; you approve exactly it.
+        const d = parseDependency(r.cells.item);
+        if (d.problem) add({ code: 'plan-table', ...where, reason: d.problem, hint: 'for example npm:left-pad@1.3.0 or composer:guzzlehttp/guzzle@7.9.2' });
+        else if (ctx.registry?.stacks && !installData(ctx.registry.stacks, d.ecosystem)) add({ code: 'plan-table', ...where, reason: `MIRAI can't install ${d.ecosystem} packages`, hint: 'only npm and composer; add others on the integration branch yourself (docs/agents.md)' });
+      }
+      if (DEPENDENCY_KINDS.includes(kind)) dependency = true;
     }
     if (declared && declared.rows.length === 0) add({ code: 'plan-table', line: declared.line, column: 1, reason: '"Declared changes" needs a row, or one row "none"' });
     if (dependency && value.risk !== 'high') add({ code: 'plan-risk', ...at('risk'), reason: 'a new dependency makes the ticket high risk', hint: 'set risk: high; the plan then always goes to you (R3-C2)' });

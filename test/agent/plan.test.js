@@ -138,9 +138,9 @@ test('T4: the plan is the run\'s structured output only; a file Kai wrote is ign
   const fields = { ticket: 'PMT-31', acs: ['AC-PMT-31.1', 'AC-PMT-31.2'], risk: 'normal', tdd: 'first', tests: 'required', round: 1 };
   const forged = withFrontmatter(PLAN.replace('acs: [AC-PMT-31.1, AC-PMT-31.2]', 'acs: [AC-PMT-31.1]'), fields);
   assert.match(forged, /acs: \[AC-PMT-31\.1, AC-PMT-31\.2\]/);
-  const dep = withFrontmatter(PLAN.replace('| none | | |', '| dependency | npm:left-pad | padding |'), fields);
+  const dep = withFrontmatter(PLAN.replace('| none | | |', '| dependency | npm:left-pad@1.3.0 | padding |'), fields);
   assert.match(dep, /^risk: high$/m);
-  assert.deepEqual(declaredChanges(dep), [{ kind: 'dependency', item: 'npm:left-pad', why: 'padding' }]);
+  assert.deepEqual(declaredChanges(dep), [{ kind: 'dependency', item: 'npm:left-pad@1.3.0', why: 'padding' }]);
 });
 
 test('T5: mirai plan moves the ticket, stores and lints the plan, and stops at the gate', async () => {
@@ -229,7 +229,7 @@ test('T6: the gate: who approves, your signed approval, an edit caught, a reject
   assert.deepEqual(gateFor({ preset: 'autonomous', text: PLAN }), { gate: 'auto', required: false, why: [] });
   assert.equal(gateFor({ preset: 'autonomous', text: PLAN.replace('risk: normal', 'risk: high') }).gate, 'human');
   assert.equal(gateFor({ preset: 'autonomous', text: PLAN.replace('| none | | |', '| protected-path | .github/workflows/ci.yml | runs the new test |') }).required, true);
-  assert.deepEqual(gateFor({ preset: 'autonomous', text: PLAN.replace('| none | | |', '| dependency | npm:left-pad | padding |') }).why, ['it declares new dependencies']);
+  assert.deepEqual(gateFor({ preset: 'autonomous', text: PLAN.replace('| none | | |', '| dependency | npm:left-pad@1.3.0 | padding |') }).why, ['it declares new dependencies (npm:left-pad@1.3.0), which MIRAI installs once you approve']);
 
   const f = await repo();
   await plan(f, claudeAnswering([{ plan: PLAN }]));

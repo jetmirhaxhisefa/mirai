@@ -697,6 +697,26 @@ const STACK = {
           // Keys that change where dependencies come from (overrides, repositories): any change is
           // a dependency change (21b review).
           sources: { type: 'array', items: JSON_KEY },
+          // How MIRAI installs an approved dependency (unit 30b): `command` runs in a scratch folder
+          // holding only `file` and `lock`, `package` is one argument per approved row ({name},
+          // {version}), `lock_format` how MIRAI reads the lock, `registry` where every resolved
+          // package must come from, `image_install` the patterns a Dockerfile's install line must
+          // match (scripts off).
+          install: {
+            type: 'table',
+            fields: {
+              command: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[^\0\n{}]{1,200}$/, patternHint: 'one argument, no { }' } },
+              package: { type: 'string', pattern: /^(?=.*\{name\})(?=.*\{version\})[^\0\n\s]{1,64}$/, patternHint: 'a form such as "{name}@{version}"' },
+              // A dev dependency (Kind dev-dependency): the extra arguments, and the key it lands in.
+              dev: { type: 'array', items: { type: 'string', pattern: /^--[a-z][a-z-]{0,40}$/, patternHint: 'a flag such as "--save-dev"' } },
+              dev_field: JSON_KEY,
+              lock: FILE_NAME,
+              lock_format: { type: 'enum', values: ['npm', 'composer'] },
+              registry: { type: 'string', pattern: /^https:\/\/[a-z0-9.-]+\/[^\s]*$/, patternHint: 'an https address such as "https://registry.npmjs.org/"' },
+              image_install: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[^\0\n]{1,200}$/, patternHint: 'a pattern' } },
+            },
+            required: ['command', 'package', 'dev', 'dev_field', 'lock', 'lock_format', 'registry', 'image_install'],
+          },
         },
         required: ['file', 'fields', 'ecosystem'],
       },

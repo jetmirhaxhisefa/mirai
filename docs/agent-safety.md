@@ -989,6 +989,22 @@ A green result is only as good as your signing key: your own session could read 
 - **A long MCP reply:** MIRAI's server returns the last 32 KiB of a test run, so an earlier first failure isn't in the reply. Getting the full evidence is unit 24's.
 - **If the hook passes its timeout, a Read goes ahead.** Writes need the hook's yes, so they're refused, secrets too. Past the timeout, a Read of a hard link to `.env` returned the secret (probed). That link needs someone other than the agent to make it during the run. Tried from an agent alone, all refused: `ln`, `mv` and `cp` of `.env`, renaming its folder, a symbolic link, `.ENV`, and `.env` with a trailing space, past the timeout where it applied. A `..` path wasn't tried past it. An agent's own load (24 busy loops) didn't make the real hook miss its 30 seconds in one try; that's one try, not a proof, and a hook that crashes for another reason would also let a Read through. The hook now checks a fingerprint of the trust root (about 15 ms for 218 files), not every file's hash. Your decision in 19a: not a blocker. The red team records it each run.
 
+## Installing an approved package (unit 30b)
+
+The one place MIRAI gives Docker network for a ticket's packages, and what it can reach:
+- **No agent is inside.** MIRAI runs the stack's lock command (`npm install --package-lock-only
+  --ignore-scripts`, `composer require --no-install --no-scripts --no-plugins`) in the service's
+  image, in a scratch folder in the store holding only the manifest and its lock, copied from the
+  integration commit. Install scripts are off. Docker's normal network: a registry-only proxy is for
+  later.
+- **Only what you approved:** the plan's exact versions. The lock is checked before anything is
+  committed: no existing version changed, every added package from the registry, at most
+  `max_added`; otherwise the ticket parks.
+- **The ticket's image** is built from the integration branch's Dockerfile, refused unless its
+  install line turns scripts off. Test runs then use it with no network, as always.
+- **From a session**, npm reaches no registry (red-team case `install-npm`), and the manifest and
+  lock are protected paths Kai can't change unnoticed.
+
 ## Coming next
 
 - **Units 19b and 19c:** write scope, depth guard, tiers and the verifier ladder; then the broker's way in, and sessions.

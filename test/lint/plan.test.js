@@ -104,23 +104,23 @@ test('T7: a characterization test names, in Symbol, a symbol the Code map marks 
 });
 
 test('T8: a new dependency makes the ticket high risk; declared changes have a fixed format', () => {
-  const withDependency = replace(PLAN, '| none | | |', '| dependency | `composer:spatie/laravel-sluggable` | slug history |');
+  const withDependency = replace(PLAN, '| none | | |', '| dependency | `composer:spatie/laravel-sluggable@3.7.0` | slug history |');
   assert.deepEqual(codes(withDependency), ['7:7 plan-risk']);
   assert.deepEqual(codes(withDependency.replace('risk: normal', 'risk: high')), []);
-  const two = replace(PLAN, '| none | | |', '| dependency | npm:a | b |\n| dependency | npm:c | d |');
+  const two = replace(PLAN, '| none | | |', '| dependency | npm:a@1.0.0 | b |\n| dev-dependency | npm:c@2.0.0 | d |');
   assert.deepEqual(only(two), ['plan-risk']); // once, however many
   assert.deepEqual(codes(replace(PLAN, '| none | | |', '| protected-path | `docker-compose.yml` | a new volume |')), []);
-  for (const bad of ['| dependency | | why |', '| protected-path | stuff | |', '| protected-path | /etc/x | w |', '| protected-path | ../x | w |', '| protected-path | .github/** | w |', '| protected-path | src/*.yml | w |', '| dependency | left-pad | w |', '| library | a | b |']) {
+  for (const bad of ['| dependency | | why |', '| protected-path | stuff | |', '| protected-path | /etc/x | w |', '| protected-path | ../x | w |', '| protected-path | .github/** | w |', '| protected-path | src/*.yml | w |', '| dependency | left-pad | w |', '| dependency | npm:left-pad | w |', '| dependency | npm:left-pad@^1.3 | w |', '| dependency | npm:left-pad@latest | w |', '| dependency | pip:requests@2.32.0 | w |', '| library | a | b |']) {
     assert.ok(only(replace(PLAN, '| none | | |', bad).replace('risk: normal', 'risk: high')).includes('plan-table'), bad);
   }
-  assert.deepEqual(only(replace(PLAN, '| none | | |', '| none | | |\n| dependency | npm:a | b |')), ['plan-risk', 'plan-table']);
+  assert.deepEqual(only(replace(PLAN, '| none | | |', '| none | | |\n| dependency | npm:a@1.0.0 | b |')), ['plan-risk', 'plan-table']);
   // The tables must be there, with their columns, and read as they render.
   assert.deepEqual(only(replace(PLAN, '| Kind | Item | Why |', '| Kind | Item |')), ['plan-table']);
-  const noPipe = replace(PLAN, '| none | | |', '| protected-path | `docker-compose.yml` | a new volume |\ndependency | `npm:left-pad` | padding |');
+  const noPipe = replace(PLAN, '| none | | |', '| protected-path | `docker-compose.yml` | a new volume |\ndependency | `npm:left-pad@1.3.0` | padding |');
   assert.deepEqual(only(noPipe), ['plan-risk']); // a row without a leading pipe is a row
-  const hidden = replace(PLAN, '| none | | |', '| protected-path | `a.yml` | w |\n<!-- -->| dependency | npm:x | y |');
+  const hidden = replace(PLAN, '| none | | |', '| protected-path | `a.yml` | w |\n<!-- -->| dependency | npm:x@1.0.0 | y |');
   assert.ok(only(hidden).includes('plan-table'));
-  const second = replace(PLAN, '| none | | |', '| none | | |\n\n| Kind | Item | Why |\n|---|---|---|\n| dependency | npm:x | y |');
+  const second = replace(PLAN, '| none | | |', '| none | | |\n\n| Kind | Item | Why |\n|---|---|---|\n| dependency | npm:x@1.0.0 | y |');
   assert.deepEqual(only(second), ['plan-table']);
   assert.deepEqual(only(replace(PLAN, '| Kind | Item | Why |\n|---|---|---|', '| Kind | Item | Why |\n| | | |')), ['plan-table']); // no dashes: not a table
 });
@@ -170,7 +170,7 @@ test('T10: the approval covers the frozen block, the declared changes and the ke
   // Inside the frozen block, even one word.
   assert.deepEqual(check(replace(PLAN, 'Never: change how teams are created', 'Never: change how teams are made')), changed);
   // A declared change added, or a key field changed, after approval.
-  assert.deepEqual(check(replace(PLAN, '| none | | |', '| dependency | npm:left-pad | padding |')), changed);
+  assert.deepEqual(check(replace(PLAN, '| none | | |', '| dependency | npm:left-pad@1.3.0 | padding |')), changed);
   for (const [from, to] of [['tdd: first', 'tdd: after'], ['acs: [AC-PMT-31.1, AC-PMT-31.2]', 'acs: [AC-PMT-31.1]'], ['risk: normal', 'risk: high'], ['tests: required', 'tests: optional'], ['round: 1', 'round: 2']]) {
     assert.deepEqual(check(replace(PLAN, from, to)), changed, to);
   }

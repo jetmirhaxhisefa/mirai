@@ -205,6 +205,14 @@ export const CONFIG_SCHEMA = {
         },
       },
     },
+    // New packages installed after your approval (unit 30b): the most a lock may add before it
+    // parks for you (deps-review).
+    dependencies: {
+      type: 'table',
+      fields: {
+        max_added: { type: 'integer', min: 1, max: 1000 },
+      },
+    },
     // The loop guard's caps (unit 20; D-18). Turns, tokens and minutes stay unset until calibration.
     loop: {
       type: 'table',

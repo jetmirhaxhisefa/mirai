@@ -105,9 +105,9 @@ The ticket must be `in-progress`, with a plan whose approval verifies as it is n
 6. **MIRAI's checks, in order.** Each stops the ticket with the reason and leaves the files as they are:
    1. **The launch's own checks:** `.git`, processes, the token, and the `author` role's scope.
    2. **A path that runs by itself** (hooks, MIRAI's own files) **parks the ticket** (`scope`), declared or not (D-15).
-   3. **Protected paths:** one the plan didn't declare needs you. A manifest whose only change is declared dependencies (it's otherwise exactly as it was) counts as declared, so a planned `npm:left-pad` doesn't trip node's protected `package.json`. **Its lock file never counts:** the plan declares `package-lock.json` or `composer.lock` as a protected path, so a rewritten lock is always seen.
+   3. **Protected paths:** one the plan didn't declare needs you. The manifest and lock files (node's and php's packs protect them) are never Kai's to change: the plan's packages are already installed and committed by MIRAI when Kai starts (below), so a change to them in Kai's step is always seen.
    4. **Dependencies:** the manifests are stack data (`[[dependencies]]` in `registry/stacks/`: `package.json` for npm, `composer.json` for composer). These need you:
-      - a name added or a spec changed (a version, a URL, an alias) that the plan didn't declare as `<ecosystem>:<name>`;
+      - any name added or spec changed (a version, a URL, an alias) in Kai's step: the plan's own packages were installed before it;
       - any change to the keys that say where dependencies come from (`overrides`, composer's `repositories`);
       - any change to the scripts the named checks run (a `lint` script turned into `true` checks nothing);
       - a manifest MIRAI can't read.
@@ -278,12 +278,41 @@ A tree you changed is refused before anything runs.
 
 **After `handed-over`:** the work is MIRAI's commit on the ticket branch (`git log -p main..` there). Don't commit on a MIRAI branch by hand: a commit MIRAI didn't make is refused by the next step. Taking a branch over is unit 46's `mirai handover`.
 
-**Installing a dependency isn't built yet.** Agents have no network in the sandbox. If the plan declares a dependency that isn't installed, Kai stops `blocked`. To go on:
-1. add the dependency to the manifest yourself, on the integration branch, and commit it;
-2. record the baseline for that commit (`mirai baseline`);
-3. start the ticket again: `mirai unpark` or a re-plan, then `mirai build`.
+## New packages, installed after your approval (unit 30b)
 
-This contradicts D-48 ("installed from the integration branch's manifests"), which can't hold a dependency that's new. That's recorded as open.
+Agents never install: they have no network. A plan names each new package in Declared changes, as
+`<ecosystem>:<name>@<exact version>` under Kind `dependency`, or `dev-dependency` for one only
+tests and tools use (`npm:@storybook/react-vite@10.2.16`, `composer:spatie/laravel-permission@6.10.1`).
+The lint refuses a row without an exact version (no ranges, tags, URLs, paths or git sources) and an
+ecosystem MIRAI can't install (npm and composer only). Such a plan is high risk, so it always comes to
+you; **your approval approves exactly those versions.**
+
+Then `mirai build`, before Kai's launch:
+1. **The lock update.** MIRAI copies the integration commit's manifest and lock into a scratch folder,
+   and runs the stack's command there (`npm install --package-lock-only --save-exact --ignore-scripts`,
+   `composer require --no-install --no-scripts --no-plugins`) in the service's own image, with
+   network. No agent is inside, and install scripts are off.
+2. **The check.** The approved versions, exactly, pinned without `^` or `~`; nothing but the manifest's
+   dependency keys and the lock changed; no existing package's version changed; every added package
+   from the registry (`registry.npmjs.org`; Packagist for composer); at most `[dependencies] max_added`
+   added (default 50). Anything else **parks** the ticket (`deps-review`) with the list, and nothing is
+   committed. After you've looked, `mirai unpark <ticket> --accept-deps` (your terminal, your key)
+   accepts exactly that change; the next build installs it only if the update comes out identical.
+3. **The commit.** The manifest and lock, as MIRAI's own commit on the ticket's branch, listing every
+   package added to the lock.
+4. **The ticket's own image.** For each compose service whose Dockerfile copies the manifest or lock,
+   MIRAI builds `<image>:mirai-<ticket>` (for `hr-platform/frontend:dev`:
+   `hr-platform/frontend:mirai-bkt-49`) from the **integration branch's** Dockerfile with the ticket's
+   two files. A Dockerfile whose install line doesn't turn scripts off (`npm ci --ignore-scripts`,
+   `composer install --no-scripts`) is refused, before anything is committed. The ticket's test runs
+   (Kai's, MIRAI's own, fix rounds, the gate) use that image; your images, other tickets and the
+   baseline don't.
+
+A re-run of the build doesn't install twice. The images go when the ticket is done or dropped
+(`mirai doctor` lists one left over). The MR says which packages it adds; **after you merge, rebuild
+your own images once** (`docker compose build`): `mirai baseline` warns about an image whose lock isn't
+the integration branch's. Any other package change (an update, a removal, pip or go) is still yours,
+by hand on the integration branch, with a new baseline.
 
 ## What isn't proven yet
 

@@ -1,5 +1,6 @@
 import { reviewsOf } from '../agent/review.js';
 import { readPlan } from '../agent/plan.js';
+import { readInstall } from '../agent/install.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { CITES_CODE } from '../reports/render.js';
 import { blobAt } from '../store/git.js';
@@ -77,7 +78,10 @@ export function describeTicket({ store, ticket, head, ticketPath }) {
     .map((l) => oneLine(l.replace(/^\s*[-*]\s+(\[[ xX]\]\s+)?/, ''), 300))
     .filter(Boolean)
     .slice(0, 30);
-  const what = tasks.length ? tasks : ['See the commits on this branch.'];
+  const installed = readInstall(store, ticket);
+  // Unit 30b: the packages MIRAI installed after your approval, and the rebuild you owe your images.
+  const deps = installed ? [oneLine(`Adds ${installed.rows.join(', ')} (installed by MIRAI after the plan's approval; ${installed.added?.length ?? 0} packages added to the locks). After merging, rebuild your images: docker compose build`, 600)] : [];
+  const what = [...(tasks.length ? tasks : ['See the commits on this branch.']), ...deps];
 
   const review = reviewsOf(store, ticket).at(-1)?.record ?? {};
   const byId = new Map((review.findings ?? []).map((f) => [f.id, f]));
