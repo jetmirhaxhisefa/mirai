@@ -1,9 +1,9 @@
 ---
 unit: "30"
 name: pilot
-status: draft (interview 2026-11-16, decisions 1–8 below; waits for "approve 30")
+status: draft (interview 2026-11-16, decisions 1–9 below; waits for "approve 30")
 roadmap: design/07-implementation-roadmap.md, row 30 (the pilot checkpoint) and its early stop rule; design/05-open-questions.md §E (Q16–22)
-depends_on: ["29", "17a", "17b", "29b", "29c", "29d", "18h"]
+depends_on: ["29", "17a", "17b", "29b", "29c", "29d", "18h", "30b"]
 ---
 
 # Unit 30: The pilot checkpoint (Thudos)
@@ -19,10 +19,11 @@ for Milestone B.
 
 1. **Base.** A new branch `mirai/pilot` of `people-management-tool/platform`, made from
    `main` (`224afc4`, with Jet's `.env.example` update). MIRAI only ever targets it
-   (`[git] integration_branch = "mirai/pilot"`),
-   never `main`. BKT-44 and BKT-47 aren't in it. They come in later when Jet merges them into
-   `main` and `main` into `mirai/pilot`.
-2. **The checkout:** `~/Projects/thudos` (cloned 2026-11-16, clean, on `main`, pulled to `224afc4`; `backend/.env` copied from `.env.example` on Jet's word, git-ignored, mode 600).
+   (`[git] integration_branch = "mirai/pilot"`), never `main`. BKT-44 and BKT-47 aren't in it.
+   They come in later when Jet merges them into `main` and `main` into `mirai/pilot`.
+2. **The checkout:** `~/Projects/thudos` (cloned 2026-11-16, on `main`, pulled to `224afc4`).
+   `backend/.env` is a copy of `.env.example`, on Jet's word: git-ignored, mode 600, for the dev
+   stack only (agents never read it).
 3. **The council goes.** On `mirai/pilot`, the first commit removes:
    - all of `.claude/`;
    - all three `CLAUDE.md` files (root, `backend/`, `frontend/`) and `CLAUDE.local.md.example`;
@@ -52,6 +53,11 @@ for Milestone B.
    other limits stay as written: about 2 h of Jet's attention, more than 2 fix rounds, parking,
    and fewer than 3 tickets a night. The usage note reports per size: "N S tickets or M M tickets
    a night".
+9. **New packages through MIRAI, behind Jet's gate (unit 30b).** Jet: "I expect that MIRAI could
+   add new dependencies but with me as a gate". BKT-49's plan declares the Storybook packages, Jet
+   approves them with the plan, and 30b's install step puts exactly those in before Kai's build.
+   Unit 30b is built and its tests and probes pass before BKT-49 starts; steps 1–6 below don't
+   wait for it.
 
 ## The pilot questions (`05` §E), answered
 
@@ -109,15 +115,11 @@ the app. Today it is half set up and broken:
 **Out of scope:** the layout components; the table, form and theme pattern pages; visual
 regression; hosting.
 
-**The packages go in by hand.** Agents have no network, and until a broker verb exists a new
-dependency is added on the integration branch by a person, with a new baseline (design/05 §F,
-`docs/agents.md`).
-- Before BKT-49 starts, Jet adds the Storybook 10 packages the setup needs, pinned to the
-  installed `storybook` version (`10.2.16`): `@storybook/react-vite`, `@storybook/addon-docs` and
-  `@storybook/addon-themes`.
-- This is one commit on `mirai/pilot`; the baseline is recorded after it.
-- AC1's "pinned" is met by that commit, and the agent's plan may not add others. If the plan finds
-  one missing, the ticket parks for Jet.
+**The packages go in through the plan gate (decision 9).** Kai's plan declares each new package
+with an exact version; Jet approves them with the plan, which makes BKT-49 high risk. Expected:
+`@storybook/react-vite`, `@storybook/addon-docs` and `@storybook/addon-themes`, pinned to the
+installed `storybook` (`10.2.16`; all three exist at that version and accept Vite 5 and React 18,
+checked 2026-11-16). Unit 30b installs exactly the approved list; anything else is refused.
 
 ## Scope
 
@@ -126,7 +128,6 @@ dependency is added on the integration branch by a person, with a new baseline (
 1. **Prepare `mirai/pilot`** (I prepare the commits, Jet reviews and pushes):
    - the council removal (decision 3);
    - `docs/mirai/context/ALL_FEATURES.md` (decision 7);
-   - the Storybook packages (above);
    - `backend/.env.test` with dummy secrets, from `.env.example`;
    - the test compose file (Q22).
 2. **First boot** (the project has never run on this laptop): `docker compose up -d --build`,
@@ -146,7 +147,7 @@ dependency is added on the integration branch by a person, with a new baseline (
 5. **Red team GREEN on the pilot** (`mirai redteam run`, Terminal). The known limits
    `h-timeout-link` and `l-cd` are accepted.
 6. **`mirai doctor` green on `mirai/pilot`.**
-7. **BKT-49 through Milestone A's flow**, supervised, as SAMPLE-6 went:
+7. **BKT-49 through Milestone A's flow** (once 30b is done), supervised, as SAMPLE-6 went:
    - approve the ticket, then plan, then approve the plan;
    - the TDD build, Rex's review and the proofs;
    - the MR into `mirai/pilot`. Jet merges.
