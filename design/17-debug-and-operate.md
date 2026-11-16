@@ -152,10 +152,17 @@ limits that is a way to send data out. So:
 
 ### 2.8 The decision on production data
 
-Before the first production source is set up in a project, MIRAI asks you to confirm, with your
-key, that data from the listed views and log sources may be sent to the model provider. The
-confirmation names the sources and is recorded. Adding a source asks again. This gets a
-decision record when P32 is specced.
+Decided on 2026-11-16 (D-67): production data may reach the model provider, inside three
+limits.
+
+1. **The allow-list** of §2.4. Columns that hold personal data are off it by default, so you
+   add one only on purpose.
+2. **Masking** (§2.5), which reduces what is sent and doesn't guarantee it.
+3. **Your confirmation with your key**, per project, before the first production source is
+   usable. MIRAI lists the sources and what would be readable. Adding a source asks again.
+
+MIRAI can't judge whether a company's rules allow sending this data to an AI service. The
+setup step says so and asks you to check before you list a column with personal data.
 
 ## 3. The findings record (P33)
 

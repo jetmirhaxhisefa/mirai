@@ -2142,7 +2142,8 @@ ones that **change the MVP**. Each is carried by a roadmap row in `07` version 6
   list of jobs on a named commit when the building session asks (`10`, unit 29e). It is never
   installed into a project. A red-team run limited to some cases is feedback only and never
   writes a result record. Jobs run on pushed commits with a scrubbed environment. The green result always comes from a full run.
-- **Consequences:** unit 29e comes before the pilot. The red-team result for a real project
+- **Consequences:** unit 29e comes right after the pilot (unit 30), before Milestone B, since
+  the pilot was already running when this was decided. The red-team result for a real project
   still comes from a run you start there.
 
 ### D-65 · The review's raw data is logged from the first judged ticket
@@ -2176,3 +2177,43 @@ ones that **change the MVP**. Each is carried by a roadmap row in `07` version 6
   has this one exception, and the gates table gets a row for it. The trust root stays the
   integration branch, and the epic branch accepts only these merges.
 - **Consequences:** `16` §3, units P25a–P25c. Not part of the MVP. First used on a small epic.
+
+### D-67 · Production data may reach the model provider, inside three limits (post-MVP)
+
+- **Context:** the debug tools may read production logs and databases (`09` PM-18), because real
+  bugs often exist only there. Whatever an agent reads is sent to the model provider as part of
+  its context. For production that means real people's data leaves your systems.
+- **Options:** (A) allowed inside limits; (B) never production data: agents read local and
+  staging only, and you describe production data yourself; (C) decide per project later.
+- **Decision** (your choice, 2026-11-16): **(A)**, with three limits:
+  1. **An allow-list.** On production an agent reads only the views or columns you listed.
+     Columns that hold personal data are off the list by default.
+  2. **Masking** of patterns such as email addresses and phone numbers in whatever comes back.
+     It reduces what is sent and doesn't guarantee it.
+  3. **Your confirmation with your key**, per project, before the first production source is
+     usable. It names the sources. Adding a source asks again.
+- **Not decided by MIRAI:** whether a company's rules allow sending this data to an AI service.
+  For a work project, check that before listing a column with personal data.
+- **Consequences:** `17` §2.4, §2.5 and §2.8, unit P32.
+
+### D-68 · Thresholds and budget caps are config with defaults (post-MVP)
+
+- **Context:** the plan contains numbers nobody measured: when a candidate feature gets built
+  after the review (`13` §5), what "close but not met" means (`13` §1), and how much of the
+  weekly limit each background job may use (`09` §2.3).
+- **Decision** (2026-11-16): the proposed numbers are the defaults, and **every one of them is
+  a config value** you can change, per project or in your personal file, like the model tiers
+  (D-58).
+- **Consequences:** units P10, P11, P12, P38 and the others that use a number read it from
+  config and show the value they used in their report.
+
+### D-69 · MIRAI moves to a new Claude Code version by itself
+
+- **Context:** in the post-MVP interview you first agreed to approve each move with your key.
+  Unit 18h, approved the same day, moves by itself between tickets once the red team is green,
+  when `[claude_code] move = "auto"` is set.
+- **Decision** (2026-11-16): **by itself.** "I don't want to move it manually." Unit 18h's rule
+  stands, and no keyed approval per move is added. The green red team is the safeguard, and a
+  move can never skip it.
+- **Consequences:** `13` §7: P13 only adds the scheduled background check, the report and the
+  project's proven version in the repo.
