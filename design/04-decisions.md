@@ -2064,3 +2064,115 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     review (units 29 and 56).
 - **Consequences:** D-14's rule still holds at the tier level (judgement steps always use
   `deep`); what `deep` means is your choice, made visible.
+
+---
+
+## Decisions from the post-MVP interview (2026-11-16)
+
+The interview's full decision list is in `09` §3 (PM-01 to PM-45). The records below are the
+ones that **change the MVP**. Each is carried by a roadmap row in `07` version 6. The text of
+`01` and `03` is not rewritten: the unit's spec applies the change when the unit is built.
+
+### D-59 · Documents have two layers in one file
+
+- **Context:** documents written for agents read like machine instructions. You approve every
+  one, and must be able to understand it easily. The detail agents need must not shrink.
+- **Options:** (a) two layers in one file; (b) a human brief and a machine spec as two files;
+  (c) one layer, written plainly everywhere.
+- **Decision** (your choice, PM-03): **(a).** A top part for the approver (what, why, what
+  changes, the decisions asked of you, what is out of scope; one to two pages, plain sentences)
+  and a detail part for agents. Your signature covers the whole file. Vera checks that the two
+  parts match, and a reader test runs on the top part.
+- **Consequences:** units 31, 32, 34 and 40 carry it. You read the whole document when it
+  matters and skim otherwise, so the matching check is measured in the review (`13`).
+
+### D-60 · Rex reports unnecessary code; it doesn't block
+
+- **Context:** outside MIRAI, Claude tends to write far more code than a task needs. Whether
+  Kai does this is unknown, since the sample tickets were small.
+- **Decision** (PM-01): Rex gets a finding category `unnecessary`, with a kind (`unused`,
+  `outside-plan`, `speculative`, `defensive`, `unrelated`). It is reported to you and logged.
+  It never sends a ticket back to Kai for now, because it has no AC or ADR behind it.
+- **Consequences:** unit 48 carries it. The review decides from the data whether the provable
+  kinds become blocking and whether Kai needs more rules (`13` §5).
+
+### D-61 · A technical ticket is a normal ticket with system-facing criteria
+
+- **Context:** some work has no customer-visible result (a changed log format, a dependency
+  update).
+- **Options:** (a) a separate, lighter ticket kind; (b) a normal ticket whose criteria describe
+  the system.
+- **Decision** (PM-07): **(b).** Every ticket has acceptance criteria, and each must be testable
+  by the reviewer. They may describe the system and not the customer.
+- **Consequences:** unit 42 carries it. No new ticket kind.
+
+### D-62 · A team of separate MIRAI instances, from the day the MVP is done
+
+- **Context:** the MVP assumed one person on one machine (U3). You plan to use MIRAI with your
+  team as soon as the MVP is fully done. Some teammates won't use it.
+- **Decision** (PM-39): each developer runs their own MIRAI with their own key, store and
+  subscription. The instances don't know about each other and meet through pull requests, and
+  later through Jira and Confluence (`12`). For the MVP this means:
+  - a PR that never claimed to come from MIRAI passes CI (already unit 54's design, now
+    tested);
+  - one key per developer, and an approval signed by any listed, unrevoked key counts;
+  - workspace mode (unit 72) is needed, not optional.
+- **Not in the MVP:** a rule for whose signature counts for what. It needs a signed roles file
+  and a signed claim per ticket, because a tracker's assignee is advisory data (D-06). It comes
+  with `12` P09.
+- **Consequences:** unit 54 carries the key change. U3's "one machine" now means one
+  machine per developer. `mirai export/import` stays Later.
+
+### D-63 · The MVP stays macOS-only, prepared for Ubuntu
+
+- **Context:** the team uses Macs (Intel and Apple), Ubuntu and Windows. The cage, the Docker
+  facts and the red team are proven on macOS only. Proving every remaining unit on two or three
+  systems would slow the whole MVP.
+- **Decision** (PM-40): the MVP stays macOS-only. Two preparations go in as unit 30a: MIRAI's
+  own unit tests run on Ubuntu in CI (those that don't need the cage), and one module answers
+  everything specific to the operating system. Ubuntu support is one of the first post-MVP
+  units, then Windows through WSL (`11`).
+- **Consequences:** a rule in `07` and unit 30a. A red-team result never crosses systems.
+
+### D-64 · A build runner for building MIRAI; targeted red-team runs are feedback only
+
+- **Context:** building a unit waits on runs you start by hand (red team, probes, baseline),
+  so nothing moves overnight and the MVP takes weeks longer than its work needs.
+- **Decision** (PM-45): a development tool in MIRAI's repo, started by you once, runs a fixed
+  list of jobs on a named commit when the building session asks (`10`, unit 29e). It is never
+  installed into a project. A red-team run limited to some cases is feedback only and never
+  writes a result record. Jobs run on pushed commits with a scrubbed environment. The green result always comes from a full run.
+- **Consequences:** unit 29e comes before the pilot. The red-team result for a real project
+  still comes from a run you start there.
+
+### D-65 · The review's raw data is logged from the first judged ticket
+
+- **Context:** after 20 tickets the logs are read and the post-MVP plan is re-checked (PM-41).
+  Several questions were left for that review: ticket count and size, Vera's depth per document
+  type, why tickets park.
+- **Decision:** the MVP logs a reason for each ticket you drop, merge, split or reject (unit
+  45), the cause of each review dispute that parks a ticket (unit 46), what Vera passed that
+  was caught later per document type (units 40, 46 and 56), `unnecessary` findings with your
+  agree or disagree (unit 48), and each agent tool call with its sanitised target (unit 56).
+  The field list is in `13` §2.
+- **Consequences:** D-13 (one verifier) stays, with a measure for its reversal clause. D-24
+  (sequential first) is reopened only by `16` after the review. D-39 (no debugger agent in the
+  MVP) stays for the MVP; `17` adds an investigation-only agent afterwards.
+
+### D-66 · Epic autopilot: the orchestrator may merge into an epic branch (post-MVP)
+
+- **Context:** nothing merges without you (D-22, `01` §12a and §16). A dependent ticket can
+  stack two levels deep on an open MR. In an epic of 30 tickets the queue then has nothing it
+  may start, and waits for your merge.
+- **Options:** (a) keep it, and merge each ticket yourself; (b) deeper stacking; (c) let the
+  orchestrator merge proven tickets into the epic branch.
+- **Decision** (your choice, PM-11): **(c)**, for an epic in `release: together` mode where you
+  switched it on in the signed ticket-set approval. The orchestrator merges a ticket MR into
+  `feature/<epic>` when every proof is green and the ticket isn't high-risk, doesn't touch
+  protected paths and adds no dependency. **Your signed merge stays on the final epic MR** into
+  the integration branch. Two brakes: `mirai epic reject <ticket>` after the fact, and a pause
+  after a set number of tickets you haven't marked as read with your key (default 5).
+- **What it amends:** D-22 still holds for agents: an agent never merges. "Only you merge" now
+  has this one exception, and the gates table gets a row for it. The trust root stays the
+  integration branch, and the epic branch accepts only these merges.
+- **Consequences:** `16` §3, units P25a–P25c. Not part of the MVP. First used on a small epic.

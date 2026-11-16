@@ -341,3 +341,27 @@ Agreed on 2026-10-23, after "APPROVED: start implementation":
   project file or your personal file. MIRAI doesn't block a small model for judgement work; it
   shows which model each tier uses, warns when a tier uses a model outside its usual family, and
   every report shows the model used for PRDs, designs and high-risk reviews.
+
+---
+
+## The post-MVP interview (2026-11-16)
+
+An interview on your Phase 2 notes (`2_Efforts/MIRAI - How it works`, "Phase 2 followups", and
+the linked ticketing prompt), one topic at a time, each question with a guess. Outside research
+ran first on every topic group, and again on JEV and on disputes between a writing and a
+reviewing agent.
+
+- **The result is `09` version 2:** the stages, decisions PM-01 to PM-45, the unit list (P00–P41)
+  and the design addenda `10`–`18`.
+- **What changed in the MVP** is in `09` §4 and `07` version 6: the build runner (unit 29e) and
+  a second new unit (30a: CI on Ubuntu and the operating-system module), and small additions to units 31, 32, 34, 40, 42, 45, 46, 48, 54 and 56. Unit 72 is now needed.
+- **Your main corrections to the guesses:**
+  - the team starts when the MVP is fully done, not after your 20 tickets;
+  - Windows users must be able to run MIRAI (through WSL);
+  - the hub is a separate repo from the start, with a Python server, and no built-in viewer;
+  - the nightly run uses an agent for diagnosis, beyond the Playwright journeys;
+  - a technical ticket is a normal ticket with system-facing acceptance criteria, not a new
+    ticket kind;
+  - JEV is skipped, because no independent proof exists for the use you had in mind.
+- **Agreed for later:** after the 20 tickets, the logs are read first and `09` is re-checked
+  before anything in stages 2–6 is built.
