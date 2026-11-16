@@ -17,11 +17,12 @@ for Milestone B.
 
 ## Decisions (Jet, 2026-11-16, in the interview)
 
-1. **Base.** A new branch `mirai/pilot` of `people-management-tool/platform`, made from today's
-   `main` (`d4a554b`). MIRAI only ever targets it (`[git] integration_branch = "mirai/pilot"`),
+1. **Base.** A new branch `mirai/pilot` of `people-management-tool/platform`, made from
+   `main` (`224afc4`, with Jet's `.env.example` update). MIRAI only ever targets it
+   (`[git] integration_branch = "mirai/pilot"`),
    never `main`. BKT-44 and BKT-47 aren't in it. They come in later when Jet merges them into
    `main` and `main` into `mirai/pilot`.
-2. **The checkout:** `~/Projects/thudos` (cloned 2026-11-16, clean, on `main` = `d4a554b`).
+2. **The checkout:** `~/Projects/thudos` (cloned 2026-11-16, clean, on `main`, pulled to `224afc4`; `backend/.env` copied from `.env.example` on Jet's word, git-ignored, mode 600).
 3. **The council goes.** On `mirai/pilot`, the first commit removes:
    - all of `.claude/`;
    - all three `CLAUDE.md` files (root, `backend/`, `frontend/`) and `CLAUDE.local.md.example`;
@@ -128,30 +129,35 @@ dependency is added on the integration branch by a person, with a new baseline (
    - the Storybook packages (above);
    - `backend/.env.test` with dummy secrets, from `.env.example`;
    - the test compose file (Q22).
-2. **Install.**
+2. **First boot** (the project has never run on this laptop): `docker compose up -d --build`,
+   then composer install, the migrations and npm install inside the containers. The app answers
+   on `app.thudos.test` and `api.thudos.test` (the `/etc/hosts` entries from ADR-0001, a sudo
+   step for Jet in Terminal). Any fix this needs is a commit on `mirai/pilot` before install, so
+   the baseline starts from a stack that runs.
+3. **Install.**
    - `mirai init` on `mirai/pilot`. Unit 17a's detection drafts the config. Jet reviews it, with:
      the integration branch; `[gate.risk] high` (draft below); the named checks wired to Pint,
      tsc, ESLint, `vite build` and `build-storybook`; the docs paths.
    - The test adapters are checked on the pilot's PHPUnit, Vitest and Playwright.
    - Jet's key and the machine key are set up for this repo (unit 06 and 29b).
    - The test baseline is recorded (17b).
-3. **Instruction files (P9):** detection lists no agent-instruction files left on `mirai/pilot`,
+4. **Instruction files (P9):** detection lists no agent-instruction files left on `mirai/pilot`,
    apart from MIRAI's own.
-4. **Red team GREEN on the pilot** (`mirai redteam run`, Terminal). The known limits
+5. **Red team GREEN on the pilot** (`mirai redteam run`, Terminal). The known limits
    `h-timeout-link` and `l-cd` are accepted.
-5. **`mirai doctor` green on `mirai/pilot`.**
-6. **BKT-49 through Milestone A's flow**, supervised, as SAMPLE-6 went:
+6. **`mirai doctor` green on `mirai/pilot`.**
+7. **BKT-49 through Milestone A's flow**, supervised, as SAMPLE-6 went:
    - approve the ticket, then plan, then approve the plan;
    - the TDD build, Rex's review and the proofs;
    - the MR into `mirai/pilot`. Jet merges.
-7. **The usage note** (`implementation/units/30-pilot/usage-note.md`), from BKT-49's run log and
+8. **The usage note** (`implementation/units/30-pilot/usage-note.md`), from BKT-49's run log and
    `/status`:
    - turns, tokens, minutes, fix rounds and the limit share;
    - Jet's attention time (`mirai session` time plus one manual note);
    - "at this rate, N S tickets or M M tickets fit in one night and in a week";
    - each early stop limit, met or not;
    - go or no-go for Milestone B.
-8. **`05` §E updated** with the answers above, and anything the run changes.
+9. **`05` §E updated** with the answers above, and anything the run changes.
 
 **Out.**
 - Any change to the pilot's `main`; BKT-44 and BKT-47.
