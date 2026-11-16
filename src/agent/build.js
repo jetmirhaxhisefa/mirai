@@ -436,7 +436,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, nextToken
     const name = branchName(config.git?.branch_pattern ?? 'feature/{ticket}-{slug}', ticket, ticketSlug(given.ticket.text));
     const existing = commitOf(store.checkout, `refs/heads/${name}`, store.gitEnv) !== null ? verifyBranchAt({ root: store.checkout, env: store.gitEnv, branch: name, keys, repoId: store.repoId }) : null;
     checkJudgeable({ store, config, keys, base: existing?.ok ? existing.record.base_sha : trust.baseSha, branch: trust.branch, integration: trust.baseSha });
-    await preGate({ cwd, env, store, trust, role: BUILD_ROLE, claude: watch.claude ?? null, ...(watch.status ? { status: watch.status } : {}) });
+    await preGate({ cwd, env, store, trust, role: BUILD_ROLE, ticket, claude: watch.claude ?? null, ...(watch.status ? { status: watch.status } : {}) });
     // The ticket's branch (unit 22): made with its signed record and registered, or an existing
     // MIRAI branch as it is. Its base is the integration commit until stacking (D2) gives a parent.
     const prep = prepareBranch({ store, env, trust, config, keys, signer: () => loadRecordSigner(env, store), unattended, ticket, ticketText: given.ticket.text, now });

@@ -39,6 +39,7 @@ Each stop ends with one line saying what to do next, ending in the exact command
 - **The baseline:** a new known failure on the integration branch (`baseline-grew`) or an incomplete baseline. A test that was flaky before and passed first time is carried over, not new.
 - **The breaker:** `loop.breaker` environment faults in a row (3 by default). A single fault runs the step again.
 - **A usage limit** it can't wait out (below), or Ctrl-C.
+- **A Claude Code move that waited too long** (unit 18h): a ticket with no pinned Claude Code doesn't start once a newer one has waited more than 7 days; the line names what to read or run (see [red-team.md](red-team.md)). Before that, a ticket's start may run the red team on the newer one first, with your consent (`[claude_code] move = "auto"`), and the run's last lines say what's waiting.
 
 The exit code: 0 for the MR, 5 for a gate or a stop for you, 4 for a park or a refusal (such as no `origin` remote, or a closed MR), 130 for Ctrl-C.
 

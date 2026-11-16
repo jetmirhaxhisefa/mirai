@@ -78,6 +78,8 @@ export const RUN_EVENTS = Object.freeze({
     settings_sha256: { type: 'string', pattern: /^[0-9a-f]{64}$/, patternHint: 'a sha256' },
     canonical_sha256: { type: 'string', pattern: /^[0-9a-f]{64}$/, patternHint: 'a sha256' },
     token_fingerprint: { type: 'string', pattern: /^[0-9a-f]{12}$/, patternHint: 'a token fingerprint' },
+    // Unit 18h: the Claude Code version the launch ran (its ticket's pin, or the kept copy).
+    claude_code: { type: 'string', pattern: /^[0-9A-Za-z.+-]{1,40}$/, patternHint: 'a Claude Code version' },
   },
   checks: {
     // The setting (auto/on/off) and what it resolved to for this ticket (D-23).
@@ -137,7 +139,7 @@ const OPTIONAL = {
   session_ended: ['note'],
   // What tdd resolved to (unit 23): first when a red check confirmed the plan's red rows.
   checks: ['tdd_applied'],
-  agent_run: ['tool_calls', 'rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'agent', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint'],
+  agent_run: ['tool_calls', 'rung', 'cost_usd', 'limit_share', 'tier_reason', 'model_used', 'scope_violations', 'tokens_cached', 'agent', 'limit_window', 'resets_at', 'outcome', 'survivors', 'unproven', 'settings_sha256', 'canonical_sha256', 'token_fingerprint', 'claude_code'],
 };
 // Rules across fields, per event.
 const CHECKS = {

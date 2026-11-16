@@ -9,6 +9,8 @@ import { branchKeys } from '../sign/keys.js';
 import { atomicWrite, ensurePrivateDir, readPrivateFile } from '../store/files.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { binaryHash, hashFile, resolveClaude } from './key.js';
+import { pinnedEverywhere, releaseFinished } from './pin.js';
+import { clearGapFor } from './move.js';
 import { RESULT_FOLDER } from './store.js';
 
 // The Claude Code agents run (unit 18g): the binary the repo's last green red-team result tested,
@@ -118,7 +120,10 @@ export function keepTested({ env, store, staged, signer, now = () => new Date() 
   const signed = signObject({ schema_version: 1, current, previous, kept_at: now().toISOString() }, signer, { context: context(store.repoId), now });
   atomicWrite(recordPath(store), `${JSON.stringify(signed, null, 2)}\n`);
   // The record has moved: a prune that fails is no reason to say the keep failed (18g re-review).
+  // Pins of tickets now done or dropped go first, so their copies can (unit 18h).
   try {
+    releaseFinished(store);
+    clearGapFor(store, staged.sha256);
     pruneTested(env);
   } catch {
     // the next run prunes
@@ -126,8 +131,8 @@ export function keepTested({ env, store, staged, signer, now = () => new Date() 
   return signed;
 }
 
-// The copies some repo's record still names (current or previous), read from every store under
-// MIRAI's home, stay; so does any copy younger than YOUNG_MS, unless it's in `drop` (this run's own
+// The copies some repo's record still names (current or previous), or some ticket pins (18h), read
+// from every store under MIRAI's home, stay; so does any copy younger than YOUNG_MS, unless it's in `drop` (this run's own
 // copy, after a run that wasn't green). Unverified reads only ever add names, so a forged record
 // can keep a copy, never remove one.
 export function pruneTested(env, { drop = [], now = Date.now() } = {}) {
@@ -147,6 +152,8 @@ export function pruneTested(env, { drop = [], now = Date.now() } = {}) {
       // no record there
     }
   }
+  // Unit 18h: a copy a ticket still pins stays too, whatever the records name now.
+  for (const s of pinnedEverywhere(env)) named.add(s);
   let entries = [];
   try {
     entries = readdirSync(testedRoot(env));

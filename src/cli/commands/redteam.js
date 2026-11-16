@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { cpus, loadavg } from 'node:os';
 import { join } from 'node:path';
+import { versionAfter } from '../../redteam/move.js';
 
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
@@ -72,18 +73,20 @@ function estimate(cases, templates, only) {
 export default {
   name: 'redteam',
   summary: 'Run the red-team checks that every unattended agent launch needs, or show where they stand',
-  usage: 'mirai redteam run [--sessions] [--only <id,…>] | mirai redteam status [--sessions] | mirai redteam show [--sessions] [<key or blocker id>] | mirai redteam accept-blocker <id> --note <why>',
+  usage: 'mirai redteam run [--sessions] [--only <id,…>] [--kept | --ticket <ticket>] | mirai redteam status [--sessions] | mirai redteam show [--sessions] [<key or blocker id>] | mirai redteam accept-blocker <id> --note <why>',
   positionals: { min: 1, max: 2 },
   options: {
     only: { type: 'string', description: 'run only these cases (comma-separated ids); a partial run is reported, never recorded' },
     note: { type: 'string', description: 'with accept-blocker: why you accept it' },
     sessions: { type: 'boolean', description: 'the cases for your own Claude Code sessions (they never gate a launch)' },
     kept: { type: 'boolean', description: 'with run: test the Claude Code agents run now (MIRAI\'s kept copy), not the newest installed' },
+    ticket: { type: 'string', description: 'with run: test the Claude Code this ticket is pinned to (unit 18h), so it can finish on it' },
   },
   async run(args, io) {
     const [action, arg] = args.positionals;
     const only = args.values.only !== undefined ? args.values.only.split(',').map((s) => s.trim()).filter(Boolean) : null;
     if (action !== 'run' && only) throw new UsageError('--only is for run');
+    if (args.values.ticket !== undefined && (action !== 'run' || args.values.kept)) throw new UsageError('--ticket is for run, without --kept');
     if (args.values.sessions) return sessions(action, arg, only, io);
     if (action === 'accept-blocker') return acceptBlocker(arg, args.values.note, io);
 
@@ -189,7 +192,7 @@ export default {
     for (const sig of SIGNALS) process.on(sig, onInt);
     try {
       const { result, recorded, partial, kept } = await runRedTeam({
-        cwd: io.cwd, env: io.env, consent: true, only, kept: args.values.kept === true, signal: abort.signal,
+        cwd: io.cwd, env: io.env, consent: true, only, kept: args.values.kept === true, ...(args.values.ticket !== undefined ? { ticket: args.values.ticket } : {}), signal: abort.signal,
         onEvent: (ev) => {
           if (ev.type === 'run') io.stderr.write(`${ev.id} (${ev.template}) run ${ev.n}: ${ev.outcome}\n`);
         },
@@ -204,14 +207,6 @@ export default {
     }
   },
 };
-
-// Whether version a (x.y.z) comes after b.
-function versionAfter(a, b) {
-  const p = (v) => String(v).split('.').map((n) => Number.parseInt(n, 10) || 0);
-  const [x, y] = [p(a), p(b)];
-  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
-  return false;
-}
 
 // One line in the main status: your sessions' suite is its own command, so it's easy to forget.
 async function sessionLine(io) {

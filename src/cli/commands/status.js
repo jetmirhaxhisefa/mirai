@@ -14,6 +14,7 @@ import { MIRAI_COMMAND } from '../../adapters/claude-code.js';
 import { runLockHolder } from '../../store/global.js';
 import { sessionSettingsWarnings } from '../../store/session-settings.js';
 import { hooksState } from '../../hooks/install.js';
+import { gapNote } from '../../redteam/move.js';
 
 // mirai status [<ticket>] [--json] (unit 05a, moved from unit 04). Reads the ticket status
 // files and the journal from the store, and shows each ticket's effective state: derived from
@@ -91,6 +92,9 @@ export default {
     io.stdout.write(`${runLine(run)}\n`);
     io.stdout.write(`global lock: ${lockLine(lock)}\n`);
     for (const w of sessionSettingsWarnings(store)) io.stdout.write(`warning: ${plain(w)}\n`);
+    // Unit 18h: a newer Claude Code agents haven't moved to.
+    const gap = gapNote(store);
+    if (gap) io.stdout.write(`warning: ${plain(gap.line)} (next: ${plain(gap.next ?? 'mirai redteam run')})\n`);
     const cmd = commandFileWarning(store);
     if (cmd) io.stdout.write(`warning: ${plain(cmd)}\n`);
     if (torn > 0) io.stdout.write('warning: the journal ends with a half-written line (a crash); it was skipped\n');

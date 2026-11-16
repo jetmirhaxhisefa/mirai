@@ -30,6 +30,16 @@ your last green result tested:
   - an old kept version could one day stop working with Anthropic's servers. MIRAI can't tell when; such a launch ends as an environment fault with Claude Code's own error, and a run on the newer version moves agents to it;
   - the last 20 results are kept, so twenty runs that aren't green on newer versions would rotate out the kept one's result.
 
+**One Claude Code per ticket, and moves between tickets (unit 18h).**
+- **The pin:** a ticket's first agent launch (normally its plan) records the kept Claude Code it ran, signed with MIRAI's record key, in the store (`tickets/<ticket>/claude-code.json`). Every later launch for that ticket runs that same binary: re-plan, build, fix rounds, review. The gate proof and `mirai review-mr` name it, and each launch line in the run log carries its version.
+- **Kept while pinned:** a pinned binary's copy and its last green result stay, whatever moves happen meanwhile. Both can go once the ticket is done or dropped. A pinned copy that's gone or changed refuses the ticket's launches; it never falls back to another binary.
+- **The move, at a ticket's start:** when a ticket with no pin starts (`mirai plan`, or `mirai run` through it) and a different Claude Code is installed than the one agents run:
+  - S1/S2 (no model) find something new: no move. A person reads what it is, and a MIRAI update lists it.
+  - Clean, and you've consented once with `[claude_code] move = "auto"` in `~/.config/mirai/config.toml`: MIRAI runs the full red team on it first (about 15 minutes, on your subscription). Green: agents move to it and the ticket pins it. Not green: the ticket starts on the current one, and MIRAI tries that binary again after a day at the earliest. Your own `mirai redteam run` can always try sooner.
+  - Clean, with no consent: no move, and MIRAI tells you once how to give it.
+- **The gap, and the stop:** from the first ticket start that couldn't move, every run's last lines, `mirai status` and `mirai doctor` say what's waiting and the command that clears it. After 7 days, a ticket with no pin doesn't start until you act. A ticket that has a pin always finishes on it.
+- **After a MIRAI refresh:** results are stale for every binary, pinned ones included. `mirai redteam run` re-tests the newest installed binary, and `mirai redteam run --ticket <ticket>` re-tests a ticket's pinned binary so the ticket can finish on it.
+
 After any update to **macOS, Docker Desktop, git (Apple's, which updates silently
 with the Xcode tools) or Node** (`--kept` keeps agents on the Claude Code they run), after **you choose to move agents to a newer Claude Code**, after **a MIRAI update that changes the cage** (below), after a
 change to your project's test setup (`[compose]`, `[testing]`, `[checks]` and the compose files),
