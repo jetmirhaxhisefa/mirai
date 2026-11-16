@@ -53,7 +53,7 @@ builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-se
 # listed here is red until someone reads what it does and adds it (a MIRAI change, not a local
 # one). Removed lines are reported, never red.
 [strict.binary]
-seen_on = "2.1.319"
+seen_on = "2.1.325"
 settings_keys = [
   "accessKeyIdVar",
   "allowAllUnixSockets",
@@ -134,6 +134,12 @@ permission_keys = [
   "additionalDirectories",
   "allow",
   "ask",
+  # 2.1.325: read only from --settings at the launch. Refuses reads outside the working directories
+  # in every permission mode (the file tools, attachments, memory, CLAUDE.md includes; not a shell
+  # command's own reads), no allow rule lifts it, and it turns the write block on; Claude Code lists
+  # it as restrictive. Not used by MIRAI yet (Jet, 2026-11-16: listed now, used later): it would
+  # need the launch's input and output folders as --add-dir, and its own red-team cases.
+  "blockFileToolReadsOutsideWorkingDirectories",
   "blockReadsExemptPaths",
   "blockReadsOutsideWorkingDirectories",
   "blockWritesOutsideWorkingDirectories",
@@ -196,8 +202,13 @@ profile_rules = [
   "(allow system-socket (socket-domain AF_UNIX))",
   "(allow user-preference-read)",
   "(deny default (with message \"${}\"))",
+  # 2.1.325: an explicit, logged deny before the same-sandbox allow; the default was deny already.
+  "(deny process-info* (with message \"${}\"))",
   "(global-name \"com.apple.FontObjectsServer\")",
   "(global-name \"com.apple.PowerManagement.control\")",
+  # 2.1.325: lists every process ID (ps can count them); their info, arguments and environment stay
+  # same-sandbox only (g9-ps checks it).
+  "(if (defined? 'process-info-listpids) (allow process-info-listpids))",
   "(global-name \"com.apple.audio.systemsoundserver\")",
   "(global-name \"com.apple.bsd.dirhelper\")",
   "(global-name \"com.apple.coreservices.launchservicesd\")",
@@ -274,6 +285,9 @@ profile_rules = [
   "(sysctl-name-prefix \"kern.proc.all\")",
   "(sysctl-name-prefix \"kern.proc.pgrp.\")",
   "(sysctl-name-prefix \"kern.proc.pid.\")",
+  # 2.1.325: used in a deny of sysctl-read: other processes' arguments and environment (ps eww)
+  # can't be read; the default was deny already.
+  "(sysctl-name-prefix \"kern.procargs\")",
   "(sysctl-name-prefix \"machdep.cpu.\")",
   "(sysctl-name-prefix \"net.routetable.\")",
   "(version 1)",
