@@ -1,7 +1,7 @@
 ---
 unit: "30b"
 name: dependency-install
-status: draft (interview 2026-11-16, decisions 1–5 below; waits for "approve 30b")
+status: approved (Jet, 2026-11-16: "approve 30b"; interview decisions 1–5)
 roadmap: design/07-implementation-roadmap.md, row 30b; design/05-open-questions.md §F ("A new dependency has no way in yet"); D-48, TL3-3, R3-C2
 depends_on: ["21b", "22", "14", "14c", "08", "18h", "30"]
 ---
