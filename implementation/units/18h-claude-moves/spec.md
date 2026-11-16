@@ -1,7 +1,7 @@
 ---
 unit: "18h"
 name: claude-moves
-status: draft (interview decisions 1–3, Jet, 2026-11-16)
+status: approved (Jet, 2026-11-16; interview decisions 1–3)
 roadmap: design/07-implementation-roadmap.md, row 18 (the red team's key, R3-M7), after 18g. Asked for on 2026-11-16, during pilot prep's move to Claude Code 2.1.325, six releases behind: "I dont wanna risk that after weeks working on old claude version … should have a rule that lets claude keep updating"
 depends_on: ["18a", "18g", "19", "21f", "29b"]
 ---
