@@ -68,10 +68,15 @@ were shorter than the addenda's. All corrected.
 | Name the team's git host and tracker in the plan | Not known here. P00 records it |
 | A glossary beyond the command names | `09` §9 covers the names that collide |
 
-## 6. Open for you
+## 6. Decided after the review (2026-11-16)
 
-1. **Claude Code moves:** keep unit 18h's rule (by itself when you set `move = "auto"`), or add
-   a keyed approval per move as you said in the interview.
-2. **Production data to the model provider:** confirmed per project with your key (`17` §2.8).
-   This needs your decision before P32.
-3. **The thresholds in `13` §5 and the caps in `09` §2.3** are proposals.
+The three points this review left open, with your answers:
+
+1. **Claude Code moves:** MIRAI moves by itself (D-69). Unit 18h's rule stands.
+2. **Production data to the model provider:** allowed inside three limits: an allow-list,
+   masking, and your confirmation with your key per project (D-67).
+3. **The thresholds in `13` §5 and the caps in `09` §2.3:** the proposed numbers are the
+   defaults, and each is a config value (D-68).
+
+Also corrected: the build runner (unit 29e) comes right after the pilot, since the pilot was
+already running.
