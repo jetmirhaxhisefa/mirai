@@ -36,20 +36,20 @@ From `design/10` and Jet's answers on 2026-11-18.
      (21f). So it passes the red team's real-terminal rule and its "Run it now?" question.
    - The proof holds only while the runner is alive. Stopping the runner ends it.
    - Nothing else gets this proof: your gates (approvals, keys, merges) never accept it.
-2. **Your real sample app.**
-   - Jobs that need the sample app use `jetmirhaxhisefa/mirai-sample-app` with your real MIRAI
-     store and keys, as when you run things by hand.
-   - Three guards keep your own work safe:
-     - **Your checkout is never touched.** The runner works in a git worktree of its own
-       (`~/Library/Application Support/mirai-build/sample`). `~/Projects/mirai-sample-app` keeps
-       its branch and files.
-     - **One branch of its own.** The runner refreshes MIRAI only on `mirai-build`. It is the
-       sample app's integration branch in that branch's own config. It's reset from the sample
-       app's `main` on each job and force-pushed to GitHub, so the trust root (which needs the
-       branch pushed) holds. `main` is never pushed by the runner.
-     - **Results are labelled.** Every red-team result and baseline made on `mirai-build` is for
-       building MIRAI. A result on `mirai-build` never counts for `main` or for any other
-       project, because the trust root's commit differs.
+2. **Your real sample app, as by hand today** (Jet, 2026-11-18, after P3 below).
+   - Jobs that need the sample app run in `~/Projects/mirai-sample-app`, with your real MIRAI
+     store and keys. The runner does exactly what is done by hand today: it refreshes the sample
+     app's `main` with the requested commit's MIRAI, commits ("MIRAI refresh: <branch> at
+     <short commit>"), pushes, records the baseline, and runs the job.
+   - **The runner owns that folder while it runs.** It refuses to start a job when the checkout
+     isn't on `main`, has uncommitted changes, or has commits `origin` doesn't. It never resets,
+     stashes or overwrites.
+   - **Why not a separate branch (the first draft):** P3 checked it in the code. MIRAI allows one
+     checkout per repo (D-52, `second-checkout`), and refuses a store whose integration branch
+     changed. So a worktree on `mirai-build` can't share your store.
+   - The sample app's `main` carries the last requested commit's MIRAI until the next refresh,
+     as it does today. Its red-team results and baselines are for building MIRAI. They never
+     count for Thudos or any other project, whose trust roots differ.
 3. **A fixed job list, a pushed commit, nothing else** (`design/10` §2.2). A request names a job,
    a MIRAI commit pushed on a branch of MIRAI's GitHub repo, and only the argument that job
    declares.
@@ -58,8 +58,8 @@ From `design/10` and Jet's answers on 2026-11-18.
    latest state, and before each merge.
 5. **A scrubbed environment for `tests`**: no `SSH_AUTH_SOCK`, no git or `gh`/`glab`
    credentials, no Claude token, a home of its own. Sample-app jobs keep your home (decision 2),
-   but lose `SSH_AUTH_SOCK` and every credential variable. Only the runner itself pushes
-   `mirai-build`, before the job starts.
+   but lose `SSH_AUTH_SOCK` and every credential variable. Only the runner itself pushes the
+   sample app's `main`, in the refresh step before the job starts.
 
 ## Scope
 
@@ -83,7 +83,7 @@ From `design/10` and Jet's answers on 2026-11-18.
    |---|---|---|---|
    | `tests` | `npm test` | a clean export of the commit (`git archive`), scrubbed environment | none |
    | `probes` | one probe file from `test/probes/` | a clean export | the file's name, which must exist in that commit |
-   | `baseline` | `mirai baseline` | the sample app on `mirai-build`, refreshed from the commit | none |
+   | `baseline` | `mirai baseline` | `~/Projects/mirai-sample-app`, refreshed from the commit | none |
    | `redteam-cases` | `mirai redteam run --only <ids>` | the same | one `fact` that cases carry (a case's `fact` field, matched as one of its comma-separated parts), or case ids that exist |
    | `redteam-full` | `mirai redteam run` | the same | none |
    | `redteam-session` | `mirai redteam run --sessions` | the same | none |
@@ -91,16 +91,16 @@ From `design/10` and Jet's answers on 2026-11-18.
 
    - `regress` (`13` P12) is added when that unit exists.
    - One job at a time. A queue in file order. The red team's own machine lock stays.
-4. **The refresh step** for sample-app jobs, done by the runner itself:
-   - reset `mirai-build` to the sample app's `origin/main`;
+4. **The refresh step** for sample-app jobs, done by the runner itself (in its own environment,
+   which can push), before the job starts:
+   - check the checkout is clean, on `main`, and level with `origin/main` (refuse otherwise);
    - `mirai init --refresh` from the exported commit;
-   - set `[git] integration_branch = "mirai-build"`;
-   - commit and force-push `mirai-build`;
-   - record the baseline if that commit has none (the red team and builds need one);
-   - re-register nothing: the runner uses no session server.
+   - commit "MIRAI refresh: <branch> at <short commit>" and push `main`;
+   - record the baseline for that commit (the red team and builds need one);
+   - skip all of this when `main` already carries that commit's MIRAI.
 5. **The proof in MIRAI** (`src/cli/tty.js`): `requireTtyOrSession` also accepts a live runner
    record:
-   - the record is written by the runner at start in the sample app's store;
+   - the record is written by the runner at start in the sample app's store (your real one);
    - it carries the runner's pid;
    - the command's parent chain must reach that pid;
    - the record says which commands it covers: `redteam run` and `baseline` only.
@@ -158,19 +158,19 @@ From `design/10` and Jet's answers on 2026-11-18.
 - **T7 Not installed:** `npm pack --dry-run` lists nothing under `tools/`.
 - **T8 Probe reuse:** a stored probe result is returned when the versions match, and run again
   when one changes.
-- **T9 Your checkout untouched:** the refresh step works only in its worktree. The main
-  checkout's branch, `HEAD` and status are the same before and after.
+- **T9 A checkout that isn't ready is refused:** a sample-app checkout on another branch, with
+  uncommitted changes, or with unpushed commits gets `refused`, and nothing in it changes.
 
 ## Probes (real, on this Mac)
 
 - **P1** A canary variable in your environment and a canary file in your real home are
   unreadable from a real `tests` job.
 - **P2** `redteam-cases hook` on a pushed commit returns its result in minutes, with no result
-  record written. `redteam-full` on the same commit writes one, for `mirai-build`'s trust root
-  only. `mirai redteam status` on the sample app's `main` is unchanged.
-- **P3** The worktree shares the sample app's store without the store refusing it ("a MIRAI
-  store under another id"). Checked first: if it refuses, the spec comes back to you before
-  building around it.
+  record written. `redteam-full` on the same commit writes one for that refresh commit's trust
+  root.
+- **P3** (done before building, 2026-11-18): a worktree can't share your store: `openStore`
+  refuses a second checkout (`second-checkout`, D-52) and a changed integration branch. Decision
+  2 was changed with Jet.
 - **P4** A night batch: three requests queued in the evening (`tests`, `redteam-cases`,
   `redteam-full`) finish in order with no one at the Mac. The runner's terminal shows one line
   each.
