@@ -6,7 +6,7 @@ import { versionAfter } from '../../redteam/move.js';
 
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
-import { createPrompter, requireTty, requireTtyOrSession } from '../tty.js';
+import { createPrompter, requireTty, requireTtyOrRunner, requireTtyOrSession } from '../tty.js';
 import { shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { snapshot, trustedStrict } from '../../trust/snapshot.js';
@@ -278,7 +278,7 @@ async function sessions(action, arg, only, io) {
   }
   if (action !== 'run') throw new UsageError(`unknown action ${shown(action)}`, 'see: mirai redteam --help');
   if (arg !== undefined) throw new UsageError('run takes no argument; use --only <id,…>');
-  requireTty(io, 'mirai redteam run --sessions');
+  requireTtyOrRunner(io, 'mirai redteam run --sessions', 'redteam run --sessions');
   const e = sessionEstimate(only);
   if (only && !e.cases) throw new UsageError(`no case named ${only.map(shown).join(', ')}`);
   io.stdout.write([

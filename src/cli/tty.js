@@ -4,6 +4,7 @@ import { EXIT } from './exit-codes.js';
 import { readStatus, readWorkerRecord, REQUEST_ID } from '../agent/requests.js';
 import { openStore } from '../store/home.js';
 import { MiraiError } from './errors.js';
+import { fromRunner } from './runner-proof.js';
 import { escapeInvisible } from '../status/text.js';
 
 const ANSWER_MAX = 2000;
@@ -25,7 +26,20 @@ export function requireTty(io, what) {
 export function requireTtyOrSession(io, what, command) {
   if (io.stdin?.isTTY === true && io.stdout?.isTTY === true) return;
   if (fromSession(io, command)) return;
+  if (fromBuildRunner(io, command)) return;
   requireTty(io, what);
+}
+
+// The build runner (unit 29e) stands in for your terminal for the red team's runs only, while it
+// lives: you said yes once when you started it. Its record names the commands (runner-proof.js).
+export function requireTtyOrRunner(io, what, command) {
+  if (io.stdin?.isTTY === true && io.stdout?.isTTY === true) return;
+  if (fromBuildRunner(io, command)) return;
+  requireTty(io, what);
+}
+
+export function fromBuildRunner(io, command) {
+  return fromRunner({ env: io.env, command, openStore: () => openStore({ cwd: io.cwd, env: io.env }) });
 }
 
 // Where a command that isn't a gate came from (unit 28: the run stops before your key in a
