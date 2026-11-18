@@ -186,6 +186,14 @@ function rawFields(text) {
   return { id: pick(r?.id, /^[a-z0-9][a-z0-9.-]{0,63}$/), commit: pick(r?.commit, /^[0-9a-f]{40}$/) };
 }
 
+// A partial red-team run always ends INCOMPLETE (it's never recorded). Its state for the session
+// is the cases': `pass` when every case in the report passed, `fail` when one didn't.
+export function partialState(r) {
+  if (!/a partial run/.test(r.tail)) return r.status === 0 ? 'pass' : 'fail';
+  const rows = [...r.tail.matchAll(/^\s+\S+ \((?:read-only|read-write)\)\s+(\S+)\s+\d+\/\d+\s*$/gm)].map((m) => m[1]);
+  return rows.length && rows.every((s) => s === 'pass') ? 'pass' : 'fail';
+}
+
 function summaryOf(tail) {
   return tail.split(/\r?\n/).filter((l) => l.trim()).slice(-SUMMARY_LINES).join('\n');
 }
@@ -303,7 +311,7 @@ export class Runner {
     // Sample-app jobs: the checkout must be ready, then the refresh step, then the job.
     const notReady = sampleReady(this.sample, this.env, { gitFn: this.gitFn });
     if (notReady) throw new Refused(`${notReady}; the runner never resets it`);
-    env = sampleEnv(this.env, { MIRAI_BUILD_RUNNER: this.runnerId });
+    env = sampleEnv(this.env, { MIRAI_BUILD_RUNNER: this.runnerId }, { keepSshAgent: req.job.startsWith('redteam-') });
     const refreshed = await this.refresh(req, branch, exportDir, log, env);
     if (refreshed) return { ...base, state: 'error', minutes: this.minutesSince(started), summary: refreshed };
     if (req.job === 'redteam-cases') ctx.cases = this.caseList(exportDir);
@@ -316,9 +324,14 @@ export class Runner {
   }
 
   async finish(req, base, log, command, env, started) {
+    const r0 = await this.runJob(req, log, command, env);
+    const state = req.job === 'redteam-cases' ? partialState(r0) : r0.status === 0 ? 'pass' : 'fail';
+    return { ...base, state, minutes: this.minutesSince(started), summary: summaryOf(r0.tail) };
+  }
+
+  runJob(req, log, command, env) {
     const onBeat = ({ minutes, last }) => this.say(`${this.now().toISOString()} ${req.id} | still running (${minutes} min) | ${last}`);
-    const r = await this.run(command.cmd, command.args, { cwd: command.cwd, env, log, input: command.input ?? null, minutes: MINUTES[req.job], onBeat });
-    return { ...base, state: r.status === 0 ? 'pass' : 'fail', minutes: this.minutesSince(started), summary: summaryOf(r.tail) };
+    return this.run(command.cmd, command.args, { cwd: command.cwd, env, log, input: command.input ?? null, minutes: MINUTES[req.job], onBeat });
   }
 
   // The red team's case list, from the requested commit's own code, in a scrubbed child.

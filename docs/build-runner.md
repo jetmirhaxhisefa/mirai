@@ -50,7 +50,7 @@ Everything lives in `~/.mirai-build/`, outside every repo.
 | `tests` | MIRAI's unit tests, on a clean export of the commit | none |
 | `probes` | one file from `test/probes/` | the file name; its result is reused until the file or a tool version (Claude Code, Docker, git, Node) changes |
 | `baseline` | `mirai baseline` on the sample app | none |
-| `redteam-cases` | only some red-team cases: **feedback only, never a result record** | one fact the cases carry (`hook`, `bundle`, `G17`, …), or case ids |
+| `redteam-cases` | only some red-team cases: **feedback only, never a result record**; `pass` when every case in its report passed | one fact the cases carry (`hook`, `bundle`, `G17`, …), or case ids |
 | `redteam-full` | the full red team, which writes a result record | none |
 | `redteam-session` | the session red team | none |
 | `sample-run` | a script from `tools/runs/` **as it is on `main`** | the script's name |
@@ -75,7 +75,9 @@ you run things by hand. Before each job, the runner itself (not the job):
    runner)", with a `MIRAI-Build-Commit:` line.
 4. **Records the baseline.**
 
-The job then runs without any credential variable.
+The job then runs without any credential variable, except that red-team jobs keep
+`SSH_AUTH_SOCK`. The red team tests your real host: its control must reach your SSH agent from
+outside the cage, to prove the cases inside can't. MIRAI finds that socket through launchd anyway.
 
 The sample app's `main` keeps that commit's MIRAI until the next refresh, as it does today.
 

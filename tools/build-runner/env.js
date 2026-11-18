@@ -22,8 +22,11 @@ export function scrubbedEnv(env, { home, tmp }) {
 
 // Sample-app jobs: your home (your real store and keys, Jet's decision 2), without any credential
 // variable. Only the runner itself pushes, in the refresh step before the job starts.
-export function sampleEnv(env, extra = {}) {
+// The red team keeps SSH_AUTH_SOCK: it tests your real host, and its control (S5) must reach your
+// SSH agent from outside the cage to prove a case inside can't (its G18 cases). The variable
+// hides nothing anyway: MIRAI finds the agent's socket through launchd without it.
+export function sampleEnv(env, extra = {}, { keepSshAgent = false } = {}) {
   const out = {};
-  for (const [k, v] of Object.entries(env)) if (!isCredential(k)) out[k] = v;
+  for (const [k, v] of Object.entries(env)) if (!isCredential(k) || (keepSshAgent && k === 'SSH_AUTH_SOCK')) out[k] = v;
   return { ...out, ...extra };
 }

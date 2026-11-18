@@ -58,7 +58,8 @@ From `design/10` and Jet's answers on 2026-11-18.
    latest state, and before each merge.
 5. **A scrubbed environment for `tests`**: no `SSH_AUTH_SOCK`, no git or `gh`/`glab`
    credentials, no Claude token, a home of its own. Sample-app jobs keep your home (decision 2),
-   but lose `SSH_AUTH_SOCK` and every credential variable. Only the runner itself pushes the
+   but lose every credential variable, and `SSH_AUTH_SOCK` too except in red-team jobs (found on P2:
+   the red team's S5 control must reach your SSH agent from outside the cage). Only the runner itself pushes the
    sample app's `main`, in the refresh step before the job starts.
 
 ## Scope

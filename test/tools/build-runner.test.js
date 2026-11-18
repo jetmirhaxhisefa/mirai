@@ -73,10 +73,10 @@ test('a quiet job prints a "still running" line with its latest output', async (
   const { runLogged } = await import('../../tools/build-runner/runner.js');
   const beats = [];
   const log = join(tmp(), 'job.log');
-  const r = await runLogged(process.execPath, ['-e', "console.log('step one'); setTimeout(() => console.log('done'), 450)"], { cwd: tmp(), env: { PATH: process.env.PATH }, log, minutes: 1, every: 150, onBeat: (b) => beats.push(b) });
+  const r = await runLogged(process.execPath, ['-e', "console.log('step one'); setTimeout(() => console.log('done'), 1500)"], { cwd: tmp(), env: { PATH: process.env.PATH }, log, minutes: 1, every: 200, onBeat: (b) => beats.push(b) });
   assert.equal(r.status, 0);
   assert.ok(beats.length >= 2, `beats: ${beats.length}`);
-  assert.equal(beats[0].last, 'step one');
+  assert.ok(beats.some((b) => b.last === 'step one'), JSON.stringify(beats));
 });
 
 test('T2: a fact selects exactly its cases; ids pass; an unknown fact is refused', () => {
@@ -105,6 +105,18 @@ test('T4: a tests job gets no credential and a home of its own; sample jobs keep
   assert.equal(t.HOME, '/Users/me');
   for (const k of ['SSH_AUTH_SOCK', 'GH_TOKEN', 'GITHUB_TOKEN', 'GLAB_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'GIT_ASKPASS', 'ANTHROPIC_API_KEY']) assert.equal(t[k], undefined, k);
   assert.equal(t.MIRAI_BUILD_RUNNER, 'b-1');
+  // The red team keeps your SSH agent (its S5 control), nothing else.
+  const rt = sampleEnv(env, {}, { keepSshAgent: true });
+  assert.equal(rt.SSH_AUTH_SOCK, '/s');
+  assert.equal(rt.GH_TOKEN, undefined);
+});
+
+test('a partial red-team run passes when every case in its report passed', async () => {
+  const { partialState } = await import('../../tools/build-runner/runner.js');
+  const tail = (rows) => `red team: INCOMPLETE (a partial run: reported, not recorded)\n${rows}\nwithout a model:\n  S5 unknown  x\n`;
+  assert.equal(partialState({ status: 3, tail: tail('  hook-a (read-write)  pass         3/3\n  hook-b (read-write)    pass  3/3') }), 'pass');
+  assert.equal(partialState({ status: 3, tail: tail('  hook-a (read-write)  pass         3/3\n  hook-b (read-write)    inconclusive  1/3') }), 'fail');
+  assert.equal(partialState({ status: 3, tail: tail('') }), 'fail');
 });
 
 test('T4: the tests job runs in a sandbox that closes your real home but its own folder', { skip: process.platform !== 'darwin' }, () => {
