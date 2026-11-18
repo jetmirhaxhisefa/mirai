@@ -1,7 +1,7 @@
 ---
 unit: "29e"
 name: build-runner
-status: draft (waits for "approve 29e")
+status: approved (Jet, 2026-11-18: "approve 29e"; decisions 1–2 from his answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 29e; design/10-build-runner.md (PM-45)
 depends_on: ["18a", "18b", "18c", "18e", "18f", "18g", "18h", "17b", "21f", "30"]
 ---
