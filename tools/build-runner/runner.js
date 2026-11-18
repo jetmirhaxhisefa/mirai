@@ -1,9 +1,9 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { realpathSync } from 'node:fs';
-import { userInfo } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 
 import { scrubbedEnv, sampleEnv } from './env.js';
 import { JOBS, Refused, parseRequest, selectCases } from './requests.js';
@@ -60,10 +60,14 @@ export function checkCommit(repo, commit, env, { gitFn = git } = {}) {
   return { branch, diff: d.stdout.trim() || 'no change against main' };
 }
 
+// A clean checkout of exactly that commit, with its own .git (MIRAI's tests expect a git working
+// copy), cloned from your local MIRAI repo: no network, no credentials.
 export function exportCommit(repo, commit, dir, env) {
-  mkdirSync(dir, { recursive: true });
-  const r = spawnSync('sh', ['-c', 'git archive --format=tar "$1" | tar -x -C "$2"', 'sh', commit, dir], { cwd: repo, env, encoding: 'utf8', timeout: 300_000 });
-  if (r.status !== 0) throw new Error(`git archive failed: ${String(r.stderr).slice(0, 300)}`);
+  mkdirSync(dirname(dir), { recursive: true });
+  const clone = spawnSync('git', ['clone', '--quiet', '--no-hardlinks', '--no-checkout', repo, dir], { env, encoding: 'utf8', timeout: 300_000 });
+  if (clone.status !== 0) throw new Error(`git clone failed: ${String(clone.stderr).slice(0, 300)}`);
+  const co = spawnSync('git', ['-c', 'advice.detachedHead=false', 'checkout', '--quiet', '--detach', commit], { cwd: dir, env, encoding: 'utf8', timeout: 300_000 });
+  if (co.status !== 0) throw new Error(`git checkout failed: ${String(co.stderr).slice(0, 300)}`);
 }
 
 // The sample app's checkout must be on main, clean, and level with origin/main. Never reset.
@@ -139,10 +143,10 @@ export function sandboxProfile({ home, open, readOnly = [] }) {
   ].join('');
 }
 
-export function sandboxed(command, jobDir) {
+export function sandboxed(command, jobDir, alsoOpen = []) {
   const home = realpathSync(userInfo().homedir);
   const nodeDir = dirname(dirname(realpathSync(process.execPath)));
-  const profile = sandboxProfile({ home, open: [realpathSync(jobDir)], readOnly: [nodeDir] });
+  const profile = sandboxProfile({ home, open: [realpathSync(jobDir), ...alsoOpen], readOnly: [nodeDir] });
   return { ...command, cmd: '/usr/bin/sandbox-exec', args: ['-p', profile, command.cmd, ...command.args] };
 }
 
@@ -278,11 +282,16 @@ export class Runner {
         return r;
       }
       const home = join(jobDir, 'home');
-      const tmp = join(jobDir, 'tmp');
       mkdirSync(home, { recursive: true, mode: 0o700 });
-      mkdirSync(tmp, { recursive: true, mode: 0o700 });
+      // The temp folder in macOS's usual place, not under ~/.mirai-build: some tests make Unix
+      // sockets under it (104 characters at most) or expect /private/var/folders.
+      const tmp = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'mirai-build-')));
       env = scrubbedEnv(this.env, { home, tmp });
-      return this.finish(req, base, log, (this.sandbox ?? sandboxed)(jobCommand(req.job, req.arg, ctx), jobDir), env, started);
+      try {
+        return await this.finish(req, base, log, (this.sandbox ?? sandboxed)(jobCommand(req.job, req.arg, ctx), jobDir, [tmp]), env, started);
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
     }
     // Sample-app jobs: the checkout must be ready, then the refresh step, then the job.
     const notReady = sampleReady(this.sample, this.env, { gitFn: this.gitFn });
