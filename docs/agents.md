@@ -83,7 +83,7 @@ The ticket must be `ready-for-dev`. The ticket on the integration branch must be
 7. **Your notes reach Kai** (unit 30c). Before 30c, none did. Every reason you gave when rejecting a plan, and every unpark note, go to the next plan and its fix launch, oldest first, as `review-notes.md`.
    - Kai is told each note still holds unless a later note or the ticket says otherwise.
    - Where a note and the approved ticket disagree, Kai follows the ticket, and the reject warns you to edit the ticket instead.
-7. **The gate.** A plan that passes waits for you.
+8. **The gate.** A plan that passes waits for you.
 
 ## The plan gate: `mirai approve <ticket> --plan`
 
