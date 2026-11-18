@@ -12,7 +12,7 @@ What happens once the MVP (`07` Milestones A–F) is built.
 - **Version 2** (2026-11-16) is the result of an interview with you about your Phase 2 notes
   (`2_Efforts/MIRAI - How it works`, "Phase 2 followups", and the linked ticketing prompt). It
   replaces the backlog with a staged plan, records every decision, and points to one design
-  addendum per feature group (`10`–`18`). Phase 3 of your note is not covered.
+  addendum per feature group (`10`–`18`, and `20` added on 2026-11-18). Phase 3 of your note is not covered.
 
 **How to read this plan (for whoever builds it):**
 
@@ -67,7 +67,7 @@ Some teammates won't use MIRAI at all.
 | **3 · The hub** | After the review | A separate repo built by MIRAI: MIRAI's documentation, project documents, the ticket view, logs, change records | `15` |
 | **4 · Throughput** | After the review | Queue across nights, epic autopilot, two tickets at once, the conflict command, verifier model setting | `16` |
 | **5 · Debug and operate** | After the review | Evidence sources, debug, learn (`teach-me`), the database skill, nightly detect and diagnose, security audit | `17` |
-| **6 · Extending** | After the review | Project skills, reviewing a colleague's MR | `18` |
+| **6 · Extending** | After the review | Project skills, reviewing a colleague's MR, brainstorming | `18`, `20` |
 
 **The order of stages 2–6 is provisional.** The review in stage 1 re-orders them from what the
 logs show. Stage 0 is fixed, because the team needs it.
@@ -205,6 +205,12 @@ Each row is a decision you made. "Where" names the addendum that carries the des
 | PM-44 | MIRAI notices a new Claude Code version, runs the red-team suite against it in the background and reports. **It moves by itself** between tickets once the red team is green (unit 18h, confirmed in D-69: "I don't want to move it manually"). The project's proven version is recorded in the repo so teammates are told to run their own red team | `13` §7 |
 | PM-45 | **Building MIRAI itself gets faster:** a build runner runs red-team, probe and baseline jobs in your name from a fixed list. Partial red-team runs are feedback only. The green result always comes from a full run | `10` |
 
+### Added after the interview
+
+| ID | Decision | Where |
+|---|---|---|
+| PM-46 | A brainstorming skill before Nora's brief: you explore a problem or idea in your session, and the result is one to three candidate briefs that start the normal flow. Late in the plan (stage 6). It was on the original Later list (2026-11-18) | `20` |
+
 ---
 
 ## 4. Additions to the MVP
@@ -295,6 +301,7 @@ the review of stage 1 confirmed it.
 | P39 | Security audit: code and dependencies | 5 | P33 | `17` |
 | P40 | Project skills and agent additions | 6 | MVP units 37, 74, P20 | `18` |
 | P41 | `mirai review-external` | 6 | MVP units 24, 24b, 27a, 27b | `18` |
+| P42 | `mirai-brainstorm` | 6 | Review, MVP units 31, 34, 35, 41, 44 | `20` |
 
 **Dependencies across stages.** The stage order is provisional, so these are the links the
 review must keep when it re-orders:
@@ -342,7 +349,8 @@ Kept from version 1 and from `07`'s Later list, unchanged in meaning:
   settings.
 - Team features beyond the tracker: shared run status, shared evaluation logs, shared findings.
 - ClickUp, Linear, GitHub Issues and Notion connectors.
-- UX agent. Discovery and market research.
+- UX agent. Market research (needs a reviewed way for agents to read the web). Brainstorming
+  itself is planned (`20`, P42).
 - Codex and Cursor as main tools (not only as verifiers).
 - `mirai export/import`. A dedicated system user or a container per agent run (it comes back to
   you under the V1 condition, on Ubuntu too). A hardware key for signing.
@@ -388,6 +396,7 @@ change its own.
 | `mirai hub`, `mirai hub export`, `mirai docs build` | The hub and the generated reference (P18, P20) | |
 | `mirai watch` | Attach the terminal block to a run (P15) | `mirai status` |
 | `mirai notify set` | Stores a channel's secret outside the repo (P17) | |
+| `/mirai brainstorm` | The brainstorming skill, in your session only (P42) | Nora's interview, which writes the brief |
 
 **Config.** Settings that differ per developer (a notification address, the hub's port, the
 verifier model when it needs a second subscription) belong in the personal layer. Settings the

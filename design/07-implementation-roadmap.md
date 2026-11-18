@@ -458,7 +458,8 @@ stood here was merged into it:
 | 10 `mirai-retro` and `mirai-eval` | `13` (P11, P12) |
 | 11 `mirai-test-plan` | `09` §7 |
 | 12 Debugger agent and the council | `17` (P34); the council stays dropped, dispute fixes are candidates in `13` §5 |
-| 13 Discovery, 14 UX agent, 15 Per-tool plugins | `09` §7 |
+| 13 Discovery | Brainstorming: `20` (P42). Analyst and market research: `09` §7 |
+| 14 UX agent, 15 Per-tool plugins | `09` §7 |
 | 16 Per-use confirmation for signing | `09` §7 |
 | 17 A dedicated user or a container per agent run | `09` §7; comes back to you under the V1 condition, also on Ubuntu (`11` §2) |
 | 18 Metrics dashboard, 19 Docs website | `15` (H4, H1) |
