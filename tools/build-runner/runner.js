@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFileSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { realpathSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
@@ -283,15 +283,12 @@ export class Runner {
       }
       const home = join(jobDir, 'home');
       mkdirSync(home, { recursive: true, mode: 0o700 });
-      // The temp folder in macOS's usual place, not under ~/.mirai-build: some tests make Unix
-      // sockets under it (104 characters at most) or expect /private/var/folders.
-      const tmp = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'mirai-build-')));
+      // macOS's own temp folder (your per-user /private/var/folders/…/T), opened in the sandbox:
+      // some tests make Unix sockets under it (104 characters at most, so no subfolder of ours
+      // fits) or expect /private/var/folders. It isn't your home; tests clean up after themselves.
+      const tmp = realpathSync(tmpdir());
       env = scrubbedEnv(this.env, { home, tmp });
-      try {
-        return await this.finish(req, base, log, (this.sandbox ?? sandboxed)(jobCommand(req.job, req.arg, ctx), jobDir, [tmp]), env, started);
-      } finally {
-        rmSync(tmp, { recursive: true, force: true });
-      }
+      return this.finish(req, base, log, (this.sandbox ?? sandboxed)(jobCommand(req.job, req.arg, ctx), jobDir, [tmp]), env, started);
     }
     // Sample-app jobs: the checkout must be ready, then the refresh step, then the job.
     const notReady = sampleReady(this.sample, this.env, { gitFn: this.gitFn });
