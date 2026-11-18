@@ -121,6 +121,22 @@ They were raised in `research/04` §6:
     socket, `.git`)? Unit 14 refuses such mounts for agent-triggered runs, so the pilot may need a
     test compose file (part of unit 30's hand work).
 
+**Answered at the pilot checkpoint (unit 30, 2026-11-16 to 18; `implementation/units/30-pilot/`):**
+
+| Q | Answer |
+|---|---|
+| 16 | No `docs_old/` on any branch; HLD-0002, ADR-0004 and ADR-0009 exist nowhere. The truth is `docs/decisions/` on the integration branch. |
+| 17 | Yes: `ALL_FEATURES.md` from `people-management-tool/POC`, copied to `.mirai/context/sources/` on `mirai/pilot` (agents can't reach other repos). |
+| 18 | The `*.thudos.test` proxy on port 80 (ADR-0001). QA (Milestone C) uses it. |
+| 19 | Yes: the council's list carried over as `[gate.risk] high`, plus HR data paths. |
+| 20 | `docs/decisions/` (MIRAI's numbering from ADR-0009, HLD-0002) and `docs/mirai/` for PRDs and tickets. |
+| 21 | No: no workflows, and the free org can't protect branches in private repos (HTTP 403). Unit 54 reports "local-only" on the pilot. |
+| 22 | Nothing outside the project. But no separate test compose file was needed: the main compose file was changed to fit MIRAI's tightening (no `env_file`, no network driver, named images with dependencies baked in, a TCP database health check). MIRAI drops ports, builds and profiles in test runs. |
+
+**What the pilot changed:** BKT-49 went through and merged, but the plan step met three early stop
+limits (attention, parks, turns). The note recommends go for Milestone B, with the plan-step
+fixes first; Jet decides. See the usage note and `findings.md` (F1–F28).
+
 ## F. Known risks to watch (not questions, but they could change the design)
 
 - **Cursor loading things twice:** Cursor imports Claude's and Codex's folders. How it handles
