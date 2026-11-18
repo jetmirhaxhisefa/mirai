@@ -17,7 +17,9 @@ const LOG_MAX = 8 * 1024 * 1024;
 const SUMMARY_LINES = 25;
 
 export function runnerPaths(env) {
-  const base = join(env.HOME, 'Library', 'Application Support', 'mirai-build');
+  // No space anywhere in the path: MIRAI's own tests run inside `work/`, and a space breaks
+  // some of them (file URLs, split paths; seen 2026-11-18 under "Application Support").
+  const base = join(env.HOME, '.mirai-build');
   return { base, requests: join(base, 'requests'), results: join(base, 'results'), work: join(base, 'work'), probeCache: join(base, 'probe-cache'), log: join(base, 'runner.log') };
 }
 

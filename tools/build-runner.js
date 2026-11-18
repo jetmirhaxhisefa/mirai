@@ -6,7 +6,7 @@
 //   caffeinate -i node tools/build-runner.js
 //
 // It runs the fixed jobs a building session asks for (requests in
-// ~/Library/Application Support/mirai-build/requests/), one at a time, in your name, until you stop
+// ~/.mirai-build/requests/), one at a time, in your name, until you stop
 // it with Ctrl-C. docs/build-runner.md says what it can and can't do.
 
 import { createInterface } from 'node:readline';

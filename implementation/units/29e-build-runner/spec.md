@@ -72,7 +72,7 @@ From `design/10` and Jet's answers on 2026-11-18.
    - It needs a real terminal at start, prints what it will do, and asks once:
      `Run the fixed jobs in your name until you stop it? [y/N]`.
 2. **The folders**, outside every repo:
-   - `~/Library/Application Support/mirai-build/requests/`: the session writes one JSON file per
+   - `~/.mirai-build/requests/`: the session writes one JSON file per
      request.
    - `…/results/`: the runner writes `<id>.json` and `<id>.log`.
    - `…/runner.log`: one line per request: time, id, job, commit, branch, its diff size against

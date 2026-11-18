@@ -89,7 +89,13 @@ test('T4: the tests job runs in a sandbox that closes your real home but its own
   assert.match(sandboxProfile({ home: '/Users/a "b"', open: ['/w'] }), /\(deny file-read\* file-write\* \(subpath "\/Users\/a \\"b\\""\)\)/);
   const home = realpathSync(userInfo().homedir);
   const canary = join(home, `.mirai-29e-canary-${randomBytes(4).toString('hex')}`);
-  writeFileSync(canary, 'canary');
+  try {
+    writeFileSync(canary, 'canary');
+  } catch (err) {
+    // Already inside the build runner's own sandbox: the home is closed, which is the point.
+    if (err.code === 'EPERM') return;
+    throw err;
+  }
   const job = realpathSync(tmp());
   try {
     const c = sandboxed({ cmd: process.execPath, args: ['-e', `let r='denied';try{require('fs').readFileSync(${JSON.stringify(canary)});r='READ'}catch{};require('fs').writeFileSync('own.txt','ok');process.stdout.write(r)`], cwd: job }, job);

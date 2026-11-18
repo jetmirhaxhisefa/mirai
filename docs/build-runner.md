@@ -29,7 +29,7 @@ It refuses to start:
 
 ## How a session uses it
 
-Everything lives in `~/Library/Application Support/mirai-build/`, outside every repo.
+Everything lives in `~/.mirai-build/`, outside every repo.
 
 1. **Push the commit.** It must be on a branch of MIRAI's GitHub repo.
 2. **Write a request** to `requests/<id>.json`:
