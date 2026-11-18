@@ -229,6 +229,16 @@ test('T8: a probe result is reused until its file or a tool version changes', as
   versions = { ...v1, docker: '29.0' };
   await ask('p3');
   assert.equal(runs, 2);
+  // A failure is never stored: the same request runs again.
+  runner.run = async () => {
+    runs += 1;
+    return { status: 1, tail: 'a probe failed' };
+  };
+  versions = { ...v1, docker: '30.0' };
+  assert.equal((await ask('p4')).state, 'fail');
+  assert.equal((await ask('p5')).state, 'fail');
+  assert.equal(runs, 4);
+  assert.deepEqual(jobCommand('probes', 'git-probes.js', { exportDir: '/x' }).args.slice(1), ['--yes']);
 });
 
 test('T9: a sample checkout that isn\'t ready is refused, and nothing in it changes', () => {

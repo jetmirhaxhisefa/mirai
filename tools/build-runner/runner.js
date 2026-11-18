@@ -204,7 +204,9 @@ export function jobCommand(job, arg, ctx) {
   const launch = join(ctx.exportDir, 'bin', 'launch.js');
   switch (job) {
     case 'tests': return { cmd: node, args: ['--test', 'test/**/*.test.js'], cwd: ctx.exportDir };
-    case 'probes': return { cmd: node, args: [join('test', 'probes', arg)], cwd: ctx.exportDir };
+    // --yes: most probe files ask before planting their fixtures; your yes at the runner's start
+    // covers it. Files that take no flags ignore it.
+    case 'probes': return { cmd: node, args: [join('test', 'probes', arg), '--yes'], cwd: ctx.exportDir };
     case 'baseline': return { cmd: node, args: [launch, 'baseline'], cwd: ctx.sample };
     case 'redteam-cases': return { cmd: node, args: [launch, 'redteam', 'run', '--only', selectCases(arg, ctx.cases).join(',')], cwd: ctx.sample, input: 'y\n' };
     case 'redteam-full': return { cmd: node, args: [launch, 'redteam', 'run'], cwd: ctx.sample, input: 'y\n' };
@@ -296,7 +298,8 @@ export class Runner {
         }
         env = sampleEnv(this.env);
         const r = await this.finish(req, base, log, jobCommand('probes', req.arg, ctx), env, started);
-        if (r.state === 'pass' || r.state === 'fail') writeFileSync(cached, `${JSON.stringify({ state: r.state, started: r.started, summary: r.summary })}\n`, { mode: 0o600 });
+        // Only a pass is stored: a failure may be the environment, and is always run again.
+        if (r.state === 'pass') writeFileSync(cached, `${JSON.stringify({ state: r.state, started: r.started, summary: r.summary })}\n`, { mode: 0o600 });
         return r;
       }
       const home = join(jobDir, 'home');
