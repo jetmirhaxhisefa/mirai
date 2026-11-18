@@ -87,7 +87,47 @@ export function tableIn(doc, section) {
 }
 
 const KINDS = ['red', 'after', 'characterization'];
-const CHANGES = ['add', 'change', 'remove', 'read'];
+export const CHANGES = ['add', 'change', 'remove', 'read'];
+
+const clip = (x, n = 80) => {
+  const t = String(x ?? '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+};
+
+// The file types each test adapter runs (unit 30c, F20: a frontend test at the PHPUnit level).
+const ADAPTER_TYPES = Object.freeze({
+  phpunit: ['.php'], pest: ['.php'],
+  vitest: ['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs', '.vue'], jest: ['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs'],
+  playwright: ['.ts', '.tsx', '.js', '.mjs', '.cjs'], pytest: ['.py'], go: ['.go'],
+});
+const globRe = (g) => new RegExp(`^${g.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')}$`);
+
+// A Test ID's file (unit 30c, F18): it exists at the plan's base or a Code map row adds it, and
+// it's a file type its level's adapter runs. Skipped where MIRAI has no file list (mirai lint).
+function testIdProblem(cell, level, { files, added, adapters }, report) {
+  const path = cell.replace(/`/g, '').split('::')[0].trim();
+  if (!path || path.includes('*')) return;
+  if (files) {
+    // A new test file is fine, but its folder must be in the repo (or a Code map row adds files
+    // there): a path from a service's own folder (BKT-49's src/test/…) names a folder the repo
+    // root doesn't have.
+    const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+    const known = files.has(path) || added.some((a) => a === path || (a.includes('*') && globRe(a).test(path)))
+      || dir === '' || [...files].some((f) => f.startsWith(dir)) || added.some((a) => a.startsWith(dir));
+    if (!known) {
+      const near = [...files, ...added].filter((f) => f.endsWith(`/${path}`) || f.includes(`/${dir}`)).map((f) => (f.endsWith(`/${path}`) ? f : `${f.slice(0, f.indexOf(`/${dir}`) + 1)}${path}`));
+      const unique = [...new Set(near)].slice(0, 2);
+      report(`the Test ID's folder ${dir} isn't in the repo (it says ${path})`, unique.length ? `the path from the repo root: ${unique.join(' or ')}` : 'name the test file by its path from the repo root');
+      return;
+    }
+  }
+  const types = ADAPTER_TYPES[adapters[level] ?? ''];
+  const ext = (/\.[A-Za-z0-9]+$/.exec(path) ?? [''])[0].toLowerCase();
+  if (types && ext && !types.includes(ext)) {
+    const fits = Object.entries(adapters).filter(([, a]) => (ADAPTER_TYPES[a] ?? []).includes(ext)).map(([l]) => l);
+    report(`the level ${level} (${adapters[level]}) doesn't run ${ext} files like ${path}`, fits.length ? `use the level ${fits.join(' or ')}` : 'pick the level whose runner runs this file');
+  }
+}
 const DECLARED = ['protected-path', 'dependency', 'dev-dependency', 'test-change', 'none'];
 // A protected path is a repo-relative path or glob; a dependency is <ecosystem>:<name>, so the
 // broker can match an install exactly (npm:left-pad, composer:guzzlehttp/guzzle).
@@ -157,9 +197,14 @@ export const CHECKS = Object.freeze({
     // The code map: which symbols each row adds, changes, removes or reads.
     const map = need('Code map', ['path', 'symbols', 'change']);
     const changesOf = new Map(); // symbol -> Set of changes
+    const addedPaths = [];
     for (const r of map?.rows ?? []) {
       const change = r.cells.change.toLowerCase();
-      if (!CHANGES.includes(change)) add({ code: 'plan-table', ...row(r), reason: `a Code map row's Change must be one of: ${CHANGES.join(', ')}` });
+      if (!CHANGES.includes(change)) add({ code: 'plan-table', ...row(r), reason: `a Code map row's Change must be one of: ${CHANGES.join(', ')} (it says "${clip(r.raw.change)}")`, hint: 'the cell is that one word; what changes goes in Tasks' });
+      if (change === 'add') {
+        const spans = [...r.raw.path.matchAll(/`([^`]+)`/g)].map((m) => m[1].trim());
+        addedPaths.push(...(spans.length ? spans : [r.cells.path.trim()]));
+      }
       const symbols = symbolsIn(r.raw.symbols);
       if (change === 'add' && symbols.length === 0) add({ code: 'plan-table', ...row(r), reason: 'a Code map row that adds code names its new symbols', hint: 'each new symbol gets a stub step before its red test' });
       for (const symbol of symbols) {
@@ -197,7 +242,8 @@ export const CHECKS = Object.freeze({
       } else if (levels.length > 0 && !levels.includes(level)) {
         add({ code: 'plan-level', ...where, reason: `"${level}" is not one of the project's test levels`, hint: `use one of: ${levels.join(', ')}` });
       }
-      if (r.cells['test id'] === '') add({ code: 'plan-test', ...where, reason: 'a test row has no Test ID', hint: "the test's file or name, as the level's runner selects it" });
+      if (r.cells['test id'] === '') add({ code: 'plan-test', ...where, reason: 'a test row has no Test ID', hint: "the test file's path from the repo root, optionally ::<test name>" });
+      else testIdProblem(r.cells['test id'], level, { files: ctx.files ?? null, added: addedPaths, adapters: ctx.project?.adapters ?? {} }, (reason, hint) => add({ code: 'plan-test', ...where, reason, hint }));
       if (!KINDS.includes(kind)) add({ code: 'plan-test', ...where, reason: `a test row's Kind must be one of: ${KINDS.join(', ')}` });
       if (kind === 'after' && value.tdd === 'first') add({ code: 'plan-test', ...where, reason: 'with tdd: first, tests come before the code, so no row is "after"' });
       if (kind === 'red' && value.tdd === 'after') add({ code: 'plan-test', ...where, reason: 'with tdd: after there is no red check, so no row is "red"', hint: 'use after' });
@@ -211,7 +257,7 @@ export const CHECKS = Object.freeze({
         // The symbol by name, and the map's, so a fix launch can act on it.
         const missing = named.filter((x) => !changesOf.has(x));
         const known = [...changesOf.keys()].slice(0, 12).join(', ');
-        if (missing.length) add({ code: 'plan-test', ...where, reason: `a test row's Symbol ${missing.map((x) => `"${x.slice(0, 80)}"`).join(', ')} is not in the Code map`, hint: `name it exactly as a Code map row's Symbols do (${known || 'the Code map names none'}), or add it there` });
+        if (missing.length) add({ code: 'plan-test', ...where, reason: `a test row's Symbol ${missing.map((x) => `"${x.slice(0, 80)}"`).join(', ')} is not in the Code map`, hint: `write it as a code span, exactly as a Code map row's Symbols do (${known || 'the Code map names none'}), or add it there` });
       }
     }
     // Unit 23, `tdd: auto` (Jet's decision 3): a bug's plan has a red row, its reproduction; a

@@ -54,7 +54,17 @@ const REFUSED_STATES = Object.freeze({
 
 // The unpark command, whole (unit 28's session check: "mirai unpark T" alone is refused): a
 // disputed park takes your choice of finding; any other, --retry.
-export const unparkCommand = (ticket, reason) => (reason === 'disputed' ? `mirai unpark ${ticket} --retry (or --accept <finding-id>, as mirai show ${ticket} names them)` : `mirai unpark ${ticket} --retry`);
+// The command that moves a parked ticket on, for every park reason (unit 30c, F23: no dead ends).
+// The loop guard's parks need rounds granted, which unit 46 brings; until then, dropping is the
+// way on (`mirai unpark` refuses them).
+export const LOOP_PARKS = Object.freeze(['cap', 'repeat', 'no-progress']);
+export function unparkCommand(ticket, reason) {
+  if (reason === 'disputed') return `mirai unpark ${ticket} --retry (or --accept <finding-id>, as mirai show ${ticket} names them)`;
+  if (reason === 'deps-review') return `mirai unpark ${ticket} --accept-deps (after reading the package change in mirai show ${ticket})`;
+  if (reason === 'bad-plan') return `mirai unpark ${ticket} --retry (back to ready-for-dev; then mirai plan ${ticket}, which reads your note)`;
+  if (LOOP_PARKS.includes(reason)) return `mirai drop ${ticket} (the loop guard parked it; granting more rounds comes with unit 46)`;
+  return `mirai unpark ${ticket} --retry`;
+}
 
 // What to do next for `ticket`, from the store and the checkout (the spec's table). Returns
 // { step } for a step to run, or { stop: { kind, why, next } } for a stop, or { done: { mr } }.

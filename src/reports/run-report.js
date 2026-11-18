@@ -135,8 +135,13 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
     } catch {
       tdd = null;
     }
+    // Unit 30c: how often the plan step ran, and every park by reason (the B checkpoint reads them).
+    const planLaunches = launches.filter((x) => x.item === ticket && x.step === 'plan').length;
+    const parkCounts = new Map();
+    for (const e of events) if (e.type === 'status_written' && e.ticket === ticket && e.state === 'blocked' && typeof e.park_reason === 'string') parkCounts.set(e.park_reason, (parkCounts.get(e.park_reason) ?? 0) + 1);
     tickets.push({
       ticket, title, state: page?.state ?? 'unknown', ...(page?.risk ? { risk: page.risk } : {}),
+      plan_launches: Math.min(1000, planLaunches), parks: [...parkCounts].map(([reason, count]) => ({ reason: reason.slice(0, 64), count: Math.min(100, count) })),
       rounds: { used: page?.rounds.used ?? 0, of: page?.rounds.of ?? 0, replans: page?.rounds.replans ?? 0, replans_of: page?.rounds.replans_of ?? 1 },
       steps: steps.map(({ seq: _seq, ...s }) => s), ...(mr ? { mr } : {}), feedback, ...(tdd ? { tdd } : {}),
     });

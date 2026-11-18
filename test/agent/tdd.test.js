@@ -38,7 +38,7 @@ const doc = (fm, body) => `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${Ar
 const ticket = (tdd) => doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"."', risk: 'normal', size: 'M', verify: '"Rename a team on staging."', tdd },
   '# Renaming a team hides its members\n\n## Acceptance criteria\n\n- AC-PMT-31.1: the members stay after a rename\n- AC-PMT-31.2: the old slug redirects\n');
 const EXISTING = '<?php\nclass RenameTeamTest {\n  public function test_keeps_name() { $this->assertSame("a", "a"); }\n}\n';
-const files = (tdd) => ({ 'docs/mirai/tickets/PMT-31.md': ticket(tdd), 'package.json': '{\n  "name": "app"\n}\n', 'app/Team.php': '<?php\n', 'tests/Unit/RenameTeamTest.php': EXISTING });
+const files = (tdd) => ({ 'docs/mirai/tickets/PMT-31.md': ticket(tdd), 'package.json': '{\n  "name": "app"\n}\n', 'app/Team.php': '<?php\n', 'tests/Unit/RenameTeamTest.php': EXISTING, 'tests/Feature/.gitkeep': '' });
 const PASSED = { state: 'pass', known_failures: [], tests: { total: 3, skipped: 0 } };
 
 async function tty(argv, { cwd, env }, answers) {

@@ -57,21 +57,27 @@ export default {
     io.stdout.write(`ticket: ${ticket} (parked: ${plain(current.status?.park_reason ?? '?')})\nwhy:    ${plain(current.status?.note ?? '')}\n`);
     for (const x of open) io.stdout.write(`  disputed ${plain(x.id)}: ${plain(x.finding?.claim ?? '')} (${plain(x.finding?.file ?? '?')}:${x.finding?.line ?? '?'})\n    Kai: ${plain(x.reason ?? '')}\n`);
     const stand = acceptIds ? open.filter((x) => !acceptIds.includes(x.id)) : open;
-    const to = acceptIds && stand.length === 0 ? 'in-review' : 'in-progress';
+    // Unit 30c (F23): a plan that failed the lint twice goes back for a re-plan, with your note as
+    // a review note Kai reads; in-progress would be a dead end (`mirai plan` starts from
+    // ready-for-dev).
+    const badPlan = current.status?.park_reason === 'bad-plan';
+    const to = badPlan ? 'ready-for-dev' : acceptIds && stand.length === 0 ? 'in-review' : 'in-progress';
+    if (badPlan) io.stdout.write(`then: ready-for-dev, for a re-plan that reads your note (mirai plan ${ticket})\n`);
     if (disputed) io.stdout.write(`${acceptIds ? `dropped: ${acceptIds.join(', ')}\n` : ''}${stand.length ? `stand (Kai fixes them next): ${stand.map((x) => x.id).join(', ')}\n` : ''}then: ${to === 'in-review' ? `in-review, for Rex's next round (mirai review ${ticket})` : `in-progress, for Kai (mirai fix ${ticket})`}\n`);
     const prompter = createPrompter(io);
     try {
-      const note = await prompter.ask('note (one line, why it can go on): ');
-      if (!/\S/.test(note) || note.length > 500) throw new UsageError('the note is one line of at most 500 characters; nothing was written');
+      const note = await prompter.ask(`note (one line, required: why it can go on${badPlan ? '; Kai reads it' : ''}): `);
+      if (!/\S/.test(note)) throw new UsageError('a note is required: your signed reason why the ticket can go on; nothing was written', 'run it again and write one line');
+      if (note.length > 500) throw new UsageError('the note is one line of at most 500 characters; nothing was written');
       const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });
-      const choice = to === 'in-review' ? 'accept' : 'retry';
+      const choice = to === 'in-review' ? 'accept' : to === 'ready-for-dev' ? 're-plan' : 'retry';
       const seq = signHumanMove(store, signer, { ticket, state: to, note, ...(current.status?.replans !== undefined ? { replans: current.status.replans } : {}) }, { expectSeq: current.seq, move: { choice, note } });
       // The rulings, after your signed move: what you dropped, then what stands.
       if (disputed) {
         for (const id of acceptIds ?? []) acceptDispute(store, ticket, id);
         upholdDisputes(store, ticket);
       }
-      io.stdout.write(`unparked: ${ticket} is ${to} again (${choice}; signed with ${signer.keyId}, seq ${seq})\n`);
+      io.stdout.write(`unparked: ${ticket} is ${to} again (${choice}; signed with ${signer.keyId}, seq ${seq})${to === 'ready-for-dev' ? `; next: mirai plan ${ticket}` : ''}\n`);
       return EXIT.OK;
     } finally {
       prompter.close();

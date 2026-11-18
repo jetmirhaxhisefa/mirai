@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
 import { DEPENDENCY_KINDS } from './dependency-rows.js';
 import { join } from 'node:path';
@@ -22,6 +23,8 @@ import { atomicWrite, ensurePrivateDir } from '../store/files.js';
 import { readJournal } from '../store/journal.js';
 import { contentHash } from '../sign/sign.js';
 import { sameKey, tableIn } from '../lint/checks.js';
+import { renderNotes, reviewNotes } from './review-notes.js';
+import { normalizePlan } from '../lint/normalize.js';
 import { readRunState, writeRunState } from '../store/run.js';
 import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
@@ -173,7 +176,7 @@ export function gateFor({ preset, text }) {
   return { gate: why.length ? 'human' : 'auto', required: required.length > 0, why };
 }
 
-export function planPrompt({ ticket, fields, via, problems = null }) {
+export function planPrompt({ ticket, fields, via, problems = null, notes = 0 }) {
   const out = via === 'schema'
     ? 'Return the whole plan, frontmatter first, as your structured output\'s `plan`.'
     : 'Return the whole plan, frontmatter first, as the only fenced ```markdown block in your final reply.';
@@ -187,15 +190,38 @@ export function planPrompt({ ticket, fields, via, problems = null }) {
     out,
     'Change nothing in the project.',
   ];
+  if (notes > 0) {
+    lines.push('', `Your reviewer rejected or sent back earlier plans for ${ticket}: review-notes.md in the input folder holds ${notes === 1 ? 'the note' : `all ${notes} notes`}, oldest first. Each still holds unless a later note or the ticket says otherwise; where a note and the approved ticket disagree, follow the ticket and say so in Design notes.`);
+  }
   if (problems) {
-    lines.push('', 'Your last plan failed MIRAI\'s lint; it is last-plan.md in the input folder. Fix exactly these problems and return the whole plan again:', ...problems.slice(0, 50).map((p) => `- line ${p.line}: ${p.reason}${p.hint ? ` (${p.hint})` : ''}`));
+    // Unit 30c: grouped by rule, so one fix covers every row a rule names.
+    const groups = new Map();
+    for (const p of problems.slice(0, 50)) {
+      const key = p.code ?? 'other';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(p);
+    }
+    lines.push('', 'Your last plan failed MIRAI\'s lint; it is last-plan.md in the input folder. Fix exactly these problems, every row each rule names, and return the whole plan again:');
+    for (const [key, list] of groups) {
+      lines.push(`${key} (${list.length}):`, ...list.map((p) => `- line ${p.line}: ${p.reason}${p.hint ? ` (${p.hint})` : ''}`));
+    }
   }
   return lines.join('\n');
 }
 
 // The plan lint (08b) with the trust root's registry and the project's levels.
-export function lintPlan(text, { registry, config, ticket }) {
-  return lintText(text, { source: `tickets/${ticket}/plan.md`, registry, project: projectOf(config) });
+export function lintPlan(text, { registry, config, ticket, files = null }) {
+  return lintText(text, { source: `tickets/${ticket}/plan.md`, registry, project: projectOf(config), files });
+}
+
+// The repo's files at a commit (unit 30c: the plan's Test IDs are checked against them), or null.
+export function filesAt(store, commit) {
+  try {
+    const out = execFileSync('git', ['ls-tree', '-r', '-z', '--name-only', commit], { cwd: store.checkout, env: store.gitEnv, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+    return new Set(out.toString('utf8').split('\0').filter(Boolean));
+  } catch {
+    return null;
+  }
 }
 
 // `mirai plan <ticket>`: { outcome, ticket, problems, gate, launches, path, why }. `launchTokens`:
@@ -213,7 +239,7 @@ export function ticketRecord(store, ticket, keys) {
   const { events } = readJournal(store, { keys });
   const mine = events.filter((e) => e.type === 'approval' && sameKey(e.item, ticket));
   const approved = mine.filter((e) => e.kind === 'ticket' && e.decision !== 'rejected').at(-1) ?? null;
-  return { approved, rejections: mine.filter((e) => e.kind === 'plan' && e.decision === 'rejected').length };
+  return { approved, rejections: mine.filter((e) => e.kind === 'plan' && e.decision === 'rejected').length, notes: reviewNotes(events, ticket) };
 }
 
 export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', unattended = false, launchOptions = {}, launch = launchInRun, run: outerRun = null, now = () => new Date() }) {
@@ -247,10 +273,13 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
     const template = readFileSync(join(registry.dir, registry.documentTypes.plan.template), 'utf8');
     // Room left for the fix launch's last-plan.md. Sibling plans only when you approved them.
     const limits = { files: INPUT_LIMITS.files - 1, bytes: INPUT_LIMITS.bytes - PLAN_MAX_BYTES };
-    const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, template, limits, approved: (id) => planApproval(store, id, keys).ok });
+    // Unit 30c (F21): your rejection and unpark notes, for the plan and its fix launch.
+    const record = ticketRecord(store, ticket, keys);
+    const notesText = renderNotes(ticket, record.notes);
+    const extra = notesText ? [{ name: 'review-notes.md', from: 'journal: your plan rejections and unpark notes', why: 'your notes on earlier plans of this ticket, oldest first', text: notesText }] : [];
+    const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, template, limits, approved: (id) => planApproval(store, id, keys).ok, extra });
     // The ticket on the integration branch must be the one you approved (unit 06's content hash): a
     // ticket edited and merged after that would drive the plan's fields and its gate.
-    const record = ticketRecord(store, ticket, keys);
     if (!record.approved) throw fail(`${ticket} has no approval of yours in the journal`, 'no-ticket-approval', EXIT.BLOCKED, `approve it: mirai approve ${ticket} --file ${given.ticket.path}`);
     if (record.approved.content_hash !== contentHash(given.ticket.bytes)) throw fail(`${ticket} on the integration branch (${given.ticket.path}) isn't the file you approved`, 'ticket-changed', EXIT.BLOCKED, `on the integration branch, read it and approve it as merged: mirai approve ${ticket} --file ${given.ticket.path}`);
     const fm = given.ticket.fm;
@@ -278,6 +307,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
     try {
       let problems = null;
       let stored = false;
+      let baseFiles;
       for (let attempt = 1; attempt <= 2; attempt++) {
         // A plan launch isn't a round (unit 20): the loop guard counts it, and a parked ticket stops here.
         const guard = beforeLaunch(store, ticket, { round: false, risk: fields.risk });
@@ -290,7 +320,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         try {
           r = await launch({
             ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: AGENT_LABEL, role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
-            prompt: planPrompt({ ticket, fields, via, problems }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
+            prompt: planPrompt({ ticket, fields, via, problems, notes: record.notes.length }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
           });
         } catch (err) {
           // A launch that threw: almost always refused before it started. Its numbers, if it ran,
@@ -311,11 +341,15 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         if (got.problem) problems = Object.assign([{ line: 1, reason: got.problem }], { text: String(r.text ?? '').slice(0, 20_000) });
         else {
           text = withFrontmatter(got.text, fields);
+          // Unit 30c (Jet's decision 1): format slips whose meaning is certain are fixed here, and
+          // logged in the plan; the lint sees the rest.
+          baseFiles ??= filesAt(store, trust.baseSha);
+          text = normalizePlan(text, { files: baseFiles }).text;
           // A new plan is never covered by an older approval: the approval goes first.
           rmSync(approvalPath(store, ticket), { force: true });
           storePlan(store, ticket, text);
           stored = true;
-          const found = lintPlan(text, { registry, config, ticket }).filter((p) => p.severity === 'error');
+          const found = lintPlan(text, { registry, config, ticket, files: baseFiles }).filter((p) => p.severity === 'error');
           problems = found.length ? Object.assign(found, { text }) : null;
           // The plan step's stages (unit 21e): its lint, and whether the one fix launch follows.
           try {

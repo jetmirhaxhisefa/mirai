@@ -89,6 +89,8 @@ export function showData({ cwd, env, ticket }) {
     disputes,
     mr: facts.mr === 'none' ? null : { state: facts.mr, url: facts.url ?? null, head: facts.head ?? null, proofs_at_head: facts.proofsValidAtHead === true && facts.head === head },
     rounds: { used: loop.rounds_used, of: rounds, replans: loop.replans_used, replans_of: 1 },
+    // Unit 30c: every park so far, by reason.
+    parks: [...events.filter((e) => e.type === 'status_written' && e.ticket === ticket && e.state === 'blocked' && typeof e.park_reason === 'string').reduce((m, e) => m.set(e.park_reason, (m.get(e.park_reason) ?? 0) + 1), new Map())].map(([reason, count]) => ({ reason, count })),
     usage: { turns: loop.budget.turns, tokens: loop.budget.tokens + loop.budget.tokens_cached, minutes: Math.round(loop.budget.minutes * 10) / 10 },
     // Unit 29a: your feedback on the ticket, yours (signed) or your session's.
     feedback: events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : e.by === 'script' ? 'your terminal' : 'your session', at: e.ts ?? null, text: e.text })),
@@ -115,7 +117,7 @@ export function showText(d, { full = false } = {}) {
   }
   if (d.disputes.length) row('Disputes', `${d.disputes.length}`);
   row('MR', d.mr ? `${d.mr.state}${d.mr.url ? ` ${plain(d.mr.url)}` : ''}` : 'not yet');
-  row('Rounds', `${d.rounds.used} of ${d.rounds.of} used · re-plans ${d.rounds.replans} of ${d.rounds.replans_of}`);
+  row('Rounds', `${d.rounds.used} of ${d.rounds.of} used · re-plans ${d.rounds.replans} of ${d.rounds.replans_of}${d.parks.length ? ` · parks: ${d.parks.map((p) => `${plain(p.reason)} ×${p.count}`).join(', ')}` : ' · no parks'}`);
   row('Usage', `${d.usage.turns} turns · ${d.usage.tokens >= 1e6 ? `${(d.usage.tokens / 1e6).toFixed(1)} M` : `${Math.round(d.usage.tokens / 1000)} k`} tokens · ${d.usage.minutes} min`);
   row('Parked', d.state === 'blocked' ? `${plain(d.park_reason ?? '')}${d.note ? `: ${plain(d.note).slice(0, full ? 2000 : 200)}` : ''} · then: ${unparkCommand(d.ticket, d.park_reason)}` : '—');
   // A bad plan's lint problems: what Kai's plan got wrong, so you can judge it.

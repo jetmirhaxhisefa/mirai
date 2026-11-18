@@ -108,7 +108,21 @@ Parked     —
 QA         not yet (unit 51)
 ```
 
-A plan parked `bad-plan` lists its lint problems under `Parked` (the first 5; `--full` all, with their hints), so you can judge the plan: `--full` prints it whole.
+A plan parked `bad-plan` lists its lint problems under `Parked`: the first 5, or all of them, with their hints, with `--full`. So you can judge the plan, and `--full` prints it whole. `mirai unpark <ticket> --retry` sends it back to `ready-for-dev`, and your note goes to the re-plan.
+
+Every park names the command that moves it on (unit 30c):
+
+| Park | Next command |
+|---|---|
+| `deps-review` | `--accept-deps` |
+| `disputed` | `--retry` or `--accept <finding-id>` |
+| `bad-plan` | `--retry`, back to a re-plan |
+| the loop guard's (`cap`, `repeat`, `no-progress`) | `mirai drop`, until unit 46 grants rounds |
+| every other park | `--retry` |
+
+The `Rounds` line counts parks by reason.
+
+**Line endings** (unit 30c): an agent's editor writes LF. So a CRLF file it changed is given its CRLF back before MIRAI's checks, and the commit names it. A file with mixed endings is left as it is and named.
 
 `--full` adds every finding's text, the plan and the parking note whole; `--json` is for scripts.
 

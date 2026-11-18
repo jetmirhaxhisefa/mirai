@@ -33,6 +33,7 @@ import { addCheckpoint } from './checkpoints.js';
 import { commitStep } from './commit.js';
 import { loadRecordSigner } from '../sign/signer.js';
 import { installDependencies, releaseInstalls } from './install.js';
+import { keepLineEndings } from './line-endings.js';
 import { newDependencies } from './deps.js';
 import { planInputs } from './inputs.js';
 import { AGENT, AGENT_LABEL, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
@@ -231,6 +232,16 @@ export function observe({ store, base, rules, ignoredBefore }) {
 // confirmed red's { commit, files }, locks those tests. The floor guard runs either way.
 async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan, branchBase, stepBase, rules, ignoredBefore, tests, testRun, signal, onCheck = null, seen = null, stage = null, rows = [], red = null }) {
   const declared = declaredChanges(plan);
+  // Unit 30c (F25): a CRLF file the agent wrote back as LF gets its CRLF again, before anything is
+  // looked at, so the checks, the commit and the MR see only the real change.
+  const endingsKept = seen ? { converted: [], mixed: [] } : keepLineEndings({ root: store.checkout, env: store.gitEnv, base: stepBase });
+  if (endingsKept.converted.length || endingsKept.mixed.length) {
+    try {
+      onCheck?.({ kind: 'check', name: 'line-endings', state: `${endingsKept.converted.length ? `CRLF kept in ${endingsKept.converted.join(', ')}` : ''}${endingsKept.converted.length && endingsKept.mixed.length ? '; ' : ''}${endingsKept.mixed.length ? `mixed line endings left as they are in ${endingsKept.mixed.join(', ')}` : ''}` });
+    } catch {
+      // a display only
+    }
+  }
   const observed = seen ?? observe({ store, base: stepBase, rules, ignoredBefore });
   const { fingerprint } = observed;
   // Claude Code's own write staging (an empty `.claude/.cc-writes/`, made whenever it writes a
@@ -264,7 +275,7 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
       return (lsTree(store.checkout, stepBase, p, store.gitEnv) ?? []).some((e) => e.path === p);
     }
   }).filter((p) => !removes(removable, p));
-  const base = { protectedPaths, dependencies: deps, fingerprint, tests: null };
+  const base = { protectedPaths, dependencies: deps, fingerprint, tests: null, line_endings: endingsKept };
   // MIRAI's records and your keys are never a build's to change, declared or not (D-17): a record
   // rewritten by an agent would be committed as MIRAI's (unit 22 review).
   const own = change.changes.filter((p) => /^\.mirai\/(records|keys)(\/|$)/.test(p));
@@ -584,7 +595,7 @@ export async function afterLaunch({ r, cwd, env, store, runId, trust, config, re
       // before, and the ignored files right after (unit 22 review).
       const checkedPrint = checked.fingerprint;
       checked.commit = commitStep({
-        store, env, config, ticket, what, body: handover.summary,
+        store, env, config, ticket, what, body: `${handover.summary ?? ''}${endingsBody(checked.line_endings)}`,
         before: () => {
           if (observe({ store, base: stepBase, rules, ignoredBefore }).fingerprint !== checkedPrint) throw fail('the tree changed between MIRAI\'s checks and its commit: something else is writing to the project', 'changed-before-commit', EXIT.BLOCKED, 'look for a process still working in the project, then build again');
         },
@@ -667,4 +678,10 @@ function writeChecks(store, runId, ticket, { fm, t, red = null }) {
     named: t.runs.map((r) => ({ name: r.name, result: r.verdict })),
   };
   withSeq(store, ({ take, runLine }) => runLine(runId, take(), line));
+}
+
+// Unit 30c (F25): the commit says which files MIRAI gave their CRLF back.
+function endingsBody(e) {
+  if (!e || (!e.converted?.length && !e.mixed?.length)) return '';
+  return `${e.converted?.length ? `\n\nMIRAI kept the CRLF line endings of: ${e.converted.join(', ')}` : ''}${e.mixed?.length ? `\n\nMixed line endings, left as they are: ${e.mixed.join(', ')}` : ''}`;
 }

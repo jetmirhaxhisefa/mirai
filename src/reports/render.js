@@ -196,6 +196,8 @@ const RUN_INPUT = compileSchema(obj({
   tickets: arr(obj({
     ticket: id, title: text(200), state: text(40), risk: { enum: ['normal', 'high'] },
     rounds: obj({ used: count(100), of: count(100), replans: count(10), replans_of: count(10) }),
+    plan_launches: count(1000),
+    parks: arr(obj({ reason: text(64), count: count(100) }, ['reason', 'count']), 20),
     steps: arr(obj({
       kind: { enum: ['launch', 'approval', 'push', 'mr'] }, earlier: { type: 'boolean' }, later: { type: 'boolean' }, at: isoTime, text: text(200),
       step: text(40), round: count(100), model: model, model_used: model, turns: count(1e6), tokens: count(1e12), minutes: { type: 'number', minimum: 0, maximum: 1e6 }, limit_share: share, verdict: text(40),
@@ -321,7 +323,7 @@ const localTime = (at) => {
 };
 const M1_TEXT = { 'as-is': 'merged as is', edited: 'edited before the merge', closed: 'closed without merge', unknown: 'M1 unknown' };
 function ticketBlock(k, { t, md, pct }) {
-  const head = `${t(k.ticket)}: ${t(k.title)}, ${t(k.state)}, ${k.risk ?? 'normal'} risk; rounds ${k.rounds.used} of ${k.rounds.of}, re-plans ${k.rounds.replans} of ${k.rounds.replans_of}`;
+  const head = `${t(k.ticket)}: ${t(k.title)}, ${t(k.state)}, ${k.risk ?? 'normal'} risk; rounds ${k.rounds.used} of ${k.rounds.of}, re-plans ${k.rounds.replans} of ${k.rounds.replans_of}${k.plan_launches ? `; plan launches ${k.plan_launches}` : ''}${k.parks?.length ? `; parks: ${k.parks.map((p) => `${t(p.reason)} ×${p.count}`).join(', ')}` : '; no parks'}`;
   const lines = k.steps.map((s) => {
     const when = s.at ? `${localTime(s.at)} ` : '';
     const mark = s.earlier ? ' (earlier run)' : s.later ? ' (later run)' : '';

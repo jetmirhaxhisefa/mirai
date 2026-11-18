@@ -22,6 +22,12 @@ import { readRunState } from '../../src/store/run.js';
 import { readTicketStatus } from '../../src/store/tickets.js';
 import { snapshot, trustedConfig, trustedStrict } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { lintPlan } from '../../src/agent/plan.js';
+import { noteAgainstTicket, renderNotes, reviewNotes } from '../../src/agent/review-notes.js';
+import { normalizePlan } from '../../src/lint/normalize.js';
+import { loadRegistry } from '../../src/config/registry.js';
+import { unparkCommand } from '../../src/run/drive.js';
+import { PARK_REASONS, TICKET as TICKET_MACHINE } from '../../src/status/machines.js';
 
 // Unit 21a: Kai's plan step and the plan gate, with a stand-in `claude` and no model.
 
@@ -41,6 +47,8 @@ const FILES = {
   'docs/mirai/adr-3.md': doc({ id: 'ADR-3', type: 'adr' }, '# Slugs are stable\n'),
   'docs/mirai/prd.md': doc({ id: 'PRD-1', type: 'prd' }, '# PRD\n\n- FR-2: teams can be renamed\n- FR-20: something else\n'),
   'CONTRIBUTING.md': '# How we work\n',
+  'tests/Unit/.gitkeep': '',
+  'tests/Feature/.gitkeep': '',
 };
 
 // A repo with the ticket on main, approved by you as unit 06 does it (signed, ready-for-dev).
@@ -399,4 +407,119 @@ test('review: sibling plans only when approved; clashing input names both kept',
   const adrs = Object.keys(none.inputs).filter((n) => n.startsWith('adr-')).sort();
   assert.equal(adrs.length, 3, adrs.join(', '));
   assert.ok(adrs.some((n) => /-2\.md$/.test(n)));
+});
+
+// Unit 30c: parks are the rare case.
+test('30c T1 + T6: a bad-plan park unparks to ready-for-dev; your unpark and reject notes reach the next plan and its fix launch', async () => {
+  const g = await repo();
+  const bad = PLAN.replace('| none | | |', '| nothing | | |');
+  assert.equal((await plan(g, claudeAnswering([{ plan: bad }, { plan: bad }]))).outcome, 'bad-plan');
+  const io = { cwd: g.root, env: g.env };
+  const empty = await tty(['unpark', 'PMT-31', '--retry'], io, ['', 'PMT-31']);
+  assert.equal(empty.code, EXIT.USAGE);
+  assert.match(empty.err, /a note is required/);
+  const back = await tty(['unpark', 'PMT-31', '--retry'], io, ['Declared changes needs one row "none" with empty cells', 'PMT-31']);
+  assert.equal(back.code, EXIT.OK, back.err);
+  assert.match(back.out, /ready-for-dev again \(re-plan; .*\); next: mirai plan PMT-31/);
+  assert.equal(readTicketStatus(g.store, 'PMT-31').status.state, 'ready-for-dev');
+  // The re-plan: the prompt names review-notes.md and the fix launch keeps it.
+  const claude = claudeAnswering([{ plan: bad }, { plan: PLAN }]);
+  const r = await plan(g, claude);
+  assert.equal(r.outcome, 'waiting', r.why);
+  for (const n of [0, 1]) assert.ok(claude.args(n).some((a) => /review-notes\.md in the input folder holds the note/.test(a)), `launch ${n}`);
+  // A reject adds its reason: both notes, oldest first, in the next plan's notes.
+  const rej = await tty(['approve', 'PMT-31', '--plan'], io, ['r', 'name the stub before the red test', 'PMT-31']);
+  assert.equal(rej.code, EXIT.OK, rej.err);
+  const { events } = readJournal(g.store);
+  const notes = reviewNotes(events, 'PMT-31');
+  assert.deepEqual(notes.map((n) => n.kind), ['unparked to ready-for-dev', 'plan rejected']);
+  const text = renderNotes('PMT-31', notes);
+  assert.ok(text.indexOf('Declared changes needs') < text.indexOf('name the stub'), text);
+  const third = claudeAnswering([{ plan: PLAN }]);
+  assert.equal((await plan(g, third)).outcome, 'waiting');
+  assert.ok(third.args(0).some((a) => /holds all 2 notes, oldest first/.test(a)));
+  // Only your signed lines count: a script's line with a reason isn't a note.
+  assert.deepEqual(reviewNotes([{ type: 'approval', by: 'script', kind: 'plan', decision: 'rejected', item: 'PMT-31', reason: 'x' }], 'PMT-31'), []);
+});
+
+test('30c T2: a reject note naming a value the approved ticket names differently is flagged; the ticket rules', () => {
+  assert.deepEqual(noteAgainstTicket('use 10.4.6, the lockfile version', 'pinned to the installed storybook (10.2.16)'), { note: ['10.4.6'], ticket: ['10.2.16'] });
+  assert.equal(noteAgainstTicket('use 10.2.16', 'pinned to 10.2.16'), null);
+  assert.equal(noteAgainstTicket('fix the code spans', 'version 10.2.16'), null);
+});
+
+test('30c T3: the normalizer fixes BKT-49\'s format slips, logs each, and leaves what isn\'t certain', () => {
+  // Rows as BKT-49's plans had them on the pilot (rounds 8 to 10, 2026-11-17).
+  const text = [
+    '## Code map', '', '| Path | Symbols | Change |', '|---|---|---|',
+    '| `frontend/.storybook/main.ts` | `config.addons` | change: replace `addon-essentials` with `@storybook/addon-docs` and `@storybook/addon-themes` |',
+    '| `frontend/src/stories/Button.stories.tsx` | `Button` stories | remove here, re-add as `frontend/src/components/ui/button.stories.tsx` (a move) |',
+    '| `frontend/src/test/ui-stories-render.test.tsx` | render test using `composeStories` | add |',
+    '| `frontend/src/test/ui-stories.test.tsx` | tests "has a story file", "renders" | add |',
+    '| `frontend/src/components/ui/*.stories.tsx` | 49 new files, one per file in `components/ui`: `meta`, `stories` | add |',
+    '| `frontend/vitest.config.ts` | `test` | read it |',
+    '', '## Test list', '', '| Test | Test ID | Symbol | AC | Level | Kind |', '|---|---|---|---|---|---|',
+    '| a | `frontend/src/test/ui-stories-render.test.tsx::renders` | render test | AC-1 | frontend-unit | after: x |',
+    '| b | `frontend/src/test/ui-stories.test.tsx` | "has a story file" | AC-2 | frontend-unit | red |',
+    '| c | `src/test/stories.test.tsx::x` | `meta` | AC-3 | frontend-unit | red |',
+    '| d | `x` | `test` | AC-4 | frontend-unit | red |',
+    '', '## Implementation log', '', '<!-- Append only. -->', '',
+  ].join('\n');
+  const files = new Set(['frontend/src/test/setup.ts', 'frontend/vitest.config.ts']);
+  const r = normalizePlan(text, { files });
+  const row = (start) => r.text.split('\n').find((l) => l.startsWith(start));
+  assert.match(row('| `frontend/.storybook/main.ts`'), /\| change \|$/);
+  assert.match(row('| `frontend/src/stories/Button'), /\| remove \|$/);
+  assert.match(row('| `frontend/src/test/ui-stories.test.tsx`'), /\| `has a story file`, `renders` \| add \|$/);
+  assert.match(row('| `frontend/src/components/ui/*'), /\| `meta`, `stories` \| add \|$/);
+  assert.match(row('| a |'), /\| `render test using composeStories` \|/);
+  assert.match(row('| b |'), /\| `has a story file` \|/);
+  assert.match(row('| c |'), /`frontend\/src\/test\/stories\.test\.tsx::x`/);
+  assert.match(row('| `frontend/vitest.config.ts`'), /\| read \|$/);
+  assert.equal(r.changes.length, 8, JSON.stringify(r.changes));
+  assert.equal(r.text.split('\n').filter((l) => l.startsWith('- MIRAI normalized (line ')).length, 8);
+  // Not certain: left for the lint.
+  const unsure = normalizePlan(['## Code map', '', '| Path | Symbols | Change |', '|---|---|---|', '| `a` | `render test one`, `render test two` | add |', '| `b` | `c` | rework |', '', '## Test list', '', '| Test | Test ID | Symbol | AC | Level | Kind |', '|---|---|---|---|---|---|', '| a | `a` | render test | AC-1 | x | red |', ''].join('\n'));
+  assert.equal(unsure.changes.length, 0);
+});
+
+test('30c T4 + T5: refusals quote the cell; a Test ID\'s folder must be in the repo and its file a type its level runs', () => {
+  const lintWith = (text, files) => lintPlan(text, { registry: loadRegistry(REGISTRY_DIR), config: { testing: { levels: [{ name: 'unit', adapter: 'phpunit' }, { name: 'frontend-unit', adapter: 'vitest' }] } }, ticket: 'PMT-31', files });
+  const codeMap = PLAN.split('\n').find((l) => /^\| `app\/.*\| change \|$/.test(l));
+  assert.ok(codeMap, 'the example has a change row');
+  const slipped = PLAN.replace(codeMap, codeMap.replace(/\| change \|$/, '| rework it |'));
+  const msg = lintWith(slipped, null).find((p) => /Change must be one of/.test(p.reason));
+  assert.match(msg.reason, /\(it says "rework it"\)/);
+  assert.match(msg.hint, /one word/);
+  // Folders and types.
+  const files = new Set(['app/Team.php', 'tests/Unit/RenameTeamTest.php', 'tests/Feature/.gitkeep', 'frontend/src/test/setup.ts']);
+  assert.deepEqual(lintWith(PLAN, files).filter((p) => /Test ID's folder|doesn't run/.test(p.reason)), []);
+  const wrongFolder = PLAN.replace('`tests/Unit/RenameTeamTest.php`', '`src/test/RenameTeamTest.php`');
+  assert.match(lintWith(wrongFolder, files).find((p) => /Test ID's folder/.test(p.reason)).reason, /src\/test\/ isn't in the repo/);
+  const wrongType = PLAN.replace('`tests/Unit/RenameTeamTest.php`', '`frontend/src/test/x.test.tsx`');
+  const t = lintWith(wrongType, files).find((p) => /doesn't run/.test(p.reason));
+  assert.match(t.reason, /level unit \(phpunit\) doesn't run \.tsx files/);
+  assert.match(t.hint, /frontend-unit/);
+  // Without a file list (mirai lint), the folder isn't checked.
+  assert.deepEqual(lintWith(wrongFolder, null).filter((p) => /Test ID's folder/.test(p.reason)), []);
+});
+
+test('30c T6: every park reason names a command that moves it on', () => {
+  for (const reason of PARK_REASONS) {
+    const cmd = unparkCommand('T-1', reason);
+    assert.match(cmd, /^mirai (unpark T-1 --(retry|accept-deps)|drop T-1)\b/, reason);
+    const [, verb, flag] = /^mirai (\w+) T-1(?: --([\w-]+))?/.exec(cmd);
+    const to = verb === 'drop' ? 'dropped' : flag === 'accept-deps' ? 'in-progress' : reason === 'bad-plan' ? 'ready-for-dev' : 'in-progress';
+    assert.ok(TICKET_MACHINE.moves.some((m) => m.from === (verb === 'drop' ? 'ready-for-dev' : 'blocked') && m.to === to) || verb === 'drop', `${reason}: ${cmd}`);
+  }
+  assert.ok(TICKET_MACHINE.moves.some((m) => m.from === 'blocked' && m.to === 'ready-for-dev' && m.choice === 're-plan'));
+});
+
+test('30c T8: mirai show and the report count parks by reason', async () => {
+  const g = await repo();
+  const bad = PLAN.replace('| none | | |', '| nothing | | |');
+  await plan(g, claudeAnswering([{ plan: bad }, { plan: bad }]));
+  const d = showData({ cwd: g.root, env: g.env, ticket: 'PMT-31' });
+  assert.deepEqual(d.parks, [{ reason: 'bad-plan', count: 1 }]);
+  assert.match(showText(d), /· parks: bad-plan ×1/);
 });
