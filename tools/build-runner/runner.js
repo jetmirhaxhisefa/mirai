@@ -55,7 +55,11 @@ export function checkCommit(repo, commit, env, { gitFn = git } = {}) {
   const c = gitFn(repo, ['branch', '-r', '--contains', commit, '--format=%(refname:short)'], env);
   const branches = c.status === 0 ? c.stdout.split('\n').map((s) => s.trim()).filter((b) => b && b !== 'origin/HEAD' && b !== 'origin') : [];
   if (!branches.length) throw new Refused(`the commit ${commit.slice(0, 12)} isn't on any branch of origin (push it first)`);
-  const branch = (branches.find((b) => b !== 'origin/main') ?? branches[0]).replace(/^origin\//, '');
+  // The branch whose tip is the commit, then a unit branch, then any other: one commit can be on
+  // several (a probe branch made on top of a unit branch).
+  const tips = new Set(branches.filter((b) => gitFn(repo, ['rev-parse', b], env).stdout.trim() === commit));
+  const rank = (b) => (tips.has(b) ? 0 : b.startsWith('origin/unit/') ? 1 : b === 'origin/main' ? 3 : 2);
+  const branch = [...branches].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))[0].replace(/^origin\//, '');
   const d = gitFn(repo, ['diff', '--shortstat', `origin/main...${commit}`], env);
   return { branch, diff: d.stdout.trim() || 'no change against main' };
 }
@@ -88,7 +92,7 @@ export const TRAILER = 'MIRAI-Build-Commit';
 export const carries = (sample, commit, env, { gitFn = git } = {}) => gitFn(sample, ['log', '-1', '--format=%B'], env).stdout.includes(`${TRAILER}: ${commit}`);
 
 // Runs a command, streaming into the job's log: { status, signal, tail }.
-export function runLogged(cmd, args, { cwd, env, log, input = null, minutes }) {
+export function runLogged(cmd, args, { cwd, env, log, input = null, minutes, every = 300_000, onBeat = null }) {
   return new Promise((resolve) => {
     const out = createWriteStream(log, { flags: 'a' });
     let written = 0;
@@ -108,6 +112,11 @@ export function runLogged(cmd, args, { cwd, env, log, input = null, minutes }) {
     child.on('error', (err) => take(Buffer.from(`\n(the command didn't start: ${err.message})\n`)));
     if (input !== null) child.stdin.write(input);
     child.stdin.end();
+    const startedAt = Date.now();
+    const beat = onBeat ? setInterval(() => {
+      const last = tail.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).pop() ?? '';
+      onBeat({ minutes: Math.round((Date.now() - startedAt) / 60_000), last: last.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 140) });
+    }, every) : null;
     const timer = setTimeout(() => {
       take(Buffer.from(`\n(stopped after ${minutes} minutes)\n`));
       try {
@@ -118,6 +127,7 @@ export function runLogged(cmd, args, { cwd, env, log, input = null, minutes }) {
     }, minutes * 60_000);
     child.on('close', (status, signal) => {
       clearTimeout(timer);
+      if (beat) clearInterval(beat);
       out.end(`\n(exit ${status ?? signal})\n`);
       resolve({ status: status ?? 1, signal, tail });
     });
@@ -306,7 +316,8 @@ export class Runner {
   }
 
   async finish(req, base, log, command, env, started) {
-    const r = await this.run(command.cmd, command.args, { cwd: command.cwd, env, log, input: command.input ?? null, minutes: MINUTES[req.job] });
+    const onBeat = ({ minutes, last }) => this.say(`${this.now().toISOString()} ${req.id} | still running (${minutes} min) | ${last}`);
+    const r = await this.run(command.cmd, command.args, { cwd: command.cwd, env, log, input: command.input ?? null, minutes: MINUTES[req.job], onBeat });
     return { ...base, state: r.status === 0 ? 'pass' : 'fail', minutes: this.minutesSince(started), summary: summaryOf(r.tail) };
   }
 

@@ -57,6 +57,28 @@ test('T1: a commit on no branch of origin is refused; a sample-run script not on
   assert.match(readFileSync(paths.log, 'utf8'), /r-3 \| - \| aaaaaaaaaaaa .*refused: unknown job/);
 });
 
+test('the branch named for a commit: its tip first, then a unit branch', async () => {
+  const { checkCommit } = await import('../../tools/build-runner/runner.js');
+  const gitFn = (cwd, args) => {
+    if (args[0] === 'branch') return { status: 0, stdout: 'origin/main\norigin/probe/x\norigin/unit/29e\n', stderr: '' };
+    if (args[0] === 'rev-parse') return { status: 0, stdout: args[1] === 'origin/unit/29e' ? `${SHA}\n` : 'b'.repeat(40), stderr: '' };
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  assert.equal(checkCommit('/r', SHA, {}, { gitFn }).branch, 'unit/29e');
+  const noTip = (cwd, args) => (args[0] === 'rev-parse' ? { status: 0, stdout: 'c'.repeat(40), stderr: '' } : gitFn(cwd, args));
+  assert.equal(checkCommit('/r', SHA, {}, { gitFn: noTip }).branch, 'unit/29e');
+});
+
+test('a quiet job prints a "still running" line with its latest output', async () => {
+  const { runLogged } = await import('../../tools/build-runner/runner.js');
+  const beats = [];
+  const log = join(tmp(), 'job.log');
+  const r = await runLogged(process.execPath, ['-e', "console.log('step one'); setTimeout(() => console.log('done'), 450)"], { cwd: tmp(), env: { PATH: process.env.PATH }, log, minutes: 1, every: 150, onBeat: (b) => beats.push(b) });
+  assert.equal(r.status, 0);
+  assert.ok(beats.length >= 2, `beats: ${beats.length}`);
+  assert.equal(beats[0].last, 'step one');
+});
+
 test('T2: a fact selects exactly its cases; ids pass; an unknown fact is refused', () => {
   const cases = [{ id: 'a', fact: 'hook' }, { id: 'b', fact: 'D-30, hook' }, { id: 'c', fact: 'bundle' }, { id: 'd', fact: 'hooks' }];
   assert.deepEqual(selectCases('hook', cases), ['a', 'b']);
