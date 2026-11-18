@@ -1,7 +1,7 @@
 ---
 unit: "30c"
 name: parks-rare
-status: draft (waits for "approve 30c")
+status: approved (Jet, 2026-11-19: "approve 30c"; decisions 1–3 from his answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 30c; implementation/units/30-pilot/usage-note.md and findings.md (F18–F25)
 depends_on: ["08b", "21a", "21b", "22", "29e", "30"]
 ---
