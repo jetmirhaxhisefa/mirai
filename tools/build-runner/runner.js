@@ -120,7 +120,8 @@ export function runLogged(cmd, args, { cwd, env, log, input = null, minutes }) {
 
 // The `tests` job's sandbox (spec decision 5, P1): your real home is closed to it, apart from the
 // job's own folder and the Node it runs on; the rest of the system stays as it is. A changed HOME
-// alone wouldn't stop a test reading your files by their full path.
+// alone wouldn't stop a test reading your files by their full path. (Checked 2026-11-18: macOS
+// refuses /bin/ps, a setuid program, inside any sandbox, even "(allow default)".)
 const sbString = (p) => `"${String(p).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 export function sandboxProfile({ home, open, readOnly = [] }) {
   return [
@@ -130,6 +131,9 @@ export function sandboxProfile({ home, open, readOnly = [] }) {
     ...open.map((p) => `(allow file-read* file-write* (subpath ${sbString(p)}))`),
     ...readOnly.map((p) => `(allow file-read* (subpath ${sbString(p)}))`),
     '(allow file-read-metadata)',
+    // macOS never runs a setuid program inside a sandbox, and MIRAI reads process start times
+    // with /bin/ps: only it starts outside the sandbox. It lists processes; it reads no files.
+    '(allow process-exec (literal "/bin/ps") (with no-sandbox))',
   ].join('');
 }
 
