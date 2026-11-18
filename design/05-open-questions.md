@@ -134,8 +134,8 @@ They were raised in `research/04` §6:
 | 22 | Nothing outside the project. But no separate test compose file was needed: the main compose file was changed to fit MIRAI's tightening (no `env_file`, no network driver, named images with dependencies baked in, a TCP database health check). MIRAI drops ports, builds and profiles in test runs. |
 
 **What the pilot changed:** BKT-49 went through and merged, but the plan step met three early stop
-limits (attention, parks, turns). The note recommends go for Milestone B, with the plan-step
-fixes first; Jet decides. See the usage note and `findings.md` (F1–F28).
+limits (attention, parks, turns). Jet decided go for Milestone B, with the plan-step
+fixes first (unit 30c). See the usage note and `findings.md` (F1–F28).
 
 ## F. Known risks to watch (not questions, but they could change the design)
 

@@ -56,7 +56,7 @@ From `mirai report`. "Limit share" is the run log's share of the usage limit.
     other pilot work;
   - 21:41–22:50 on the plan loop and the build;
   - the morning review and merge.
-  - **Jet to confirm** (the manual note the stop rule asks for).
+  - **Jet confirmed (2026-11-18): "3–4 hours is right, maybe even a bit more"** (the manual note the stop rule asks for).
 
 ## At this rate
 
@@ -75,7 +75,7 @@ a `bad-plan` park at all.
 
 | Limit | Met? | The reading |
 |---|---|---|
-| More than about 2 h of Jet's attention | **Met** | About 3–4 h, mostly the plan loop (to be confirmed by Jet). |
+| More than about 2 h of Jet's attention | **Met** | 3–4 h or a bit more (Jet confirmed), mostly the plan loop. |
 | More than 2 fix rounds, or parks | **Met (parks)** | 0 fix rounds, but 3 `bad-plan` parks; the `deps-review` park is the designed gate, not a failure. |
 | More than 2× the provisional turn cap (2 × 100 = 200) | **Met in all, not on the approved path** | 400 turns in all; 155 on the approved path. There's no M cap yet, so the S cap is used, as written. |
 | Fewer than 3 tickets fit in one night | **Not met** | About 9 M tickets a night. |
@@ -123,7 +123,7 @@ Other findings (F1–F17, F25–F28) cost time on install and review, not on the
 
 ## Go or no-go
 
-**Recommended: go for Milestone B, with the plan-step fixes first.** Jet decides.
+**Go for Milestone B, with the plan-step fixes first** (recommended here; Jet decided go, 2026-11-18: "lets go with your recommandation"). Jet's emphasis: parks must be the rare case, because the point is running overnight without many failures. The fixes are roadmap unit **30c**.
 
 The rule says "stop and rethink before B". This note is that rethink:
 
@@ -135,7 +135,7 @@ What failed is the plan step's lint and re-plan loop, plus the CLI paths around 
 runs tickets at night without you, where a `bad-plan` park simply stops the ticket. So these must
 be fixed before B, not during it.
 
-**Before B starts (proposed, with 29e → 30a → 12c):**
+**Before B starts: unit 30c** (after 29e, before 30a and 12c):
 
 1. **The plan lint and template:**
    - a Test ID must be in a path the level mounts, and of a file type the level can run (F18,
