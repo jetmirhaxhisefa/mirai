@@ -8,7 +8,7 @@ import { createPrompter, requireTty } from '../tty.js';
 import { TICKET } from '../../status/machines.js';
 import { move } from '../../status/move.js';
 import { openStore } from '../../store/home.js';
-import { checkEvent, withSeq } from '../../store/journal.js';
+import { checkEvent, readJournal, withSeq } from '../../store/journal.js';
 import { checkTicketStatusWrite, writeTicketStatusIn } from '../../store/tickets.js';
 import { contentHash, signObject } from '../../sign/sign.js';
 import { approvalPath, declaredChanges, gateFor, lintPlan, planApproval, planContext, planPath, readPlan, ticketRecord } from '../../agent/plan.js';
@@ -19,6 +19,8 @@ import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.j
 import { decisionSigner } from '../../sign/signer.js';
 import { branchKeys } from '../../sign/keys.js';
 import { noteAgainstTicket } from '../../agent/review-notes.js';
+import { readFrontmatter } from '../../lint/frontmatter.js';
+import { lintText, projectOf as projectOfConfig } from '../../lint/lint.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -28,8 +30,8 @@ const DECISIONS = { a: 'accepted', e: 'edited', r: 'rejected' };
 
 export default {
   name: 'approve',
-  summary: 'Approve a ticket, signed, in a real terminal',
-  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan',
+  summary: 'Approve a ticket, a plan or a brief, signed, in a real terminal',
+  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md>',
   positionals: { min: 1, max: 1 },
   options: {
     file: { type: 'string', description: 'the ticket file you approve' },
@@ -46,6 +48,9 @@ export default {
     const store = openStore({ cwd: io.cwd, env: io.env });
     const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
     const file = readApprovedFile(store.checkout, io.cwd, args.values.file);
+    // Unit 31: a document (a brief), not a ticket.
+    const docType = documentTypeOf(file.bytes);
+    if (DOCUMENTS.has(docType)) return approveDocument({ id: ticket, type: docType, file, store, io, now, fileArg: args.values.file });
     const current = ticketNow(store, ticket, keys);
     // A ticket already ready-for-dev may be approved again, as merged (unit 21a: a plan refuses a
     // ticket that isn't the file you approved): a new signed line, no move.
@@ -196,4 +201,78 @@ function noteAgainstTicketFile(store, keys, ticket, reason) {
   } catch {
     return null;
   }
+}
+
+// ---- Documents (unit 31) -----------------------------------------------------------------
+
+// The document types approved with --file that aren't tickets. More come with B's units (PRD,
+// epic, HLD …); each is approved on its exact bytes, after the lint as at approval.
+const DOCUMENTS = new Set(['brief']);
+
+function documentTypeOf(bytes) {
+  try {
+    const t = readFrontmatter(bytes)?.value?.type;
+    return typeof t === 'string' ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+// mirai approve <id> --file <brief.md>: the lint first, as at approval (no open question left),
+// then your decision, signed, on the file's exact bytes. A brief changed after its approval
+// needs a new one (documentApproval).
+async function approveDocument({ id, type, file, store, io, now, fileArg }) {
+  const fm = readFrontmatter(file.bytes);
+  if (fm.value.id !== id) throw new UsageError(`${file.path} is the ${type} "${fm.value.id}", not "${id}"; nothing was written`, `run: mirai approve ${fm.value.id} --file ${fileArg}`);
+  const trust = snapshot({ cwd: io.cwd, env: io.env });
+  const config = trustedConfig(trust);
+  const text = file.bytes.toString('utf8');
+  const errors = lintText(text, { source: file.path, registry: trustedRegistry(trust), project: projectOfConfig(config), approving: true }).filter((p) => p.severity === 'error');
+  if (errors.length) {
+    for (const p of errors.slice(0, 10)) io.stderr.write(`${file.path}:${p.line}: ${p.reason}${p.hint ? ` (${p.hint})` : ''}\n`);
+    throw new MiraiError(`${file.path} can't be approved yet: ${errors.length} lint problem${errors.length === 1 ? '' : 's'}, listed above; nothing was written`, EXIT.BLOCKED, 'fix them, run mirai lint, then approve again');
+  }
+  const hash = contentHash(file.bytes);
+  const before = documentApproval(store, id, file.bytes);
+  io.stdout.write(`${type}: ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}\nfile:   ${file.path}\nhash:   ${hash}\n`);
+  const prompter = createPrompter(io);
+  try {
+    const asked = now().getTime();
+    const answer = (await prompter.ask('accepted as is / edited / rejected? [a/e/r] ')).toLowerCase();
+    const decision = DECISIONS[answer];
+    if (!decision) throw new UsageError(`${JSON.stringify(answer.slice(0, 10))} is not a, e or r; nothing was written`, 'run it again');
+    const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
+    let reason;
+    if (decision !== 'accepted') {
+      reason = await prompter.ask('reason (optional, one line): ');
+      if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
+      if (reason === '') reason = undefined;
+    }
+    const signer = await decisionSigner(io, store, { prompter, ticket: id, confirm: confirmByTyping });
+    if (contentHash(readApprovedFile(store.checkout, io.cwd, fileArg).bytes) !== hash) {
+      throw new MiraiError(`${file.path} changed while you were answering; nothing was written`, EXIT.FAILURE);
+    }
+    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: type, path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
+    const seq = withSeq(store, (ctx) => {
+      const n = ctx.take();
+      ctx.event(n, approval, { signer });
+      return n;
+    });
+    io.stdout.write(decision === 'rejected'
+      ? `recorded: the ${type} ${id} rejected (signed with ${signer.keyId}, seq ${seq})\n`
+      : `approved: the ${type} ${id}, as ${file.path} is now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to it needs a new approval\n`);
+    return EXIT.OK;
+  } finally {
+    prompter.close();
+  }
+}
+
+// Whether `bytes` are the document `id` as you last approved it: { approved, stale, seq }.
+// Only your signed lines count (readJournal verifies them); your last decision on the document
+// is the one that holds.
+export function documentApproval(store, id, bytes) {
+  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && DOCUMENTS.has(e.kind) && e.item === id).at(-1);
+  if (!last || last.decision === 'rejected') return { approved: false, stale: false, seq: last?.seq ?? null };
+  const same = last.content_hash === contentHash(bytes);
+  return { approved: same, stale: !same, seq: last.seq };
 }

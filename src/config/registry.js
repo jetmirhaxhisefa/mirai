@@ -194,14 +194,18 @@ const PROTECTED_PATHS = {
 
 // The frontmatter fields every document type shares (03 "Templates"); a type's own fields
 // can't reuse these names (unit 07b).
-export const SHARED_FIELDS = Object.freeze(['id', 'type', 'template', 'status', 'version', 'derived_from', 'upstream', 'downstream', 'owner', 'updated']);
+export const SHARED_FIELDS = Object.freeze(['id', 'type', 'template', 'status', 'version', 'derived_from', 'upstream', 'downstream', 'owner', 'created', 'updated']);
 export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date', 'list', 'enum']);
 // Checks written in code that a type switches on by name, `lint_checks = ["ticket"]` (unit 08a;
 // src/lint/checks.js). Unit 37's overlays may add lint checks, never remove them.
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan']);
+// Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
+// and `brief`.
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
+// The summary for approval's section (unit 31, PM-03).
+export const SUMMARY_SECTION = 'Summary for approval';
 const SAMPLE_ID = 'PMT-12';
 // Escapes the characters that mean something in a pattern (only those: with the u flag,
 // escaping anything else is an error).
@@ -276,6 +280,9 @@ const DOCUMENT_TYPE = {
     // Sections inside the frozen block, in order, between the frozen markers (unit 08b).
     frozen_sections: sectionList,
     status: { type: 'enum', values: ['required', 'forbidden'] },
+    // The summary for approval's word budget (unit 31; research/13 §9a), for a type that lists
+    // the `summary` check.
+    summary_words: { type: 'integer', min: 50, max: 2000 },
     versioned: { type: 'boolean' },
     id_pattern: regex,
     frontmatter: {
@@ -323,6 +330,17 @@ function checkDocumentType(def, path, report) {
   const required = Array.isArray(def.required_sections) ? def.required_sections : [];
   const optional = Array.isArray(def.optional_sections) ? def.optional_sections : [];
   const all = [...required, ...optional];
+  // Unit 31 (PM-03): a type with the summary check opens with the summary for approval, and has
+  // its word budget; a type without it has no budget.
+  const checks = Array.isArray(def.lint_checks) ? def.lint_checks : [];
+  if (checks.includes('summary')) {
+    const order = Array.isArray(def.section_order) ? def.section_order : all;
+    if (!required.includes(SUMMARY_SECTION) || order[0] !== SUMMARY_SECTION) report('required_sections', `a type with the summary check needs "${SUMMARY_SECTION}" as its first, required section`, `add "${SUMMARY_SECTION}" first to required_sections (and section_order)`, 'summary');
+    if (def.summary_words === undefined) report('summary_words', 'a type with the summary check needs summary_words, the summary\'s word budget', 'for example summary_words = 400', 'required');
+    if (!checks.includes('writing')) report('lint_checks', 'a type with the summary check needs the writing check too', 'add "writing" to lint_checks', 'summary');
+  } else if (def.summary_words !== undefined) {
+    report('summary_words', 'summary_words is only for a type with the summary check', undefined, 'invalid');
+  }
   const seen = new Set();
   all.forEach((name, i) => {
     const where = i < required.length ? `required_sections[${i}]` : `optional_sections[${i - required.length}]`;
