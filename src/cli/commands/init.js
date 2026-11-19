@@ -1,3 +1,4 @@
+import { installCommand } from '../../install/release.js';
 import { readFileSync } from 'node:fs';
 import { join as joinPath } from 'node:path';
 
@@ -67,6 +68,7 @@ export default {
       `  store: ${r.store}`,
       ...(hooks.installed ? [hooksLine(hooks)] : []),
       host,
+      ...(teammates(r.version) ? [`  teammates install MIRAI ${r.version} with: ${teammates(r.version)}`] : []),
       '',
       'Next:',
       `  1. Review these files and commit them on ${r.branch} (MIRAI never commits).`,
@@ -145,4 +147,13 @@ async function reportHooks(io, root) {
   const h = await setUpHooks(io, root, io.hookPaths ?? {});
   if (h.installed) io.stdout.write(`${hooksLine(h)}\n`);
   else io.stderr.write(hooksWarning(h));
+}
+
+// The one command a teammate runs for this version (unit 12c), or null when it can't be named.
+function teammates(version) {
+  try {
+    return installCommand(version);
+  } catch {
+    return null;
+  }
 }

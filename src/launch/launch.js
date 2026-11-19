@@ -8,6 +8,7 @@ import { atomicWrite, checkPrivateDir, readPrivateFile } from '../store/files.js
 import { LOCK_FILE, filesUnder, frameworkDigest, newer, noLinks, parseLock, sha256 } from '../install/lock.js';
 import { parseJsonStrict } from '../findings/schema.js';
 import { FRAMEWORK_PARTS, PACKAGE_ROOT } from '../install/parts.js';
+import { installCommand, packageInfo } from '../install/release.js';
 
 // The `mirai` launcher (unit 12b; D-03, D-15). It finds the repo you're in and decides which MIRAI
 // may run there:
@@ -34,7 +35,7 @@ const SELF = new Set(['init', 'update', 'token']);
 // Commands that sign or start agents: they need a committed copy, (A). `redteam` signs a result
 // that names the committed framework (18a review).
 const NEEDS_COMMITTED = new Set(['approve', 'drop', 'key', 'run', 'agent', 'handover', 'unpark', 'resume', 'redteam']);
-const LAUNCHER_VERSION = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8')).version;
+const LAUNCHER_VERSION = packageInfo().version;
 const REPO_ID = /^[a-z0-9][a-z0-9._-]{0,80}-[0-9a-f]{12}$/;
 const CACHE = 'launcher.json';
 
@@ -61,12 +62,25 @@ export function decide({ cwd, env, argv, packageRoot = PACKAGE_ROOT }) {
   const here = hashes(root, FRAMEWORK, (rel) => rel);
   if (here.size === 0) return refuse(`${FRAMEWORK} is missing`, 'no-copy', 'restore it: git checkout -- .mirai');
 
+  // Unit 12c: a launcher older than the repo's pinned copy is refused, with the one command that
+  // updates it; a newer one runs the pinned copy (and `which` names the refresh).
+  const launcher = packageInfo(packageRoot);
+  const pinned = pinnedVersion(root);
+  const update = (v) => {
+    try {
+      return `update the launcher: ${installCommand(v, { source: launcher.source })}`;
+    } catch {
+      return 'update the launcher (git pull in MIRAI\'s repo, or reinstall it: docs/install.md)';
+    }
+  };
+  if (pinned && newer(pinned, launcher.version)) return refuse(`this repo pins MIRAI ${pinned}, newer than this launcher (${launcher.version})`, 'launcher-old', update(pinned));
+
   // (A) The integration branch's copy.
   let store;
   try {
     store = storeOf(root, env);
   } catch (err) {
-    if (err.code === 'version') return refuse(`this repo's store was written by a newer MIRAI than this launcher (${LAUNCHER_VERSION})`, 'launcher-old', 'update the launcher (git pull in MIRAI\'s repo, or reinstall it)');
+    if (err.code === 'version') return refuse(`this repo's store was written by a newer MIRAI than this launcher (${launcher.version})`, 'launcher-old', update(pinned ?? launcher.version));
     return refuse(`this repo's MIRAI store can't be read (${err.message})`, err.code ?? 'store', err.hint ?? 'see the message');
   }
   // Without this machine's store nothing in the repo can run yet (the integration branch is
@@ -78,7 +92,7 @@ export function decide({ cwd, env, argv, packageRoot = PACKAGE_ROOT }) {
   {
     for (const { ref, label, lock } of candidates(root, store.branch, env)) {
       const listed = lockAt(root, ref, env, lock);
-      if (listed && same(here, listed)) return { run: 'sealed', commit: ref, files: listed, storeDir: store.dir, why: `the copy committed on ${label} (${ref.slice(0, 12)}), run sealed from the store` };
+      if (listed && same(here, listed)) return { run: 'sealed', commit: ref, files: listed, storeDir: store.dir, why: `the copy committed on ${label} (${ref.slice(0, 12)}), run sealed from the store`, ...(pinned && newer(launcher.version, pinned) ? { note: `this repo pins MIRAI ${pinned}; mirai init --refresh moves it to ${launcher.version}, this launcher's` } : {}) };
     }
   }
   // (B) The launcher's own copy.
@@ -95,6 +109,17 @@ export function decide({ cwd, env, argv, packageRoot = PACKAGE_ROOT }) {
   return refuse(`${FRAMEWORK} isn't the copy committed on ${store.branch}, nor this launcher's`, 'untrusted-copy', onBranch
     ? 'it was edited here; restore it: git checkout -- .mirai'
     : `this branch changed MIRAI's copy: read that change on the host first; to run it anyway: node ${FRAMEWORK}/bin/mirai.js${argv.map((a) => ` ${shellWord(a)}`).join('')}`);
+}
+
+// The MIRAI version the repo's lock pins, or null when it can't be read (the checks after
+// this refuse a copy that isn't right; this is only for the skew message).
+function pinnedVersion(root) {
+  try {
+    const v = parseLock(readFileSync(join(root, LOCK_FILE), 'utf8')).miraiVersion;
+    return typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v) ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 // `hook` (unit 26a): the git hooks run the integration branch's own copy, sealed, whatever the

@@ -16,7 +16,7 @@ This page is a summary for reading. The real source is the `design/` folder. Whe
 
 ![Installing MIRAI into a project](design/diagrams/initial-setup.svg)
 
-1. **Install.** One command, `npx github:<you>/mirai#vX.Y.Z init`, copies a pinned version into
+1. **Install.** `npm install -g github:jetmirhaxhisefa/mirai#vX.Y.Z`, then `mirai init` in the repo, copies a pinned version into
    `.mirai/` and writes a lock file with hashes. The lock marks each file `framework`, `project`
    or `rendered`. The command also:
    - generates the Claude Code files and the strict settings bundle;
@@ -54,18 +54,16 @@ the same checkout could change. `mirai which` says which copy runs, and why. `in
 `update`) always runs the launcher's own MIRAI. On a new machine, or a teammate's fresh clone,
 `mirai init --join` sets up only that machine's store.
 
-Point it at a clean release folder, not at a folder where MIRAI is being developed: whatever
-that folder holds is what the launcher trusts as its own, and what `init --refresh` copies into
-your projects.
+**Install it with one command** (unit 12c). You need Node 22 or newer and git:
 
 ```
-git clone https://github.com/<you>/mirai ~/Projects/mirai-release
-echo "alias mirai='node ~/Projects/mirai-release/bin/launch.js'" >> ~/.zshrc
-# after each approved, pushed unit:
-git -C ~/Projects/mirai-release pull
+npm install -g github:jetmirhaxhisefa/mirai#v0.2.0
 ```
 
-Once a release is tagged, `npm install -g github:<you>/mirai#vX.Y.Z` installs the same launcher.
+A new terminal then runs `mirai` from any folder. [`docs/install.md`](docs/install.md) covers
+updating, uninstalling, and npm's permission error on a shared Node. A launcher older than a
+repo's pinned copy is refused, and the message names the command that updates it.
+
 Hooks, CI and MCP servers never use it: they call the trust root's copy by its full path.
 
 ## 2. The infrastructure: what talks to what

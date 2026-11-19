@@ -362,3 +362,19 @@ test('T12: init --join sets up only this machine\'s store, for the branch the co
   git(bare, 'init', '-q', '-b', 'main');
   assert.throws(() => joinPlan({ cwd: bare, env }), (err) => err.code === 'not-installed');
 });
+
+test('12c T3: a launcher older than the repo\'s pin is refused with the install command; a newer one runs the pin and which names the refresh', () => {
+  const ahead = installed(fakePackage('9.9.9'));
+  const refused = mirai(ahead.root, ahead.env, 'status');
+  assert.equal(refused.status, 4, refused.stderr);
+  assert.match(refused.stderr, /this repo pins MIRAI 9\.9\.9, newer than this launcher \(0\.2\.0\)\nupdate the launcher: npm install -g github:jetmirhaxhisefa\/mirai#v9\.9\.9\n/);
+  // --version still answers, from the launcher.
+  assert.equal(mirai(ahead.root, ahead.env, '--version').stdout.trim(), '0.2.0');
+  const behind = installed(OLD);
+  const which = mirai(behind.root, behind.env, 'which');
+  assert.equal(which.status, 0, which.stderr);
+  assert.match(which.stdout, /why: the copy committed on main .*\nnote: this repo pins MIRAI 0\.0\.9; mirai init --refresh moves it to 0\.2\.0, this launcher's\n/);
+  assert.equal(mirai(behind.root, behind.env, 'version').stdout.trim(), '0.0.9');
+  const same = installed();
+  assert.doesNotMatch(mirai(same.root, same.env, 'which').stdout, /note:/);
+});
