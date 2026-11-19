@@ -22,7 +22,8 @@
 | Probe | Result |
 |---|---|
 | **P1 a new macOS user** | **pass.** The standard user `miraiprobe` was made by Jet and reached with `su - miraiprobe`. It had Homebrew's Node 26.13.0 and Apple git 2.50.1, and no MIRAI. It installed from the 12c branch, since `v0.2.0` can only be tagged after the merge; the mechanism is the same. See below. Jet then deleted the user and its home (`id miraiprobe`: no such user). |
-| **P2 your own Mac** | After the merge and the `v0.2.0` release. |
+| **The v0.2.0 release** | Jet merged PR #77 and ran `gh release create v0.2.0 --target main --generate-notes`. The release check (run 44602064223) was **green**: the tag is the version, the tests pass, and the tagged package installs and runs `init`, `which` and `status` in a fresh repo. |
+| **P2 your own Mac** | **pass.** `npm install -g github:jetmirhaxhisefa/mirai#v0.2.0` gave "added 1 package in 6s", with `mirai` at `~/.nvm/versions/node/v26.13.0/bin/mirai`, version 0.2.0. **In the sample app**, `mirai which` named "the copy committed on main (1e14d2814a2f), run sealed from the store" and "note: this repo pins MIRAI 0.1.0; mirai init --refresh moves it to 0.2.0", and `mirai status` listed every ticket, SAMPLE-49 included. **In Thudos**, `which` named the copy committed on `mirai/pilot`, with the same note; nothing in Thudos changed. Full-path commands are no longer needed. |
 | **P3 a wrong tag** | **pass.** The tag `v0.0.1-p3` on the 12c branch made the release check red: "the tag "v0.0.1-p3" isn't v0.2.0, package.json's version: bump the version in a PR first, or tag v0.2.0". The tag was deleted. |
 
 **P1, step by step:**
