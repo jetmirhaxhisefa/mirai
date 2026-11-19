@@ -401,7 +401,8 @@ which documents are required.
      dependencies and rollout.
    - Non-functional requirements get their own IDs (`NFR-n`). A missing number is written as
      `UNKNOWN`, never invented. **Every NFR names its verification method:** acceptance criteria
-     `AC-NFR-n.m`, or a `check:` ID that `mirai trace` verifies like an ADR Confirmation.
+     `AC-NFR-n.m`, or a line "Verified by: <a test level, a measurement or a manual check>" (unit 32)
+     that `mirai trace` checks like an ADR Confirmation.
    - User journeys get `UJ-n` IDs.
    - The PRD has non-goals (at least one), success metrics plus counter-metrics, and an
      assumptions index.
