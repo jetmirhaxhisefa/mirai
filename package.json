@@ -1,9 +1,13 @@
 {
   "name": "mirai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MIRAI: agents, skills and workflows that take work from idea to deployment",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jetmirhaxhisefa/mirai.git"
+  },
   "bin": {
     "mirai": "bin/launch.js"
   },

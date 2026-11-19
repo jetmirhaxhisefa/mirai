@@ -1,7 +1,7 @@
 ---
 unit: "12c"
 name: install
-status: draft (decisions 1–3 from Jet's answers, 2026-11-19)
+status: approved (Jet, 2026-11-19: "approve 12c"; decisions 1–3 from his answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 12c; 12b's open item; D-03, D-62
 depends_on: ["10", "12b", "30a"]
 ---
@@ -74,7 +74,7 @@ pinned, committed copy. 12c makes it installable, versioned and released.
      - **A newer launcher** runs the pinned copy as today. `mirai which` adds one line:
        "this repo pins <v>; `mirai init --refresh` moves it to <launcher's>".
    - **Today's "store written by a newer MIRAI" refusal** names the same install command.
-5. **`mirai init` names the install command:** at the end of `init` and `init --join`, it prints
+5. **`mirai init` names the install command:** at the end of `init`, it prints
    the command a teammate runs, for the version just installed. `docs/install.md` has it too.
 6. **Nothing else in your home:**
    - npm writes only under its prefix: the `mirai` link and the package folder.

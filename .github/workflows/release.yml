@@ -1,0 +1,52 @@
+# MIRAI's release check (unit 12c): on a pushed v* tag, the tag must be package.json's version,
+# the tests pass on Ubuntu, and the tagged package installs with npm into an empty prefix and
+# runs `mirai init` in a fresh repo. Read-only; no secrets; nothing is published.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: release check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: the tag is package.json's version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node tools/release-check.js "$TAG"
+      - name: git identity and settings for the tests' repos
+        run: |
+          git config --global user.name "mirai ci"
+          git config --global user.email "ci@mirai.invalid"
+          git config --global init.defaultBranch main
+          git config --global maintenance.auto false
+          git config --global gc.auto 0
+      - name: unit tests
+        run: npm test
+      - name: install the tagged package and use it
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          prefix="$RUNNER_TEMP/prefix"
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm install -g --prefix "$prefix" --ignore-scripts "$RUNNER_TEMP"/mirai-*.tgz
+          export PATH="$prefix/bin:$PATH"
+          test "$(mirai --version)" = "${TAG#v}"
+          repo="$RUNNER_TEMP/fresh"
+          mkdir "$repo" && cd "$repo" && git init -q && echo "# fresh" > README.md && git add -A && git commit -qm first
+          mirai init --branch main
+          git add -A && git commit -qm "Install MIRAI"
+          mirai which
+          mirai status

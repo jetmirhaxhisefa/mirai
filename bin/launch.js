@@ -30,7 +30,7 @@ try {
 if (argv[0] === 'which') {
   // `mirai which [<command>]`: which MIRAI would run here, and why.
   if (decision.refuse) process.stdout.write(`none may run here: ${decision.refuse}\n${decision.hint}\n`);
-  else process.stdout.write(`runs: ${decision.run === 'self' ? SELF_ENTRY : join(decision.storeDir, 'runtime', copyDigest(decision.files), 'bin', 'mirai.js')}\nwhy: ${decision.why}\n`);
+  else process.stdout.write(`runs: ${decision.run === 'self' ? SELF_ENTRY : join(decision.storeDir, 'runtime', copyDigest(decision.files), 'bin', 'mirai.js')}\nwhy: ${decision.why}\n${decision.note ? `note: ${decision.note}\n` : ''}`);
   process.exit(decision.refuse ? decision.exitCode : 0);
 }
 if (decision.refuse && (argv[0] === '--version' || argv[0] === '--help' || argv[0] === '-h' || argv[0] === 'help' || argv.length === 0)) {
