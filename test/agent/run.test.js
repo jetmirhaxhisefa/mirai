@@ -304,7 +304,7 @@ test('review: a blocker can\'t clear itself, and your decision is tied to it', (
   assert.throws(() => statusFor(store, parts), (e) => e.code === 'redteam-invalid', 'a corrupt record isn\'t "no blocker"');
 });
 
-test('processes: a process it saw is killed; an orphan outside the project is reported, not killed', async () => {
+psTest('processes: a process it saw is killed; an orphan outside the project is reported, not killed', async () => {
   // A process of "yours": started during the run, orphaned, its folder elsewhere.
   const since = Date.now();
   const yours = spawn('/bin/sleep', ['47'], { detached: true, stdio: 'ignore', cwd: '/' });
