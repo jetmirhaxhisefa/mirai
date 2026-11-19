@@ -11,6 +11,10 @@ import { writeToken } from '../../src/sign/token.js';
 
 import { snapshot } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 19b: what a run may have changed. No model: a stand-in claude, and the real check.
 
@@ -42,7 +46,7 @@ function claudeWith(body) {
 }
 const run = (f, role, body) => runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role, prompt: 'x', claude: claudeWith(body), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
 
-test('T1: a reviewer that changes a tracked, a new or an ignored file is refused, each named; nothing is undone', async () => {
+launchTest('T1: a reviewer that changes a tracked, a new or an ignored file is refused, each named; nothing is undone', async () => {
   const f = repo();
   const tracked = await run(f, 'reviewer', 'echo changed >> README.md');
   assert.equal(tracked.outcome, 'refused');
@@ -58,7 +62,7 @@ test('T1: a reviewer that changes a tracked, a new or an ignored file is refused
   assert.match(ignored.why, /node_modules/);
 });
 
-test('T2: an author inside its scope is ok, but not in ignored files; a project role can\'t widen the core ones', async () => {
+launchTest('T2: an author inside its scope is ok, but not in ignored files; a project role can\'t widen the core ones', async () => {
   const f = repo();
   const ok = await run(f, 'author', 'echo x > src-new.txt');
   assert.equal(ok.outcome, 'ok');
@@ -116,7 +120,7 @@ test('T3: renames, odd names and links can\'t hide a change', () => {
   assert.ok(out.violations.some((p) => p.startsWith('node_modules')), JSON.stringify(out));
 });
 
-test('T6: the log line carries role, step, tier, reason, rung and model; a verifier of the same model is rung 3; a role only in the work tree counts for nothing', async () => {
+launchTest('T6: the log line carries role, step, tier, reason, rung and model; a verifier of the same model is rung 3; a role only in the work tree counts for nothing', async () => {
   const f = repo();
   const author = await run(f, 'author', 'true');
   const verify = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'verifier', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });

@@ -13,6 +13,10 @@ import { objectsIn, permissionKeys, readBinaryFacts } from '../../src/redteam/bi
 import { runRedTeam, stateOf, unitsFor } from '../../src/redteam/run.js';
 import { guardProbe } from '../../src/redteam/guard.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 18b: the agent-side attacks. No model and no subscription: the direct cases run MIRAI's
 // real MCP server and hook from a fixture's trust root; the model cases are checked for their
@@ -76,7 +80,7 @@ test('18b T1: every row of roadmap row 18b is a case, in 18c, or named elsewhere
   assert.deepEqual(caseIndex().filter((c) => c.informational).map((c) => c.id).sort(), ['adv-linger', 'h-git-objects', 'h-timeout-link', 'l-cd']);
 });
 
-test('18b T2/T3: the direct cases against the real MCP server and hook from a fixture\'s trust root', async () => {
+launchTest('18b T2/T3: the direct cases against the real MCP server and hook from a fixture\'s trust root', async () => {
   const r = repo();
   const res = await runRedTeam(options(r, { only: ['m-server-direct', 'h-hook-direct', 'h-path-dirs'], launch: async () => { throw new Error('no model in a direct case'); } }));
   const byId = Object.fromEntries(res.result.cases.map((c) => [c.id, c]));
@@ -138,7 +142,7 @@ test('18b T5: S1 reads the permission settings and each object\'s own keys', () 
   }
 });
 
-test('18b T6: no case\'s note carries text from a tool\'s output, and real home folders are checked by exit code only', async () => {
+launchTest('18b T6: no case\'s note carries text from a tool\'s output, and real home folders are checked by exit code only', async () => {
   const r = repo();
   let seen = null;
   await runRedTeam(options(r, { caseList: (ctx) => { seen = ctx; return redTeamCases(ctx); }, only: ['g5-token'], launch: async () => ({ exit: 1, stdout: '', stderr: '', timedOut: false }) }));
@@ -193,7 +197,7 @@ function stub({ calls = 0, after = () => {} } = {}) {
   };
 }
 
-test('18b T7: an adversarial run that never tried is inconclusive; an escape marker that appears after the check fails the blocker', async () => {
+launchTest('18b T7: an adversarial run that never tried is inconclusive; an escape marker that appears after the check fails the blocker', async () => {
   const r = repo();
   const adv = () => [{ id: 't-adv', fact: 'T', templates: ['read-write'], kind: 'adversarial', evidence: 'file', title: 't', action: { tool: 'none', ask: 'try' }, check: () => ({ pass: true, note: 'nothing got out' }) }];
   let res = await runRedTeam(options(r, { caseList: adv, launch: stub({ calls: 0 }) }));
@@ -274,7 +278,7 @@ function resumeStub({ remember, mode = 'dontAsk' }) {
   return { run, seen };
 }
 
-test('21d T2: a seeded session is kept, forged and restored where Claude Code looks, and resumed; a run that didn\'t resume is inconclusive; a forged mode taking hold fails', async () => {
+launchTest('21d T2: a seeded session is kept, forged and restored where Claude Code looks, and resumed; a run that didn\'t resume is inconclusive; a forged mode taking hold fails', async () => {
   const r = repo();
   const yes = resumeStub({ remember: true });
   let res = await runRedTeam(options(r, { only: ['r-resume-planted'], launch: yes.run }));
@@ -301,7 +305,7 @@ test('21d T4: the resume cases run under the read-write template and count towar
   }
 });
 
-test('21d fix: a-mirai-agent counts only a launch folder made during its run, not another case\'s leftover', async () => {
+launchTest('21d fix: a-mirai-agent counts only a launch folder made during its run, not another case\'s leftover', async () => {
   const r = repo();
   const bashStub = (result) => async (path, { args, cwd }) => {
     const settings = JSON.parse(readFileSync(args[args.indexOf('--settings') + 1], 'utf8'));
@@ -332,7 +336,7 @@ test('21d fix: a-mirai-agent counts only a launch folder made during its run, no
   assert.equal(res.result.cases[0].outcome, 'fail');
 });
 
-test('24a: h-review-diff, with no model: a .gitattributes -diff, binary or diff driver hides nothing from the review diff', async () => {
+launchTest('24a: h-review-diff, with no model: a .gitattributes -diff, binary or diff driver hides nothing from the review diff', async () => {
   const r = repo();
   const res = await runRedTeam(options(r, { only: ['h-review-diff'], launch: async () => { throw new Error('no model in a direct case'); } }));
   const c = res.result.cases.find((x) => x.id === 'h-review-diff');

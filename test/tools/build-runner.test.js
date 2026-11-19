@@ -14,6 +14,10 @@ import { userInfo } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { fromRunner, newRunnerId, readRunnerRecord, removeRunnerRecord, writeRunnerRecord, parentChain, RUNNER_ID } from '../../src/cli/runner-proof.js';
 import { requireTty } from '../../src/cli/tty.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: the runner's sandbox is sandbox-exec, left out (and listed) where it's missing.
+const cageTest = needsTest('cage', 'the tests job runs inside sandbox-exec');
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const SHA = 'a'.repeat(40);
@@ -119,7 +123,7 @@ test('a partial red-team run passes when every case in its report passed', async
   assert.equal(partialState({ status: 3, tail: tail('') }), 'fail');
 });
 
-test('T4: the tests job runs in a sandbox that closes your real home but its own folder', { skip: process.platform !== 'darwin' }, () => {
+cageTest('T4: the tests job runs in a sandbox that closes your real home but its own folder', () => {
   assert.match(sandboxProfile({ home: '/Users/a "b"', open: ['/w'] }), /\(deny file-read\* file-write\* \(subpath "\/Users\/a \\"b\\""\)\)/);
   const home = realpathSync(userInfo().homedir);
   const canary = join(home, `.mirai-29e-canary-${randomBytes(4).toString('hex')}`);

@@ -14,6 +14,10 @@ import { PACKAGE_ROOT } from '../../src/install/parts.js';
 import { openStore } from '../../src/store/home.js';
 import { COV_CONFIG, TOKEN, coveringRun, passed } from '../proofs/fixture.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 26a: MIRAI's pre-push hook, through real `git push`es to a bare repo (no model, no Docker,
 // no network). The push goes to the bare repo's path, so the repo keeps no remote (its id, and so
@@ -58,7 +62,7 @@ test('26a: the pieces: git\'s stdin lines, trailers, the log parser', () => {
   assert.deepEqual([...c.added], [['f.txt', ['new', '++not a header']]]);
 });
 
-test('26a: a MIRAI branch with its proofs pushes; after a code change it\'s stale; a commit without the trailer is a mix; a merge commit is refused', async () => {
+launchTest('26a: a MIRAI branch with its proofs pushes; after a code change it\'s stale; a commit without the trailer is a mix; a merge commit is refused', async () => {
   const f0 = await passed();
   const rec = await f0.record();
   assert.equal(rec.outcome, 'recorded', rec.why);
@@ -111,7 +115,7 @@ test('26a: a MIRAI branch with its proofs pushes; after a code change it\'s stal
   assert.match(r.err, /main: pass: the integration branch/);
 });
 
-test('26a: no proofs → no-proof; the registry lost → blocked; a human branch passes, built on merged MIRAI work too', async () => {
+launchTest('26a: no proofs → no-proof; the registry lost → blocked; a human branch passes, built on merged MIRAI work too', async () => {
   const f0 = await passed();
   const f = await withRemote(f0);
   const branch = f.git('rev-parse', '--abbrev-ref', 'HEAD');
@@ -152,7 +156,7 @@ test('26a: no proofs → no-proof; the registry lost → blocked; a human branch
   assert.equal(r.code, 0, r.err);
 });
 
-test('26a: the secret scan blocks on every branch: a cloud key, the token in its encodings, in a message, in history; a removed line passes', async () => {
+launchTest('26a: the secret scan blocks on every branch: a cloud key, the token in its encodings, in a message, in history; a removed line passes', async () => {
   const f0 = await passed();
   const f = await withRemote(f0);
   const fresh = (name) => {
@@ -201,7 +205,7 @@ test('26a: the secret scan blocks on every branch: a cloud key, the token in its
   assert.equal(r.code, 0, r.err);
 });
 
-test('26a: an edited hook blocks the push; core.hooksPath off is hooks-off for build; a missing launcher refuses with --no-verify', async () => {
+launchTest('26a: an edited hook blocks the push; core.hooksPath off is hooks-off for build; a missing launcher refuses with --no-verify', async () => {
   const f0 = await passed();
   const f = await withRemote(f0);
   const store = openStore(f.io);
@@ -272,7 +276,7 @@ test('26a: the repo\'s own hooks are forwarded after a yes, and its pre-push run
   assert.deepEqual(again.forwarded, ['pre-commit', 'pre-push']);
 });
 
-test('26a: the commits a push adds are the ones the remote\'s tracking refs don\'t reach', async () => {
+launchTest('26a: the commits a push adds are the ones the remote\'s tracking refs don\'t reach', async () => {
   const f0 = await passed();
   const f = await withRemote(f0);
   f.git('checkout', '-q', '-b', 'k', 'main');
@@ -290,7 +294,7 @@ test('26a: the commits a push adds are the ones the remote\'s tracking refs don\
   assert.equal(EXIT.OK, 0);
 });
 
-test('26b: the push warns from the gate proof\'s diff coverage, and still pushes', async () => {
+launchTest('26b: the push warns from the gate proof\'s diff coverage, and still pushes', async () => {
   const f0 = await passed({ config: COV_CONFIG });
   const rec = await f0.record({ run: coveringRun({ unit: { 'app/Team.php': { 4: 0 } } }).run });
   assert.equal(rec.outcome, 'recorded', rec.why);

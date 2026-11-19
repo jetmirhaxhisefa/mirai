@@ -2,7 +2,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 
 import { init, FRAMEWORK_PARTS, PACKAGE_ROOT } from '../../src/install/init.js';
@@ -10,6 +10,10 @@ import { join as joinStore, joinPlan } from '../../src/install/join.js';
 import { lockText, readLock, sha256 } from '../../src/install/lock.js';
 import { loadRegistry } from '../../src/config/registry.js';
 import { changeOf, classify, protectionRules } from '../../src/trust/protected.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const macosTest = needsTest('macos', 'the sealed copy runs a launch that reads macOS\'s per-user temp folders (src/launch/strict.js; P01)');
 
 const LAUNCHER = join(PACKAGE_ROOT, 'bin/launch.js');
 const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args], { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
@@ -45,7 +49,9 @@ function fakePackage(version) {
 function installed(packageRoot = PACKAGE_ROOT, home = tempDir('home')) {
   const root = tempDir('launch');
   git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'README.md'), '# App\n');
+  // The folder's name makes each repo's first commit, so its repo id, its own: two repos made in
+  // the same second would otherwise be one repo (30a: a second-checkout on CI's faster Node 24).
+  writeFileSync(join(root, 'README.md'), `# App\n\n${basename(root)}\n`);
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'first');
   const env = { PATH: process.env.PATH, HOME: home };
@@ -292,7 +298,7 @@ test('T10: older bases (where the branch left main, origin/main) count; signing 
   assert.match(sign.stderr, /key needs MIRAI's copy as committed on the integration branch; .*\ncommit the refresh on the integration branch first/);
 });
 
-test('T11: links and added files in the copy are refused; arguments and signals pass through', async () => {
+macosTest('T11: links and added files in the copy are refused; arguments and signals pass through', async () => {
   const r = installed();
   // A symbolic link for .mirai itself.
   const elsewhere = tempDir('elsewhere');

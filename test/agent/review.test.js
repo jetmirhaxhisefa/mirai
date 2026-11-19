@@ -26,6 +26,10 @@ import { readRunLog, runIds } from '../../src/store/run-log.js';
 import { readTicketStatus } from '../../src/store/tickets.js';
 import { snapshot } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 24a: the review step (Rex). These tests need no model: a stand-in `claude` and test run.
 
@@ -154,7 +158,7 @@ test('24a: the review schema Claude Code gets is 09a\'s, inlined; a verdict is c
   assert.match(verdictFrom({ verdict: 'ok', findings: [] }).problem, /schema/);
 });
 
-test('24a: a pass: Rex is launched read-only with the pinned diff as input; the ticket stays in-review; the record is complete', async () => {
+launchTest('24a: a pass: Rex is launched read-only with the pinned diff as input; the ticket stays in-review; the record is complete', async () => {
   const f = await built({ results: [{ verdict: 'pass', findings: [{ id: 'N1', severity: 'nit', category: 'style', file: 'app/Team.php', line: ADDED, claim: 'A comment could say why.' }] }] });
   const r = await review(f);
   assert.equal(r.outcome, 'pass', r.why);
@@ -183,7 +187,7 @@ test('24a: a pass: Rex is launched read-only with the pinned diff as input; the 
   await assert.rejects(review(f), (e) => e.code === 'already-reviewed');
 });
 
-test('24a: MIRAI triages the findings: an uncited or off-basis blocking finding is downgraded, an untouched line is pre-existing, a real one sends the ticket back', async () => {
+launchTest('24a: MIRAI triages the findings: an uncited or off-basis blocking finding is downgraded, an untouched line is pre-existing, a real one sends the ticket back', async () => {
   const findings = [
     finding(),
     finding({ id: 'F2', basis: undefined }),
@@ -205,7 +209,7 @@ test('24a: MIRAI triages the findings: an uncited or off-basis blocking finding 
   assert.equal(readLoop(f.store, 'PMT-31').reviews, 1);
 });
 
-test('24a: refusals: before a green step, Kai for the review step; a verdict MIRAI can\'t read fails in your terminal and parks at night', async () => {
+launchTest('24a: refusals: before a green step, Kai for the review step; a verdict MIRAI can\'t read fails in your terminal and parks at night', async () => {
   const f = await built({ results: [{ nonsense: true }, { verdict: 'pass', findings: [] }] });
   // Not a verdict: agent-failed, the ticket stays in-review, the record says why; it can run again.
   const bad = await review(f);
@@ -230,7 +234,7 @@ const clean = { verdict: 'pass', findings: [] };
 const highReview = (f, o = {}) => review(f, { launchToken: null, nextToken: () => mintLaunchToken(), ...o });
 const record = (f, n) => JSON.parse(readFileSync(reviewPath(f.store, 'PMT-31', n), 'utf8'));
 
-test('24b: a high-risk round 1 runs the five lenses one after another, each with its own inputs, on deep; nothing blocking, so no check, and it passes', async () => {
+launchTest('24b: a high-risk round 1 runs the five lenses one after another, each with its own inputs, on deep; nothing blocking, so no check, and it passes', async () => {
   const f = await built({ risk: 'high', results: LENS_ORDER.map(() => clean) });
   // One token isn't enough for a high-risk review.
   await assert.rejects(review(f), (e) => e.code === 'needs-tokens');
@@ -258,7 +262,7 @@ test('24b: a high-risk round 1 runs the five lenses one after another, each with
   assert.ok(Object.values(rec.passes).every((p) => p.state === 'returned'));
 });
 
-test('24b: the lenses\' findings are merged; one check launch judges every blocking one; a false one never reaches Kai and is logged; round 2 is one combined pass', async () => {
+launchTest('24b: the lenses\' findings are merged; one check launch judges every blocking one; a false one never reaches Kai and is logged; round 2 is one combined pass', async () => {
   const same = finding({ id: 'E1', claim: 'Members go missing after the rename.' });
   const other = finding({ id: 'E2', symbol: 'slug', basis: { kind: 'ac', ref: 'AC-PMT-31.2' }, claim: 'The old slug no longer redirects.' });
   const lenses = [{ verdict: 'changes', findings: [finding()] }, { verdict: 'changes', findings: [same, other] }, clean, clean, clean];
@@ -295,7 +299,7 @@ test('24b: the lenses\' findings are merged; one check launch judges every block
   assert.deepEqual(Object.keys(record(f, 2).passes), ['combined']);
 });
 
-test('24b: a lens that fails leaves the review incomplete (never a pass); mirai review again runs only what\'s missing; at night it parks', async () => {
+launchTest('24b: a lens that fails leaves the review incomplete (never a pass); mirai review again runs only what\'s missing; at night it parks', async () => {
   const f = await built({ risk: 'high', results: [clean, { nonsense: true }, clean, clean, clean, clean] });
   const bad = await highReview(f);
   assert.equal(bad.outcome, 'agent-failed');
@@ -323,7 +327,7 @@ test('24b: a lens that fails leaves the review incomplete (never a pass); mirai 
   assert.equal(record(g, 1).check.state, 'failed');
 });
 
-test('24b: after a full pass only a protected path stops for you (parks at night); gate.risk.high raises a normal ticket to high', async () => {
+launchTest('24b: after a full pass only a protected path stops for you (parks at night); gate.risk.high raises a normal ticket to high', async () => {
   const f = await built({ risk: 'high', results: LENS_ORDER.map(() => clean) });
   // The build found a protected path touched (declared in the plan, as the build requires).
   const bp = join(f.store.dir, 'tickets', 'PMT-31', 'build.json');
@@ -360,7 +364,7 @@ const fixRound = (f, o = {}) => runFix({ cwd: f.root, env: f.env, ticket: 'PMT-3
 const handover = (replies) => ({ status: 'done', summary: 'Fixed what Rex found.', replies });
 const blockingVerdict = { verdict: 'changes', findings: [finding()] };
 
-test('24a: review → fix → review: Kai gets Rex\'s blocking findings, replies, MIRAI commits; round 2 sees the delta and the old finding', async () => {
+launchTest('24a: review → fix → review: Kai gets Rex\'s blocking findings, replies, MIRAI commits; round 2 sees the delta and the old finding', async () => {
   const f = await built({
     results: [blockingVerdict, handover([{ id: 'F1', outcome: 'fixed' }]), { verdict: 'pass', findings: [] }],
     before: [':', 'printf "// members kept\\n" >> app/Team.php', ':'],
@@ -387,7 +391,7 @@ test('24a: review → fix → review: Kai gets Rex\'s blocking findings, replies
   assert.equal(readLoop(f.store, 'PMT-31').rounds_used, 1);
 });
 
-test('24a: L4 across reviews: a finding Rex raises again after a fix round is a plan problem (the one re-plan)', async () => {
+launchTest('24a: L4 across reviews: a finding Rex raises again after a fix round is a plan problem (the one re-plan)', async () => {
   // Round 1's findings: two. The fix's tests go green. Round 2 raises F2 again.
   const two = { verdict: 'changes', findings: [finding(), finding({ id: 'F2', symbol: 'redirect', basis: { kind: 'ac', ref: 'AC-PMT-31.2' } })] };
   const f = await built({
@@ -402,7 +406,7 @@ test('24a: L4 across reviews: a finding Rex raises again after a fix round is a 
   assert.equal(state(f), 'ready-for-dev');
 });
 
-test('24a: a dispute parks (decision 3); --accept drops the finding and Rex reviews again; the finding is never raised again', async () => {
+launchTest('24a: a dispute parks (decision 3); --accept drops the finding and Rex reviews again; the finding is never raised again', async () => {
   const f = await built({
     results: [blockingVerdict, handover([{ id: 'F1', outcome: 'disputed', reason: 'The members are kept by the cascade in Team::rename.' }]), { verdict: 'pass', findings: [] }],
     before: [':', ':', ':'],
@@ -429,7 +433,7 @@ test('24a: a dispute parks (decision 3); --accept drops the finding and Rex revi
   assert.deepEqual(JSON.parse(f.claude.input(3, 'prior-findings.json')).findings, []);
 });
 
-test('24a: --retry on a dispute: it stands; Kai gets it back as yours and can\'t dispute it again', async () => {
+launchTest('24a: --retry on a dispute: it stands; Kai gets it back as yours and can\'t dispute it again', async () => {
   const f = await built({
     results: [blockingVerdict, handover([{ id: 'F1', outcome: 'disputed', reason: 'Not a bug.' }]), handover([{ id: 'F1', outcome: 'disputed', reason: 'Still not.' }])],
     before: [':', ':', 'printf "// fixed for real\\n" >> app/Team.php'],
@@ -447,7 +451,7 @@ test('24a: --retry on a dispute: it stands; Kai gets it back as yours and can\'t
   assert.equal(state(f), 'in-review');
 });
 
-test('24a: L5 compares like with like: failures fixed to green, then Rex\'s findings, isn\'t "no progress"', async () => {
+launchTest('24a: L5 compares like with like: failures fixed to green, then Rex\'s findings, isn\'t "no progress"', async () => {
   const failing = async ({ name }) => (name === 'feature' ? { outcome: 'fail', failing: [{ id: 'tests/B.php::b', message: 'b failed', kind: 'assertion' }], failing_total: 1, tests: { total: 3, failed: 1, skipped: 0 }, output: { tail: 'FAIL b' } } : passing({ name }));
   const two = { verdict: 'changes', findings: [finding(), finding({ id: 'F2', symbol: 'redirect', basis: { kind: 'ac', ref: 'AC-PMT-31.2' } })] };
   // The build fails a test; one fix round makes it green (open: 0); Rex then finds two things.

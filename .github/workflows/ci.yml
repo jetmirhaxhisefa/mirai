@@ -1,0 +1,91 @@
+# MIRAI's own CI (unit 30a, D-63): the unit tests on Ubuntu (required to merge) and, after a
+# merge to main, on macOS (advisory).
+# Tests that need Docker, the cage, Claude Code or macOS are marked (test/helpers/needs.js) and
+# left out where missing; each job prints that list. The build runner on Jet's Mac stays the
+# full check (docs/ci.md). No secrets, read-only, and only the pull_request trigger for PRs.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Required to merge (Jet, 2026-11-19): Ubuntu on Node 22 and 24, on every PR.
+  ubuntu:
+    name: ubuntu (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: git identity and settings for the tests' repos
+        run: |
+          git config --global user.name "mirai ci"
+          git config --global user.email "ci@mirai.invalid"
+          git config --global init.defaultBranch main
+          # The runners' git starts background maintenance after a commit; tests that check
+          # nothing was written under .git would see its lock file come and go.
+          git config --global maintenance.auto false
+          git config --global gc.auto 0
+      - name: unit tests
+        env:
+          MIRAI_LEFT_OUT: ${{ runner.temp }}/left-out.jsonl
+        run: npm test
+      - name: left out, and why
+        if: always()
+        env:
+          MIRAI_LEFT_OUT: ${{ runner.temp }}/left-out.jsonl
+        run: node test/helpers/left-out.js "$MIRAI_LEFT_OUT"
+
+  # Advisory, after a merge only: the build runner on Jet's Mac is the macOS gate (it also runs
+  # Docker and the cage); GitHub's macOS machines take ~30 minutes and are sometimes not there.
+  macos:
+    name: macos (node ${{ matrix.node }})
+    if: github.event_name == 'push'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: git identity and settings for the tests' repos
+        run: |
+          git config --global user.name "mirai ci"
+          git config --global user.email "ci@mirai.invalid"
+          git config --global init.defaultBranch main
+          # The runners' git starts background maintenance after a commit; tests that check
+          # nothing was written under .git would see its lock file come and go.
+          git config --global maintenance.auto false
+          git config --global gc.auto 0
+      - name: unit tests
+        env:
+          MIRAI_LEFT_OUT: ${{ runner.temp }}/left-out.jsonl
+        run: npm test
+      - name: left out, and why
+        if: always()
+        env:
+          MIRAI_LEFT_OUT: ${{ runner.temp }}/left-out.jsonl
+        run: node test/helpers/left-out.js "$MIRAI_LEFT_OUT"

@@ -205,9 +205,10 @@ test('T5: concurrent appends: 8 processes × 25 lines, none lost or merged, seq 
   assert.deepEqual(events.map((e) => e.seq), Array.from({ length: total }, (_, i) => i + 1));
   const messages = new Set(events.map((e) => e.message));
   for (let w = 0; w < 8; w += 1) for (let i = 0; i < PER_WORKER; i += 1) assert.ok(messages.has(`w${w}:${i}`), `w${w}:${i}`);
-  // The writers really overlapped: the journal switches writer far more often than 7 times.
+  // The writers really overlapped: one after another, the journal would switch writer 7 times.
+  // (Unit 30a: "far more than 20" failed on CI's 3-core Mac with 13; any more than 7 is overlap.)
   const switches = events.filter((e, i) => i > 0 && e.message.split(':')[0] !== events[i - 1].message.split(':')[0]).length;
-  assert.ok(switches > 20, `only ${switches} switches between writers`);
+  assert.ok(switches > 7, `only ${switches} switches between writers: the writers didn't overlap`);
   assert.equal(readFileSync(join(store.dir, 'seq'), 'utf8'), `${total}\n`);
 });
 

@@ -28,6 +28,10 @@ import { normalizePlan } from '../../src/lint/normalize.js';
 import { loadRegistry } from '../../src/config/registry.js';
 import { unparkCommand } from '../../src/run/drive.js';
 import { PARK_REASONS, TICKET as TICKET_MACHINE } from '../../src/status/machines.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 21a: Kai's plan step and the plan gate, with a stand-in `claude` and no model.
 
@@ -151,7 +155,7 @@ test('T4: the plan is the run\'s structured output only; a file Kai wrote is ign
   assert.deepEqual(declaredChanges(dep), [{ kind: 'dependency', item: 'npm:left-pad@1.3.0', why: 'padding' }]);
 });
 
-test('T5: mirai plan moves the ticket, stores and lints the plan, and stops at the gate', async () => {
+launchTest('T5: mirai plan moves the ticket, stores and lints the plan, and stops at the gate', async () => {
   const f = await repo();
   const claude = claudeAnswering([{ plan: PLAN }]);
   const r = await plan(f, claude);
@@ -175,7 +179,7 @@ test('T5: mirai plan moves the ticket, stores and lints the plan, and stops at t
   assert.equal(line.step, 'plan');
 });
 
-test('T4b: a plan file Kai writes into the project is refused by the planner role, never read', async () => {
+launchTest('T4b: a plan file Kai writes into the project is refused by the planner role, never read', async () => {
   const f = await repo();
   const r = await plan(f, claudeAnswering([{ text: 'written to PLAN.md' }], { before: `printf '%s' 'planted' > PLAN.md` }));
   assert.equal(r.outcome, 'refused');
@@ -184,7 +188,7 @@ test('T4b: a plan file Kai writes into the project is refused by the planner rol
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'ready-for-dev');
 });
 
-test('T5b: a plan that fails lint gets one fix launch, then the ticket parks bad-plan', async () => {
+launchTest('T5b: a plan that fails lint gets one fix launch, then the ticket parks bad-plan', async () => {
   const f = await repo();
   const bad = PLAN.replace('| none | | |', '| nothing | | |');
   const claude = claudeAnswering([{ plan: bad }, { plan: PLAN }]);
@@ -216,7 +220,7 @@ test('T5b: a plan that fails lint gets one fix launch, then the ticket parks bad
   assert.equal(existsSync(planPath(h.store, 'PMT-31')), false);
 });
 
-test('T5c: the usage check and the loop guard come first', async () => {
+launchTest('T5c: the usage check and the loop guard come first', async () => {
   const f = await repo();
   const claude = claudeAnswering([{ plan: PLAN }]);
   // Unattended with no usage reading: refused before any launch.
@@ -232,7 +236,7 @@ test('T5c: the usage check and the loop guard come first', async () => {
   await assert.rejects(plan(g, claudeAnswering([{ plan: PLAN }])), (e) => e.code === 'not-ready');
 });
 
-test('T6: the gate: who approves, your signed approval, an edit caught, a rejection counted', async () => {
+launchTest('T6: the gate: who approves, your signed approval, an edit caught, a rejection counted', async () => {
   // Whatever the preset: high risk, protected paths, new dependencies.
   assert.deepEqual(gateFor({ preset: 'autonomous', text: PLAN }), { gate: 'auto', required: false, why: [] });
   assert.equal(gateFor({ preset: 'autonomous', text: PLAN.replace('risk: normal', 'risk: high') }).gate, 'human');
@@ -282,7 +286,7 @@ test('T6: the gate: who approves, your signed approval, an edit caught, a reject
   assert.match(readPlan(g.store, 'PMT-31'), /^round: 3$/m);
 });
 
-test('review: a cut-short fix launch leaves the ticket ready-for-dev; a plan that fails lint can still be rejected', async () => {
+launchTest('review: a cut-short fix launch leaves the ticket ready-for-dev; a plan that fails lint can still be rejected', async () => {
   // Lint fails, then the fix launch ends without a result (a usage limit, Ctrl-C, a fault): the
   // ticket never moved, so mirai plan simply runs again.
   const f = await repo();
@@ -309,7 +313,7 @@ test('review: a cut-short fix launch leaves the ticket ready-for-dev; a plan tha
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'ready-for-dev');
 });
 
-test('review: the ticket must be the one you approved; a launch on a moved branch is refused; options can\'t change the launch', async () => {
+launchTest('review: the ticket must be the one you approved; a launch on a moved branch is refused; options can\'t change the launch', async () => {
   const f = await repo();
   writeFileSync(join(f.root, 'docs/mirai/tickets/PMT-31.md'), TICKET.replace('the members stay after a rename', 'the members stay after a rename, mostly'));
   f.git('commit', '-qam', 'edited after approval');
@@ -326,7 +330,7 @@ test('review: the ticket must be the one you approved; a launch on a moved branc
   await assert.rejects(withRun({ cwd: g.root, env: g.env }, ({ store, runId }) => launchInRun({ cwd: g.root, env: g.env, store, runId, launchToken: mintLaunchToken(), role: 'planner', prompt: 'x', expectBase: 'f'.repeat(40), claude: c2.path, status: green })), (e) => e.code === 'base-moved');
 });
 
-test('review: a read-only agent never runs a read-write role; an agent definition of another shape is refused', async () => {
+launchTest('review: a read-only agent never runs a read-write role; an agent definition of another shape is refused', async () => {
   const ro = { name: 'mirai-checker', role: 'author', read_only: true };
   assert.throws(() => checkAgentRole(ro, { name: 'author', mode: 'read-write' }), (e) => e.code === 'agent-read-only');
   assert.doesNotThrow(() => checkAgentRole(ro, { name: 'reviewer', mode: 'read-only' }));
@@ -349,7 +353,7 @@ test('review: a read-only agent never runs a read-write role; an agent definitio
   }
 });
 
-test('review: no approval of yours, refused; a ticket changed after approval can be approved again as merged', async () => {
+launchTest('review: no approval of yours, refused; a ticket changed after approval can be approved again as merged', async () => {
   const f = installed({ config: CONFIG, files: FILES });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
@@ -372,7 +376,7 @@ test('review: no approval of yours, refused; a ticket changed after approval can
   assert.equal((await plan(g, claudeAnswering([{ plan: PLAN }]))).outcome, 'waiting');
 });
 
-test('review: an approved plan can still be rejected; a plan with no frozen block can be rejected; the approval goes on rejection', async () => {
+launchTest('review: an approved plan can still be rejected; a plan with no frozen block can be rejected; the approval goes on rejection', async () => {
   const f = await repo();
   await plan(f, claudeAnswering([{ plan: PLAN }]));
   const io = { cwd: f.root, env: f.env };
@@ -410,7 +414,7 @@ test('review: sibling plans only when approved; clashing input names both kept',
 });
 
 // Unit 30c: parks are the rare case.
-test('30c T1 + T6: a bad-plan park unparks to ready-for-dev; your unpark and reject notes reach the next plan and its fix launch', async () => {
+launchTest('30c T1 + T6: a bad-plan park unparks to ready-for-dev; your unpark and reject notes reach the next plan and its fix launch', async () => {
   const g = await repo();
   const bad = PLAN.replace('| none | | |', '| nothing | | |');
   assert.equal((await plan(g, claudeAnswering([{ plan: bad }, { plan: bad }]))).outcome, 'bad-plan');
@@ -517,7 +521,7 @@ test('30c T6: every park reason names a command that moves it on', () => {
   assert.ok(TICKET_MACHINE.moves.some((m) => m.from === 'blocked' && m.to === 'ready-for-dev' && m.choice === 're-plan'));
 });
 
-test('30c T8: mirai show and the report count parks by reason', async () => {
+launchTest('30c T8: mirai show and the report count parks by reason', async () => {
   const g = await repo();
   const bad = PLAN.replace('| none | | |', '| nothing | | |');
   await plan(g, claudeAnswering([{ plan: bad }, { plan: bad }]));

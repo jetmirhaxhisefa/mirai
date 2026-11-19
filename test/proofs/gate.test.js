@@ -29,8 +29,12 @@ import { installed, tempDir } from '../tests/run-fixture.js';
 // model, no Docker), on a ticket Kai built and Rex passed.
 
 import { PASSED, TOKEN, claudeWith, done, passed, passing, tty, watch } from './fixture.js';
+import { needsTest } from '../helpers/needs.js';
 
-test('25a: gate record mints a review and a gate proof for HEAD, signed, in one commit of only them; gate check passes with the public keys', async () => {
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
+
+launchTest('25a: gate record mints a review and a gate proof for HEAD, signed, in one commit of only them; gate check passes with the public keys', async () => {
   const f = await passed();
   const before = f.git('rev-parse', 'HEAD');
   const r = await f.record();
@@ -66,7 +70,7 @@ test('25a: gate record mints a review and a gate proof for HEAD, signed, in one 
   assert.deepEqual(again.written.map((p) => p.split('/').pop().split('-').slice(0, 2).join('-')), ['gate-r2']);
 });
 
-test('25a: no proof without Rex\'s pass for the same code: before the review, and after a code change', async () => {
+launchTest('25a: no proof without Rex\'s pass for the same code: before the review, and after a code change', async () => {
   const f = await passed({ reviewed: false });
   await assert.rejects(f.record(), (e) => e.code === 'no-review');
   const g = await passed();
@@ -75,7 +79,7 @@ test('25a: no proof without Rex\'s pass for the same code: before the review, an
   await assert.rejects(g.record(), (e) => e.code === 'review-stale');
 });
 
-test('25a: gate check fails after any code change once proofs exist (stale), and on anything else in the records folder', async () => {
+launchTest('25a: gate check fails after any code change once proofs exist (stale), and on anything else in the records folder', async () => {
   const f = await passed();
   assert.equal((await f.record()).outcome, 'recorded');
   writeFileSync(join(f.root, 'app/Team.php'), '<?php\n// one\n// two\n// renamed \n');
@@ -106,7 +110,7 @@ test('25a: gate check fails after any code change once proofs exist (stale), and
   assert.match(v.bad[0].reason, /not on the integration branch/);
 });
 
-test('25a: gate record judges the gate against the merge-base\'s baseline: a new failing test fails it; a known one is listed; a missing level refuses', async () => {
+launchTest('25a: gate record judges the gate against the merge-base\'s baseline: a new failing test fails it; a known one is listed; a missing level refuses', async () => {
   const f = await passed({ baseline: { unit: { state: 'fail', known_failures: [{ id: 'tests/a.php::old', scope: 'test', kind: 'error', state: 'failing', runs: 10, failed: 10 }], tests: { total: 3, skipped: 0 } }, feature: PASSED } });
   const failing = (ids) => async ({ name }) => (name === 'unit' ? { outcome: 'fail', id: 't-unit', exit_code: 1, failing: ids.map((id) => ({ id, kind: 'error', message: 'x' })), failing_total: ids.length, tests: { total: 3, passed: 3 - ids.length, failed: ids.length, errors: 0, skipped: 0 } } : passing({ name }));
   const bad = await f.record({ run: failing(['tests/a.php::old', 'tests/a.php::new']) });
@@ -123,7 +127,7 @@ test('25a: gate record judges the gate against the merge-base\'s baseline: a new
   await assert.rejects(g.record(), (e) => e.code === 'no-baseline');
 });
 
-test('25a: gate record refuses a dirty tree and another branch; unattended it parks (sign-proofs); the CLI needs a terminal', async () => {
+launchTest('25a: gate record refuses a dirty tree and another branch; unattended it parks (sign-proofs); the CLI needs a terminal', async () => {
   const f = await passed();
   writeFileSync(join(f.root, 'scratch.txt'), 'x\n');
   await assert.rejects(f.record(), (e) => e.code === 'dirty');
@@ -141,7 +145,7 @@ test('25a: gate record refuses a dirty tree and another branch; unattended it pa
   assert.equal(s.park_reason, 'sign-proofs');
 });
 
-test('25a: a gate.code_paths that leaves a protected path out of the hash is refused by record and check', async () => {
+launchTest('25a: a gate.code_paths that leaves a protected path out of the hash is refused by record and check', async () => {
   const { codePathsHide } = await import('../../src/proofs/hash.js');
   const rules = [{ name: 'tool', paths: ['**/.claude/**', 'CLAUDE.md', 'package.json'] }, { name: 'mirai', paths: ['.mirai/**'] }];
   assert.deepEqual(codePathsHide(['**', '!docs/mirai/**', '!.mirai/**'], rules, 'docs/mirai'), []);

@@ -11,6 +11,10 @@ import {
 } from '../../src/store/git.js';
 import { repoGuard, repoState } from '../../src/store/repo-state.js';
 import { classifyRepoKey, allowEntryProblem } from '../../src/config/git-repo-keys.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const gitPinTest = needsTest('macos', 'git\'s pinned settings point at /var/empty, a macOS folder (P01)');
 
 // Unit 14b: pinned host git, the repo check and the integrity hash. Real git on temporary repos;
 // nothing touches your real home or repos.
@@ -117,7 +121,7 @@ test('14b T1: every git.js call is pinned: binary, -c pins, the repo named, MIRA
   }
 });
 
-test('14b T2: the pins need no folder: /dev/null and /var/empty; MIRAI refuses to run another git, and says where it looks', () => {
+gitPinTest('14b T2: the pins need no folder: /dev/null and /var/empty; MIRAI refuses to run another git, and says where it looks', () => {
   const r = repo();
   const before = setGitBinaryForTests('/nonexistent/git');
   try {
@@ -374,7 +378,7 @@ test('14b T10: the integrity hash covers what can run code or redirect git, and 
   }
 });
 
-test('14b T11: while a guard is active, every git call checks it first', () => {
+gitPinTest('14b T11: while a guard is active, every git call checks it first', () => {
   const r = repo();
   const guard = repoGuard(r.root);
   try {

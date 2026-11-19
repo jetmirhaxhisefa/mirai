@@ -19,6 +19,10 @@ import { writeToken } from '../../src/sign/token.js';
 import { openStore } from '../../src/store/home.js';
 import { snapshot, trustedStrict } from '../../src/trust/snapshot.js';
 import { CONFIG, fakeDocker, installed, resolvedApp, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 18c: the container and probe cases, with no model and no Docker (a fake docker, or a fake
 // executor). The real runs are in test-results.md.
@@ -77,7 +81,7 @@ const ROWS = {
   'interactive sessions: Bash and modes, the session server (13c, 15b)': ['18e'],
 };
 
-test('18d T1, T2, T4: the write block in every strict template and in the floor; the read block and its exception list never', () => {
+launchTest('18d T1, T2, T4: the write block in every strict template and in the floor; the read block and its exception list never', () => {
   const r = installed();
   writeToken(r.env, TOKEN);
   const trust = snapshot({ cwd: r.root, env: r.env });

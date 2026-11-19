@@ -19,6 +19,10 @@ import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { writeToken } from '../../src/sign/token.js';
 import { snapshot } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 19c: starting agents from your session, the one-time token, session run ids. No model.
 
@@ -53,7 +57,7 @@ test('T1: the new tools exist only in your session\'s server', () => {
   assert.throws(() => checkPolicy({ ...policy, kind: 'headless', launch_dir: '/x', repo_state: 'a'.repeat(64), launch_id: '20260101000000-deadbeef', item: null, registration_id: undefined, state_dir: undefined }), /never has|isn't one/);
 });
 
-test('T2: no launch without a one-time token; a token used twice is refused; a request claimed once', async () => {
+launchTest('T2: no launch without a one-time token; a token used twice is refused; a request claimed once', async () => {
   const f = repo();
   const o = { cwd: f.root, env: f.env, role: 'reviewer', prompt: 'x', claude: claude(), status: green, check: () => [] };
   await assert.rejects(runAgent(o), (e) => e.code === 'no-launch-token');
@@ -151,7 +155,7 @@ test('T7: install adds no allow rule for start_agent, and status warns when one 
   assert.equal(startAgentAllowedIn(store, f.env).length, 1);
 });
 
-test('T8: launchInRun launches inside a run that already holds the lock', async () => {
+launchTest('T8: launchInRun launches inside a run that already holds the lock', async () => {
   const f = repo();
   const store = openStore({ cwd: f.root, env: f.env });
   const runId = newRunId();

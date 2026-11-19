@@ -24,6 +24,10 @@ import { baselineCheck, binaryCheck, builtinsCheck, floorCheck } from '../../src
 import { KEEP_RESULTS, listResults, readResult, resultPath, statusFor, writeResult } from '../../src/redteam/store.js';
 import { checkWorkdir, sweepLeftovers } from '../../src/redteam/workspace.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 18a: the red-team runner. No model and no subscription: a stand-in for `claude` answers
 // from a script, the host canaries are stand-ins (your keychain is never touched), and the cases
@@ -107,7 +111,7 @@ function io(r, { tty = false, extra = {} } = {}) {
   };
 }
 
-test('18a T1: mirai redteam: run needs a real terminal; status and show; usage errors', async () => {
+launchTest('18a T1: mirai redteam: run needs a real terminal; status and show; usage errors', async () => {
   assert.ok(COMMANDS.some((c) => c.name === 'redteam'));
   const r = repo();
   const a = io(r);
@@ -177,7 +181,7 @@ test('18a T2: the key: canonical, every part changes it; the binary hash cached 
   assert.deepEqual(templateNames(snapshot({ cwd: r.root, env: r.env })), ['read-only', 'read-write']);
 });
 
-test('18a T3: the runner: N passes, a failure, retries, the blocker, timeouts, workers, the token never stored, partial runs not recorded', async () => {
+launchTest('18a T3: the runner: N passes, a failure, retries, the blocker, timeouts, workers, the token never stored, partial runs not recorded', async () => {
   const r = repo();
   // Three passes; every launch had the token on fd 3, its own config folder, and ran in a clone.
   let f = fakeClaude(() => ({ text: 'ok' }));
@@ -346,7 +350,7 @@ test('18a T5: the no-model checks: the binary read once by anchor; new keys and 
   assert.throws(() => checkWorkdir(join(dir, 'full'), home, { allowTemp: true }), /missing or empty/);
 });
 
-test('18a T6: the cases: ids unique, each complete; 13b\'s and 13c\'s ids all here; the canaries-only guard holds for every case', async () => {
+launchTest('18a T6: the cases: ids unique, each complete; 13b\'s and 13c\'s ids all here; the canaries-only guard holds for every case', async () => {
   const index = caseIndex();
   assert.equal(new Set(index.map((c) => c.id)).size, index.length);
   for (const id of MOVED_IDS) assert.ok(index.some((c) => c.id === id), `${id} is missing`);
@@ -387,7 +391,7 @@ test('18a T7: the probe entry stays local; the report escapes what it prints', (
   assert.match(text, /don't launch/);
 });
 
-test('18a T8: the review fixes: a leak fails even when inconclusive; links and hooks in your commit; a crash cleans up; resets; templates; aborts; leftovers; the profile to its end', async () => {
+launchTest('18a T8: the review fixes: a leak fails even when inconclusive; links and hooks in your commit; a crash cleans up; resets; templates; aborts; leftovers; the profile to its end', async () => {
   // A canary in the output fails the run, whatever else happened (here: the call wasn't made as
   // asked, and the run reads the clone's .env).
   const r = repo();
@@ -535,7 +539,7 @@ test('18f T1: the cage is computed: the roots and everything their code imports;
   assert.ok(c(['bin/hook.js', 'src/u.js'], (p) => (p === 'bin/hook.js' ? "// createRequire in a comment\nconst u = new URL(text);\nimport '../src/u.js';" : '')).has('src/u.js'), 'comments and URL parsing are fine');
 });
 
-test('18f T2 + T3: a change outside the cage keeps the key; one inside, or a new import from the cage, changes it; status names a change outside the cage', async () => {
+launchTest('18f T2 + T3: a change outside the cage keeps the key; one inside, or a new import from the cage, changes it; status names a change outside the cage', async () => {
   const { frameworkHash } = await import('../../src/redteam/key.js');
   const { createHash } = await import('node:crypto');
   // A trust root on disk: the cage is read from its files.
@@ -576,7 +580,7 @@ test('18f T2 + T3: a change outside the cage keeps the key; one inside, or a new
 });
 
 // Unit 18g: a green run keeps the binary it tested; status names it and a newer one waiting.
-test('18g T1 + T3: a green run keeps its binary (read-only, signed); a red one changes nothing; two kept; status names both', async () => {
+launchTest('18g T1 + T3: a green run keeps its binary (read-only, signed); a red one changes nothing; two kept; status names both', async () => {
   const { readTested, testedRoot } = await import('../../src/redteam/tested.js');
   const r = repo();
   const f = fakeClaude(() => ({ text: 'ok' }));
@@ -683,7 +687,7 @@ test('18g T4: MIRAI\'s kept Claude Code is denied by name in both templates, and
   }
 });
 
-test('18g review: mirai redteam status names the Claude Code agents run, a newer one waiting, and a broken record as a state', async () => {
+launchTest('18g review: mirai redteam status names the Claude Code agents run, a newer one waiting, and a broken record as a state', async () => {
   const r = repo();
   const f = fakeClaude(() => ({ text: 'ok' }));
   assert.equal((await runRedTeam(options(r, { launch: f.launch, caseList: synthetic() }))).result.state, 'green');
