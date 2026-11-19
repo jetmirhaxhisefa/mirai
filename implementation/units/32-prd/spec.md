@@ -1,7 +1,7 @@
 ---
 unit: "32"
 name: prd
-status: draft (decisions 1–8 from Jet's interview answers, 2026-11-19; waiting for "approve 32")
+status: approved (Jet, 2026-11-20: "approve 32"; decisions 1–8 from his interview answers, 2026-11-19)
 roadmap: design/07-implementation-roadmap.md, row 32; design/01 §3; D-08, D-35 (design/04); design/09 PM-03; research/13-document-writing.md §7, §9d, §9e
 depends_on: ["31"]
 ---
