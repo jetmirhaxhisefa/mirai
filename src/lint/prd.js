@@ -110,11 +110,13 @@ export function checkPrd(doc, def, ctx, add) {
   }
   for (const it of items.filter((x) => x.prefix === 'FR' || x.prefix === 'NFR')) {
     if (/\bshall\b/i.test(it.statement)) add({ code: 'prd-must', line: it.line, column: 1, reason: `${it.id} says "shall"`, hint: 'say "must": it is plain, and every reader takes it the same way' });
-    if (it.prefix === 'FR' && !/\(BR-[0-9]+(?:, *BR-[0-9]+)*\)(?: *\(A-[0-9]+(?:, *A-[0-9]+)*\))?\.?$/.test(it.statement)) add({ code: 'prd-trace', line: it.line, column: 1, reason: `${it.id} doesn't name the business requirement it serves`, hint: 'end it with the brief\'s BR in brackets, then any assumptions it rests on: (BR-2) or (BR-2) (A-1)' });
+    if (it.prefix === 'FR' && !/\(BR-[0-9]+(?:, *BR-[0-9]+)*\)(?: *\(A-[0-9]+(?:, *A-[0-9]+)*\))*\.?$/.test(it.statement)) add({ code: 'prd-trace', line: it.line, column: 1, reason: `${it.id} doesn't name the business requirement it serves`, hint: 'end it with the brief\'s BR in brackets, then any assumptions it rests on: (BR-2) or (BR-2) (A-1)' });
     const acs = items.filter((a) => a.prefix === `AC-${it.prefix}` && a.parent === it.id);
     const verified = it.prefix === 'NFR' ? it.lines.map((l) => VERIFIED.exec(l.replace(ITEM, '').trim())).find(Boolean) : null;
     if (it.prefix === 'NFR') {
-      if (verified && !METHODS.test(verified[1])) add({ code: 'prd-verify', line: it.line, column: 1, reason: `${it.id}'s "Verified by:" names no method: "${clip(verified[1], 40)}"`, hint: 'name a test level (unit, integration, API, E2E), a measurement, or a manual check, and what it looks at' });
+      // "Verified by: AC-NFR-2.1" points at the NFR's own AC, which is a method (P2, unit 32).
+      const byOwnAc = verified && acs.some((a) => verified[1].includes(a.id));
+      if (verified && !byOwnAc && !METHODS.test(verified[1])) add({ code: 'prd-verify', line: it.line, column: 1, reason: `${it.id}'s "Verified by:" names no method: "${clip(verified[1], 40)}"`, hint: 'name a test level (unit, integration, API, E2E), a measurement, or a manual check, and what it looks at' });
       if (!verified && acs.length === 0) add({ code: 'prd-verify', line: it.line, column: 1, reason: `${it.id} doesn't say how it's verified`, hint: `add AC-${it.id}.1 (Given / When / Then), or a line "Verified by: <a test level, a measurement or a manual check>"` });
     } else if (acs.length === 0) {
       add({ code: 'prd-ac', line: it.line, column: 1, reason: `${it.id} has no acceptance criterion`, hint: `add AC-${it.id}.1 under it: Given …, when …, then …` });

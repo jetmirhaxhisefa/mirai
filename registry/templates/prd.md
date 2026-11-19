@@ -130,9 +130,7 @@ The steps of UJ-1, including where they branch (FR-1, FR-3).
 
 ## Non-goals
 
-<!-- done when: each NG-n is something this PRD leaves out on purpose, with its reason; it carries on from the brief's highest NG; cite the brief's no-gos rather than repeating them -->
-Besides the brief's no-gos (NG-1):
-
+<!-- done when: each NG-n is something this PRD leaves out on purpose, with its reason; it carries on from the brief's highest NG; the brief's no-gos are mentioned (NG-1), not listed again -->
 - NG-2: Something left out on purpose, and why.
 
 ## Risks
