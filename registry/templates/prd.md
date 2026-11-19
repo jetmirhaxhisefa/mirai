@@ -24,8 +24,9 @@ PRD keeps exactly as it is.
   can't be split, set length_exception: "<why>" in the frontmatter and ask the approver under
   "Decisions for you".
 - The brief is the source of the why. Don't repeat its Problem, Who it is for, Why now or Success:
-  cite its IDs (BR-n, SM-n). The brief's no-gos, rabbit holes and open questions stay in the brief:
-  mention them (NG-1, Q-1), never list them again. The PRD's own NG, R and Q numbers carry on after
+  cite its IDs (BR-n, SM-n). In the detail, the brief's no-gos, rabbit holes and open questions
+  stay in the brief: mention them (NG-1, Q-1), never list them again. The summary is different: on
+  standard it covers both documents, so it lists the brief's no-gos and open questions too. The PRD's own NG, R and Q numbers carry on after
   the brief's highest.
 - Requirements say what and why, never how: no tables, endpoints, libraries or file names (those
   are the design's and the tickets').
