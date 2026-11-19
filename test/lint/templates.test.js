@@ -40,8 +40,8 @@ function lintDocs(files, repos = ['.', 'api']) {
 }
 const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: text }, repos).map((p) => `${p.line}:${p.column} ${p.code}`);
 
-test('T1: MIRAI\'s registry: brief, story, bug and plan, templates that match their types, and known checks', () => {
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'plan', 'story']);
+test('T1: MIRAI\'s registry: brief, PRD, story, bug and plan, templates that match their types, and known checks', () => {
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'plan', 'prd', 'story']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);
@@ -52,7 +52,8 @@ test('T1: MIRAI\'s registry: brief, story, bug and plan, templates that match th
     const h2 = scanMarkdown(fm.body).headings.filter((h) => h.level === 2).map((h) => h.text);
     assert.deepEqual(h2, def.section_order ?? [...def.required_sections, ...def.optional_sections], name);
     // A template is a valid document of its type where it lives, outside the docs root.
-    assert.deepEqual(lintDocs({ [`/registry/templates/${name}.md`]: template }), [], `${name} template`);
+    // A PRD's template links the brief's (unit 32), which sits beside it.
+    assert.deepEqual(lintDocs({ [`/registry/templates/${name}.md`]: template, '/registry/templates/brief.md': read('templates/brief.md') }), [], `${name} template`);
     assert.ok(read(def.checklist).startsWith('# '));
   }
 });

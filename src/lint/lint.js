@@ -4,7 +4,7 @@ import { join, relative, resolve, dirname, sep, isAbsolute } from 'node:path';
 import { ConfigError } from '../cli/errors.js';
 import { closest } from '../util/closest.js';
 import { readFrontmatter } from './frontmatter.js';
-import { scanMarkdown, headingSlugs } from './markdown.js';
+import { scanMarkdown, headingSlugs, fixedParts } from './markdown.js';
 import { checkDocument } from './rules.js';
 import { frameworkDefaults } from '../config/defaults.js';
 
@@ -75,7 +75,7 @@ export function projectDefaults() {
 
 // What the checks need from a checked config.
 export function projectOf(config) {
-  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])) };
+  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])), limits: { ...(config.docs?.limits ?? {}) } };
 }
 
 const toPosix = (p) => p.split(sep).join('/');
@@ -221,9 +221,30 @@ export function lintFile(file, ctx) {
   for (const p of scan.problems) problem(p);
   const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine, text: bytes.toString('utf8') };
   const linkTarget = (path) => resolveLink(dirname(abs), path, ctx);
+  const readDocument = (path) => readLinked(dirname(abs), path, ctx);
   const template = inside ? templateOf(type, def, ctx) : null;
-  for (const p of checkDocument(doc, def, { linkTarget, file, project: ctx.project, template, registry: ctx.registry })) problems.push({ file, ...p });
+  for (const p of checkDocument(doc, def, { linkTarget, readDocument, file, project: ctx.project, template, registry: ctx.registry })) problems.push({ file, ...p });
   return { linted: true, problems };
+}
+
+// The document a relative link leads to, parsed (unit 32: a PRD's brief): { value, scan, text }
+// or { problem: 'outside' | 'missing' | 'unreadable' }.
+function readLinked(fromDir, path, ctx) {
+  const found = resolveLink(fromDir, path, ctx);
+  if (found.problem) return found;
+  try {
+    return parseDocument(readRegularFile(resolve(fromDir, path)).toString('utf8'), path);
+  } catch {
+    return { problem: 'unreadable' };
+  }
+}
+
+// A document's text, parsed for another document's checks; throws when its frontmatter doesn't
+// read.
+export function parseDocument(text, source) {
+  const fm = readFrontmatter(text, { source, positions: true });
+  if (fm === null) throw new Error('no frontmatter');
+  return { value: fm.value, positions: fm.positions, scan: scanMarkdown(fm.body, { firstLine: fm.bodyLine }), bodyLine: fm.bodyLine, text };
 }
 
 // A type's template text, for the leftover check: its body's text lines, and its `id` plus any
@@ -238,10 +259,15 @@ function templateOf(type, def, ctx) {
     // prescribes isn't a leftover: table header and |---| rows, and lines of fewer than three
     // words (such as a "none" row).
     const lines = new Set();
-    const scanned = scanMarkdown(fm?.body ?? '').lines;
+    const body = scanMarkdown(fm?.body ?? '');
+    const scanned = body.lines;
     const isRule = (l) => l && /^ *\|?[ :|-]+$/.test(l.visible ?? '') && (l.visible ?? '').includes('-');
+    // Unit 32: the fixed parts are kept word for word, so they aren't leftovers; their text is
+    // what the document must hold.
+    const fixed = fixedParts(body, def);
+    const inFixed = (line) => [...fixed.values()].some((f) => line > f.start && line < f.end);
     scanned.forEach((l, i) => {
-      if (l.kind !== 'text' || isRule(l) || isRule(scanned[i + 1])) return;
+      if (l.kind !== 'text' || isRule(l) || isRule(scanned[i + 1]) || inFixed(l.line)) return;
       const text = l.visible.trim();
       if ((text.match(/[\p{L}\p{N}_./:-]{2,}/gu) ?? []).length >= 3) lines.add(text);
     });
@@ -249,7 +275,7 @@ function templateOf(type, def, ctx) {
     for (const [key, value] of Object.entries(fm?.value ?? {})) {
       if (typeof value === 'string' && (key === 'id' || / /.test(value))) fields.set(key, value);
     }
-    template = { lines, fields };
+    template = { lines, fields, fixed: new Map([...fixed].map(([name, f]) => [name, f.text])) };
   } catch {
     template = null;
   }
@@ -326,7 +352,9 @@ function bodyOf(text) {
 // because it's outside the repo. It's treated as a MIRAI document (as inside the docs root): a
 // missing frontmatter or an unknown type is a problem, and leftover template text counts.
 // Relative links aren't followed: there's no repo around the text. Returns the problems.
-export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false }) {
+// `linked` maps a relative link's path to the linked document's text (unit 32: approval passes
+// a PRD's brief); a link not in it can't be read, and checks that need it are skipped.
+export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {} }) {
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
   if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
@@ -363,6 +391,14 @@ export function lintText(text, { source = '<text>', registry, project = projectD
   const ctx = { registry, templates: new Map() };
   const template = templateOf(type, def, ctx);
   const linkTarget = () => ({ slugs: null });
-  for (const p of checkDocument(doc, def, { linkTarget, file: source, project, template, registry, files, approving })) problems.push({ file: source, ...p });
+  const readDocument = (path) => {
+    if (!Object.hasOwn(linked, path)) return { problem: 'unavailable' };
+    try {
+      return parseDocument(linked[path], path);
+    } catch {
+      return { problem: 'unreadable' };
+    }
+  };
+  for (const p of checkDocument(doc, def, { linkTarget, readDocument, file: source, project, template, registry, files, approving })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

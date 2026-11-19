@@ -302,6 +302,18 @@ export const CONFIG_SCHEMA = {
           patternHint: 'a folder inside the repo, written like docs/mirai: no leading ./ or /, no .., no empty parts',
           check: relativePath,
         },
+        // Word caps and budgets (unit 32, Jet's decision 6): team policy, so the project layer
+        // only (LAYER_KEYS). The registry's numbers are the defaults. Ranged, so a cap can't be
+        // switched off by setting it very high.
+        limits: {
+          type: 'table',
+          fields: {
+            brief_summary_words: { type: 'integer', min: 100, max: 2000 },
+            prd_summary_words: { type: 'integer', min: 100, max: 2000 },
+            prd_lite_words: { type: 'integer', min: 500, max: 10000 },
+            prd_full_words: { type: 'integer', min: 500, max: 10000 },
+          },
+        },
       },
     },
     retention: { type: 'table', fields: { days: { type: 'integer', min: 1, max: 3650 }, auto: { type: 'boolean' } } },

@@ -259,3 +259,18 @@ export function headingSlugs(headings) {
   }
   return slugs;
 }
+
+// The type's fixed parts in a scanned body (unit 32): name → { start, end, line, text }, where
+// `text` is the part's visible text lines, trimmed, one per line (blank lines and comments left
+// out) and `start`/`end` bound its lines.
+export function fixedParts(scan, def) {
+  const out = new Map();
+  for (const name of def.fixed_parts ?? []) {
+    const h = scan.headings.find((x) => x.level === 3 && x.text === name);
+    if (!h) continue;
+    const end = scan.headings.find((x) => x.line > h.line && x.level <= 3)?.line ?? Infinity;
+    const text = scan.lines.filter((l) => l.line > h.line && l.line < end && l.kind === 'text').map((l) => (l.visible ?? l.text).trim()).filter(Boolean).join('\n');
+    out.set(name, { start: h.line, end, line: h.line, text });
+  }
+  return out;
+}

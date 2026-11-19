@@ -1,7 +1,7 @@
 import { closest } from '../util/closest.js';
 import { linkHasCredential, hasTokenShape, SECRET_PARAM } from '../config/credentials.js';
 import { SHARED_FIELDS, OWN_ID, escapeRegex } from '../config/registry.js';
-import { headingSlugs } from './markdown.js';
+import { headingSlugs, fixedParts } from './markdown.js';
 import { CHECKS } from './checks.js';
 import { frozenBlock, FROZEN_START, FROZEN_END } from './frozen.js';
 
@@ -35,13 +35,55 @@ export function checkDocument(doc, def, ctx) {
   const add = (p) => problems.push({ severity: 'error', ...p });
   checkFrontmatter(doc, def, add);
   checkSections(doc, def, add);
-  checkIds(doc, def, add);
+  // Unit 32: the upstream document (a PRD's brief), read once for the ID and summary checks.
+  ctx = { ...ctx, upstream: upstreamOf(doc, def, ctx, add) };
+  checkIds(doc, def, add, ctx.upstream);
   checkLinks(doc, ctx, add);
   checkMermaid(doc, add);
   if (def.frozen_sections?.length) checkFrozen(doc, def, add);
   if (ctx.template) checkTemplateText(doc, def, ctx.template, add);
   for (const name of def.lint_checks ?? []) CHECKS[name](doc, def, ctx, add);
   return problems;
+}
+
+// ---- The upstream document (unit 32) -------------------------------------------------------
+
+// A type with `upstream_link` names its upstream document in one line right under the title:
+// "Brief: [title](brief.md)". Returns { status: 'ok', doc, def, ids } (ids: prefix → Map of the
+// upstream's defined IDs), { status: 'unavailable' } when the text was linted alone, or
+// { status: 'broken' } after reporting why.
+export const upstreamLine = (def) => new RegExp(`^${escapeRegex(def.upstream_link.label)}: \\[[^\\]]+\\]\\(([^)\\s]+)\\)[ \t]*$`);
+
+function upstreamOf(doc, def, ctx, add) {
+  if (!def.upstream_link) return null;
+  const { label, type } = def.upstream_link;
+  const title = doc.scan.headings.find((h) => h.level === 1);
+  const first = title && doc.scan.lines.find((l) => l.line > title.line && (l.kind === 'text' || l.kind === 'fence' || l.kind === 'heading'));
+  const m = first?.kind === 'text' ? upstreamLine(def).exec((first.visible ?? first.text).trim()) : null;
+  const where = { line: first?.line ?? title?.line ?? doc.bodyLine, column: 1 };
+  if (!m) {
+    add({ code: 'upstream-link', ...where, reason: `the line under the title must link the ${type}: "${label}: [<its title>](${type}.md)"`, hint: `add it right under the # title, before "## Summary for approval"` });
+    return { status: 'broken' };
+  }
+  const found = ctx.readDocument ? ctx.readDocument(m[1]) : { problem: 'unavailable' };
+  if (found.problem === 'unavailable') return { status: 'unavailable' };
+  if (found.problem) {
+    // A missing or outside file is the link rules' problem already; say what it means here.
+    if (found.problem === 'unreadable') add({ code: 'upstream-link', ...where, reason: `the linked ${type} can't be read`, hint: `check that ${m[1]} is a MIRAI ${type} with frontmatter` });
+    return { status: 'broken' };
+  }
+  const upDef = ctx.registry?.documentTypes?.[found.value.type];
+  if (found.value.type !== type || !upDef) {
+    add({ code: 'upstream-link', ...where, reason: `${m[1]} is a ${shownId(String(found.value.type))}, not a ${type}`, hint: `link the ${type} this document comes from` });
+    return { status: 'broken' };
+  }
+  const ups = Array.isArray(doc.value.upstream) ? doc.value.upstream : [];
+  if (!ups.includes(found.value.id)) {
+    add({ code: 'upstream-link', ...where, reason: `the linked ${type} is "${shownId(String(found.value.id))}", which "upstream" doesn't name`, hint: `put upstream: [${shownId(String(found.value.id))}] in the frontmatter, or link the right ${type}` });
+    return { status: 'broken' };
+  }
+  const ids = checkIds(found, upDef, () => {}, null);
+  return { status: 'ok', doc: found, def: upDef, ids, path: m[1] };
 }
 
 // ---- The frozen block (unit 08b) ----------------------------------------------------------
@@ -283,9 +325,14 @@ function checkSections(doc, def, add) {
   });
 
   const where = titles[0] ? { line: titles[0].line, column: titles[0].column } : { line: bodyStart, column: 1 };
+  // Unit 32: a section only another variant requires may be left out (a lite PRD has no Rollout).
+  const variant = def.variants?.[doc.value.variant] ? doc.value.variant : null;
+  const otherVariants = new Set(Object.entries(def.variants ?? {}).filter(([n]) => n !== variant).flatMap(([, v]) => v.required_sections ?? []));
+  const ownVariant = new Set(variant ? def.variants[variant].required_sections ?? [] : []);
   for (const name of order) {
     if (!firstOf.has(name)) {
-      const isOptional = !required.includes(name);
+      if (otherVariants.has(name) && !ownVariant.has(name)) continue;
+      const isOptional = !required.includes(name) && !ownVariant.has(name);
       add({
         code: 'missing-section', ...where,
         reason: `the ${isOptional ? 'optional ' : ''}section "${name}" is missing`,
@@ -324,8 +371,8 @@ function checkSections(doc, def, add) {
     const na = paragraphs.find((p) => p.kind === 'text' && NOT_APPLICABLE.test(p.text));
     if (!na) return;
     const column = l2col(na.raw);
-    if (required.includes(h.text)) {
-      add({ code: 'not-applicable', line: na.line, column, reason: `"${h.text}" is required, so it can't be "Not applicable"` });
+    if (required.includes(h.text) || ownVariant.has(h.text)) {
+      add({ code: 'not-applicable', line: na.line, column, reason: `"${h.text}" is required${ownVariant.has(h.text) ? ` in a ${variant} ${def.name}` : ''}, so it can't be "Not applicable"` });
     } else if (paragraphs.length !== 1 || !NOT_APPLICABLE_OK.test(na.text)) {
       add({ code: 'not-applicable', line: na.line, column, reason: '"Not applicable" needs a reason, as the section\'s only line', hint: 'write: Not applicable — <reason>' });
     }
@@ -370,7 +417,9 @@ const l2col = (text) => [...text.slice(0, text.search(/\S/))].length + 1;
 // The ticket-key shape {id} stands for when a definition names another document's id.
 const ANY_ID = '[A-Za-z0-9][A-Za-z0-9._-]{0,63}?';
 
-function checkIds(doc, def, add) {
+// Returns the defined IDs (prefix → Map id → { line, column }). `upstream` (unit 32): kinds
+// marked `cite` are defined there only, `continue` kinds in both, never the same ID twice.
+function checkIds(doc, def, add, upstream) {
   // `{id}` is this document's own id. Without a usable id (missing, or not the type's shape,
   // which the frontmatter rules report), an {id} kind matches nothing and isn't required.
   const id = doc.value.id;
@@ -392,14 +441,18 @@ function checkIds(doc, def, add) {
       : new RegExp(`^(?:\\*\\*)?(${k.pattern})(?:\\*\\*)?(?::|[ \\t]+—[ \\t])`, 'u'),
     parentOf: k.parent === undefined ? null : fullMatch(k.pattern),
   }));
-  if (kinds.length === 0) return;
+  if (kinds.length === 0) return new Map();
 
   const defined = new Map(kinds.map((k) => [k.prefix, new Map()]));
   const mentions = [];
   const colOf = (text, index) => [...text.slice(0, index)].length + 1;
 
+  // Unit 32: a fixed part (the PRD glossary's ID prefixes) only explains IDs; it neither
+  // defines nor mentions any.
+  const fixed = [...fixedParts(doc.scan, def).values()];
   for (const l of doc.scan.lines) {
     if (l.kind !== 'text' && l.kind !== 'heading') continue;
+    if (fixed.some((f) => l.line > f.start && l.line < f.end)) continue;
     for (const k of kinds) {
       for (const m of l.text.matchAll(k.search)) mentions.push({ kind: k, id: m[0], line: l.line, column: colOf(l.text, m.index) });
       // Definitions: at the start of a heading, a list item or a table's first cell.
@@ -423,6 +476,15 @@ function checkIds(doc, def, add) {
         add({ code: 'misplaced-id', line: l.line, column, reason: `${m[1]} is defined outside "${k.section}"`, hint: `define ${k.prefix} IDs in the "${k.section}" section` });
       }
       const seen = defined.get(k.prefix);
+      const theirs = upstream?.status === 'ok' ? upstream.ids.get(k.prefix) : null;
+      if (k.upstream === 'cite') {
+        add({ code: 'upstream-id', line: l.line, column, reason: `${m[1]} is defined here, but ${k.prefix} IDs belong to the ${upstreamName(upstream)}`, hint: `cite the ${upstreamName(upstream)}'s ${k.prefix} IDs; define new ones there` });
+        continue;
+      }
+      if (k.upstream === 'continue' && theirs?.has(m[1])) {
+        add({ code: 'upstream-id', line: l.line, column, reason: `${m[1]} is already the ${upstreamName(upstream)}'s`, hint: `cite it as it is, or give this one the next free number: ${k.prefix}-${nextNumber(theirs, seen, k.prefix)}` });
+        continue;
+      }
       if (seen.has(m[1])) {
         const first = seen.get(m[1]);
         add({ code: 'duplicate-id', line: l.line, column, reason: `${m[1]} is defined twice`, hint: `first defined on line ${first.line}` });
@@ -433,11 +495,18 @@ function checkIds(doc, def, add) {
   }
 
   for (const { kind, id, line, column } of mentions) {
-    if (!defined.get(kind.prefix).has(id)) add({ code: 'unknown-id', line, column, reason: `${id} is mentioned but not defined in this document` });
+    if (defined.get(kind.prefix).has(id)) continue;
+    if (kind.upstream && upstream) {
+      // Upstream kinds resolve in the upstream document; unread (linted alone), they can't be checked.
+      if (upstream.status !== 'ok' || upstream.ids.get(kind.prefix)?.has(id)) continue;
+      add({ code: 'unknown-id', line, column, reason: `${id} is mentioned but defined neither here nor in the ${upstreamName(upstream)}` });
+      continue;
+    }
+    add({ code: 'unknown-id', line, column, reason: `${id} is mentioned but not defined in this document` });
   }
   // A required kind needs at least one definition (a ticket's own ACs, unit 08a).
   for (const kind of kinds) {
-    if (kind.required && defined.get(kind.prefix).size === 0 && (usable || !kind.ownId)) {
+    if (kind.required && !kind.upstream && defined.get(kind.prefix).size === 0 && (usable || !kind.ownId)) {
       const title = doc.scan.headings.find((h) => h.level === 1);
       const example = kind.ownId ? `${kind.prefix}-${shownId(id)}.1` : `${kind.prefix}-1`;
       add({
@@ -457,6 +526,14 @@ function checkIds(doc, def, add) {
       }
     }
   }
+  return defined;
+}
+
+const upstreamName = (upstream) => (upstream?.def?.name ?? 'upstream document');
+// The next number for a `continue` kind: one past the highest of the upstream's and this document's.
+function nextNumber(theirs, ours, prefix) {
+  const nums = [...theirs.keys(), ...ours.keys()].map((id) => Number(new RegExp(`^${prefix}-([0-9]+)$`).exec(id)?.[1] ?? 0));
+  return Math.max(0, ...nums) + 1;
 }
 
 // ---- Links --------------------------------------------------------------------------------

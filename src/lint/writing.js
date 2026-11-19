@@ -4,7 +4,8 @@ import { BANNED, VAGUE, ACRONYMS } from './words.js';
 
 // The writing rules (unit 31; research/13 §9c: GOV.UK, the Federal Plain Language Guidelines,
 // Spec Kit). Six rules on the summary for approval, three on the detail (2, 3 and 5):
-//   1. the summary's word budget (the type's summary_words): fail over it, warn at 80%;
+//   1. the summary's word budget (the type's summary_words, or the project's [docs.limits]):
+//      fail over it, warn at 80%;
 //   2. a sentence over 25 words fails, over 20 warns;
 //   3. a banned word fails: GOV.UK's words to avoid, "etc.", and a vague adjective in a
 //      sentence with no number;
@@ -21,6 +22,9 @@ export const PARAGRAPH_SENTENCES = 5;
 
 const LIST_ITEM = /^ *(?:[-*+]|[0-9]{1,9}[.)])[ \t]+/;
 const TABLE = /^ *\|/;
+// A list item's leading ID label ("FR-4: ", "AC-FR-4.1: ") names the item; it isn't part of the
+// sentence (unit 32).
+const ID_LABEL = /^(?:\*\*)?[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]+(?:\.[0-9]+)?(?:\*\*)?(?::[ \t]*|[ \t]+—[ \t]+)/;
 const words = (text) => (String(text).match(/[\p{L}\p{N}][\p{L}\p{N}'’%-]*/gu) ?? []);
 
 // Paragraphs: runs of text lines, a list item being its own paragraph (with its continuation
@@ -35,7 +39,7 @@ function paragraphs(lines) {
     }
     const item = LIST_ITEM.test(l.text);
     if (item || !cur) {
-      cur = { line: l.line, text: l.text.replace(LIST_ITEM, ''), list: item, lines: [l] };
+      cur = { line: l.line, text: l.text.replace(LIST_ITEM, '').replace(ID_LABEL, ''), list: item, lines: [l] };
       out.push(cur);
     } else {
       cur.text += ` ${l.text.trim()}`;
@@ -56,11 +60,12 @@ export function checkWriting(doc, def, ctx, add) {
   const summaryLines = s ? s.lines : [];
   const detailLines = scan.lines.filter((l) => !inSummary(l) && l.kind !== 'heading');
 
-  // 1. The word budget.
-  if (s && def.summary_words) {
+  // 1. The word budget: the project's `[docs.limits] <type>_summary_words` (unit 32), else the type's.
+  const budget = ctx.project?.limits?.[`${def.name}_summary_words`] ?? def.summary_words;
+  if (s && budget) {
     const count = summaryLines.filter((l) => l.kind === 'text' && !TABLE.test(l.text)).reduce((n, l) => n + words(l.text.replace(LIST_ITEM, '')).length, 0);
-    if (count > def.summary_words) add({ code: 'writing-budget', line: s.h2.line, column: 1, reason: `the summary has ${count} words; a ${def.name}'s budget is ${def.summary_words}`, hint: 'cut what the approver doesn\'t need to decide; the detail keeps it' });
-    else if (count >= Math.ceil(def.summary_words * 0.8)) add({ code: 'writing-budget', severity: 'warning', line: s.h2.line, column: 1, reason: `the summary has ${count} words, close to the ${def.name}'s budget of ${def.summary_words}`, hint: 'one page is the target' });
+    if (count > budget) add({ code: 'writing-budget', line: s.h2.line, column: 1, reason: `the summary has ${count} words; a ${def.name}'s budget is ${budget}`, hint: 'cut what the approver doesn\'t need to decide; the detail keeps it' });
+    else if (count >= Math.ceil(budget * 0.8)) add({ code: 'writing-budget', severity: 'warning', line: s.h2.line, column: 1, reason: `the summary has ${count} words, close to the ${def.name}'s budget of ${budget}`, hint: 'one page is the target' });
   }
 
   const ids = new Set((def.ids ?? []).map((k) => k.prefix));
