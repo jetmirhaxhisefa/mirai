@@ -1,7 +1,7 @@
 ---
 unit: "30a"
 name: ci
-status: approved (Jet, 2026-11-19: "approve 30a"; decision 1 from his answer the same day)
+status: done (spec and unit approved by Jet, 2026-11-19: "approve 30a"; decision 1 from his answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 30a; design/04-decisions.md D-63; design/11-platforms.md (P01 follows)
 depends_on: ["01", "29e"]
 ---
