@@ -1,0 +1,58 @@
+# A business brief: the first document of a feature (design/01 §2, U4). Written by the product
+# manager (Nora), checked by the verifier (Vera), approved by you: on `standard` together with
+# the PRD, on `full` at its own gate. Its status lives in the store (D-06).
+# Unit 31 (PM-03; research/13 §9a–§9b): the summary for approval on top, then Lenny Rachitsky's
+# 1-pager plus Basecamp Shape Up's appetite, no-gos and rabbit holes. The wording is MIRAI's own.
+kind = "document-type"
+schema_version = 1
+name = "brief"
+template = "templates/brief.md"
+template_version = 1
+checklist = "templates/brief-checklist.md"
+status = "forbidden"
+required_sections = ["Summary for approval", "Problem", "Who it is for", "Why now", "Success", "Business requirements", "Appetite and track", "No-gos", "Sources", "Open questions"]
+optional_sections = ["Rabbit holes", "Hard questions"]
+section_order = ["Summary for approval", "Problem", "Who it is for", "Why now", "Success", "Business requirements", "Appetite and track", "No-gos", "Rabbit holes", "Hard questions", "Sources", "Open questions"]
+may_be_empty = ["Open questions"]
+summary_words = 400
+lint_checks = ["summary", "writing", "brief"]
+
+[frontmatter.fields.track]
+type = "enum"
+values = ["quick", "standard", "full"]
+required = true
+
+# Success metrics: a table row whose first cell is SM-n.
+[[ids]]
+prefix = "SM"
+pattern = "SM-[0-9]+"
+defined_by = "table"
+required = true
+section = "Success"
+
+# Business requirements: outcomes the business needs (the start of the ID chain, design/01 §5a).
+[[ids]]
+prefix = "BR"
+pattern = "BR-[0-9]+"
+defined_by = "bullet"
+required = true
+section = "Business requirements"
+
+[[ids]]
+prefix = "NG"
+pattern = "NG-[0-9]+"
+defined_by = "bullet"
+required = true
+section = "No-gos"
+
+[[ids]]
+prefix = "R"
+pattern = "R-[0-9]+"
+defined_by = "bullet"
+section = "Rabbit holes"
+
+[[ids]]
+prefix = "Q"
+pattern = "Q-[0-9]+"
+defined_by = "bullet"
+section = "Open questions"

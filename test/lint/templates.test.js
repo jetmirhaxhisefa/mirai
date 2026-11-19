@@ -40,15 +40,15 @@ function lintDocs(files, repos = ['.', 'api']) {
 }
 const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: text }, repos).map((p) => `${p.line}:${p.column} ${p.code}`);
 
-test('T1: MIRAI\'s registry: story, bug and plan, templates that match their types, and known checks', () => {
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['bug', 'plan', 'story']);
+test('T1: MIRAI\'s registry: brief, story, bug and plan, templates that match their types, and known checks', () => {
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'plan', 'story']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);
     const fm = readFrontmatter(template);
     assert.equal(fm.value.type, name);
     assert.equal(fm.value.template, `${name}@v${def.template_version}`);
-    assert.ok(!Object.hasOwn(fm.value, 'status'), `${name}: tickets have no status`);
+    assert.ok(!Object.hasOwn(fm.value, 'status'), `${name}: its status lives in the store`);
     const h2 = scanMarkdown(fm.body).headings.filter((h) => h.level === 2).map((h) => h.text);
     assert.deepEqual(h2, def.section_order ?? [...def.required_sections, ...def.optional_sections], name);
     // A template is a valid document of its type where it lives, outside the docs root.

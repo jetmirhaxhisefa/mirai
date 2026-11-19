@@ -77,7 +77,8 @@ export const EVENT_TYPES = Object.freeze({
       // or, for a rejected plan with no frozen block, the hash of its whole text.
       // `merge` (unit 29d): you merged the ticket's MR from MIRAI; `path` is `mr/<number>` and
       // `content_hash` the code hash at the head you merged.
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge'] },
+      // `brief` (unit 31): a document you approved; `path` is its file in the repo.
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo (a ticket) or in the store (a plan)' },
       content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
       decision: { type: 'enum', values: ['accepted', 'edited', 'rejected'] },

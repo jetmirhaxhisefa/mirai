@@ -326,7 +326,7 @@ function bodyOf(text) {
 // because it's outside the repo. It's treated as a MIRAI document (as inside the docs root): a
 // missing frontmatter or an unknown type is a problem, and leftover template text counts.
 // Relative links aren't followed: there's no repo around the text. Returns the problems.
-export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null }) {
+export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false }) {
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
   if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
@@ -363,6 +363,6 @@ export function lintText(text, { source = '<text>', registry, project = projectD
   const ctx = { registry, templates: new Map() };
   const template = templateOf(type, def, ctx);
   const linkTarget = () => ({ slugs: null });
-  for (const p of checkDocument(doc, def, { linkTarget, file: source, project, template, registry, files })) problems.push({ file: source, ...p });
+  for (const p of checkDocument(doc, def, { linkTarget, file: source, project, template, registry, files, approving })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

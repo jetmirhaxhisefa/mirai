@@ -186,6 +186,7 @@ function checkFrontmatter(doc, def, add) {
   }
   if (present('owner')) checkValue(doc, 'owner', { type: 'string' }, add, at);
   if (present('updated')) checkValue(doc, 'updated', { type: 'date' }, add, at);
+  if (present('created')) checkValue(doc, 'created', { type: 'date' }, add, at);
 
   // The type's own fields.
   const own = def.frontmatter?.fields ?? {};
