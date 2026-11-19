@@ -1,7 +1,7 @@
 ---
 unit: "12c"
 name: install
-status: approved (Jet, 2026-11-19: "approve 12c"; decisions 1–3 from his answers the same day)
+status: done (spec and unit approved by Jet, 2026-11-19: "approve 12c"; decisions 1–3 from his answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 12c; 12b's open item; D-03, D-62
 depends_on: ["10", "12b", "30a"]
 ---
