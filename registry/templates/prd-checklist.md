@@ -34,6 +34,21 @@ judgement.
   result someone can see or measure?
 - Does each NFR have a number (or UNKNOWN) and a way to check it that someone could run?
 
+## What a builder would have to ask (P3, unit 32)
+
+- Is it clear what exists today and what this feature adds: every part it builds on (a
+  notification area, a role, a page) named as existing or new, and each new part with its FRs?
+- Is every role and state defined: who counts as "can see" or "can't see", and in which states
+  (open, done, archived) each action is allowed?
+- Is every boundary defined: how a limit is counted and what happens exactly at it, each date or
+  time's format and time zone, how ties in an order are broken?
+- Does it say when other people see a change: at once, or on their next reload?
+- Does it say what someone who loses access still sees: notices already sent, links, search?
+- Can every success metric be measured with what the product records, or is there an FR that
+  records it?
+- Does each measured NFR name its conditions: the data size, the load, where it's measured, and
+  what the time includes?
+
 ## Words and scope
 
 - Is every term the requirements depend on in the glossary, and used in exactly that form

@@ -28,6 +28,16 @@ PRD keeps exactly as it is.
   stay in the brief: mention them (NG-1, Q-1), never list them again. The summary is different: on
   standard it covers both documents, so it lists the brief's no-gos and open questions too. The PRD's own NG, R and Q numbers carry on after
   the brief's highest.
+- Leave the builder nothing to ask about WHAT happens (P3, unit 32). In particular:
+  - what the feature builds on: say what exists today and what is new (a notification area, a
+    role, a search page); a new part gets its own FRs, an existing one is named in the glossary;
+  - who can do what: every role and every state the requirements rely on ("can see a task",
+    "closed") is defined in the glossary, and the states each action is allowed in are named;
+  - boundaries: every limit says how it's counted and what happens exactly at it; every date or
+    time says its format and time zone; an order says how ties are broken;
+  - when others see a change: at once, or on their next reload;
+  - what someone who loses access still sees (notices already sent, links, search);
+  - how each success metric is measured: if the product doesn't record the data yet, an FR does.
 - Requirements say what and why, never how: no tables, endpoints, libraries or file names (those
   are the design's and the tickets').
 - Plain sentences of 25 words or fewer; "must", never "shall"; no "fast" or "secure" without a
@@ -82,7 +92,7 @@ Who has the problem and what it costs them, in a sentence that points to the bri
 
 ## Functional requirements
 
-<!-- done when: every FR is in one of the four groups, in its group's sentence shape, says "must" where the system acts, and ends with the brief's BR it serves, then any assumptions it rests on: (BR-2) (A-1); under each FR, its ACs (AC-FR-n.m) in Given / When / Then, each one a check anyone could run; failures and edge cases are their own FRs, never folded into a happy path -->
+<!-- done when: every FR is in one of the four groups, in its group's sentence shape, says "must" where the system acts, and ends with the brief's BR it serves, then any assumptions it rests on: (BR-2) (A-1); under each FR, its ACs (AC-FR-n.m) in Given / When / Then, each one a check anyone could run, using only what this PRD keeps in scope (never a non-goal) and an observable result (a message's words, a count, an order); failures and edge cases are their own FRs, never folded into a happy path -->
 ### Capabilities
 
 <!-- shape: "[Actor] can [do something] [under these conditions]." Something a person does. -->
@@ -109,7 +119,7 @@ Who has the problem and what it costs them, in a sentence that points to the bri
 
 ## Non-functional requirements
 
-<!-- done when: each NFR-n is a quality (speed, availability, security, privacy, accessibility) with a number or UNKNOWN, and says how it's verified: its own AC-NFR-n.m, or a line "Verified by: <a test level, a measurement or a manual check>" (D-35) -->
+<!-- done when: each NFR-n is a quality (speed, availability, security, privacy, accessibility) with a number or UNKNOWN, and says how it's verified: its own AC-NFR-n.m, or a line "Verified by: <a test level, a measurement or a manual check>" (D-35); a measurement names its conditions: the data size, the load, where it's measured and what the time includes -->
 - NFR-1: A quality, with the number it must meet, or UNKNOWN until it is measured.
   - Verified by: a test level, a measurement or a manual check, and what it looks at.
 
@@ -152,7 +162,7 @@ Besides the brief's no-gos (NG-1):
 
 ## Glossary
 
-<!-- done when: "ID prefixes" is kept exactly as it is; "Terms" defines, once, each word the requirements depend on, and the requirements use that word and no other for it -->
+<!-- done when: "ID prefixes" is kept exactly as it is; "Terms" defines, once, each word the requirements depend on (every role, every state, every existing part of the product the feature builds on, saying whether it exists today), and the requirements use that word and no other for it -->
 ### ID prefixes
 
 | Prefix | Means | Example |
