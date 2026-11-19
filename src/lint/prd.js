@@ -110,7 +110,7 @@ export function checkPrd(doc, def, ctx, add) {
   }
   for (const it of items.filter((x) => x.prefix === 'FR' || x.prefix === 'NFR')) {
     if (/\bshall\b/i.test(it.statement)) add({ code: 'prd-must', line: it.line, column: 1, reason: `${it.id} says "shall"`, hint: 'say "must": it is plain, and every reader takes it the same way' });
-    if (it.prefix === 'FR' && !/\(BR-[0-9]+(?:, *BR-[0-9]+)*\)\.?$/.test(it.statement)) add({ code: 'prd-trace', line: it.line, column: 1, reason: `${it.id} doesn't name the business requirement it serves`, hint: 'end it with the brief\'s BR in brackets, for example (BR-2)' });
+    if (it.prefix === 'FR' && !/\(BR-[0-9]+(?:, *BR-[0-9]+)*\)(?: *\(A-[0-9]+(?:, *A-[0-9]+)*\))?\.?$/.test(it.statement)) add({ code: 'prd-trace', line: it.line, column: 1, reason: `${it.id} doesn't name the business requirement it serves`, hint: 'end it with the brief\'s BR in brackets, then any assumptions it rests on: (BR-2) or (BR-2) (A-1)' });
     const acs = items.filter((a) => a.prefix === `AC-${it.prefix}` && a.parent === it.id);
     const verified = it.prefix === 'NFR' ? it.lines.map((l) => VERIFIED.exec(l.replace(ITEM, '').trim())).find(Boolean) : null;
     if (it.prefix === 'NFR') {

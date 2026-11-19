@@ -18,18 +18,23 @@ PRD keeps exactly as it is.
   Everything after it is for the agents: complete enough to cut tickets and build without guessing.
 - Variants: lite (standard track) is every required section. Full (full track) adds Key flows,
   Risks, Dependencies and Rollout. A lite PRD leaves those four out.
-- Length: a lite PRD keeps to 2,000 words, a full one to 3,500 (the project may set others). Over
+- Length: a lite PRD keeps to 2,000 words, a full one to 3,500 (the project may set others). The
+  frontmatter, code blocks and the glossary's ID prefixes don't count; everything else does. Over
   the cap, split the feature into two PRDs; never drop a requirement or an AC to fit. If it truly
   can't be split, set length_exception: "<why>" in the frontmatter and ask the approver under
   "Decisions for you".
 - The brief is the source of the why. Don't repeat its Problem, Who it is for, Why now or Success:
-  cite its IDs (BR-n, SM-n). The PRD's own NG, R and Q numbers carry on after the brief's highest.
+  cite its IDs (BR-n, SM-n). The brief's no-gos, rabbit holes and open questions stay in the brief:
+  mention them (NG-1, Q-1), never list them again. The PRD's own NG, R and Q numbers carry on after
+  the brief's highest.
 - Requirements say what and why, never how: no tables, endpoints, libraries or file names (those
   are the design's and the tickets').
 - Plain sentences of 25 words or fewer; "must", never "shall"; no "fast" or "secure" without a
   number. Every term the requirements depend on is in the glossary, used in exactly that form.
-- Mark every guess [ASSUMPTION: …] while drafting, and list it under Assumptions as A-n; no tag is
-  left in the body at approval.
+- A number the brief and the sources don't give is UNKNOWN, or a guess listed as an assumption.
+- Every guess is an assumption A-n under Assumptions, saying what changes if it's wrong; a
+  requirement that rests on one cites it after its BR: (BR-2) (A-1). While drafting you may tag a
+  guess [ASSUMPTION: …] in place; no tag is left in the body at approval.
 - The requirement shapes come from EARS, the Easy Approach to Requirements Syntax (Alistair Mavin
   and others, Rolls-Royce, 2009), written here in MIRAI's own words.
 -->
@@ -76,7 +81,7 @@ Who has the problem and what it costs them, in a sentence that points to the bri
 
 ## Functional requirements
 
-<!-- done when: every FR is in one of the four groups, in its group's sentence shape, says "must" where the system acts, and ends with the brief's BR it serves; under each FR, its ACs (AC-FR-n.m) in Given / When / Then, each one a check anyone could run; failures and edge cases are their own FRs, never folded into a happy path -->
+<!-- done when: every FR is in one of the four groups, in its group's sentence shape, says "must" where the system acts, and ends with the brief's BR it serves, then any assumptions it rests on: (BR-2) (A-1); under each FR, its ACs (AC-FR-n.m) in Given / When / Then, each one a check anyone could run; failures and edge cases are their own FRs, never folded into a happy path -->
 ### Capabilities
 
 <!-- shape: "[Actor] can [do something] [under these conditions]." Something a person does. -->
@@ -141,7 +146,7 @@ Besides the brief's no-gos (NG-1):
 
 ## Open questions
 
-<!-- done when: each Q-n has who answers it and what it blocks, and carries on from the brief's highest Q; none is left when the PRD is approved -->
+<!-- done when: each Q-n is a question this PRD raises, with who answers it and what it blocks, numbered on from the brief's highest Q; the brief's own questions aren't listed again (on standard they sit under "Decisions for you"); none is left when the PRD is approved -->
 - Q-2: A question still open, who answers it, and what it blocks.
 
 ## Glossary

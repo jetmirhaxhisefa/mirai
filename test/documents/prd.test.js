@@ -72,7 +72,10 @@ test('32 T1: the type and the template: left as it is it fails, both variants ma
 });
 
 test('32 T2: requirements: each problem names the FR and the fix; a shape only warns', () => {
-  one(swap(PRD, 'for themselves. (BR-2)', 'for themselves.'), 'prd-trace', /FR-3 doesn't name the business requirement it serves \| end it with the brief's BR in brackets, for example \(BR-2\)/);
+  one(swap(PRD, 'for themselves. (BR-2)', 'for themselves.'), 'prd-trace', /FR-3 doesn't name the business requirement it serves \| end it with the brief's BR in brackets, then any assumptions it rests on/);
+  // P2 (unit 32): assumptions cited after the BR are fine; anything else after it isn't.
+  assert.deepEqual(errors(swap(PRD, 'for themselves. (BR-2)', 'for themselves. (BR-2) (A-2)')).filter((p) => p.code === 'prd-trace'), []);
+  one(swap(PRD, 'for themselves. (BR-2)', 'for themselves. (BR-2) (see FR-1)'), 'prd-trace');
   one(swap(PRD, '  - AC-FR-3.1: Given Ana has turned reminders off, when a task of hers is due tomorrow, then she gets no email.\n', ''), 'prd-ac', /FR-3 has no acceptance criterion \| add AC-FR-3.1 under it/);
   one(swap(PRD, 'then she gets no email', 'and she gets no email'), 'prd-ac', /AC-FR-3.1 has no "Then" \| write it as: Given/);
   one(swap(PRD, '### Failures\n\n', ''), 'prd-groups', /"Functional requirements" has no "### Failures" \| the four groups, in order/);

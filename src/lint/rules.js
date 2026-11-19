@@ -482,7 +482,7 @@ function checkIds(doc, def, add, upstream) {
         continue;
       }
       if (k.upstream === 'continue' && theirs?.has(m[1])) {
-        add({ code: 'upstream-id', line: l.line, column, reason: `${m[1]} is already the ${upstreamName(upstream)}'s`, hint: `cite it as it is, or give this one the next free number: ${k.prefix}-${nextNumber(theirs, seen, k.prefix)}` });
+        add({ code: 'upstream-id', line: l.line, column, reason: `${m[1]} is already the ${upstreamName(upstream)}'s`, hint: `if it's the ${upstreamName(upstream)}'s, mention it and don't list it again here; if it's new, number it ${k.prefix}-${nextNumber(theirs, seen, k.prefix)}` });
         continue;
       }
       if (seen.has(m[1])) {
