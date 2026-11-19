@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -42,7 +43,7 @@ const CONFIG = '\n[[testing.levels]]\nname = "unit"\ncommand = ["run-tests"]\nse
 const doc = (fm, body) => `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(', ')}]` : v}`).join('\n')}\n---\n${body}`;
 const TICKET = doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"."', risk: 'normal', size: 'M', verify: '"Rename a team on staging."', tdd: 'auto' },
   '# Renaming a team hides its members\n\n## Acceptance criteria\n\n- AC-PMT-31.1: the members stay after a rename\n- AC-PMT-31.2: the old slug redirects\n');
-const FILES = { 'docs/mirai/tickets/PMT-31.md': TICKET, 'package.json': '{\n  "name": "app",\n  "dependencies": { "express": "^4" }\n}\n', 'app/Team.php': '<?php\n' };
+const FILES = { 'docs/mirai/tickets/PMT-31.md': TICKET, 'package.json': '{\n  "name": "app",\n  "dependencies": { "express": "^4" }\n}\n', 'app/Team.php': '<?php\n', 'tests/Unit/.gitkeep': '', 'tests/Feature/.gitkeep': '' };
 
 async function tty(argv, { cwd, env }, answers) {
   let out = '';
@@ -1007,4 +1008,14 @@ test('21e review: a build or fix MIRAI couldn\'t judge isn\'t started: no levels
   f.git('commit', '-qm', 'main moved');
   f.git('checkout', '-q', branch);
   await assert.doesNotReject(fixIt(f, claude));
+});
+
+test('30c T7: a CRLF file the agent wrote back as LF is committed with its CRLF; the commit says so', async () => {
+  const f = await ready({ files: { ...FILES, 'app/Team.php': '<?php\r\n// one\r\n' } });
+  const r = await build(f, claudeWith([done], ["printf '<?php\\n// one\\n// two\\n' > app/Team.php"]));
+  assert.equal(r.outcome, 'handed-over', r.why);
+  const git = (...a) => execFileSync('git', a, { cwd: f.root, env: f.env, encoding: 'utf8' });
+  assert.equal(git('show', 'HEAD:app/Team.php'), '<?php\r\n// one\r\n// two\r\n');
+  assert.match(git('log', '-1', '--format=%B'), /MIRAI kept the CRLF line endings of: app\/Team\.php/);
+  assert.equal(git('diff', '--numstat', 'HEAD~1', 'HEAD', '--', 'app/Team.php').trim(), '1\t0\tapp/Team.php');
 });

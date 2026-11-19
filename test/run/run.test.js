@@ -149,7 +149,7 @@ test('28: the next step is read from the ticket: review, proofs, ship; refused s
   assert.equal(afterStep('build', { outcome: 'needs-you', why: 'a protected path' }, 'T-1').stop.kind, 'needs-you');
   assert.equal(afterStep('fix', { outcome: 'parked' }, 'T-1').stop.kind, 'parked');
   assert.match(afterStep('fix', { outcome: 'parked' }, 'T-1').stop.next, /mirai unpark T-1 --retry$/);
-  assert.match(afterStep('plan', { outcome: 'bad-plan' }, 'T-1').stop.next, /mirai unpark T-1 --retry$/);
+  assert.match(afterStep('plan', { outcome: 'bad-plan' }, 'T-1').stop.next, /mirai unpark T-1 --retry \(back to ready-for-dev; then mirai plan T-1, which reads your note\)$/);
   assert.equal(afterStep('build', { outcome: 'killed' }, 'T-1').stop.kind, 'interrupted');
   assert.deepEqual(afterStep('plan', { outcome: 'usage-limit' }, 'T-1'), { limit: true });
   assert.equal(afterStep('ship', { outcome: 'unchanged' }, 'T-1').shipped, true);
@@ -284,7 +284,7 @@ test('28: mirai show prints the ticket\'s page from the store and writes nothing
   assert.equal(d.reviews.length, 1);
   assert.equal(d.reviews[0].outcome, 'pass');
   const text = showText(d);
-  for (const re of [/^PMT-31: Renaming a team hides its members\s+in-review/m, /^Plan\s+round 1, approved by you/m, /^Build\s+handed-over/m, /^Review 1\s+PASS/m, /^Rounds\s+0 of 2 used · re-plans 0 of 1$/m, /^Parked\s+—$/m, /^QA\s+not yet \(unit 51\)$/m]) assert.match(text, re);
+  for (const re of [/^PMT-31: Renaming a team hides its members\s+in-review/m, /^Plan\s+round 1, approved by you/m, /^Build\s+handed-over/m, /^Review 1\s+PASS/m, /^Rounds\s+0 of 2 used · re-plans 0 of 1 · no parks$/m, /^Parked\s+—$/m, /^QA\s+not yet \(unit 51\)$/m]) assert.match(text, re);
   const j = await tty(['show', 'PMT-31', '--json'], f.io);
   assert.equal(j.code, EXIT.OK);
   const parsed = JSON.parse(j.out);

@@ -35,7 +35,7 @@ export const CONFIG = '\n[[testing.levels]]\nname = "unit"\ncommand = ["run-test
 const doc = (fm, body) => `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n${body}`;
 const ticketDoc = doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"."', risk: 'normal', size: 'M', verify: '"Rename a team on staging."', tdd: 'auto' },
   '# Renaming a team hides its members\n\n## Acceptance criteria\n\n- AC-PMT-31.1: the members stay after a rename\n- AC-PMT-31.2: the old slug redirects\n');
-const FILES = { 'docs/mirai/tickets/PMT-31.md': ticketDoc, 'package.json': '{\n  "name": "app",\n  "dependencies": { "express": "^4" }\n}\n', 'app/Team.php': '<?php\n// one\n// two\n' };
+const FILES = { 'docs/mirai/tickets/PMT-31.md': ticketDoc, 'package.json': '{\n  "name": "app",\n  "dependencies": { "express": "^4" }\n}\n', 'app/Team.php': '<?php\n// one\n// two\n', 'tests/Unit/.gitkeep': '', 'tests/Feature/.gitkeep': '' };
 export const PASSED = { state: 'pass', known_failures: [], tests: { total: 3, skipped: 0 } };
 export const passing = async ({ name }) => ({ outcome: 'pass', id: `t-${name}`, tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 } });
 

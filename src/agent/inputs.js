@@ -72,7 +72,7 @@ export function ticketAcs(ticket) {
 // `approved(id)`: whether a sibling's plan carries your approval; only those are given.
 // `plan` (unit 21b, the build): the approved plan's verified text. Then the inputs are the plan,
 // the sole source of truth (design/01 §7), the ticket and the conventions only.
-export function planInputs({ root, env, commit, ticketId, config, store, template = '', limits = INPUT_LIMITS, approved = () => false, plan = null }) {
+export function planInputs({ root, env, commit, ticketId, config, store, template = '', limits = INPUT_LIMITS, approved = () => false, plan = null, extra = [] }) {
   const docsRoot = config.docs?.root ?? 'docs/mirai';
   const docs = documentsAt(root, commit, docsRoot, env);
   const byId = (id) => docs.filter((d) => d.fm && sameKey(d.fm.id, id));
@@ -141,6 +141,8 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
     }
   }
 
+  // Unit 30c: files the caller adds (your review notes), right after the ticket's own.
+  for (const x of extra) want(x.name, x.from, x.why, x.text);
   // Fill to the cap, index.json included: what doesn't fit is left out whole, and named.
   const inputs = {};
   const given = [];

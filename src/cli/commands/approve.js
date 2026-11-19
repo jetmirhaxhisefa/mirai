@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 
 import { EXIT } from '../exit-codes.js';
@@ -10,13 +11,14 @@ import { openStore } from '../../store/home.js';
 import { checkEvent, withSeq } from '../../store/journal.js';
 import { checkTicketStatusWrite, writeTicketStatusIn } from '../../store/tickets.js';
 import { contentHash, signObject } from '../../sign/sign.js';
-import { approvalPath, declaredChanges, gateFor, lintPlan, planApproval, planContext, planPath, readPlan } from '../../agent/plan.js';
+import { approvalPath, declaredChanges, gateFor, lintPlan, planApproval, planContext, planPath, readPlan, ticketRecord } from '../../agent/plan.js';
 import { approvalHash } from '../../lint/frozen.js';
 import { plain } from '../../status/text.js';
 import { atomicWrite } from '../../store/files.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
 import { decisionSigner } from '../../sign/signer.js';
 import { branchKeys } from '../../sign/keys.js';
+import { noteAgainstTicket } from '../../agent/review-notes.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -148,6 +150,11 @@ async function approvePlan(ticket, io, now) {
       reason = await prompter.ask('reason (optional, one line): ');
       if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
       if (reason === '') reason = undefined;
+      // Unit 30c (F21): a note can't overrule the approved ticket; Kai follows the ticket.
+      if (reason) {
+        const against = noteAgainstTicketFile(store, keys, ticket, reason);
+        if (against) io.stdout.write(`note: your reason names ${against.note.join(', ')}, which ${ticket}'s approved ticket doesn't (it names ${against.ticket.join(', ')}). Kai follows the ticket where they disagree: if the ticket is wrong, edit it and approve it again (mirai approve ${ticket} --file <path>) before the re-plan.\n`);
+      }
     }
     const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });
     // What you approved is what was shown: the plan must not have changed while you answered.
@@ -176,5 +183,17 @@ async function approvePlan(ticket, io, now) {
     return EXIT.OK;
   } finally {
     prompter.close();
+  }
+}
+
+// The approved ticket's text on the integration branch, checked against a rejection note.
+function noteAgainstTicketFile(store, keys, ticket, reason) {
+  try {
+    const path = ticketRecord(store, ticket, keys).approved?.path;
+    if (!path) return null;
+    const text = execFileSync('git', ['show', `${store.branch}:${path}`], { cwd: store.checkout, env: store.gitEnv, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+    return noteAgainstTicket(reason, text);
+  } catch {
+    return null;
   }
 }

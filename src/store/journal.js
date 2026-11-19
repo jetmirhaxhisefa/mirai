@@ -311,12 +311,15 @@ export function readJournal(store, { keys } = {}) {
 // The counter must be at least the highest seq in the journal; a lower one (a restored or
 // edited counter) would hand out numbers twice. The run logs share the counter, so the newest
 // run log's last line counts too (unit 05b). Reads only the last lines.
+// The lines are read before the counter: an append bumps the counter before it writes its line,
+// so a counter read after the lines is never behind them, even while another process appends
+// (30c's runner job: read the other way round, an append in between read as counter-behind).
 export function checkCounter(store) {
   const p = paths(store);
-  const counter = readCounter(p.counter);
   const last = lastJsonLine(p.journal);
   const journalSeq = Number.isSafeInteger(last?.seq) ? last.seq : 0;
   const runSeq = newestRunLogSeq(store);
+  const counter = readCounter(p.counter);
   const highest = Math.max(journalSeq, runSeq);
   if (counter < highest) {
     const where = runSeq > journalSeq ? 'the newest run log' : 'the journal';

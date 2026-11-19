@@ -70,8 +70,20 @@ The ticket must be `ready-for-dev`. The ticket on the integration branch must be
 3. **The plan.** It comes from the run's **structured output**, checked by Claude Code against a schema. **A file Kai writes is never the plan.** Writing one would change the project, which the planner role refuses.
 4. **MIRAI stores it** in `<store>/tickets/<ticket>/plan.md`, where agents can't write. MIRAI also writes the frontmatter itself: `ticket`, `acs` (the ticket's own ACs and its `covers_ac`), `risk`, `tdd`, `tests` and `round` come from the ticket, never from Kai. A plan that declares a new dependency makes the ticket high risk.
 5. **The ticket moves** `ready-for-dev → in-progress` once a plan passes the lint, or on its way to a park. A run cut short (a usage limit, Ctrl-C, a fault) leaves it `ready-for-dev`, so `mirai plan` simply runs again.
-6. **The lint** (unit 08b). A plan that fails gets **one fix launch**, with the problems listed and the failed plan as `last-plan.md`. If it fails again, the ticket parks as `bad-plan`. If no plan comes back at all, twice, nothing is stored and the ticket stays `ready-for-dev`.
-7. **The gate.** A plan that passes waits for you.
+6. **The lint** (unit 08b).
+   - **MIRAI fixes clear format slips first** (unit 30c), and each fix is one line in the plan's Implementation log (`MIRAI normalized (line N): …`). It fixes only these:
+     - a Change cell's first word (`change: replace X` becomes `change`);
+     - a test row's Symbol that matches exactly one Code map symbol, by case, by its quotes, or as the only symbol it starts;
+     - a Symbols cell with prose before its code spans;
+     - a Test ID written from a service's own folder, when exactly one repo folder ends in it.
+   - **The lint also checks Test IDs** against the repo at the plan's base. A Test ID's folder must be in the repo, and its file type must be one its level's adapter runs (`.php` for PHPUnit, `.ts`/`.tsx`/`.js` for Vitest).
+   - **A plan that fails gets one fix launch**, with the problems grouped by rule and the failed plan as `last-plan.md`. Each refusal quotes the cell it's about.
+   - **If it fails again**, the ticket parks as `bad-plan`, and `mirai unpark <ticket> --retry` sends it back to `ready-for-dev` for a re-plan.
+   - **If no plan comes back at all**, twice, nothing is stored and the ticket stays `ready-for-dev`.
+7. **Your notes reach Kai** (unit 30c). Before 30c, none did. Every reason you gave when rejecting a plan, and every unpark note, go to the next plan and its fix launch, oldest first, as `review-notes.md`.
+   - Kai is told each note still holds unless a later note or the ticket says otherwise.
+   - Where a note and the approved ticket disagree, Kai follows the ticket, and the reject warns you to edit the ticket instead.
+8. **The gate.** A plan that passes waits for you.
 
 ## The plan gate: `mirai approve <ticket> --plan`
 
