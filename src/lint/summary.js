@@ -139,8 +139,12 @@ export function checkSummary(doc, def, ctx, add) {
   // Unit 32: a number may come from the upstream document (a PRD's summary quotes the brief).
   const upText = ctx.upstream?.status === 'ok' ? ctx.upstream.doc.scan.lines.filter((l) => l.kind === 'text' || l.kind === 'heading' || l.kind === 'fence').map((l) => (l.visible ?? l.text)).join('\n').replace(ID_TOKEN, ' ') : '';
   const detailNumbers = new Set([...(detailText.match(NUMBER) ?? []), ...(upText.match(NUMBER) ?? [])]);
+  // Unit 32 (decision 5): the length-exception item gives the word count and the cap, which the
+  // lint computes rather than the detail stating; that line's numbers aren't checked.
+  const exception = typeof doc.value?.length_exception === 'string' && doc.value.length_exception.trim() !== '';
   for (const l of s.lines) {
     if (l.kind !== 'text') continue;
+    if (exception && /\bwords\b/.test(l.text) && /\bcap\b/.test(l.text)) continue;
     const text = l.text.replace(ID_TOKEN, ' ').replace(/^ *(?:[-*+]|[0-9]{1,9}[.)])[ \t]+/, '');
     for (const n of text.match(NUMBER) ?? []) {
       if (!detailNumbers.has(n)) add({ code: 'summary-number', severity: 'warning', line: l.line, column: 1, reason: `the summary says ${n}, which the detail doesn't`, hint: 'every number in the summary comes from the detail; add its source there, or correct it' });

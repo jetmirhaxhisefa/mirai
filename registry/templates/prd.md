@@ -52,8 +52,6 @@ Who has the problem and what it costs them, in a sentence that points to the bri
 ### What changes
 
 <!-- done when: three to seven bullets say what a user or the system does differently; each ends with the FR, NFR or BR IDs it sums up; failures and unchanged behaviour the approver would worry about are named -->
-Once this is built:
-
 - What a person can do that they can't today (FR-1)
 - What the system does by itself, and when (FR-2)
 - What happens when something goes wrong (FR-3)
@@ -74,8 +72,6 @@ Once this is built:
 ## User journeys
 
 <!-- done when: each UJ-n names who, the situation they're in, and the steps they take, in one or two sentences; every FR serves at least one journey -->
-The journeys this feature changes:
-
 - UJ-1: A named role, in a stated situation, takes these steps to reach this result.
 
 ## Functional requirements
@@ -108,8 +104,6 @@ The journeys this feature changes:
 ## Non-functional requirements
 
 <!-- done when: each NFR-n is a quality (speed, availability, security, privacy, accessibility) with a number or UNKNOWN, and says how it's verified: its own AC-NFR-n.m, or a line "Verified by: <a test level, a measurement or a manual check>" (D-35) -->
-The qualities this feature must keep:
-
 - NFR-1: A quality, with the number it must meet, or UNKNOWN until it is measured.
   - Verified by: a test level, a measurement or a manual check, and what it looks at.
 

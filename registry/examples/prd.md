@@ -60,7 +60,7 @@ The journeys this feature changes:
   - AC-FR-1.1: Given a task with no due date, when its creator sets 2027-01-15, then the task shows "Due 15 Jan 2027".
   - AC-FR-1.2: Given a task due 2027-01-15, when its creator removes the date, then the task shows no due date.
 - FR-2: A team lead can see all of the team's overdue tasks on one page, the most overdue first. (BR-3)
-  - AC-FR-2.1: Given tasks overdue by 1, 5 and 2 days, when the lead opens the overdue page, then they show in the order 5, 2, 1.
+  - AC-FR-2.1: Given tasks 1, 5 and 2 days overdue, when the lead opens the page, then they show 5, 2, 1.
   - AC-FR-2.2: Given a team with no overdue task, when the lead opens the overdue page, then it says "Nothing is overdue".
 - FR-3: An assignee can turn reminder emails off, and on again, for themselves. (BR-2)
   - AC-FR-3.1: Given Ana has turned reminders off, when a task of hers is due tomorrow, then she gets no email.
@@ -77,16 +77,16 @@ The journeys this feature changes:
 ### Failures
 
 - FR-6: If a due date before today is entered, then the system must refuse it with a message saying why. (BR-1)
-  - AC-FR-6.1: Given today is 2027-01-14, when a creator enters 2027-01-13, then it is refused with "The due date can't be in the past."
+  - AC-FR-6.1: Given today is 2027-01-14, when a creator enters 2027-01-13, then it is refused: "Due dates can't be in the past."
 - FR-7: If a reminder email fails to send, then the system must retry once an hour later and record the failure. (BR-2)
-  - AC-FR-7.1: Given the mail service refuses a reminder, when an hour passes, then it is sent once more and the log names the failure.
+  - AC-FR-7.1: Given the mail service refuses a reminder, when an hour passes, then it is sent again and the failure logged.
 - FR-8: If a task's assignee leaves the team, then the system must stop sending reminders for that task. (BR-2)
   - AC-FR-8.1: Given Ana leaves the team, when a task still assigned to her is due tomorrow, then no reminder is sent.
 
 ### Unchanged behaviour
 
 - FR-9: Where a task has no due date, the task list must show and sort it exactly as it does today. (BR-1)
-  - AC-FR-9.1: Given tasks with no due dates, when the list is opened after this change, then their order is the same as before.
+  - AC-FR-9.1: Given tasks with no due date, when the list opens after this change, then their order is unchanged.
 
 ## Non-functional requirements
 
@@ -95,7 +95,7 @@ The qualities this feature must keep:
 - NFR-1: The overdue page must show within 2 seconds for a team with 500 open tasks.
   - Verified by: a measurement on the test data set of 500 open tasks, in the browser.
 - NFR-2: A reminder email must show only the task's title and due date, never its description.
-  - AC-NFR-2.1: Given a task whose description holds a salary, when its reminder is sent, then the email holds only the title and date.
+  - AC-NFR-2.1: Given a task description holding a salary, when its reminder is sent, then the email shows only title and date.
 
 ## Non-goals
 
