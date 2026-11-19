@@ -1,7 +1,10 @@
 # Installing MIRAI
 
-Unit 12c. MIRAI installs with npm from a GitHub tag, with one command. You need **Node 22 or
-newer** and **git** (on macOS: `xcode-select --install`).
+Unit 12c. MIRAI installs with npm from a GitHub tag, with one command. You need:
+
+- **Node 22 or newer**;
+- **git** (on macOS: `xcode-select --install`), with your name and email set
+  (`git config --global user.name …` and `user.email …`), since MIRAI's commits carry them.
 
 ```bash
 npm install -g github:jetmirhaxhisefa/mirai#v0.2.0
@@ -48,7 +51,9 @@ To update, run the install command again with the new tag.
 ## Two snags
 
 **`EACCES` when installing.** Your Node's global folder belongs to someone else, such as a
-Homebrew Node another user installed. Give npm a folder of your own:
+Homebrew Node another user installed. npm's message suggests running it as root. **Don't use
+`sudo`**: root would own the files, and your user couldn't update them. Give npm a folder of your
+own instead:
 
 ```bash
 npm config set prefix ~/.npm-global
