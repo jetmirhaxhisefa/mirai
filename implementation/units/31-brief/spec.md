@@ -1,7 +1,7 @@
 ---
 unit: "31"
 name: brief
-status: approved (Jet, 2026-11-19: "approve 31"; decisions 1–4 from his answers the same day)
+status: done (spec and unit approved by Jet, 2026-11-19: "approve 31"; decisions 1–4 from his answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 31; design/09-post-mvp-plan.md PM-03 and §4 row 3; research/13-document-writing.md
 depends_on: ["04", "07", "08a"]
 ---
