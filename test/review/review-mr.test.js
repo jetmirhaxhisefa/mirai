@@ -18,6 +18,10 @@ import { commitOf, symbolicBranch } from '../../src/store/git.js';
 import { readJournal, ticketFacts } from '../../src/store/journal.js';
 import { passed } from '../proofs/fixture.js';
 import { tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 29d: mirai review-mr and mirai merge. No network: a stand-in gh plays GitHub over a local
 // bare repo (its branches), pull requests in a JSON file, and a merge that really merges, pinned to
@@ -122,7 +126,7 @@ async function term(cmd, f, argv, answers, values = {}) {
   return { code, out };
 }
 
-test('29d: the packet: files against the Code map, tests, the review\'s depth, proofs at the head, CI, mergeable', async () => {
+launchTest('29d: the packet: files against the Code map, tests, the review\'s depth, proofs at the head, CI, mergeable', async () => {
   const f = await shipped();
   const d = packetData({ cwd: f.root, env: f.env, ticket: 'PMT-31', hostOf: f.hostOf });
   assert.equal(d.mr.state, 'open');
@@ -153,7 +157,7 @@ test('29d: the packet: files against the Code map, tests, the review\'s depth, p
   assert.match(GATES.merge({ ticket: 'PMT-31' }), /^mirai merge PMT-31/);
 });
 
-test('29d: merge refuses: a head pushed after MIRAI, CI failing or pending, not mergeable, a wrong key typed, no terminal', async () => {
+launchTest('29d: merge refuses: a head pushed after MIRAI, CI failing or pending, not mergeable, a wrong key typed, no terminal', async () => {
   const f = await shipped();
   // CI failing, then pending; not mergeable.
   f.gh.write((s) => { s.ci = [{ name: 'tests', status: 'completed', conclusion: 'failure' }]; });
@@ -183,7 +187,7 @@ test('29d: merge refuses: a head pushed after MIRAI, CI failing or pending, not 
   assert.equal(f.gh.read().prs[0].state, 'OPEN');
 });
 
-test('29d: merge from the review: signed, pinned to the head, a merge commit, the branch deleted, main fast-forwarded, the ticket done; again refused', async () => {
+launchTest('29d: merge from the review: signed, pinned to the head, a merge commit, the branch deleted, main fast-forwarded, the ticket done; again refused', async () => {
   const f = await shipped();
   const before = f.bareGit('rev-parse', 'refs/heads/main');
   const branch = f.gh.read().prs[0].headRefName;
@@ -213,7 +217,7 @@ test('29d: merge from the review: signed, pinned to the head, a merge commit, th
   assert.match(again.err.message, /merged already/);
 });
 
-test('29d: later and send back change nothing; a dirty work tree: the host merges, your checkout is left, said', async () => {
+launchTest('29d: later and send back change nothing; a dirty work tree: the host merges, your checkout is left, said', async () => {
   const f = await shipped();
   const later = await term(reviewMrCmd, f, ['PMT-31'], ['l']);
   assert.match(later.out, /left as it is/);

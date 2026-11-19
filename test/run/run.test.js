@@ -33,6 +33,10 @@ import logEvent from '../../src/mcp/tools/log-event.js';
 import { LOG_TYPES, SESSION_LOG_TYPES } from '../../src/store/journal.js';
 import { createMachineKey, protectKey, writePublicKeyFile } from '../../src/sign/keys.js';
 import { approvalPath, planApproval } from '../../src/agent/plan.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 28: `mirai run`, supervised, one ticket. The real steps with a stand-in claude and test
 // run; stand-ins only for the baseline refresh, the host (ship) and the usage probe.
@@ -69,7 +73,7 @@ const baselineFor = (f) => {
 };
 const drive = (f, o = {}) => driveTicket({ cwd: f.root, env: f.env, ticket: 'PMT-31', caffeinate: o.caffeinate ?? awake().fn, steps: o.steps ?? steps(), launchOptions: o.launchOptions ?? {}, ...o.extra });
 
-test('28: one ticket to its MR: the run stops at the plan gate; after your approval it builds, reviews, signs the proofs and opens the MR under one lock; again, it changes nothing', async () => {
+launchTest('28: one ticket to its MR: the run stops at the plan gate; after your approval it builds, reviews, signs the proofs and opens the MR under one lock; again, it changes nothing', async () => {
   const f = await approvedTicket();
   const a = awake();
   const r1 = await drive(f, { caffeinate: a.fn, launchOptions: watch(claudeWith([{ plan: PLAN_TEXT }])) });
@@ -111,7 +115,7 @@ test('28: one ticket to its MR: the run stops at the plan gate; after your appro
   assert.equal(r3.mr, MR_URL);
 });
 
-test('28: from your session the run stops before the proofs, with the terminal command; the terminal then signs and ships', async () => {
+launchTest('28: from your session the run stops before the proofs, with the terminal command; the terminal then signs and ships', async () => {
   const f = await passed();
   const s = await drive(f, { extra: { via: 'session' } });
   assert.equal(s.outcome, 'stopped');
@@ -122,7 +126,7 @@ test('28: from your session the run stops before the proofs, with the terminal c
   assert.deepEqual(t.steps.map((x) => [x.step, x.outcome]), [['proofs', 'recorded'], ['ship', 'opened']]);
 });
 
-test('28: the next step is read from the ticket: review, proofs, ship; refused states; a park stops with the unpark command', async () => {
+launchTest('28: the next step is read from the ticket: review, proofs, ship; refused states; a park stops with the unpark command', async () => {
   const f = await passed({ reviewed: false });
   const store = openStore(f.io);
   const ctx = () => {
@@ -155,7 +159,7 @@ test('28: the next step is read from the ticket: review, proofs, ship; refused s
   assert.equal(afterStep('ship', { outcome: 'unchanged' }, 'T-1').shipped, true);
 });
 
-test('28: the breaker stops the run after loop.breaker environment faults in a row; a good launch in between resets it', async () => {
+launchTest('28: the breaker stops the run after loop.breaker environment faults in a row; a good launch in between resets it', async () => {
   const f = await passed({ reviewed: false });
   // An agent failure stops on its own; so the good launch's reset is shown with an ok review after it.
   const seq = ['env-fault', 'env-fault', 'pass-ok'];
@@ -175,7 +179,7 @@ test('28: the breaker stops the run after loop.breaker environment faults in a r
   assert.equal(readRunState(openStore(f.io)).state, 'stopped');
 });
 
-test('28: a 5-hour usage limit pauses and the same step runs again after the reset, no round used; on_limit "stop", max_wait_minutes, stop_by and a weekly limit stop', async () => {
+launchTest('28: a 5-hour usage limit pauses and the same step runs again after the reset, no round used; on_limit "stop", max_wait_minutes, stop_by and a weekly limit stop', async () => {
   const f = await passed({ reviewed: false });
   const store = openStore(f.io);
   const reset = new Date('2026-11-12T12:00:00Z');
@@ -217,7 +221,7 @@ test('28: a 5-hour usage limit pauses and the same step runs again after the res
   assert.equal(nextClock('06:30', new Date(2026, 10, 12, 7, 0)).getDate(), 13, 'the next 06:30 after 07:00 is tomorrow');
 });
 
-test('28: resume after a crash: the dead run is taken over, your signed move continues the same ticket, rounds unchanged; --abandon; another ticket waits while a run is open', async () => {
+launchTest('28: resume after a crash: the dead run is taken over, your signed move continues the same ticket, rounds unchanged; --abandon; another ticket waits while a run is open', async () => {
   const f = await passed({ reviewed: false });
   const store = openStore(f.io);
   // A run that crashed mid-review: its state still says running, nobody holds the lock.
@@ -273,7 +277,7 @@ test('28: resume after a crash: the dead run is taken over, your signed move con
   assert.notEqual((await tty(['resume'], { ...g.io })).code, EXIT.OK);
 });
 
-test('28: mirai show prints the ticket\'s page from the store and writes nothing; --json; --full', async () => {
+launchTest('28: mirai show prints the ticket\'s page from the store and writes nothing; --json; --full', async () => {
   const f = await passed();
   const store = openStore(f.io);
   const before = readJournal(store).events.length;
@@ -318,7 +322,7 @@ test('28: a launch\'s progress goes to the run log as a summary: each tool and h
   assert.doesNotThrow(() => buildRunLine('r-20261112-000000-abcd', 1, { item: 'T-1', event: 'agent_run', launch_id: 'l1', step: 'build', role: 'developer', round: 1, tier: 'standard', model: 'm', tokens_in: 0, tokens_out: 0, turns: 1, minutes: 0, limit_share_source: 'unknown', verdict: 'pass', tool_calls: t.toolCalls() }));
 });
 
-test('28: a build killed before its record: the run names mirai discard; discard works from the registered branch; then the run builds again', async () => {
+launchTest('28: a build killed before its record: the run names mirai discard; discard works from the registered branch; then the run builds again', async () => {
   const f = await passed({ reviewed: false });
   const store = openStore(f.io);
   // As if Kai was killed mid-build: no build record yet, his edit uncommitted, the ticket in progress.
@@ -338,7 +342,7 @@ test('28: a build killed before its record: the run names mirai discard; discard
   assert.equal(r.stop.kind, 'needs-you');
 });
 
-test('29a: each run saves its report: the ticket\'s whole path (an earlier run\'s steps marked), usage, the MR, the red team; mirai report prints it; feedback from you and your session', async () => {
+launchTest('29a: each run saves its report: the ticket\'s whole path (an earlier run\'s steps marked), usage, the MR, the red team; mirai report prints it; feedback from you and your session', async () => {
   const f = await approvedTicket();
   const r1 = await drive(f, { launchOptions: watch(claudeWith([{ plan: PLAN_TEXT }])) });
   assert.equal(r1.stop.kind, 'gate-plan');
@@ -410,7 +414,7 @@ test('29a: each run saves its report: the ticket\'s whole path (an earlier run\'
   assert.ok(logEvent.check({ type: 'note', ticket: 'PMT-31', message: 'x' }, policy('interactive', [...SESSION_LOG_TYPES])).refused);
 });
 
-test('29b: with the machine key set up, a session run signs the proofs with it and reaches the MR; your key, protected, is never asked; a plan approval signed by the machine key never counts', async () => {
+launchTest('29b: with the machine key set up, a session run signs the proofs with it and reaches the MR; your key, protected, is never asked; a plan approval signed by the machine key never counts', async () => {
   const f = await passed();
   const m = createMachineKey(f.env);
   writePublicKeyFile(f.root, m.keyId, m.publicPem, { machine: true });

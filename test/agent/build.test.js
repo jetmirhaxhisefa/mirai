@@ -30,6 +30,10 @@ import { readRunLog, runIds } from '../../src/store/run-log.js';
 import { readTicketStatus } from '../../src/store/tickets.js';
 import { snapshot } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 21b: the build step, with a stand-in `claude`, a stand-in test run, and no model.
 
@@ -96,7 +100,7 @@ async function ready({ plan = PLAN, files = FILES, baseline = true } = {}) {
 const build = (f, claude, o = {}) => runBuild({ cwd: f.root, env: f.env, ticket: 'PMT-31', launchToken: mintLaunchToken(), launchOptions: watch(claude), testRun: passing, ...o });
 const done = { status: 'done', summary: 'Changed app/Team.php.', tests_run: ['unit: pass'], checks_run: [] };
 
-test('T1: mirai build refuses a ticket not in progress, an unapproved plan, an edited plan; it builds from the verified text', async () => {
+launchTest('T1: mirai build refuses a ticket not in progress, an unapproved plan, an edited plan; it builds from the verified text', async () => {
   const f = await ready();
   const text = readFileSync(planPath(f.store, 'PMT-31'), 'utf8');
   writeFileSync(planPath(f.store, 'PMT-31'), text.replace('**Problem:**', '**Problem (edited):**'));
@@ -114,7 +118,7 @@ test('T1: mirai build refuses a ticket not in progress, an unapproved plan, an e
   await assert.rejects(build(f, claudeWith([done])), (e) => e.code === 'not-ready');
 });
 
-test('T2: the branch: made from the integration commit with its record, then reused; a dirty tree or a branch MIRAI didn\'t make is refused', async () => {
+launchTest('T2: the branch: made from the integration commit with its record, then reused; a dirty tree or a branch MIRAI didn\'t make is refused', async () => {
   assert.equal(ticketSlug(TICKET), 'renaming-a-team-hides-its-members');
   assert.equal(ticketSlug('---\nid: x\n---\n# Ça marche: déjà vu!\n'), 'ca-marche-deja-vu');
   const f = await ready();
@@ -140,7 +144,7 @@ test('T2: the branch: made from the integration commit with its record, then reu
   assert.throws(() => prepareBranch({ ...opts, config: { ...config, git: { ...config.git, branch_pattern: '{ticket}..x' } } }), (e) => e.code === 'bad-branch');
 });
 
-test('T3: the handover is the structured output only; blocked stays in-progress with its reason; a handover file is ignored', async () => {
+launchTest('T3: the handover is the structured output only; blocked stays in-progress with its reason; a handover file is ignored', async () => {
   assert.deepEqual(handoverFrom({ status: 'done', summary: 's' }), { status: 'done', summary: 's', tests_run: [], checks_run: [], blocked_reason: null });
   for (const s of [null, [], {}, { status: 'finished', summary: 's' }, { status: 'done' }, { status: 'done', summary: 's', verdict: 'pass' }]) assert.ok(handoverFrom(s).problem, JSON.stringify(s));
   assert.deepEqual(Object.keys(HANDOVER_SCHEMA.properties), ['status', 'summary', 'tests_run', 'checks_run', 'blocked_reason']);
@@ -155,7 +159,7 @@ test('T3: the handover is the structured output only; blocked stays in-progress 
   assert.match(none.why, /no handover/);
 });
 
-test('T4: protected paths and new dependencies are checked against the plan', async () => {
+launchTest('T4: protected paths and new dependencies are checked against the plan', async () => {
   // An undeclared protected path stops for you; the files stay.
   const f = await ready();
   const r = await build(f, claudeWith([done], ['mkdir -p .github/workflows; echo "on: push" > .github/workflows/ci.yml']));
@@ -215,7 +219,7 @@ test('T4b: dependencies from stack data: moved between keys isn\'t new; an unrea
   assert.deepEqual(r.lockOnly, ['web/package-lock.json']);
 });
 
-test('T5: MIRAI\'s own test run decides: green moves to in-review, a new failure stays, a known one doesn\'t count, no baseline is unknown', async () => {
+launchTest('T5: MIRAI\'s own test run decides: green moves to in-review, a new failure stays, a known one doesn\'t count, no baseline is unknown', async () => {
   // The comparison rule.
   const known = [{ id: 'tests/A.php::a', scope: 'test' }, { scope: 'level', kind: 'not-found' }];
   const fail = (failing, extra = {}) => ({ outcome: 'fail', failing, failing_total: failing.length, tests: { total: 3 }, ...extra });
@@ -263,7 +267,7 @@ test('T5: MIRAI\'s own test run decides: green moves to in-review, a new failure
   assert.equal(down.outcome, 'needs-you');
 });
 
-test('T6 + T7: the usage check and the loop guard first; a build session isn\'t a round; the run log has both lines', async () => {
+launchTest('T6 + T7: the usage check and the loop guard first; a build session isn\'t a round; the run log has both lines', async () => {
   const f = await ready();
   const claude = claudeWith([done], ['echo "// x" >> app/Team.php']);
   await assert.rejects(build(f, claude, { unattended: true }), (e) => e.code === 'usage-unknown');
@@ -283,7 +287,7 @@ test('T6 + T7: the usage check and the loop guard first; a build session isn\'t 
   assert.equal(checks.tdd_applied, 'after', 'no red check ran: every row is after');
 });
 
-test('review: the comparison matches a known level-wide error and unmapped failure; fewer tests or a bad baseline is never green', async () => {
+launchTest('review: the comparison matches a known level-wide error and unmapped failure; fewer tests or a bad baseline is never green', async () => {
   const fail = (failing) => ({ outcome: 'fail', failing, failing_total: failing.length, tests: { total: 3 } });
   assert.equal(againstBaseline(fail([{ id: null, kind: 'error' }]), [{ scope: 'level', kind: 'error' }]).verdict, 'pass');
   assert.equal(againstBaseline(fail([{ id: null, kind: 'error' }]), []).verdict, 'fail');
@@ -306,7 +310,7 @@ test('review: the comparison matches a known level-wide error and unmapped failu
   await assert.rejects(build(f, claudeWith([done], ['echo "// x" >> app/Team.php'])), /doesn't verify|can't be read/);
 });
 
-test('review: a declared dependency covers its manifest with the node pack on; scripts, sources, spec changes and stacks with no data stop', async () => {
+launchTest('review: a declared dependency covers its manifest with the node pack on; scripts, sources, spec changes and stacks with no data stop', async () => {
   const withPack = { ...FILES, 'package-lock.json': '{}\n' };
   const add = ['sed -i "" \'s/"express": "\\^4"/"express": "^4", "left-pad": "^1"/\' package.json; echo "{\\"x\\":1}" > package-lock.json'];
   // The lock file is never covered by a dependency row: the plan declares it (21b re-review).
@@ -372,7 +376,7 @@ test('review: a declared dependency covers its manifest with the node pack on; s
   assert.deepEqual([moved.undeclared, moved.covered], [[], ['package.json']], 'moved between keys with the same spec is not new');
 });
 
-test('review: a deleted file the code map doesn\'t remove stops; --recheck runs the checks again on the same tree only; the pattern names the ticket', async () => {
+launchTest('review: a deleted file the code map doesn\'t remove stops; --recheck runs the checks again on the same tree only; the pattern names the ticket', async () => {
   const f = await ready();
   const del = await build(f, claudeWith([done], ['rm app/Team.php']));
   assert.equal(del.outcome, 'needs-you');
@@ -419,7 +423,7 @@ const git = (f, ...a) => f.git(...a);
 const docker = async () => { throw Object.assign(new Error('Docker isn\'t running'), { code: 'no-docker' }); };
 const failingFeature = async ({ name }) => (name === 'feature' ? { outcome: 'fail', failing: [{ id: 'tests/B.php::b' }], failing_total: 1, tests: { total: 3, failed: 1, skipped: 0 } } : passing({ name }));
 
-test('22 T1 + T2: the commit points; every commit has the trailer, MIRAI as committer, you as author, no hook run, a clean tree after', async () => {
+launchTest('22 T1 + T2: the commit points; every commit has the trailer, MIRAI as committer, you as author, no hook run, a clean tree after', async () => {
   const f = await ready();
   const marker = join(realpathSync(tempDir('hook')), 'ran');
   writeFileSync(join(f.root, '.git/hooks/commit-msg'), `#!/bin/sh\ntouch ${marker}\n`, { mode: 0o755 });
@@ -452,7 +456,7 @@ test('22 T1 + T2: the commit points; every commit has the trailer, MIRAI as comm
   await assert.rejects(build(i, claudeWith([done])), (e) => e.code === 'no-author');
 });
 
-test('22 T3 + T4: checkpoints before each step, the first never moved; the branch record verifies and is registered', async () => {
+launchTest('22 T3 + T4: checkpoints before each step, the first never moved; the branch record verifies and is registered', async () => {
   const f = await ready();
   const first = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: failingFeature });
   assert.equal(first.outcome, 'checks-failed');
@@ -479,7 +483,7 @@ test('22 T3 + T4: checkpoints before each step, the first never moved; the branc
   assert.equal((await tty(['branch', 'verify'], io, [])).code, EXIT.FAILURE);
 });
 
-test('22 T5: discard needs a terminal and the typed key; resets to the last checkpoint, removes new files, refuses another branch', async () => {
+launchTest('22 T5: discard needs a terminal and the typed key; resets to the last checkpoint, removes new files, refuses another branch', async () => {
   const f = await ready();
   await build(f, claudeWith([done], ['echo "// x" >> app/Team.php; echo new > app/New.php']), { testRun: failingFeature });
   const io = { cwd: f.root, env: f.env };
@@ -506,7 +510,7 @@ test('22 T5: discard needs a terminal and the typed key; resets to the last chec
   assert.equal((await tty(['discard', 'PMT-31'], io, ['PMT-31'])).code, EXIT.BLOCKED);
 });
 
-test('22 T6: G8: conventional subjects where set; a committed rule MIRAI can\'t run refuses until commit_format is set', async () => {
+launchTest('22 T6: G8: conventional subjects where set; a committed rule MIRAI can\'t run refuses until commit_format is set', async () => {
   const { commitFormat, subjectFor, messageFor } = await import('../../src/agent/commit.js');
   const f = await ready();
   assert.equal(commitFormat({ config: { git: {} }, store: f.store }), 'plain');
@@ -523,7 +527,7 @@ test('22 T6: G8: conventional subjects where set; a committed rule MIRAI can\'t 
   assert.equal(claude.launches(), 0);
 });
 
-test('22 T7: --recheck on a committed step: a clean tree at the step\'s commit, anything else refused', async () => {
+launchTest('22 T7: --recheck on a committed step: a clean tree at the step\'s commit, anything else refused', async () => {
   const f = await ready();
   const down = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']), { testRun: docker });
   assert.equal(down.outcome, 'needs-you');
@@ -536,7 +540,7 @@ test('22 T7: --recheck on a committed step: a clean tree at the step\'s commit, 
   await assert.rejects(runBuild({ cwd: g.root, env: g.env, ticket: 'PMT-31', recheck: true, testRun: passing }), (e) => e.code === 'tree-changed');
 });
 
-test('22 review: identity from the environment beats a repo\'s [committer]; records and keys park; an empty handover commits nothing', async () => {
+launchTest('22 review: identity from the environment beats a repo\'s [committer]; records and keys park; an empty handover commits nothing', async () => {
   const f = await ready();
   git(f, 'config', '--local', 'committer.email', 'someone@example.com');
   const r = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']));
@@ -555,7 +559,7 @@ test('22 review: identity from the environment beats a repo\'s [committer]; reco
   assert.equal(none.commit, null);
 });
 
-test('22 review: a record counts only as the first commit after its base; a crash before registration is taken over; numbering survives a stale ref', async () => {
+launchTest('22 review: a record counts only as the first commit after its base; a crash before registration is taken over; numbering survives a stale ref', async () => {
   const f = await ready();
   const trust = snapshot({ cwd: f.root, env: f.env });
   const config = (await import('../../src/trust/snapshot.js')).trustedConfig(trust);
@@ -588,14 +592,14 @@ test('22 review: a record counts only as the first commit after its base; a cras
   assert.throws(() => prepareBranch({ ...opts, unattended: true }), (e) => e.code === 'needs-terminal');
 });
 
-test('22 review: discard refuses an in-review ticket', async () => {
+launchTest('22 review: discard refuses an in-review ticket', async () => {
   const f = await ready();
   await build(f, claudeWith([done], ['echo "// x" >> app/Team.php']));
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-review');
   assert.equal((await tty(['discard', 'PMT-31'], { cwd: f.root, env: f.env }, ['PMT-31'])).code, EXIT.BLOCKED);
 });
 
-test('22 re-review: a change between the checks and the commit refuses it; a taken-over branch with foreign commits isn\'t registered; a name git would strip is refused', async () => {
+launchTest('22 re-review: a change between the checks and the commit refuses it; a taken-over branch with foreign commits isn\'t registered; a name git would strip is refused', async () => {
   // Something writes into the project while MIRAI's tests run (they run on a copy): the commit refuses.
   const f = await ready();
   const writer = async (o) => {
@@ -623,7 +627,7 @@ test('22 re-review: a change between the checks and the commit refuses it; a tak
   await assert.rejects(build(h, claudeWith([done])), (e) => e.code === 'no-author');
 });
 
-test('walkthrough fix: Claude Code\'s empty .claude/.cc-writes/ isn\'t a change; a file in it still parks; unpark --retry sends a parked ticket back', async () => {
+launchTest('walkthrough fix: Claude Code\'s empty .claude/.cc-writes/ isn\'t a change; a file in it still parks; unpark --retry sends a parked ticket back', async () => {
   const f = await ready();
   const ok = await build(f, claudeWith([done], ['echo "// x" >> app/Team.php; mkdir -p .claude/.cc-writes app/.claude/.cc-writes']));
   assert.equal(ok.outcome, 'handed-over', ok.why);
@@ -679,7 +683,7 @@ async function failedBuild(claude) {
   return f;
 }
 
-test('21c T1: mirai fix refuses a ticket not in progress, a last outcome that isn\'t checks-failed, a dirty tree', async () => {
+launchTest('21c T1: mirai fix refuses a ticket not in progress, a last outcome that isn\'t checks-failed, a dirty tree', async () => {
   const f = await ready();
   await assert.rejects(fixIt(f, claudeSessions([fixed])), (e) => e.code === 'not-fixable');
   const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php']);
@@ -691,7 +695,7 @@ test('21c T1: mirai fix refuses a ticket not in progress, a last outcome that is
   await assert.rejects(fixIt(g, claude), (e) => e.code === 'build-moved');
 });
 
-test('21c T2 + T4: a round: counted, checkpointed, given MIRAI\'s failures, resumes the kept session, commits, and green goes to in-review', async () => {
+launchTest('21c T2 + T4: a round: counted, checkpointed, given MIRAI\'s failures, resumes the kept session, commits, and green goes to in-review', async () => {
   const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// fixed" >> app/Team.php']);
   const f = await failedBuild(claude);
   const kept = keptSession(agentSessionDir(f.store, 'PMT-31'));
@@ -719,7 +723,7 @@ test('21c T2 + T4: a round: counted, checkpointed, given MIRAI\'s failures, resu
   assert.equal(c2.args(1).includes('--resume'), false);
 });
 
-test('21c T3: the loop guard decides: the same failure twice re-plans; no drop parks; rounds used up park; an early fault gives its round back', async () => {
+launchTest('21c T3: the loop guard decides: the same failure twice re-plans; no drop parks; rounds used up park; an early fault gives its round back', async () => {
   // The same failure in rounds 1 and 2: a plan problem (L4), the ticket back to ready-for-dev.
   const c = claudeSessions([done, fixed, fixed], ['echo "// x" >> app/Team.php', 'echo "// a" >> app/Team.php', 'echo "// b" >> app/Team.php']);
   const f = await failedBuild(c);
@@ -753,7 +757,7 @@ test('21c T3: the loop guard decides: the same failure twice re-plans; no drop p
   assert.equal(readLoop(i.store, 'PMT-31').rounds_used, 0);
 });
 
-test('21c T5: the safety stops hold inside a round, and a stop isn\'t committed', async () => {
+launchTest('21c T5: the safety stops hold inside a round, and a stop isn\'t committed', async () => {
   const c = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'mkdir -p .github/workflows; echo "on: push" > .github/workflows/ci.yml']);
   const f = await failedBuild(c);
   const head = git(f, 'rev-parse', 'HEAD');
@@ -764,7 +768,7 @@ test('21c T5: the safety stops hold inside a round, and a stop isn\'t committed'
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-progress');
 });
 
-test('21c review: refusals for a ticket not in progress, an edited plan, a step built from another plan', async () => {
+launchTest('21c review: refusals for a ticket not in progress, an edited plan, a step built from another plan', async () => {
   const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php']);
   const f = await failedBuild(claude);
   const text = readFileSync(planPath(f.store, 'PMT-31'), 'utf8');
@@ -779,7 +783,7 @@ test('21c review: refusals for a ticket not in progress, an edited plan, a step 
   await assert.rejects(fixIt(f, claude), (e) => e.code === 'not-ready', 'in-review now');
 });
 
-test('21c review: a refused launch or Ctrl-C gives the round back; a faulted resume is forgotten, and the next fix starts fresh from the same step', async () => {
+launchTest('21c review: a refused launch or Ctrl-C gives the round back; a faulted resume is forgotten, and the next fix starts fresh from the same step', async () => {
   const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// fixed" >> app/Team.php']);
   const f = await failedBuild(claude);
   const refused = () => async () => {
@@ -808,7 +812,7 @@ test('21c review: a refused launch or Ctrl-C gives the round back; a faulted res
   assert.equal(claude.args(1).includes('--resume'), false);
 });
 
-test('21c review: round 2 resumes round 1\'s session; a discard forgets it; L4 tells levels apart', async () => {
+launchTest('21c review: round 2 resumes round 1\'s session; a discard forgets it; L4 tells levels apart', async () => {
   const claude = claudeSessions([done, fixed, fixed], ['echo "// x" >> app/Team.php', 'echo "// a" >> app/Team.php', 'echo "// b" >> app/Team.php']);
   const f = await failedBuild(claude);
   let k = 0;
@@ -860,7 +864,7 @@ test('21c review: a kept session: older copies forgotten first, only the named l
   assert.equal(keepSession({ configHome: linked, dest, sessionId: sid, launchId: 'L3' }).kept, false);
 });
 
-test('21c re-review: Kai\'s blocked needs you first; a clean discard of a failing round starts again from the step before; a throw after the start keeps its round', async () => {
+launchTest('21c re-review: Kai\'s blocked needs you first; a clean discard of a failing round starts again from the step before; a throw after the start keeps its round', async () => {
   // Kai says the plan is wrong and changes nothing: the next `mirai fix` refuses.
   const c = claudeSessions([done, { status: 'blocked', summary: 's', blocked_reason: 'the plan is wrong' }], ['echo "// x" >> app/Team.php']);
   const f = await failedBuild(c);
@@ -939,7 +943,7 @@ test('21d T1: a session\'s tool results beside its transcript are kept and resto
   assert.equal(keepSession({ configHome: h5, dest, sessionId: sid, launchId: 'L6' }).kept, false);
 });
 
-test('21d T3: the checkpoint report sums a ticket\'s launches across runs, its checks and loop; an unmeasured share is named', async () => {
+launchTest('21d T3: the checkpoint report sums a ticket\'s launches across runs, its checks and loop; an unmeasured share is named', async () => {
   const { renderReport, ticketReport } = await import('../probes/checkpoint-report.js');
   const claude = claudeSessions([done, fixed], ['echo "// x" >> app/Team.php', 'echo "// fixed" >> app/Team.php']);
   const f = await failedBuild(claude);
@@ -961,7 +965,7 @@ test('21d T3: the checkpoint report sums a ticket\'s launches across runs, its c
 
 
 // Unit 21e: the small fixes from 21d's checkpoint.
-test('21e T4: no baseline and a stale red team refuse before the branch; checks report each level; a recheck writes its checks line', async () => {
+launchTest('21e T4: no baseline and a stale red team refuse before the branch; checks report each level; a recheck writes its checks line', async () => {
   // No baseline for the integration commit: refused before any branch or launch.
   const f = await ready({ baseline: false });
   const claude = claudeWith([done], ['echo "// x" >> app/Team.php']);
@@ -986,7 +990,7 @@ test('21e T4: no baseline and a stale red team refuse before the branch; checks 
   assert.equal(checksLines().length, 2);
 });
 
-test('21e review: a build or fix MIRAI couldn\'t judge isn\'t started: no levels, a baseline without a level, the existing branch\'s own base', async () => {
+launchTest('21e review: a build or fix MIRAI couldn\'t judge isn\'t started: no levels, a baseline without a level, the existing branch\'s own base', async () => {
   const { checkJudgeable } = await import('../../src/agent/build.js');
   const f = await ready();
   const trust = snapshot({ cwd: f.root, env: f.env });
@@ -1010,7 +1014,7 @@ test('21e review: a build or fix MIRAI couldn\'t judge isn\'t started: no levels
   await assert.doesNotReject(fixIt(f, claude));
 });
 
-test('30c T7: a CRLF file the agent wrote back as LF is committed with its CRLF; the commit says so', async () => {
+launchTest('30c T7: a CRLF file the agent wrote back as LF is committed with its CRLF; the commit says so', async () => {
   const f = await ready({ files: { ...FILES, 'app/Team.php': '<?php\r\n// one\r\n' } });
   const r = await build(f, claudeWith([done], ["printf '<?php\\n// one\\n// two\\n' > app/Team.php"]));
   assert.equal(r.outcome, 'handed-over', r.why);

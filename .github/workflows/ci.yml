@@ -1,0 +1,49 @@
+# MIRAI's own CI (unit 30a, D-63): the unit tests on macOS and Ubuntu, required to merge.
+# Tests that need Docker, the cage, Claude Code or macOS are marked (test/helpers/needs.js) and
+# left out where missing; each job prints that list. The build runner on Jet's Mac stays the
+# full check (docs/ci.md). No secrets, read-only, and only the pull_request trigger for PRs.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: git identity for the tests' repos
+        run: |
+          git config --global user.name "mirai ci"
+          git config --global user.email "ci@mirai.invalid"
+          git config --global init.defaultBranch main
+      - name: unit tests
+        env:
+          MIRAI_LEFT_OUT: ${{ runner.temp }}/left-out.jsonl
+        run: npm test
+      - name: left out, and why
+        if: always()
+        env:
+          MIRAI_LEFT_OUT: ${{ runner.temp }}/left-out.jsonl
+        run: node test/helpers/left-out.js "$MIRAI_LEFT_OUT"

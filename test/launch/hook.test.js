@@ -11,6 +11,10 @@ import { loadRegistry } from '../../src/config/registry.js';
 import { writeToken } from '../../src/sign/token.js';
 import { init } from '../../src/install/init.js';
 import { snapshot } from '../../src/trust/snapshot.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const foldTest = needsTest('macos', 'paths fold case as on macOS\'s disk (src/launch/hook.js; P01)');
 
 // Unit 13c: the hook.
 
@@ -63,7 +67,7 @@ function world() {
 const call = (tool_name, tool_input, cwd) => ({ tool_name, tool_input, cwd });
 const refused = (d) => d.allow === false;
 
-test('T1: the path check: roots, .git at any depth, .env*, .mirai, write-denied and hook paths, symlinks, case, ".."', () => {
+foldTest('T1: the path check: roots, .git at any depth, .env*, .mirai, write-denied and hook paths, symlinks, case, ".."', () => {
   const w = world();
   const { co, policy: p } = w;
   const ok = (tool, input) => assert.equal(decide(p, call(tool, input, co)).allow, true, `${tool} ${JSON.stringify(input)}`);

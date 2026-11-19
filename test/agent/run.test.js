@@ -21,6 +21,11 @@ import { readRunLog } from '../../src/store/run-log.js';
 import { openStore } from '../../src/store/home.js';
 import { snapshot, trustedStrict } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
+const psTest = needsTest('macos', 'reads processes the way macOS\'s ps reports them (P01)');
 
 // Unit 19a: the launch, with a stand-in `claude` and no model.
 
@@ -64,7 +69,7 @@ test('T1: each red-team state refuses with its own code; a blocker seen needs yo
   assert.equal(readRunState(openStore({ cwd: f.root, env: f.env })), null, 'refused before a run began');
 });
 
-test('T2: a wrong init event kills the run, and nothing reads as ok', async () => {
+launchTest('T2: a wrong init event kills the run, and nothing reads as ok', async () => {
   const f = repo();
   const r = await run(f, { claude: claudeWith(`echo '${INIT}'; sleep 30; echo '${RESULT}'`), check: () => ['the mode is wrong'], timeoutMs: 60_000 });
   assert.equal(r.outcome, 'refused');
@@ -72,7 +77,7 @@ test('T2: a wrong init event kills the run, and nothing reads as ok', async () =
   assert.notEqual(r.line.verdict, 'pass');
 });
 
-test('T3: a background process is gone after the run, and a verdict file means nothing', async () => {
+launchTest('T3: a background process is gone after the run, and a verdict file means nothing', async () => {
   const f = repo();
   const marker = `4${Math.floor(Math.random() * 90000) + 10000}`;
   const r = await run(f, { claude: claudeWith(`echo '{"verdict":"pass"}' > verdict.json; (nohup sleep ${marker} >/dev/null 2>&1 &) ; (exec sleep ${marker}1 >/dev/null 2>&1 &) ; sleep 1; echo '${INIT}'; echo '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"no"}'`) });
@@ -83,7 +88,7 @@ test('T3: a background process is gone after the run, and a verdict file means n
   assert.deepEqual(r.processes.survivors, []);
 });
 
-test('T4: an interrupt and a timeout end in the same cleanup', async () => {
+launchTest('T4: an interrupt and a timeout end in the same cleanup', async () => {
   for (const how of ['interrupt', 'timeout']) {
     const f = repo();
     const abort = new AbortController();
@@ -98,7 +103,7 @@ test('T4: an interrupt and a timeout end in the same cleanup', async () => {
   }
 });
 
-test('T5: the token is on fd 3 only, and nowhere it could be logged', async () => {
+launchTest('T5: the token is on fd 3 only, and nowhere it could be logged', async () => {
   const f = repo();
   const seenFile = join(realpathSync(tempDir()), 'seen');
   const r = await run(f, { claude: claudeWith(`env > ${seenFile}; cat <&3 > ${seenFile}.fd; ${okBody}`) });
@@ -113,7 +118,7 @@ test('T5: the token is on fd 3 only, and nowhere it could be logged', async () =
   for (const n of readdirSync(join(store.dir, 'agent-runs'))) assert.equal(readFileSync(join(store.dir, 'agent-runs', n), 'utf8').includes(TOKEN), false);
 });
 
-test('T6: a changed .git during the run fails it; a changed trust root refuses it', async () => {
+launchTest('T6: a changed .git during the run fails it; a changed trust root refuses it', async () => {
   const f = repo();
   const r = await run(f, { claude: claudeWith(`echo x > .git/mirai-planted-hook; git config --local core.hooksPath /tmp/x; ${okBody}`) });
   assert.equal(r.outcome, 'refused');
@@ -126,7 +131,7 @@ test('T6: a changed .git during the run fails it; a changed trust root refuses i
   await assert.rejects(run(g), /trust root|tamper|changed/i);
 });
 
-test('T7: one run-log line with every field; the prompt and rules reach the launch', async () => {
+launchTest('T7: one run-log line with every field; the prompt and rules reach the launch', async () => {
   const f = repo();
   let args = null;
   const launch = (c, o, x) => {
@@ -162,7 +167,7 @@ test('T8: a dirty tree and a non-terminal refuse', async () => {
   assert.match(err, /real terminal/);
 });
 
-test('T9: the hook checks a fingerprint, and still refuses a trust root changed later', () => {
+launchTest('T9: the hook checks a fingerprint, and still refuses a trust root changed later', () => {
   const f = repo();
   const trust = snapshot({ cwd: f.root, env: f.env });
   const plan = prepareLaunch({ trust, template: trustedStrict(trust, 'read-write'), checkout: f.root, env: f.env });
@@ -185,7 +190,7 @@ test('T9: the hook checks a fingerprint, and still refuses a trust root changed 
   }
 });
 
-test('review: only a checked init and a real success read ok', async () => {
+launchTest('review: only a checked init and a real success read ok', async () => {
   const f = repo();
   const bad = () => ['nope'];
   const printfInit = (json, rest = '') => `printf '%s' '${json}'; ${rest}`;
@@ -212,7 +217,7 @@ test('review: only a checked init and a real success read ok', async () => {
   assert.ok(Date.now() - started < 15_000);
 });
 
-test('review: an interrupt before the start, a survivor, a crash', async () => {
+launchTest('review: an interrupt before the start, a survivor, a crash', async () => {
   const f = repo();
   const abort = new AbortController();
   abort.abort();
@@ -318,7 +323,7 @@ test('processes: a process it saw is killed; an orphan outside the project is re
   process.kill(yours.pid, 'SIGKILL');
 });
 
-test('processes: an orphan in your project is a suspect, not killed; in the launch\'s scratch, killed; a reused pid or group is never followed', async () => {
+psTest('processes: an orphan in your project is a suspect, not killed; in the launch\'s scratch, killed; a reused pid or group is never followed', async () => {
   const dir = realpathSync(tempDir());
   const scratch = realpathSync(tempDir());
   const inProject = spawn('/bin/sleep', ['49'], { detached: true, stdio: 'ignore', cwd: dir });
@@ -349,7 +354,7 @@ test('processes: an orphan in your project is a suspect, not killed; in the laun
 });
 
 // Unit 18g: the Claude Code agents run is the one the red team tested, kept by MIRAI.
-test('18g T2: a launch runs the kept copy, not the PATH link, also after an update; a changed copy refuses', async () => {
+launchTest('18g T2: a launch runs the kept copy, not the PATH link, also after an update; a changed copy refuses', async () => {
   const { keepTested, readTested, testedRoot } = await import('../../src/redteam/tested.js');
   const { binaryHash } = await import('../../src/redteam/key.js');
   const { statSync, appendFileSync, chmodSync } = await import('node:fs');
@@ -388,7 +393,7 @@ test('18g T2: a launch runs the kept copy, not the PATH link, also after an upda
 });
 
 // Unit 21e: progress while a launch runs, from its own stream, filtered.
-test('21e T1: progress events carry the tool, a relative path or level, turns and minutes, and nothing the agent wrote', async () => {
+launchTest('21e T1: progress events carry the tool, a relative path or level, turns and minutes, and nothing the agent wrote', async () => {
   const { progressLine } = await import('../../src/agent/progress.js');
   const f = repo();
   const secret = 'sk-ant-oat01-PLANTEDsecretPLANTEDsecretPLANTEDsecret';
@@ -415,7 +420,7 @@ test('21e T1: progress events carry the tool, a relative path or level, turns an
   assert.match(progressLine(seen[2]), /^Kai \(Sonnet\): 1 turn, [\d.]+ min — Edit app\/Team\.php$/);
 });
 
-test('21e review: malformed events never throw; made-up tools, padded and secret-looking paths are hidden; turns count messages; a heartbeat for a non-ticket item still lands', async () => {
+launchTest('21e review: malformed events never throw; made-up tools, padded and secret-looking paths are hidden; turns count messages; a heartbeat for a non-ticket item still lands', async () => {
   const { describeTool, progressTracker } = await import('../../src/agent/progress.js');
   const root = '/p';
   const t = progressTracker({ root, agent: 'Kai', tools: ['Edit', 'Read', 'mcp__mirai__run_tests'], levels: ['unit'] });

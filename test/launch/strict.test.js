@@ -17,6 +17,10 @@ import { writeToken } from '../../src/sign/token.js';
 import { main } from '../../src/cli/main.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
 import { trustFingerprint } from '../../src/trust/verify.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 13b: the strict bundle.
 
@@ -226,7 +230,7 @@ test('T4: no weakening key is ever loose; the deny floors hold; a bad template, 
   assert.throws(() => renderStrict(t, { ...FACTS, checkout: '/private/tmp/app' }), /inside the shared temp folder/);
 });
 
-test('T5, T6: the launch: production layout, a private folder, read-only input, the environment exactly, PATH filtered, the token only on fd 3 and never enumerable', () => {
+launchTest('T5, T6: the launch: production layout, a private folder, read-only input, the environment exactly, PATH filtered, the token only on fd 3 and never enumerable', () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
   const t = trustedStrict(trust, 'read-write');
@@ -379,7 +383,7 @@ test('T8: mirai sandbox show prints the resolved settings and flags, starts noth
   assert.notEqual(await main(['sandbox', 'show', 'mirai-nobody'], io), EXIT.OK);
 });
 
-test('14b T11: a launch guards .git: a hook planted during it is caught by finishLaunch, which cleans up either way', () => {
+launchTest('14b T11: a launch guards .git: a hook planted during it is caught by finishLaunch, which cleans up either way', () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
   const t = trustedStrict(trust, 'read-write');
@@ -418,7 +422,7 @@ test('14d T8b: mirai sandbox show names MIRAI\'s MCP server, its tools and names
   }
 });
 
-test('14d T8: MIRAI\'s MCP server in the launch: read-only policy and mcp.json, --mcp-config, the allow rules, the init check; none without tests', () => {
+launchTest('14d T8: MIRAI\'s MCP server in the launch: read-only policy and mcp.json, --mcp-config, the allow rules, the init check; none without tests', () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
   const t = trustedStrict(trust, 'read-write');
@@ -486,7 +490,7 @@ test('14d T8: MIRAI\'s MCP server in the launch: read-only policy and mcp.json, 
   assert.deepEqual(testTools({ compose: { files: ['c.yml'], env_file: '.env.test' }, testing: { levels: [{ name: 'u', service: 'app' }, { name: 'v' }] }, checks: { lint: { service: 'app' }, bare: ['x'] } }), { levels: ['u'], checks: ['lint'] });
 });
 
-test('15a T7: every launch gets MIRAI\'s server: log_event\'s policy names the store and the item; Claude Code\'s way of starting it writes the journal', async () => {
+launchTest('15a T7: every launch gets MIRAI\'s server: log_event\'s policy names the store and the item; Claude Code\'s way of starting it writes the journal', async () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
   const t = trustedStrict(trust, 'read-write');
@@ -545,7 +549,7 @@ test('15a T7: every launch gets MIRAI\'s server: log_event\'s policy names the s
   assert.equal(canonicalSha256(unit), canonicalSha256(structuredClone(unit)));
 });
 
-test('15a T8: the input folder: names, counts and sizes checked first; read-only files in a read-only folder; readable by this launch only; removed after', () => {
+launchTest('15a T8: the input folder: names, counts and sizes checked first; read-only files in a read-only folder; readable by this launch only; removed after', () => {
   const r = installed();
   const trust = snapshot({ cwd: r.root, env: r.env });
   const t = trustedStrict(trust, 'read-only');

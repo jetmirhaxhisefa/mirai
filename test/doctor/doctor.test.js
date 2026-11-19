@@ -14,6 +14,10 @@ import { acquireRunLock } from '../../src/store/global.js';
 import { openStore } from '../../src/store/home.js';
 import { passed } from '../proofs/fixture.js';
 import { tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 29c: mirai doctor. A real store (a ticket planned, built and reviewed, so it has a branch
 // in the registry, run logs and a run state), the red team and the session server stood in.
@@ -38,7 +42,7 @@ const deadPid = () => {
   throw new Error('no free pid');
 };
 
-test('29c: the checks on a healthy store; the yellows that are always there; exit codes', async () => {
+launchTest('29c: the checks on a healthy store; the yellows that are always there; exit codes', async () => {
   const f = await passed();
   const store = openStore(f.io);
   installHooks({ store, env: f.env, node: process.execPath, launcher: LAUNCHER });
@@ -61,7 +65,7 @@ test('29c: the checks on a healthy store; the yellows that are always there; exi
   assert.equal(COMMANDS.doctor.quick, true);
 });
 
-test('29c: red items with their hints: the hook\'s Node gone, a host CLI gone, the token and the key; status says the hook isn\'t ok', async () => {
+launchTest('29c: red items with their hints: the hook\'s Node gone, a host CLI gone, the token and the key; status says the hook isn\'t ok', async () => {
   const f = await passed();
   const store = openStore(f.io);
   const node = join(tempDir('node'), 'node');
@@ -97,7 +101,7 @@ test('29c: red items with their hints: the hook\'s Node gone, a host CLI gone, t
   assert.equal(item(await runChecks({ cwd: f.root, env: f.env, ...stubs, session: () => ({ state: 'foreign' }) }), 'session').state, 'red');
 });
 
-test('29c: --fix repairs a dead process\'s lock and breaker, the run state and the registry; a live lock, a running run and a broken journal line are left alone', async () => {
+launchTest('29c: --fix repairs a dead process\'s lock and breaker, the run state and the registry; a live lock, a running run and a broken journal line are left alone', async () => {
   const f = await passed();
   const store = openStore(f.io);
   installHooks({ store, env: f.env, node: process.execPath, launcher: LAUNCHER });

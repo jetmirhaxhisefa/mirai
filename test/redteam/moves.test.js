@@ -17,6 +17,10 @@ import { readRunLog, runIds } from '../../src/store/run-log.js';
 import { readTicketStatus, writeTicketStatus } from '../../src/store/tickets.js';
 import { snapshot, trustedRegistry } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 18h: one Claude Code per ticket, and moves between tickets. Stand-in binaries, no model.
 
@@ -49,7 +53,7 @@ async function keep(f, store, version) {
 }
 const ticket = (f, store, id) => writeTicketStatus(store, { ticket: id, state: 'ready-for-dev', written_by: 'human' }, { expectSeq: null, signer: loadSigner(f.env, store) });
 
-test('18h T1: a ticket\'s first launch pins the kept Claude Code; after a move its later launches still run it; the next ticket pins the new one; the log and the proof name it', async () => {
+launchTest('18h T1: a ticket\'s first launch pins the kept Claude Code; after a move its later launches still run it; the next ticket pins the new one; the log and the proof name it', async () => {
   const f = repo();
   const store = openStore({ cwd: f.root, env: f.env });
   const a = await keep(f, store, '2.1.330');
@@ -77,7 +81,7 @@ test('18h T1: a ticket\'s first launch pins the kept Claude Code; after a move i
   assert.deepEqual(claudeOf(store, 'T-1'), { version: '2.1.330', sha256: a.sha256 }, 'the gate proof\'s claude_code');
 });
 
-test('18h T2: a pinned copy outlives two later moves; a pin that doesn\'t verify or a changed copy refuses; a dropped ticket\'s pin goes, then its copy', async () => {
+launchTest('18h T2: a pinned copy outlives two later moves; a pin that doesn\'t verify or a changed copy refuses; a dropped ticket\'s pin goes, then its copy', async () => {
   const { appendFileSync, chmodSync, writeFileSync: write } = await import('node:fs');
   const f = repo();
   const store = openStore({ cwd: f.root, env: f.env });
@@ -184,7 +188,7 @@ test('18h T3: at a ticket\'s start: S1/S2 new → no red team; clean without con
   await assert.rejects(moveAtStart({ cwd: m.f.root, env: m.env, store: m.store, ticket: 'T-1', run: redRun, facts: m.clean }), (e) => e.code === 'ticket-claude-invalid', 'a pin that doesn\'t verify is never read as none');
 });
 
-test('18h T4: the gap warns from its first day; on day 8 a ticket with no pin doesn\'t start, a pinned one does', async () => {
+launchTest('18h T4: the gap warns from its first day; on day 8 a ticket with no pin doesn\'t start, a pinned one does', async () => {
   const m = await moveRepo();
   const t0 = new Date('2026-12-01T10:00:00Z');
   await moveAtStart({ cwd: m.f.root, env: m.env, store: m.store, ticket: 'T-1', run: async () => assert.fail('no run without consent'), facts: m.clean, now: () => t0 });

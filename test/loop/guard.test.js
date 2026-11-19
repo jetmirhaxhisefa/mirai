@@ -11,6 +11,10 @@ import { appendUsage } from '../../src/store/global.js';
 import { openStore } from '../../src/store/home.js';
 import { readTicketStatus, writeTicketStatus } from '../../src/store/tickets.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 20: the loop guard, the budget ledger and the usage check. No model.
 
@@ -166,7 +170,7 @@ test('T9: parking notes name the reason and evidence, escape what they quote; pa
   assert.deepEqual([st.state, st.park_reason, st.replans], ['blocked', 'scope', 1]);
 });
 
-test('T10: a launch logs a measured share from its own stream, and a usage limit only on a run that didn\'t succeed', async () => {
+launchTest('T10: a launch logs a measured share from its own stream, and a usage limit only on a run that didn\'t succeed', async () => {
   const { runAgent } = await import('../../src/agent/run.js');
   const { mintLaunchToken } = await import('../../src/agent/requests.js');
   const { createKeyPair, writePublicKeyFile } = await import('../../src/sign/keys.js');

@@ -12,6 +12,10 @@ import { pushBranch } from '../../src/store/git.js';
 import { readJournal, ticketFacts } from '../../src/store/journal.js';
 import { passed } from '../proofs/fixture.js';
 import { tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 27b: the GitLab host. No network: a stand-in `glab` plays GitLab's API (branches from a
 // local bare repo, merge requests in a JSON file); the push goes to that bare repo by path.
@@ -121,7 +125,7 @@ test('27b: glab\'s config folder is found as glab finds it; ca_cert and skip_tls
   assert.deepEqual(glabTls(tempDir('none'), 'gitlab.com'), { caCert: null, skipTls: false });
 });
 
-test('27b: ship on GitLab opens one MR through the API, a rerun changes nothing, an edit is put back', async () => {
+launchTest('27b: ship on GitLab opens one MR through the API, a rerun changes nothing, an edit is put back', async () => {
   const f = await shippable();
   const r = await f.ship();
   assert.equal(r.outcome, 'opened');
@@ -157,7 +161,7 @@ test('27b: ship on GitLab opens one MR through the API, a rerun changes nothing,
   assert.equal(f.glab.read().mrs.length, 1);
 });
 
-test('27b: a branch GitLab hasn\'t registered yet: the MR is tried again, then given up on', async () => {
+launchTest('27b: a branch GitLab hasn\'t registered yet: the MR is tried again, then given up on', async () => {
   const saved = openRetry.delaysMs;
   openRetry.delaysMs = [10, 10, 10];
   try {
@@ -182,7 +186,7 @@ test('27b: a branch GitLab hasn\'t registered yet: the MR is tried again, then g
   }
 });
 
-test('27b: refusals: an old glab, logged out, skip_tls_verify, a bad ca_cert, locked, closed, merged, a moved branch', async () => {
+launchTest('27b: refusals: an old glab, logged out, skip_tls_verify, a bad ca_cert, locked, closed, merged, a moved branch', async () => {
   const f = await shippable({ version: '1.120.0' });
   await assert.rejects(f.ship(), (e) => e.code === 'glab-old');
   f.glab.write((s) => {
@@ -233,7 +237,7 @@ test('27b: init reads glab\'s version though glab makes its config folder even f
   assert.equal(existsSync(cfg), false, 'removed after');
 });
 
-test('27b: the push names glab as the only helper, with its folder and quiet switches, and the CA file', async () => {
+launchTest('27b: the push names glab as the only helper, with its folder and quiet switches, and the CA file', async () => {
   const f = await passed();
   const bare = join(tempDir('push'), 'p.git');
   execFileSync('/usr/bin/git', ['init', '-q', '--bare', bare]);

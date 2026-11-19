@@ -11,6 +11,10 @@ import { blobAt, changedLines } from '../../src/store/git.js';
 import { combinedCoverage, gateChanges, lineRanges } from '../../src/tests/diff-coverage.js';
 import { parseDiff } from '../../src/tests/diff.js';
 import { COV_CONFIG, PASSED, coveringRun, passed, tty } from './fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 26b: the diff-coverage warning. The combining rules (no git), exact renames (real git),
 // and `gate record` signing `diff_coverage` into the gate proof, read back by `gate check`.
@@ -130,7 +134,7 @@ test('26b: the text: a warning with the files, all ran, none in an older proof, 
   assert.match(out[7], /unit: no coverage from this run \(missing\)/);
 });
 
-test('26b: gate record runs the levels with coverage and signs diff_coverage; gate check prints the warning', async () => {
+launchTest('26b: gate record runs the levels with coverage and signs diff_coverage; gate check prints the warning', async () => {
   const f = await passed({ config: COV_CONFIG });
   // The build appended line 4 of app/Team.php; unit lists it with no hit.
   const { run, seen } = coveringRun({ unit: { 'app/Team.php': { 2: 1, 4: 0 } } });
@@ -153,7 +157,7 @@ test('26b: gate record runs the levels with coverage and signs diff_coverage; ga
   assert.match(out.out, /app\/Team\.php 4/);
 });
 
-test('26b: a changed file the branch\'s coverage leaves out counts as not run; all ran → no warning', async () => {
+launchTest('26b: a changed file the branch\'s coverage leaves out counts as not run; all ran → no warning', async () => {
   const f = await passed({ config: COV_CONFIG, baseline: { unit: PASSED, feature: PASSED } });
   const none = await f.record({ run: coveringRun({ unit: {} }).run });
   assert.equal(none.outcome, 'recorded', none.why);

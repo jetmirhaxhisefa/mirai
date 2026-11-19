@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { snapshot, trustedFile } from '../../src/trust/snapshot.js';
@@ -40,7 +40,7 @@ test('14c T1: the copy: tracked and new files with modes; no .git, ignored or re
   assert.deepEqual(c.left.sort(), ['sub/.ENV.local', 'sub/.env.example'].sort());
   assert.equal(readFileSync(join(dest, 'readme-link'), 'utf8'), '# r\n');
   assert.equal(readFileSync(join(dest, '.env.test'), 'utf8'), 'MODE=from-base\n', 'kept env files come from the base commit');
-  assert.equal((execFileSync('/usr/bin/stat', ['-f', '%Lp', join(dest, 'bin/run')]).toString().trim()), '755');
+  assert.equal((statSync(join(dest, 'bin/run')).mode & 0o777).toString(8), '755');
   assert.deepEqual(['.env', 'a/.Env.x', 'x/.envrc', 'env.txt'].map(isEnvPath), [true, true, true, false]);
   // The hash changes with one byte.
   const again = copyTree({ root: r.root, env: r.env, dest: join(tempDir('copy'), 'tree'), keep });

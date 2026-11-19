@@ -25,6 +25,10 @@ import { readRunLog, runIds } from '../../src/store/run-log.js';
 import { readTicketStatus } from '../../src/store/tickets.js';
 import { snapshot } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 23: test-first, proven. A stand-in `claude` (with sessions, as 21c's), a stand-in test run,
 // no model.
@@ -200,7 +204,7 @@ test('23: the floor guard: an existing test only grows unless declared; a skip m
   assert.ok(guard({ red, declared: ['tests/B.php'] }).some((s) => s.path === 'tests/B.php' && /locked/.test(s.why)));
 });
 
-test('23: the red handover: tests and stubs committed as red, MIRAI\'s red check confirms each row, the same session goes green; the evidence is in the record, the run log and the proof', async () => {
+launchTest('23: the red handover: tests and stubs committed as red, MIRAI\'s red check confirms each row, the same session goes green; the evidence is in the record, the run log and the proof', async () => {
   const f = await ready();
   const claude = claudeSessions([RED, DONE], [writeRedTests, writeCode]);
   const run = runner();
@@ -230,7 +234,7 @@ test('23: the red handover: tests and stubs committed as red, MIRAI\'s red check
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-review');
 });
 
-test('23: a red row that passes already, or fails with an error, goes back to Kai with why (a red round); three failed checks stop for you', async () => {
+launchTest('23: a red row that passes already, or fails with an error, goes back to Kai with why (a red round); three failed checks stop for you', async () => {
   const f = await ready();
   // Round 0: one red row passes already, one fails with a load error; round 1 fixes them.
   let attempt = 0;
@@ -262,7 +266,7 @@ test('23: a red row that passes already, or fails with an error, goes back to Ka
   assert.equal(readTicketStatus(g.store, 'PMT-31').status.state, 'in-progress');
 });
 
-test('23: a locked red test edited in green stops the ticket, uncommitted; tdd: after is one handover with no red check', async () => {
+launchTest('23: a locked red test edited in green stops the ticket, uncommitted; tdd: after is one handover with no red check', async () => {
   const f = await ready();
   const claude = claudeSessions([RED, DONE], [writeRedTests, 'sed -i.bak "s/assertSame(2, 0)/assertSame(0, 0)/" tests/Feature/TeamRenameTest.php && rm tests/Feature/TeamRenameTest.php.bak']);
   const r = await build(f, claude, runner());
@@ -282,7 +286,7 @@ test('23: a locked red test edited in green stops the ticket, uncommitted; tdd: 
   assert.equal(lines.some((l) => l.event === 'red_check'), false);
 });
 
-test('23: an existing test weakened in the build stops it; declared, it passes', async () => {
+launchTest('23: an existing test weakened in the build stops it; declared, it passes', async () => {
   const weaken = 'sed -i.bak "s/assertSame(\\"a\\", \\"a\\")/assertTrue(true)/" tests/Unit/RenameTeamTest.php && rm tests/Unit/RenameTeamTest.php.bak';
   const plan = PLAN.replace(/\| (characterization|red) \|$/gm, '| after: not about red |');
   const f = await ready({ plan });

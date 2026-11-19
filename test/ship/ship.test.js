@@ -12,6 +12,10 @@ import { pushBranch } from '../../src/store/git.js';
 import { readJournal, ticketFacts } from '../../src/store/journal.js';
 import { passed, tty } from '../proofs/fixture.js';
 import { tempDir } from '../tests/run-fixture.js';
+import { needsTest } from '../helpers/needs.js';
+
+// Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
+const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 
 // Unit 27a: `mirai ship`. No network: a stand-in `gh` plays GitHub (its branches are a local bare
 // repo's, its pull requests a JSON file), and the push goes to that bare repo by path.
@@ -101,7 +105,7 @@ test('27a: the host from config and the remote', () => {
   assert.throws(() => hostFor({ config: { git: { host: 'gitlab' } }, remoteUrl: 'https://gitlab.com/g/r.git', store: { dir: '/nowhere' }, env: {}, root: '/' }), (e) => e.code === 'no-glab');
 });
 
-test('27a: the description: the review line, short follow-ups, nothing citing a file', async () => {
+launchTest('27a: the description: the review line, short follow-ups, nothing citing a file', async () => {
   assert.deepEqual(section('# T\n\n## Tasks\n\n- [ ] a\n```\n## not\n```\n- b\n\n## Next\n- c\n', 'Tasks'), ['', '- [ ] a', '- b', '']);
   const f = await passed();
   const head = f.git('rev-parse', 'HEAD');
@@ -115,7 +119,7 @@ test('27a: the description: the review line, short follow-ups, nothing citing a 
   assert.ok(data.what_changed.every((l) => !l.includes('`')), JSON.stringify(data.what_changed));
 });
 
-test('27a: ship opens one MR, a second run changes nothing, an edited description is put back', async () => {
+launchTest('27a: ship opens one MR, a second run changes nothing, an edited description is put back', async () => {
   const f = await shippable();
   const r = await f.ship();
   assert.equal(r.outcome, 'opened');
@@ -154,7 +158,7 @@ test('27a: ship opens one MR, a second run changes nothing, an edited descriptio
   assert.equal(f.gh.read().prs.length, 1);
 });
 
-test('27a: ship refuses before anything leaves: no proofs, gh missing or logged out, the base not on the host', async () => {
+launchTest('27a: ship refuses before anything leaves: no proofs, gh missing or logged out, the base not on the host', async () => {
   const f = await shippable({ record: false });
   await assert.rejects(f.ship(), (e) => e.code === 'no-proof');
   assert.equal(f.gh.read().calls.length, 0, 'the host isn\'t asked before the proofs pass');
@@ -176,7 +180,7 @@ test('27a: ship refuses before anything leaves: no proofs, gh missing or logged 
   assert.equal(f.gh.read().prs.length, 0);
 });
 
-test('27a: a branch someone else moved, a closed MR, a merged one: refused, never forced or reopened', async () => {
+launchTest('27a: a branch someone else moved, a closed MR, a merged one: refused, never forced or reopened', async () => {
   const f = await shippable();
   assert.equal((await f.ship()).outcome, 'opened');
   const branch = f.git('rev-parse', '--abbrev-ref', 'HEAD');
@@ -201,7 +205,7 @@ test('27a: a branch someone else moved, a closed MR, a merged one: refused, neve
   assert.equal(ticketFacts(readJournal(f.store).events, 'PMT-31').mr, 'merged');
 });
 
-test('ship after your merge: on main, the gate finds nothing to prove, the merge is still recorded, once', async () => {
+launchTest('ship after your merge: on main, the gate finds nothing to prove, the merge is still recorded, once', async () => {
   const f = await shippable();
   assert.equal((await f.ship()).outcome, 'opened');
   const branch = f.git('rev-parse', '--abbrev-ref', 'HEAD');
@@ -226,7 +230,7 @@ test('ship after your merge: on main, the gate finds nothing to prove, the merge
   assert.equal(readJournal(f.store).events.filter((e) => e.type === 'mr_merged').length, 1);
 });
 
-test('27a: pushBranch: to a bare repo by path, a lease that no longer holds is refused, bad names refused', async () => {
+launchTest('27a: pushBranch: to a bare repo by path, a lease that no longer holds is refused, bad names refused', async () => {
   const f = await passed();
   const bare = join(tempDir('push'), 'p.git');
   execFileSync('/usr/bin/git', ['init', '-q', '--bare', bare]);
