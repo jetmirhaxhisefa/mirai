@@ -14,8 +14,8 @@ the runner refreshed with 30c's MIRAI (`1e14d28`).
   - LF stays LF.
 - **The full suite**, through the runner's `tests` job inside its sandbox, at `6143ee4`
   (`30c-tests`, 13.2 min): **660/660**.
-  - At `86d703e` (`30c-tests-final`): 659/660, the store race (see 2 below), now fixed. The final
-    commit is checked the same way before the merge.
+  - At `86d703e` (`30c-tests-final`): 659/660, the store race (see 2 below), now fixed.
+  - At `17a862a` (`30c-tests-final-2`, 14.9 min), with the fix: **660/660**.
   - In this session it was 659/660. The one failure was `strict.test.js` T5/T6, the known race,
     which passed 14/14 twice on rerun.
 
