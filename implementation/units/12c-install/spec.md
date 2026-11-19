@@ -57,7 +57,13 @@ pinned, committed copy. 12c makes it installable, versioned and released.
    - **Permissions:** read-only, like `ci.yml`.
    - **Your one command for a release:** `docs/releasing.md` gives it. A bump goes through a PR
      first, as `main` is protected.
-3. **The launcher, installed globally (12b's rules unchanged):**
+3. **`mirai` on your PATH, from any folder:**
+   - `npm install -g` links `package.json`'s `bin` entry (`mirai` → `bin/launch.js`) into npm's
+     global bin folder. That folder is on your PATH with nvm and with Homebrew's Node. With your own
+     npm prefix, `docs/install.md` gives the PATH line.
+   - A new terminal then runs `mirai` from any folder, in any repo. There's no alias, and nothing
+     per repo or per project.
+4. **The launcher, installed globally (12b's rules unchanged):**
    - **Outside a repo:** `init`, `--version`, `help` and `which` work, as today.
    - **In an installed repo:** it runs the repo's pinned, committed copy, never its own code for
      the repo's commands.
@@ -68,14 +74,14 @@ pinned, committed copy. 12c makes it installable, versioned and released.
      - **A newer launcher** runs the pinned copy as today. `mirai which` adds one line:
        "this repo pins <v>; `mirai init --refresh` moves it to <launcher's>".
    - **Today's "store written by a newer MIRAI" refusal** names the same install command.
-4. **`mirai init` names the install command:** at the end of `init` and `init --join`, it prints
+5. **`mirai init` names the install command:** at the end of `init` and `init --join`, it prints
    the command a teammate runs, for the version just installed. `docs/install.md` has it too.
-5. **Nothing else in your home:**
+6. **Nothing else in your home:**
    - npm writes only under its prefix: the `mirai` link and the package folder.
    - MIRAI's store is made in `~/Library/Application Support/mirai` only on first use, as today.
    - `npm uninstall -g mirai` removes the link and the package. `docs/install.md` says how to
      remove the store too, if you want.
-6. **Docs:**
+7. **Docs:**
    - `docs/install.md`:
      - the command;
      - Node and git first;
@@ -87,7 +93,7 @@ pinned, committed copy. 12c makes it installable, versioned and released.
    - `docs/releasing.md`.
    - Every doc that says `node ~/Projects/mirai/bin/launch.js` says `mirai`. The build runner
      and MIRAI's own development keep the checkout.
-7. **The first release, v0.2.0,** cut by you once 12c is merged. The probe installs it.
+8. **The first release, v0.2.0,** cut by you once 12c is merged. The probe installs it.
 
 **Out**
 
@@ -128,7 +134,8 @@ pinned, committed copy. 12c makes it installable, versioned and released.
   Terminal, from the steps I give you:
   - put Homebrew's Node on the PATH, and set npm's prefix in that home;
   - run the one install command for `v0.2.0`;
-  - check `mirai --version`;
+  - open a new terminal tab and check `mirai --version` from the home folder, so it's on the
+    PATH, not run by a path;
   - `git init` a fresh repo with one commit, then `mirai init`, `mirai which` and `mirai status`;
   - `npm uninstall -g mirai`.
 
@@ -145,7 +152,8 @@ pinned, committed copy. 12c makes it installable, versioned and released.
 - T1–T5 pass, and the full suite passes through the build runner and CI.
 - P1, P2 and P3 pass.
 - The roadmap row's done-when holds:
-  - on a clean account with only Node and git, one command installs `mirai`;
+  - on a clean account with only Node and git, one command installs `mirai`, and a new terminal
+    runs it from any folder;
   - `mirai init` installs MIRAI into a fresh repo;
   - `mirai which` names the pinned copy;
   - an older global launcher is refused with the update command;
