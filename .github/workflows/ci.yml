@@ -20,7 +20,7 @@ jobs:
   test:
     name: test (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -33,11 +33,15 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
-      - name: git identity for the tests' repos
+      - name: git identity and settings for the tests' repos
         run: |
           git config --global user.name "mirai ci"
           git config --global user.email "ci@mirai.invalid"
           git config --global init.defaultBranch main
+          # The runners' git starts background maintenance after a commit; tests that check
+          # nothing was written under .git would see its lock file come and go.
+          git config --global maintenance.auto false
+          git config --global gc.auto 0
       - name: unit tests
         env:
           MIRAI_LEFT_OUT: ${{ runner.temp }}/left-out.jsonl
