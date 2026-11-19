@@ -1,12 +1,14 @@
 # MIRAI's CI
 
-Unit 30a (D-63). MIRAI's repo runs its unit tests on GitHub for every pull request and every push
-to `main`:
+Unit 30a (D-63). MIRAI's repo runs its unit tests on GitHub, each on Node 22 (MIRAI's minimum) and Node 24:
 
-- on macOS and Ubuntu;
-- each on Node 22 (MIRAI's minimum) and Node 24.
+- **Ubuntu:** on every pull request and every push to `main`. A PR merges only when both Ubuntu
+  jobs are green. They take about 2 minutes.
+- **macOS:** after a merge to `main` only, and it doesn't block anything. GitHub's Macs take
+  about 30 minutes and are sometimes not available. The build runner on your Mac is the macOS
+  gate.
 
-A PR merges only when all four jobs are green. The workflow is
+As the repo's admin, you can merge past a red or stuck check. The workflow is
 `.github/workflows/ci.yml`:
 
 - its actions are pinned to commit SHAs;

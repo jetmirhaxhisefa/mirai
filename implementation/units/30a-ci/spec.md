@@ -22,9 +22,17 @@ in `src/` name macOS things directly, such as `Library/Application Support`, `da
 
 ## Decisions
 
-1. **CI is required to merge** (Jet, 2026-11-19). Branch protection on `main` means a PR merges
-   only when both the macOS and the Ubuntu jobs are green. You can still override as the repo's
-   admin.
+1. **Ubuntu is required to merge; macOS is advisory** (Jet, 2026-11-19).
+   - **First answer:** both systems required.
+   - **Changed the same day, after the first CI runs:**
+     - GitHub's macOS jobs took about 30 minutes, against about 2 on Ubuntu.
+     - Twice, GitHub had no macOS machine to give.
+     - They only repeat what the build runner already runs on your Mac.
+   - **Now:**
+     - a PR merges only when the Ubuntu jobs (Node 22 and 24) are green;
+     - macOS runs after a merge to `main`, and doesn't block;
+     - the build runner stays the macOS gate, as each unit's done-when says;
+     - you can still override as the repo's admin.
 2. **What CI proves, and what it doesn't:**
    - GitHub's machines have no Docker on macOS, no Claude Code, and no keys of yours.
    - So CI runs every test that needs none of these. On Ubuntu it also leaves out tests that
@@ -75,8 +83,8 @@ in `src/` name macOS things directly, such as `Library/Application Support`, `da
    - The ones that exist today are on a list in the test, with their file and count. P01 empties
      the list. A list entry whose code is gone fails too, so the list only shrinks.
 5. **Branch protection:**
-   - After the first green run, `main` requires both jobs. It also requires a PR, and keeps
-     admin override.
+   - After the first green run, `main` requires the two Ubuntu jobs. It also requires a PR, and
+     keeps admin override.
    - It's set by one `gh api` command. You run it, since it changes your repo's settings, and I
      give you the exact command.
 6. **Docs:**
@@ -128,8 +136,8 @@ in `src/` name macOS things directly, such as `Library/Application Support`, `da
 
 - T1–T5 pass, and the full suite passes through the build runner's `tests` job.
 - P1, P2 and P3 pass.
-- Branch protection on `main` requires both jobs.
+- Branch protection on `main` requires the Ubuntu jobs.
 - The roadmap row's done-when holds:
-  - the workflow is green on both systems;
+  - the workflow is green on both systems (macOS: on the merge to `main`);
   - the Ubuntu run prints which tests it left out and why;
   - a new system check outside the module fails a test.

@@ -51,5 +51,6 @@ test('30a T5: the workflow is pinned, read-only, never pull_request_target, and 
   assert.match(yml, /^permissions:\n {2}contents: read$/m);
   assert.doesNotMatch(yml, /pull_request_target/);
   assert.doesNotMatch(yml, /secrets\./);
-  assert.match(yml, /os: \[macos-latest, ubuntu-latest\]/);
+  assert.match(yml, /^ {2}ubuntu:\n(?: {4}.*\n)*? {4}runs-on: ubuntu-latest$/m);
+  assert.match(yml, /^ {2}macos:\n(?: {4}.*\n)*? {4}if: github\.event_name == 'push'\n {4}runs-on: macos-latest$/m);
 });
