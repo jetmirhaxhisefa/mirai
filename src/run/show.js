@@ -5,6 +5,8 @@ import { planApproval, planPath, readPlanLint } from '../agent/plan.js';
 import { readDisputes, reviewsOf } from '../agent/review.js';
 import { ROUND_DEFAULTS, readLoop } from '../loop/guard.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
+import { approvalHash } from '../lint/frozen.js';
+import { contentHash } from '../sign/sign.js';
 import { branchKeys } from '../sign/keys.js';
 import { blobAt, commitOf } from '../store/git.js';
 import { openStore } from '../store/home.js';
@@ -57,7 +59,10 @@ export function showData({ cwd, env, ticket }) {
     planFm = null;
   }
   const approvals = readJournal(store).events.filter((e) => e.type === 'approval' && e.kind === 'plan' && e.item === ticket);
-  const lastApproval = approvals.at(-1) ?? null;
+  // The last decision on this plan's text: a rejection of an earlier round doesn't describe a
+  // re-plan waiting at the gate (30c P1: round 5 showed "rejected by you").
+  const planHash = planText === null ? null : approvalHash(planText) ?? contentHash(Buffer.from(planText));
+  const lastApproval = approvals.filter((e) => e.content_hash === planHash).at(-1) ?? null;
   const build = readJson(buildRecordPath(store, ticket));
   const head = build?.branch ? commitOf(store.checkout, `refs/heads/${build.branch}`, store.gitEnv) : null;
   const reviews = reviewsOf(store, ticket).map(({ n, record }) => ({

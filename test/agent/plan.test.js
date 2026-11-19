@@ -438,6 +438,8 @@ test('30c T1 + T6: a bad-plan park unparks to ready-for-dev; your unpark and rej
   const third = claudeAnswering([{ plan: PLAN }]);
   assert.equal((await plan(g, third)).outcome, 'waiting');
   assert.ok(third.args(0).some((a) => /holds all 2 notes, oldest first/.test(a)));
+  // The re-plan waits at the gate: the earlier round's rejection isn't shown as this plan's (P1).
+  assert.match(showText(showData({ cwd: g.root, env: g.env, ticket: 'PMT-31' })), /Plan\s+round \d+, waits for your approval/);
   // Only your signed lines count: a script's line with a reason isn't a note.
   assert.deepEqual(reviewNotes([{ type: 'approval', by: 'script', kind: 'plan', decision: 'rejected', item: 'PMT-31', reason: 'x' }], 'PMT-31'), []);
 });
