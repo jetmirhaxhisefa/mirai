@@ -26,6 +26,7 @@ import { ticketsOf } from '../../lint/graph.js';
 import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
 import { readerResultFor } from '../../store/reader-tests.js';
 import { ROUNDS, failedLabels, needsReaderTest, resultLines, summaryHash, summaryText } from '../../write/reader.js';
+import { CONTEXT_DIR, contextKindOf, isContextFile } from '../../lint/context.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -35,24 +36,30 @@ const DECISIONS = { a: 'accepted', e: 'edited', r: 'rejected' };
 
 export default {
   name: 'approve',
-  summary: 'Approve a ticket, a plan, a brief, a PRD or an epic with its tickets, signed, in a real terminal',
-  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md>',
-  positionals: { min: 1, max: 1 },
+  summary: 'Approve a ticket, a plan, a brief, a PRD, an epic with its tickets, or a context file, signed, in a real terminal',
+  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md> | mirai approve --file .mirai/context/<file>.md',
+  positionals: { min: 0, max: 1 },
   options: {
     file: { type: 'string', description: 'the ticket file you approve' },
     plan: { type: 'boolean', description: 'approve or reject the ticket\'s plan, from the store (unit 21a)' },
   },
   async run(args, io, { now = () => new Date() } = {}) {
     const [ticket] = args.positionals;
-    checkTicketArg(ticket);
+    // Unit 36: a context file is named by its path alone; everything else needs its key or id.
+    if (ticket === undefined && args.values.file === undefined) throw new UsageError('name what you approve', 'mirai approve <ticket> --file <path>, or mirai approve --file .mirai/context/<file>.md');
+    if (ticket !== undefined) checkTicketArg(ticket);
     requireTty(io, 'mirai approve');
     if (args.values.plan) {
+      if (ticket === undefined) throw new UsageError('--plan needs the ticket\'s key', 'mirai approve <ticket> --plan');
       if (args.values.file !== undefined) throw new UsageError('give --file or --plan, not both');
       return approvePlan(ticket, io, now);
     }
     const store = openStore({ cwd: io.cwd, env: io.env });
     const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
     const file = readApprovedFile(store.checkout, io.cwd, args.values.file);
+    // Unit 36: a file in .mirai/context/.
+    if (file.path.startsWith(`${CONTEXT_DIR}/`)) return approveContext({ id: ticket, file, store, io, now, fileArg: args.values.file });
+    if (ticket === undefined) throw new UsageError(`name the ${documentTypeOf(file.bytes) ?? 'ticket'}'s key or id before --file`, `mirai approve <key-or-id> --file ${args.values.file}`);
     // Unit 31: a document (a brief; unit 32: a PRD), not a ticket.
     const docType = documentTypeOf(file.bytes);
     if (DOCUMENTS.has(docType)) return approveDocument({ id: ticket, type: docType, file, store, io, now, fileArg: args.values.file });
@@ -572,4 +579,91 @@ export function epicApproval(store, id, bytes, tickets) {
   const then = (last.files ?? []).map((f) => `${f.path} ${f.content_hash}`).sort().join('\n');
   const same = last.content_hash === contentHash(bytes) && now === then;
   return { approved: same, stale: !same, seq: last.seq };
+}
+
+// ---- Context files (unit 36, Scope 4) ------------------------------------------------------
+
+// mirai approve --file .mirai/context/<file>.md (Jet's decision 1): you approve the whole file, not
+// a summary, and there's no reader test. business.md, journeys.md and conventions-<service>.md are
+// approved; feature-map.md and project-<service>.md are refused, since the lint checks them
+// against the code. The lint first, as at approval and against the repo's code; then your
+// decision, signed, on the file's exact bytes: one line, kind context, with the file's type.
+async function approveContext({ id, file, store, io, now, fileArg }) {
+  const name = file.path.slice(CONTEXT_DIR.length + 1);
+  const kind = isContextFile(file.path) ? contextKindOf(name) : null;
+  if (!kind) throw new UsageError(`${plain(file.path)} isn't a context file; nothing was written`, `the context files you approve are ${CONTEXT_DIR}/business.md, journeys.md and conventions-<service>.md`);
+  if (!kind.approved) {
+    throw Object.assign(new MiraiError(`${plain(file.path)} isn't approved: it's checked against the code (its ${kind.type === 'project' ? 'paths and commands' : 'handles and routes'}), so mirai lint is its check; nothing was written`, EXIT.BLOCKED), { code: 'not-approved-kind', hint: `run: mirai lint ${CONTEXT_DIR}/` });
+  }
+  let value = {};
+  try {
+    value = readFrontmatter(file.bytes)?.value ?? {};
+  } catch {
+    value = {};
+  }
+  const docId = typeof value.id === 'string' ? value.id : null;
+  if (id !== undefined && docId !== null && id !== docId) throw new UsageError(`${plain(file.path)} is "${plain(docId)}", not "${id}"; nothing was written`, `run: mirai approve --file ${fileArg}`);
+  const trust = snapshot({ cwd: io.cwd, env: io.env });
+  const config = trustedConfig(trust);
+  const registry = trustedRegistry(trust);
+  const text = file.bytes.toString('utf8');
+  // The journeys' screens are the feature map's, beside it.
+  const linked = {};
+  if (kind.type === 'journeys') {
+    try {
+      linked['feature-map.md'] = readApprovedFile(store.checkout, store.checkout, `${CONTEXT_DIR}/feature-map.md`).bytes.toString('utf8');
+    } catch {
+      // no feature map yet: the screens aren't checked
+    }
+  }
+  refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true, linked, repo: store.checkout }) }]);
+  if (docId === null) throw new MiraiError(`${plain(file.path)} has no id; nothing was written`, EXIT.BLOCKED);
+  const hash = contentHash(file.bytes);
+  const before = contextApproval(store, file.path, file.bytes);
+  io.stdout.write(`context: ${name} (${kind.type}, ${plain(docId)})${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}
+file:    ${file.path}
+hash:    ${hash}
+${plain(join(store.checkout, file.path))}
+you approve the whole file: read it all before you answer
+`);
+  const prompter = createPrompter(io);
+  try {
+    const asked = now().getTime();
+    const answer = (await prompter.ask('accepted as is / edited / rejected? [a/e/r] ')).toLowerCase();
+    const decision = DECISIONS[answer];
+    if (!decision) throw new UsageError(`${JSON.stringify(answer.slice(0, 10))} is not a, e or r; nothing was written`, 'run it again');
+    const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
+    let reason;
+    if (decision !== 'accepted') {
+      reason = await prompter.ask('reason (optional, one line): ');
+      if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
+      if (reason === '') reason = undefined;
+    }
+    const signer = await decisionSigner(io, store, { prompter, ticket: docId, confirm: confirmByTyping });
+    if (contentHash(readApprovedFile(store.checkout, io.cwd, fileArg).bytes) !== hash) {
+      throw new MiraiError(`${file.path} changed while you were answering; nothing was written`, EXIT.FAILURE);
+    }
+    const approval = checkEvent({ type: 'approval', by: 'human', item: docId, kind: 'context', file_type: kind.type, path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
+    const seq = withSeq(store, (ctx) => {
+      const n = ctx.take();
+      ctx.event(n, approval, { signer });
+      return n;
+    });
+    io.stdout.write(decision === 'rejected'
+      ? `recorded: ${file.path} rejected (signed with ${signer.keyId}, seq ${seq})\n`
+      : `approved: ${file.path}, as it is now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to it needs a new approval\n`);
+    return EXIT.OK;
+  } finally {
+    prompter.close();
+  }
+}
+
+// Whether `bytes` are the context file at `path` as you last approved it: { approved, stale, seq,
+// ts } (ts: when that approval was written). The file's place is what's approved: its id may
+// change with it. `events` may be passed in (doctor has read them).
+export function contextApproval(store, path, bytes, events = null) {
+  const last = (events ?? readJournal(store).events).filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'context' && e.path === path).at(-1);
+  if (!last || last.decision === 'rejected') return { approved: false, stale: false, seq: last?.seq ?? null, ts: null };
+  const same = bytes !== null && last.content_hash === contentHash(bytes);
+  return { approved: same, stale: !same, seq: last.seq, ts: last.ts ?? null };
 }
