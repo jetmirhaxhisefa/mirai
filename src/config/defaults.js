@@ -21,6 +21,9 @@ export const PRESETS = Object.freeze({
 export const STEPS = Object.freeze([
   'prd', 'design', 'tickets', 'verify', 'plan', 'replan', 'build', 'review', 'review-high-risk', 'qa',
   'commit-message', 'mr-description', 'report-summary', 'parking-note',
+  // Unit 34: the reader test's fresh agent, which reads only a summary. Its default is P2's
+  // (light if Haiku catches every seeded bad summary and fails no good one, else standard).
+  'reader-test',
 ]);
 
 // The usual model family of each tier. Any model may be set (D-58); a model outside its tier's
@@ -36,6 +39,7 @@ export const TIER_FAMILIES = Object.freeze({
 export const STEP_DEFAULTS = Object.freeze({
   prd: 'deep', design: 'deep', tickets: 'standard', verify: 'standard', plan: 'standard', replan: 'deep', build: 'standard', review: 'standard',
   'review-high-risk': 'deep', qa: 'standard', 'commit-message': 'light', 'mr-description': 'light', 'report-summary': 'light', 'parking-note': 'light',
+  'reader-test': 'standard',
 });
 
 // Judgement steps are never run below the deep tier (D-14).

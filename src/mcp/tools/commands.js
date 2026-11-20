@@ -68,6 +68,8 @@ export const COMMANDS = Object.freeze({
   'trust check': { quick: true, argv: () => ['trust', 'check'] },
   // Unit 33: an epic's generated sections, from its ticket files; it writes the repo's docs only.
   'epic render': { quick: true, needs: ['file'], argv: (a) => ['epic', 'render', a.file] },
+  // Unit 34: the reader test of a document's summary; one short model run, recorded in the store.
+  'reader-test': { needs: ['file'], argv: (a) => ['reader-test', a.file] },
   detect: { argv: () => ['detect'] },
 });
 
@@ -157,7 +159,7 @@ export const miraiCommand = Object.freeze({
       command: { type: 'string', enum: [...Object.keys(COMMANDS), ...Object.keys(GATES)] },
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
-      file: { type: 'string', pattern: FILE.source, description: 'the epic file\'s path in the repo, for epic render (unit 33)' },
+      file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },
       confirm: { type: 'string', pattern: CODE.source, description: 'with redteam run: the one-time code its first answer gave, once the person agreed to the cost' },

@@ -20,6 +20,7 @@ import { contentHash } from '../../src/sign/sign.js';
 import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { installed } from '../tests/run-fixture.js';
+import { passReader } from '../helpers/reader.js';
 
 // Unit 32: the PRD (lite and full), read with its brief.
 const REGISTRY = loadRegistry(REGISTRY_DIR);
@@ -281,8 +282,10 @@ test('32 T7: approving the PRD: on standard one decision signs both files; full 
   assert.equal(tagged.code, EXIT.BLOCKED, tagged.out);
   assert.match(tagged.err, /^docs\/mirai\/due-dates\/prd\.md:[0-9]+: an \[ASSUMPTION\] tag is still in the body/m);
   assert.equal(lines(), before);
-  // One decision, two signed lines, each on its own file's bytes.
+  // One decision, two signed lines, each on its own file's bytes. Unit 34: the PRD's summary has
+  // passed the reader test first, and the PRD's line records that result.
   writeFileSync(f.at('docs/mirai/due-dates/prd.md'), PRD_READY);
+  const reader = await passReader(f, 'docs/mirai/due-dates/prd.md');
   const ok = await tty(APPROVE_PRD, f.io, ['a', 'due-dates-prd']);
   assert.equal(ok.code, EXIT.OK, ok.err);
   assert.match(ok.out, /^prd: +due-dates-prd\nfile: +docs\/mirai\/due-dates\/prd\.md\nhash: +[0-9a-f:a-z]+\nbrief: +due-dates-brief\nfile: +docs\/mirai\/due-dates\/brief\.md\nhash: /);
@@ -290,6 +293,8 @@ test('32 T7: approving the PRD: on standard one decision signs both files; full 
   const [b, p] = readJournal(store).events.slice(-2);
   assert.deepEqual([b.kind, b.item, b.path, b.content_hash, b.decision], ['brief', 'due-dates-brief', 'docs/mirai/due-dates/brief.md', contentHash(Buffer.from(BRIEF_READY)), 'accepted']);
   assert.deepEqual([p.kind, p.item, p.path, p.content_hash, p.decision], ['prd', 'due-dates-prd', 'docs/mirai/due-dates/prd.md', contentHash(Buffer.from(PRD_READY)), 'accepted']);
+  assert.equal(p.reader_test, reader.entry.hash);
+  assert.equal(b.reader_test, undefined, 'on standard the PRD\'s summary is the one tested');
   assert.equal(lines(), before + 2);
   assert.equal(documentApproval(store, 'due-dates-brief', Buffer.from(BRIEF_READY)).approved, true);
   assert.equal(documentApproval(store, 'due-dates-prd', Buffer.from(PRD_READY)).approved, true);
@@ -329,6 +334,7 @@ test('32 T8: mirai show <initiative>: each document with its type, id, state and
   assert.match(first.out, /^due-dates {3}standard\n/);
   assert.match(first.out, new RegExp(`^  brief\\.md +brief +due-dates-brief +not approved +${esc(join(dir, 'brief.md'))}$`, 'm'));
   assert.match(first.out, new RegExp(`^  prd\\.md +prd +due-dates-prd +not approved +${esc(join(dir, 'prd.md'))}$`, 'm'));
+  await passReader(f, 'docs/mirai/due-dates/prd.md');
   assert.equal((await tty(APPROVE_PRD, f.io, ['a', 'due-dates-prd'])).code, EXIT.OK);
   writeFileSync(f.at('docs/mirai/due-dates/prd.md'), swap(PRD_READY, 'within 2 seconds', 'within 3 seconds'));
   const before = readJournal(store).events.length;

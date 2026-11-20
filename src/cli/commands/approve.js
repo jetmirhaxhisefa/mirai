@@ -24,6 +24,8 @@ import { readFrontmatter } from '../../lint/frontmatter.js';
 import { lintText, parseDocument, projectOf as projectOfConfig, readTicketFolder } from '../../lint/lint.js';
 import { ticketsOf } from '../../lint/graph.js';
 import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
+import { readerResultFor } from '../../store/reader-tests.js';
+import { ROUNDS, failedLabels, needsReaderTest, resultLines, summaryHash, summaryText } from '../../write/reader.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -231,13 +233,15 @@ async function approveDocument({ id, type, file, store, io, now, fileArg }) {
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(trust);
   const registry = trustedRegistry(trust);
-  if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, project: projectOfConfig(config) });
-  if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, project: projectOfConfig(config) });
+  if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, config, project: projectOfConfig(config) });
+  if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project: projectOfConfig(config) });
   const text = file.bytes.toString('utf8');
   refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true }) }]);
+  const reader = readerFor({ store, config, def: registry.documentTypes[type], value: fm.value, id, path: file.path, text });
   const hash = contentHash(file.bytes);
   const before = documentApproval(store, id, file.bytes);
   io.stdout.write(`${type}: ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}\nfile:   ${file.path}\nhash:   ${hash}\n`);
+  showReader(io, reader);
   const prompter = createPrompter(io);
   try {
     const asked = now().getTime();
@@ -255,7 +259,7 @@ async function approveDocument({ id, type, file, store, io, now, fileArg }) {
     if (contentHash(readApprovedFile(store.checkout, io.cwd, fileArg).bytes) !== hash) {
       throw new MiraiError(`${file.path} changed while you were answering; nothing was written`, EXIT.FAILURE);
     }
-    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: type, path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
+    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: type, path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader) });
     const seq = withSeq(store, (ctx) => {
       const n = ctx.take();
       ctx.event(n, approval, { signer });
@@ -301,7 +305,7 @@ function linkedBrief(store, prdPath, text, def) {
 //   prd), so a later change to either needs a new approval of that file only.
 // - full: the brief was approved at its own step (U4 is only for standard), so the PRD is refused
 //   unless the brief is approved as it is now.
-async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, project }) {
+async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project }) {
   const def = registry.documentTypes.prd;
   const text = file.bytes.toString('utf8');
   const brief = linkedBrief(store, file.path, text, def);
@@ -316,6 +320,8 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, pro
   if (!pair && !briefBefore.approved) {
     throw Object.assign(new MiraiError(`the brief ${briefId} isn't approved${briefBefore.stale ? ' as it is now (it changed since its approval)' : ''}; on the full track it's approved before its PRD; nothing was written`, EXIT.BLOCKED), { hint: `run: mirai approve ${briefId} --file ${brief.file.path}` });
   }
+  // Unit 34: the PRD's summary (on standard it covers the brief too) has its reader-test result.
+  const reader = readerFor({ store, config, def, value: fm.value, id, path: file.path, text });
   const prdHash = contentHash(file.bytes);
   const briefHash = contentHash(brief.file.bytes);
   const prdBefore = documentApproval(store, id, file.bytes);
@@ -323,6 +329,7 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, pro
   io.stdout.write(`prd:    ${id}${state(prdBefore)}\nfile:   ${file.path}\nhash:   ${prdHash}\n`);
   io.stdout.write(`brief:  ${briefId}${pair ? state(briefBefore) : ' (approved, as it is now)'}\nfile:   ${brief.file.path}\nhash:   ${briefHash}\n`);
   if (pair) io.stdout.write(`one decision approves both: the brief and its PRD (track ${fm.value.track})\n`);
+  showReader(io, reader);
   const prompter = createPrompter(io);
   try {
     const asked = now().getTime();
@@ -341,8 +348,8 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, pro
     for (const [path, hash] of [[file.path, prdHash], [brief.file.path, briefHash]]) {
       if (contentHash(readApprovedFile(store.checkout, store.checkout, path).bytes) !== hash) throw new MiraiError(`${path} changed while you were answering; nothing was written`, EXIT.FAILURE);
     }
-    const line = (item, kind, path, hash) => checkEvent({ type: 'approval', by: 'human', item, kind, path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
-    const events = [...(pair ? [line(briefId, 'brief', brief.file.path, briefHash)] : []), line(id, 'prd', file.path, prdHash)];
+    const line = (item, kind, path, hash, extra = {}) => checkEvent({ type: 'approval', by: 'human', item, kind, path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...extra });
+    const events = [...(pair ? [line(briefId, 'brief', brief.file.path, briefHash)] : []), line(id, 'prd', file.path, prdHash, readerField(reader))];
     const seqs = withSeq(store, (ctx) => events.map((ev) => {
       const n = ctx.take();
       ctx.event(n, ev, { signer });
@@ -357,6 +364,37 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, pro
     prompter.close();
   }
 }
+
+// ---- The reader test at approval (unit 34, Scope 5) ----------------------------------------
+
+// The reader-test result for the document's summary as it is now: { entry } to show and record,
+// { off: true } when the project turned it off, or null when the document doesn't take it (a
+// brief on quick or standard, a ticket). With no result for the current summary it refuses, with
+// the command that makes one. A failed result still lets you decide (decision 4).
+function readerFor({ store, config, def, value, id, path, text }) {
+  if (!needsReaderTest(def, value)) return null;
+  if (config.docs?.reader_test === false) return { off: true };
+  const summary = summaryText(text);
+  const entry = summary ? readerResultFor(store, id, summaryHash(summary)) : null;
+  if (!entry) throw Object.assign(new MiraiError(`${path} has no reader-test result for its summary as it is now; nothing was written`, EXIT.BLOCKED), { code: 'no-reader-test', hint: `run: mirai reader-test ${path}, then approve again` });
+  return { entry };
+}
+
+function showReader(io, reader) {
+  if (!reader) return;
+  if (reader.off) {
+    io.stdout.write('reader test: off for this project ([docs] reader_test = false); you approve without it\n');
+    return;
+  }
+  const e = reader.entry;
+  const head = e.result === 'pass'
+    ? `reader test: pass (round ${e.round}, model ${plain(e.model)})`
+    : `reader test failed (round ${e.round}${e.round <= ROUNDS ? ` of ${ROUNDS}` : ''}, model ${plain(e.model)}): ${failedLabels(e).join(', ')}`;
+  io.stdout.write(`${[head, ...resultLines(e).map((l) => plain(l))].join('\n')}\n`);
+  if (e.result !== 'pass') io.stdout.write('you can still decide: approve anyway (a), reject with a note (r), or answer the gap yourself: fix the summary, run mirai reader-test, then approve again\n');
+}
+
+const readerField = (reader) => (reader?.entry ? { reader_test: reader.entry.hash } : {});
 
 // Whether `bytes` are the document `id` as you last approved it: { approved, stale, seq }.
 // Only your signed lines count (readJournal verifies them); your last decision on the document
@@ -402,7 +440,7 @@ export function epicInputs(checkout, epicPath, text, registry) {
 // PRD waits for its brief, 32). You decide once, and one signed line covers the epic's bytes and
 // each ticket file's bytes, so a later change to any of them needs a new approval. The inbox
 // screen and the docs MR merge are unit 45's.
-async function approveEpic({ id, file, store, io, now, registry, project }) {
+async function approveEpic({ id, file, store, io, now, registry, config, project }) {
   const text = file.bytes.toString('utf8');
   const input = epicInputs(store.checkout, file.path, text, registry);
   const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [input.prdLink]: input.prd.bytes.toString('utf8') }, tickets: input.folder }) }];
@@ -413,6 +451,7 @@ async function approveEpic({ id, file, store, io, now, registry, project }) {
   if (!prdBefore.approved) {
     throw Object.assign(new MiraiError(`the PRD ${prdId ?? input.prd.path} isn't approved${prdBefore.stale ? ' as it is now (it changed since its approval)' : ''}; its tickets are approved after it; nothing was written`, EXIT.BLOCKED), { hint: `run: mirai approve ${prdId ?? '<prd-id>'} --file ${input.prd.path}` });
   }
+  const reader = readerFor({ store, config, def: registry.documentTypes.epic, value: input.doc.value, id, path: file.path, text });
   const hash = contentHash(file.bytes);
   const files = input.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }));
   const signature = (list) => list.map((f) => `${f.path} ${f.content_hash}`).join('\n');
@@ -421,6 +460,7 @@ async function approveEpic({ id, file, store, io, now, registry, project }) {
   io.stdout.write(`epic:    ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it or a ticket has changed since)' : ''}\nfile:    ${file.path}\nhash:    ${hash}\nprd:     ${prdId} (approved, as it is now)\ntickets: ${n}, signed with the epic\n`);
   for (const f of files) io.stdout.write(`  ${plain(f.path)}   ${f.content_hash}\n`);
   io.stdout.write(`${plain(join(store.checkout, file.path))}\n`);
+  showReader(io, reader);
   const prompter = createPrompter(io);
   try {
     const asked = now().getTime();
@@ -442,7 +482,7 @@ async function approveEpic({ id, file, store, io, now, registry, project }) {
     if (contentHash(nowBytes) !== hash || signature(again.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }))) !== signature(files)) {
       throw new MiraiError(`${file.path} or one of its tickets changed while you were answering; nothing was written`, EXIT.FAILURE);
     }
-    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
+    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader) });
     const seq = withSeq(store, (ctx) => {
       const k = ctx.take();
       ctx.event(k, approval, { signer });
