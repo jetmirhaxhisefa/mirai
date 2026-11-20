@@ -193,3 +193,10 @@ check the Stack table's versions against the files in "Set in"?
 **The full suite** (`caffeinate -i npm test`, after the rebase and the docs fix): 728/729. The
 one failure was the known `/private/tmp` race in `test/launch/strict.test.js` T5/T6 ("a failed
 launch left its scratch folder"); the file alone passed 14/14.
+
+
+### The handle check matches whole handles (2026-11-20, after the rebase)
+
+The review's note c) showed a plain substring search: `data-testid="e"` passed on any file with an "e". Now a test id must start right after a quote and, when it has no `<part>`, end at one; a role's name must be a whole string or an element's whole text (after a quote or `>`, before a quote or `<`). T4 gains three cases (`data-testid="e"`, `data-testid="login"` against `login-form`, `button "A"`), and the examples still pass against the sample app's fixture.
+
+Left as a follow-up (not a bug): the project lint doesn't check stack versions against the manifests.

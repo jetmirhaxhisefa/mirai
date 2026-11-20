@@ -326,6 +326,21 @@ export function parseHandle(text) {
 // The fixed parts of a handle or route: "task-<id>" → ["task-"], "/tasks/:id" → ["/tasks/"].
 const fixedOf = (value) => value.split(/<[^<>]*>|\{[^{}]*\}|:[A-Za-z_][A-Za-z0-9_]*|\*/).map((s) => s.trim() ? s : '').filter(Boolean);
 const found = (sources, parts) => parts.length > 0 && sources.some((f) => parts.every((p) => f.text.includes(p)));
+// A handle is found only as a whole (review of 36, 2026-11-20: a plain substring let `data-testid="e"`
+// match any file with an "e"). A test id's value starts right after a quote, and a fixed value also
+// ends at one; a role's name is a whole string or an element's whole text.
+const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function handleFound(sources, h) {
+  const parts = fixedOf(h.value);
+  if (!parts.length) return false;
+  const whole = parts.length === 1 && parts[0] === h.value;
+  let re;
+  if (h.kind === 'testid') re = new RegExp(`["'\`]${esc(parts[0])}${whole ? `["'\`]` : ''}`);
+  // A role's name is a string or an element's text: it starts after a quote or ">" and, when
+  // fixed, ends at a quote or "<" (`<button>Add</button>`, `aria-label="Tasks"`).
+  else re = new RegExp(`["'\`>]\\s*${esc(parts[0])}${whole ? `\\s*["'\`<]` : ''}`);
+  return sources.some((f) => re.test(f.text) && parts.slice(1).every((q) => f.text.includes(q)));
+}
 
 export function checkFeatureMap(doc, def, ctx, add) {
   checkName(doc, def, ctx, add);
@@ -374,7 +389,7 @@ export function checkFeatureMap(doc, def, ctx, add) {
         add({ code: 'feature-map-handle', ...at, reason: `"${h.kind}" in "${clip(s, 40)}" isn't an ARIA role`, hint: 'use a role such as button, link, heading, textbox, checkbox, form or list; label "<text>" for a labelled field' });
         continue;
       }
-      if (sources && !found(sources, fixedOf(h.value))) add({ code: 'feature-map-handle', ...at, reason: `${s} isn't in the code under ${where}`, hint: 'correct it to the handle the code has, or add it to the code in the same ticket; a part that changes is written <like-this>' });
+      if (sources && !handleFound(sources, h)) add({ code: 'feature-map-handle', ...at, reason: `${s} isn't in the code under ${where}`, hint: 'correct it to the handle the code has, or add it to the code in the same ticket; a part that changes is written <like-this>' });
     }
   }
 }

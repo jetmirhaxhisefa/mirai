@@ -138,6 +138,10 @@ test('36 T4: feature map and project: a handle not in the code, a route not in i
   one(errors(swap(F, 'data-testid="login-form"', 'data-testid="signin-form"'), 'feature-map'), 'feature-map-handle', /^data-testid="signin-form" isn't in the code under frontend\/src/);
   one(errors(swap(F, '`button "Add"`', '`button "Remove"`'), 'feature-map'), 'feature-map-handle', /button "Remove" isn't in the code/);
   one(errors(swap(F, '`button "Add"`', '`knob "Add"`'), 'feature-map'), 'feature-map-handle', /"knob" in "knob "Add"" isn't an ARIA role/);
+  // A handle is found only as a whole (36's review): a one-letter test id or a name inside a longer word isn't enough.
+  one(errors(swap(F, 'data-testid="login-form"', 'data-testid="e"'), 'feature-map'), 'feature-map-handle', /^data-testid="e" isn't in the code/);
+  one(errors(swap(F, 'data-testid="login-form"', 'data-testid="login"'), 'feature-map'), 'feature-map-handle', /^data-testid="login" isn't in the code/);
+  one(errors(swap(F, '`button "Add"`', '`button "A"`'), 'feature-map'), 'feature-map-handle', /button "A" isn't in the code/);
   const route = swap(F, '| Tasks | `/` |', '| Tasks | `/settings` |');
   assert.deepEqual(errors(route, 'feature-map'), []);
   one(warnings(route, 'feature-map'), 'feature-map-route', /^the route \/settings isn't in the code under frontend\/src \| a route built at run time/);
