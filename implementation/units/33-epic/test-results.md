@@ -49,7 +49,7 @@
 - **The suites from 31 and 32** (`test/documents/brief.test.js`, `prd.test.js`, `test/lint/`)
   pass. `test/lint/templates.test.js` T1 now lists the epic type and lints each template with the
   PRD template beside it (see "Changed from the spec").
-- **The full suite:** see the last line of this section, from the Mac (`npm test`).
+- **The full suite:** 695/695 on the Mac (`npm test`), 8 tests in `epic.test.js`; `test/cli/cli.test.js` T14 pins the new `epic` command. The build runner and CI run on the final commit.
 
 ## Probes (real)
 
