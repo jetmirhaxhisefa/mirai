@@ -247,13 +247,16 @@ function requirementItems(doc) {
   return out;
 }
 
-// The words below the frontmatter: headings and text (tables included); code blocks, comments
-// and the fixed parts left out.
+// The words below the frontmatter: headings and text (tables included); code blocks, comments,
+// the fixed parts and the uncounted sections (Glossary, Open questions; Jet, 2026-11-20) left out.
 export function documentWords(doc, def) {
   const fixed = [...fixedParts(doc.scan, def).values()];
   const inFixed = (line) => fixed.some((f) => line > f.start && line < f.end);
+  const h2 = doc.scan.headings.filter((h) => h.level <= 2);
+  const skipped = h2.filter((h) => h.level === 2 && (def.uncounted_sections ?? []).includes(h.text)).map((h) => ({ start: h.line, end: h2.find((x) => x.line > h.line)?.line ?? Infinity }));
+  const inSkipped = (line) => skipped.some((r) => line >= r.start && line < r.end);
   return doc.scan.lines
-    .filter((l) => (l.kind === 'text' || l.kind === 'heading') && !inFixed(l.line))
+    .filter((l) => (l.kind === 'text' || l.kind === 'heading') && !inFixed(l.line) && !inSkipped(l.line))
     .reduce((n, l) => n + ((l.visible ?? l.text).replace(/^ *#{1,6}[ \t]+/, '').match(/[\p{L}\p{N}][\p{L}\p{N}'’%.-]*/gu) ?? []).length, 0);
 }
 

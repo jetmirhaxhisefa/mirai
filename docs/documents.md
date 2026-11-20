@@ -161,18 +161,19 @@ Every PRD ends with a glossary in two parts:
 
 - **ID prefixes:** a fixed table from the template that says what BR, SM, UJ, FR, NFR, AC, NG,
   R, DEP, PH, A and Q mean, with an example each. Keep it word for word; the lint checks it. It
-  isn't counted in the word cap.
+  isn't counted in the word cap, and neither is the rest of the glossary.
 - **Terms:** each word the requirements depend on, defined once and used in exactly that form.
 
 ### The caps
 
 | Variant | Cap | Warning at |
 |---|---|---|
-| lite | 2,000 words | 1,600 |
-| full | 3,500 words | 2,800 |
+| lite | 3,000 words | 2,400 |
+| full | 5,000 words | 4,000 |
 
-Everything below the frontmatter counts, ACs included. The frontmatter, code blocks and the ID
-prefixes don't.
+Everything below the frontmatter counts, ACs included. The frontmatter, code blocks, the Glossary
+and Open questions don't. (The caps were 2,000 and 3,500 until 32's probes: three agent-written
+PRDs for a small feature landed at 1,860–1,990 words, and one cut requirements to fit.)
 
 Over the cap fails the lint. Split the feature into two PRDs, or move to `full` and put the "how"
 into the design. Don't remove requirements or ACs to fit.
@@ -188,8 +189,8 @@ can't. Each key has a range, so a cap can't be switched off:
 [docs.limits]
 brief_summary_words = 400   # 100–2,000
 prd_summary_words = 600     # 100–2,000
-prd_lite_words = 2000       # 500–10,000
-prd_full_words = 3500       # 500–10,000
+prd_lite_words = 3000       # 500–10,000
+prd_full_words = 5000       # 500–10,000
 ```
 
 ### Approving the PRD

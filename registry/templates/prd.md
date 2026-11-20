@@ -18,8 +18,8 @@ PRD keeps exactly as it is.
   Everything after it is for the agents: complete enough to cut tickets and build without guessing.
 - Variants: lite (standard track) is every required section. Full (full track) adds Key flows,
   Risks, Dependencies and Rollout. A lite PRD leaves those four out.
-- Length: a lite PRD keeps to 2,000 words, a full one to 3,500 (the project may set others). The
-  frontmatter, code blocks and the glossary's ID prefixes don't count; everything else does. Over
+- Length: a lite PRD keeps to 3,000 words, a full one to 5,000 (the project may set others). The
+  frontmatter, code blocks, the Glossary and Open questions don't count; everything else does. Over
   the cap, split the feature into two PRDs; never drop a requirement or an AC to fit. If it truly
   can't be split, set length_exception: "<why>" in the frontmatter and ask the approver under
   "Decisions for you".

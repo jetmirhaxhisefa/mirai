@@ -141,31 +141,35 @@ function padded(text, target) {
     need -= 7;
   }
   parts.push(`${'Leads plan the week on Monday morning and check each task with the team'.split(' ').slice(0, need).join(' ')}.`);
-  const out = swap(text, '## User journeys\n\n', `## User journeys\n\n${parts.join(' ')}\n\n`);
+  // One sentence per line: a single line past the scanner's length limit isn't read.
+  const out = swap(text, '## User journeys\n\n', `## User journeys\n\n${parts.join('\n')}\n\n`);
   assert.equal(words(out), target);
   return out;
 }
 
 const EXCEPTION = 'length_exception: "the reminders and the overdue page share one change to tasks"\n';
-const DECISION = '2. This PRD is over the 2,000 words cap: reminders and the overdue page share one change to tasks. Options: approve it as one PRD, or ask for a split. Recommendation: one PRD; a split repeats the date rules.\n';
+const DECISION = '2. This PRD is over the 3,000 words cap: reminders and the overdue page share one change to tasks. Options: approve it as one PRD, or ask for a split. Recommendation: one PRD; a split repeats the date rules.\n';
 
 test('32 T5: the length cap: a warning near it, a failure over it with the split message, the exception, the config', () => {
-  assert.deepEqual(codes(lint(padded(PRD, 1700))), ['prd-length']);
-  assert.match(lint(padded(PRD, 1700))[0].reason, /the PRD has 1700 words, close to a lite PRD's cap of 2000/);
-  const over = padded(PRD, 2100);
-  one(over, 'prd-length', /the PRD has 2100 words; a lite PRD's cap is 2000 \| split the feature into two PRDs, each with its own BRs, or move it to the full track and put the "how" into the design; don't remove requirements or ACs to fit/);
+  assert.deepEqual(codes(lint(padded(PRD, 2500))), ['prd-length']);
+  assert.match(lint(padded(PRD, 2500))[0].reason, /the PRD has 2500 words, close to a lite PRD's cap of 3000/);
+  const over = padded(PRD, 3100);
+  one(over, 'prd-length', /the PRD has 3100 words; a lite PRD's cap is 3000 \| split the feature into two PRDs, each with its own BRs, or move it to the full track and put the "how" into the design; don't remove requirements or ACs to fit/);
   // With length_exception, it only warns, once "Decisions for you" asks you.
   const excepted = swap(over, 'variant: lite\n', `variant: lite\n${EXCEPTION}`);
-  one(excepted, 'prd-length', /the length exception isn't under "Decisions for you" \| add an item: "This PRD is [0-9]+ words, over the 2000 cap/);
+  one(excepted, 'prd-length', /the length exception isn't under "Decisions for you" \| add an item: "This PRD is [0-9]+ words, over the 3000 cap/);
   const asked = swap(excepted, 'This PRD is written for email only (A-1).\n', `This PRD is written for email only (A-1).\n${DECISION}`);
   assert.deepEqual(errors(asked), []);
   assert.deepEqual(codes(warnings(asked)), ['prd-length']);
-  assert.match(warnings(asked)[0].reason, /over its cap of 2000, with a length exception/);
+  assert.match(warnings(asked)[0].reason, /over its cap of 3000, with a length exception/);
   // Under the cap, the exception is an error, so it can't be left on by habit.
-  one(swap(PRD, 'variant: lite\n', `variant: lite\n${EXCEPTION}`), 'prd-length', /length_exception is set, but the PRD has [0-9]+ words, within its cap of 2000 \| remove length_exception/);
+  one(swap(PRD, 'variant: lite\n', `variant: lite\n${EXCEPTION}`), 'prd-length', /length_exception is set, but the PRD has [0-9]+ words, within its cap of 3000 \| remove length_exception/);
   // The project config moves the cap (decision 6); the trusted config is what the lint reads.
-  assert.deepEqual(errors(over, { project: { repos: ['.'], limits: { prd_lite_words: 2500 } } }), []);
-  assert.deepEqual(codes(warnings(over, { project: { repos: ['.'], limits: { prd_lite_words: 2500 } } })), ['prd-length']);
+  assert.deepEqual(errors(over, { project: { repos: ['.'], limits: { prd_lite_words: 3500 } } }), []);
+  assert.deepEqual(codes(warnings(over, { project: { repos: ['.'], limits: { prd_lite_words: 3500 } } })), ['prd-length']);
+  // The Glossary and Open questions aren't counted (Jet, 2026-11-20).
+  const terms = Array.from({ length: 120 }, (_, i) => `- Term ${i}: a word the requirements use, defined once here for the reader.`).join('\n');
+  assert.equal(documentWords(parseDocument(swap(PRD, '### Terms\n\n', `### Terms\n\n${terms}\n`), 'prd.md'), REGISTRY.documentTypes.prd), documentWords(parseDocument(PRD, 'prd.md'), REGISTRY.documentTypes.prd));
   assert.deepEqual(codes(errors(PRD, { project: { repos: ['.'], limits: { prd_lite_words: 900 } } })), ['prd-length']);
   const { config } = loadConfig(configFiles({ project: `${MINIMAL}[docs.limits]\nprd_lite_words = 2500\nprd_summary_words = 700\n` }));
   assert.deepEqual(config.docs.limits, { prd_lite_words: 2500, prd_summary_words: 700 });

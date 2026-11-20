@@ -19,6 +19,8 @@ section_order = ["Summary for approval", "User journeys", "Functional requiremen
 may_be_empty = ["Open questions"]
 summary_words = 600
 fixed_parts = ["ID prefixes"]
+# Not counted in the word cap (Jet, 2026-11-20): reference and open items, not requirements.
+uncounted_sections = ["Glossary", "Open questions"]
 lint_checks = ["summary", "writing", "prd"]
 
 [upstream_link]
@@ -26,10 +28,10 @@ label = "Brief"
 type = "brief"
 
 [variants.lite]
-document_words = 2000
+document_words = 3000
 
 [variants.full]
-document_words = 3500
+document_words = 5000
 required_sections = ["Key flows", "Risks", "Dependencies", "Rollout"]
 
 [frontmatter.fields.track]

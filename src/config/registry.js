@@ -316,6 +316,8 @@ const DOCUMENT_TYPE = {
     // H3 parts the template fixes word for word (unit 32: the PRD glossary's ID prefixes): the
     // document keeps them as they are, and they aren't leftover text or counted as words.
     fixed_parts: sectionList,
+    // Sections left out of a variant's word cap (unit 32, Jet's decision 2026-11-20).
+    uncounted_sections: sectionList,
     versioned: { type: 'boolean' },
     id_pattern: regex,
     frontmatter: {
@@ -403,7 +405,7 @@ function checkDocumentType(def, path, report) {
     if (field?.type !== 'enum' || !field.required || (field.values ?? []).join('\n') !== names.join('\n')) report('variants', 'a type with variants needs a required enum field "variant" listing them, in order', `add [frontmatter.fields.variant] with values = ${JSON.stringify(names)} and required = true`, 'required');
   }
 
-  for (const key of ['may_be_empty', 'frozen_sections']) {
+  for (const key of ['may_be_empty', 'frozen_sections', 'uncounted_sections']) {
     (Array.isArray(def[key]) ? def[key] : []).forEach((name, i) => {
       if (!seen.has(name)) report(`${key}[${i}]`, `${key}[${i}] is not one of the listed sections`, undefined, 'unknown-section');
     });

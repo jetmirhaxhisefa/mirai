@@ -78,6 +78,10 @@ documents.
    | lite | 2,000 words | 1,600 |
    | full | 3,500 words | 2,800 |
 
+   - **Changed by Jet, 2026-11-20, after the probes ("keep your recommendation"):** lite 3,000
+     words (warning at 2,400), full 5,000 (warning at 4,000); the Glossary and Open questions
+     aren't counted. Three agent PRDs for a small feature landed at 1,860–1,990 words, and one cut
+     requirements to fit.
    - **Counted:** everything below the frontmatter, ACs included.
    - **Not counted:** the frontmatter, code blocks, and the glossary's fixed ID-prefix block.
    - **Over the cap fails the lint.** The message says to split the feature into two PRDs, or
