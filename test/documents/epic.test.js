@@ -277,9 +277,10 @@ test('33 T3: the graph lint: each failure caught on a seeded set, naming the tic
   assert.match(graph(noAc, 'graph-ac').map((p) => `${p.reason} | ${p.hint}`).join('\n'), /^SAMPLE-52 has no acceptance criterion \| add AC-SAMPLE-52\.1 under "## Acceptance criteria" in tickets\/SAMPLE-52\.md/);
   const noVerify = seeded(withTicket('SAMPLE-52', (t) => t.replace(/^verify: .*\n/m, '')));
   assert.match(graph(noVerify, 'graph-verify').map((p) => p.reason).join('\n'), /^SAMPLE-52 has no verify line$/);
-  // A ticket that covers nothing of the PRD.
-  const nothing = seeded(withTicket('SAMPLE-90', ticket('SAMPLE-90', { fr: [], ac: [] })));
-  assert.match(graph(nothing, 'graph-unknown-id').map((p) => p.reason).join('\n'), /^SAMPLE-90 covers no PRD requirement$/);
+  // A ticket that covers nothing of the PRD (design/01 §5's closing refactor sweep) isn't the
+  // lint's to refuse: whether its work is asked for is Vera's checklist question.
+  const sweep = seeded(withTicket('SAMPLE-90', ticket('SAMPLE-90', { fr: [], ac: [] })));
+  assert.deepEqual(errors(sweep.text, { tickets: sweep.tickets }), []);
   // Warn: the same file in two tickets with no after between them.
   const files = seeded(withTicket('SAMPLE-52', (t) => swap(t, 'files_likely: [app/Http/Requests/UpdateTaskDueDate.php', 'files_likely: [app/Mail/DueReminder.php, app/Http/Requests/UpdateTaskDueDate.php')));
   assert.deepEqual(errors(files.text, { tickets: files.tickets }), []);

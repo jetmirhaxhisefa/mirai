@@ -139,7 +139,6 @@ export function graphProblems({ epicId, track, tickets, all, items, caps = CAPS 
       for (const id of [...list(t.value.covers_fr), ...list(t.value.covers_ac)]) {
         if (!defined.has(id)) fail('graph-unknown-id', `${keyOf(t)} covers ${id}, which the PRD doesn't define`, `correct ${t.path}'s covers_fr or covers_ac to the PRD's IDs; work the PRD doesn't ask for goes back to the PRD first`);
       }
-      if (list(t.value.covers_fr).length === 0 && list(t.value.covers_ac).length === 0) fail('graph-unknown-id', `${keyOf(t)} covers no PRD requirement`, `list the FRs, NFRs and ACs it delivers in covers_fr and covers_ac; a ticket builds only what the PRD asks for`);
     }
     // On full, several epics share the PRD: an ID covered in any of them counts.
     const pool = track === 'full' ? all.filter((t) => typeof t.value.epic === 'string') : tickets;

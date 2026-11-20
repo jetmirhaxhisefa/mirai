@@ -312,7 +312,7 @@ The lint checks the set is complete and can be built. Each message names the tic
 | an `after` naming a ticket that doesn't exist, or one of another epic | 16 tickets or more |
 | stacking deeper than 2 levels (A → B → C) | |
 | a PRD FR, NFR or AC no ticket covers (Failures and Unchanged behaviour included) | |
-| a ticket covering an ID the PRD doesn't define, or covering nothing | |
+| a ticket covering an ID the PRD doesn't define | |
 | a size other than S, M or L | |
 | more tickets, or more L tickets, than the caps | |
 | a ticket with no AC or no `verify` line | |
