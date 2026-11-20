@@ -91,7 +91,7 @@ test('32 T2: requirements: each problem names the FR and the fix; a shape only w
   assert.deepEqual(errors(shape), []);
   assert.deepEqual(codes(warnings(shape)), ['prd-shape']);
   assert.match(warnings(shape)[0].hint, /write it as "\[Actor\] can …", or move it to the group it belongs to/);
-  one(swap(PRD, 'the system must send each assignee', 'the system shall send each assignee'), 'prd-must', /FR-4 says "shall" \| say "must"/);
+  one(swap(PRD, 'the system must email each assignee', 'the system shall email each assignee'), 'prd-must', /FR-4 says "shall" \| say "must"/);
 });
 
 test('32 T3: an NFR names how it is verified: an AC-NFR, or a Verified by line with a method', () => {

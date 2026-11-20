@@ -47,6 +47,16 @@
 | **P2 an agent fills it** | **three rounds, each a fresh Sonnet agent** given only the template, the checklist and 31's P2 brief (task comments). Round 1: 7 errors after the first lint, 2 of them MIRAI's (an FR citing its assumptions after its BR; the brief's open questions listed again, which the template didn't forbid); 0 after one round. Round 2 (stricter template): 9 errors, 3 MIRAI's (several assumption groups; an NFR verified by its own AC; a copied lead-in); 0 after one round, 1,904 words. Round 3: 11 errors, 3 MIRAI's (date placeholders and UTC read as acronyms); **1 left after one round** (a 31-word sentence), 1,898 words. The agent cut a failure FR and some edge-case ACs to stay under the cap, which the template forbids. Kept: `p2-agent-prd.md` (round 3). Its summary still needs Jet's read. |
 | **P3 an agent builds from it** | **Not passed; a known limit (Jet's decision, 2026-11-20).** A fresh agent cut tickets from P2's PRD (13, 11 and 12 tickets, every AC covered each time) and listed the questions it would have to ask. Round 1: 11. The template and checklist gained seven kinds of gap (what exists today, roles and states, boundaries, when others see a change, lost access, metric data, measurement conditions). Round 2: 16; the metric rule had made the agent add features the brief didn't ask for (a change log, a report), and the questions got finer. Jet changed the bar ("P3 as recommended"): pass when no question changes what is built or who may do what; a second agent sorts them. Round 3 (metric rule fixed): 10 questions, sorted A 3 (must be in the PRD), B 3 (the plan can settle), C 4 (already answered; the sorter's own total said A 2, its verdicts say 3). The three A questions became template and checklist rules: whether a notice reaches someone who can't see its subject; where else the new data shows up (search, exports); what happens to it when its author's account is removed. |
 
+**P3 on the example PRD** (Jet asked for an answer to P1's question 3, 2026-11-20). Check 1:
+12 tickets, every AC covered; 5 questions the PRD must answer (who is a team lead; who may date a
+task, where FR-1 and UJ-1 disagreed; who sees overdue marks; the reminder setting's scope; a moved
+date's reminder) and 13 for the plan. All 5 fixed. Check 2 on the fixed example: 12 tickets,
+every AC covered; 5 new questions of the first kind (done tasks in the email, the assignee in UJ-2,
+a task dated today, reassignment after an assignee leaves, a creator who left), 11 for the plan.
+All 5 fixed; no third check. A strict reader finds a new layer of edge cases each round: the
+example is enough to cut tickets every time, and what's left is for Vera, the plan and the plan
+gate.
+
 ## Changed from the spec
 
 - **The example brief keeps its open `Q-1`** (Scope 9 said it's answered first). The example PRD

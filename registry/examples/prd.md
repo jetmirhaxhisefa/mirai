@@ -50,13 +50,13 @@ These are left out, from the brief and from this PRD:
 The journeys this feature changes:
 
 - UJ-1: On Monday morning a team lead dates the week's new tasks, then checks which of the team's tasks are overdue.
-- UJ-2: A team member reads the reminder email in the evening, then finishes or moves the tasks due next day.
+- UJ-2: A team member reads the evening reminder, then finishes the tasks or asks the lead to move them.
 
 ## Functional requirements
 
 ### Capabilities
 
-- FR-1: A task's creator or its team lead can set, change or remove the task's due date. (BR-1)
+- FR-1: A task's team lead, or its creator while in the team, can set, change or remove its due date. (BR-1)
   - AC-FR-1.1: Given a task with no due date, when its creator sets 2027-01-15, then the task shows "Due 15 Jan 2027".
   - AC-FR-1.2: Given a task due 2027-01-15, when its creator removes the date, then the task shows no due date.
   - AC-FR-1.3: Given Ben didn't create the task and isn't its lead, when he opens it, then he can't change its date.
@@ -68,10 +68,12 @@ The journeys this feature changes:
 
 ### Triggers and states
 
-- FR-4: When a day ends, the system must send each assignee one email listing their tasks due the next day. (BR-2)
+- FR-4: When a day ends, the system must email each assignee once, listing their tasks due next day that aren't done. (BR-2)
   - AC-FR-4.1: Given Ana has two tasks due 2027-01-15, when 2027-01-14 ends, then Ana gets one email naming both.
   - AC-FR-4.2: Given the reminders for 2027-01-14 were sent, when the job runs again that day, then no second email is sent.
   - AC-FR-4.3: Given Ana was reminded of a task, when it moves to 2027-01-20, then she is reminded again as 2027-01-19 ends.
+  - AC-FR-4.4: Given a task due 2027-01-15 is marked done on 2027-01-14, when that day ends, then no email lists it.
+  - AC-FR-4.5: Given a task is dated 2027-01-15 on 2027-01-15, when that day ends, then no reminder is sent for it.
 - FR-5: While a task is past its date and not done, the list must show it as overdue to its viewers. (BR-1)
   - AC-FR-5.1: Given an open task due 2027-01-15, when a team member opens the list on 2027-01-16, then it is marked overdue.
   - AC-FR-5.2: Given that task is then marked done, when the list is opened again, then it is no longer marked overdue.
@@ -82,8 +84,9 @@ The journeys this feature changes:
   - AC-FR-6.1: Given today is 2027-01-14, when a creator enters 2027-01-13, then it is refused: "Due dates can't be in the past."
 - FR-7: If a reminder email fails to send, then the system must retry once an hour later and record the failure. (BR-2)
   - AC-FR-7.1: Given the mail service refuses a reminder, when an hour passes, then it is sent again and the failure logged.
-- FR-8: If a task's assignee leaves the team, then the system must stop sending reminders for that task. (BR-2)
+- FR-8: If a task's assignee leaves the team, then the system must send them no more reminders. A new assignee gets them as usual. (BR-2)
   - AC-FR-8.1: Given Ana leaves the team, when a task still assigned to her is due tomorrow, then no reminder is sent.
+  - AC-FR-8.2: Given that task is then assigned to Ben, when it is due tomorrow, then Ben is reminded.
 
 ### Unchanged behaviour
 
