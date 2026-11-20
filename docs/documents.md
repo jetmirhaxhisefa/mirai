@@ -11,6 +11,42 @@ one file:
 Briefs have it from unit 31, PRDs from unit 32, epics from unit 33. HLDs, LLDs and ADRs get it as their units come.
 Tickets and plans don't: they're short already, and their gates are different.
 
+## The document types
+
+Each type is a file in `registry/document-types/`, with its template and checklist in
+`registry/templates/`.
+
+| Type | What it is | Where it lives | Explained in |
+|---|---|---|---|
+| `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
+| `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
+| `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
+| `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |
+| `bug` | a ticket: what's wrong, how to reproduce it, and how the fix is proven | `docs/mirai/<initiative>/tickets/<key>.md` | [tdd.md](tdd.md) for its red test |
+| `plan` | how one ticket will be built and proven, written by Kai | the store: `<store>/tickets/<ticket>/plan.md` | [agents.md](agents.md), "The plan step" |
+
+`docs/mirai` is the default `[docs] root` ([config.md](config.md)).
+
+## The lint: `mirai lint`
+
+`mirai lint` checks the shape of MIRAI documents: frontmatter, sections, IDs, links, and each
+type's own checks. It writes nothing.
+
+```
+mirai lint                 # every MIRAI document in the repo
+mirai lint docs/mirai/     # only these files or folders
+mirai lint --json          # the result as JSON
+```
+
+- **Which files:** every Markdown file inside the docs root. Outside it, only a file whose
+  frontmatter names a known type and has `template:`.
+- **Exit codes:** 0 when clean (warnings allowed), 1 with problems, 2 for a usage error, 3 for a
+  broken registry or config.
+- **The rules come from the MIRAI you run.** No flag or setting points it at other rules.
+  `[docs] root` and the repo names come from `.mirai/config.toml` only, never your personal files.
+- **From your session:** `/mirai lint`, or MIRAI's `lint` tool, which uses the trust root's rules
+  ([agent-safety.md](agent-safety.md)).
+
 ## The summary for approval
 
 It comes right after the document's `# title`:
@@ -85,8 +121,9 @@ document, and answers four questions:
 For each, the reader gives its answer and the exact words of the summary it relied on. MIRAI then
 checks every quote against the summary with a plain text match: spaces and line breaks don't
 count, nothing else is forgiven. The question fails when the answer is "not stated", the quote is
-missing or shorter than three words, or the quote isn't in the summary. Each failure names the
-question and the fix:
+missing or shorter than three words, or the quote isn't in the summary. "What's left out" and
+"What you decide" must quote their own parts: "Not in this" and "Decisions for you". Each failure
+names the question and the fix:
 
 ```
   fail  What's left out: not stated. The summary doesn't say what is left out: name each item under "Not in this"
@@ -128,7 +165,7 @@ The signed approval line records the result's hash (`reader_test`), so it says w
 saw.
 
 **The model** is the step `reader-test` in `[models.steps]`: `light` (Haiku) or `standard`
-(Sonnet). Until unit 34's P2 measures both, the default is `standard`.
+(Sonnet). Unit 34's P2 measured both: Haiku failed a good summary, so the default is `standard`.
 
 ```toml
 [models.steps]
@@ -368,7 +405,7 @@ The last four sections restate the tickets, so MIRAI writes them, never the auth
 |---|---|
 | Tickets | a table: key (linked), title, size, risk, `after`, the FRs and ACs it covers, its ADRs |
 | Dependencies | a Mermaid diagram of `after` |
-| Coverage | every FR, NFR and AC of the PRD, with its group (Failures, Unchanged behaviour …) and the tickets that cover it |
+| Coverage | every FR, NFR and AC of the PRD (on `full`, those its own tickets cover), with its group (Failures, Unchanged behaviour …) and the tickets that cover it |
 | Design decisions | every ADR the tickets name in `governed_by`, linked, or "None" |
 
 Each sits between two markers. The lint fails when one doesn't match the ticket files and the

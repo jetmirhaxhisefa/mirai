@@ -13,8 +13,9 @@ mirai baseline show [<commit>]    # print a stored one (the integration branch's
 
 ## Before you run it
 
-- MIRAI installed and its trust root built, and **your signing key committed** on the integration
-  branch (`mirai key new`, then commit the `.pub`): the baseline and every run in it are signed.
+- MIRAI installed and its trust root built, and **a signing key committed** on the integration
+  branch: the machine key (`mirai key new --machine`, unit 29b), or your own (`mirai key new`).
+  Commit its `.pub`: the baseline and every run in it are signed.
 - **A clean tree with HEAD on the integration branch,** at the commit its remote has: the baseline
   is that commit's. It's checked before, during and after, as `mirai test --gate` is.
 - Docker Desktop running: every level and check runs in the project's containers (14c).
@@ -70,10 +71,10 @@ turns out flaky is growth, said as "a newly flaky test".
 
 ## What it keeps
 
-`<store>/baseline/<commit>.json`, the one home (AR3-11), signed with your key; the last 10
-commits' are kept. The file holds the commit, branch, time, MIRAI's version, the trust manifest's
-hash, the config's checks and levels, `complete`, the rerun `limits`, `growth` and `gaps`; for each
-level and check:
+`<store>/baseline/<commit>.json`, the one home (AR3-11), signed with the machine key (or yours
+without one); the last 10 commits' are kept. The file holds the commit, branch, time, MIRAI's
+version, the trust manifest's hash, the config's checks and levels, `complete`, the rerun
+`limits`, `growth` and `gaps`; for each level and check:
 - `kind`, `state` (`pass`, `fail`, `env-fault`, `refused`, with its `code` and `message`),
   `duration_ms`, `recorded_at` and the MIRAI version that ran it;
 - the signed run's id and its result's hash (`run`), and each rerun's (`reruns`: file, id,
@@ -102,7 +103,7 @@ repo (`baseline-busy`).
 - **Compare a branch with it:** units 25 (the gate record), 26 (pre-push) and 52 (rerunning a
   flaky test at ticket time).
 - **Refresh itself:** `mirai run` (unit 28) records the integration branch's baseline before a
-  build when its commit has none, with `refuseGrowth`, signed with your key (you're there). Night
-  runs (unit 55) need row 29b's machine key for it.
+  build when its commit has none, with `refuseGrowth`, signed with the machine key, or your key
+  without one. Night runs (unit 55) need row 29b's machine key for it.
 - **Find flaky tests that passed:** only failing tests are rerun. A flaky test that passed in the
   baseline shows up when it fails in a ticket, where unit 52 reruns it.

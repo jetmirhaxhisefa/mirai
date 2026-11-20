@@ -1,0 +1,12 @@
+# Things you can't use directly, so docs/ doesn't explain them (unit 34b).
+# The docs check (test/docs/coverage.test.js) skips each entry here, and fails when an entry has
+# no reason or names something that no longer exists. Keep this list short: almost everything
+# belongs on a page.
+#
+# Each entry: name (as the check names it), kind (command, key or type) and reason.
+# A command entry covers its subcommands too ("mirai hook" covers "mirai hook pre-push").
+
+[[internal]]
+name = "mirai hook"
+kind = "command"
+reason = "called by git, not by you: git runs it as the pre-push hook that mirai init installs (docs/pre-push.md explains the check itself)"

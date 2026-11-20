@@ -132,7 +132,7 @@ on a level whose adapter has `[coverage]`; otherwise it's refused (`no-coverage`
 lcov or Cobertura file is mapped to project paths, and stored as the run's `coverage.json`. The
 result holds its hash and the raw file's, and a summary (files, lines, lines that ran). A run
 asked for coverage that leaves none, or a file MIRAI can't read, is an environment fault
-(`bad-coverage`), unless its tests didn't load. Add `--against <ref>` to see **diff coverage**:
+(`bad-coverage`), unless the run failed. Add `--against <ref>` to see **diff coverage**:
 of the lines your work tree added since the merge base with `<ref>`, the ones that can run, and
 which of them ran. Files the coverage doesn't list (a new file no test loaded, a template), and
 files git shows as binary, are shown apart, never counted as covered. `--against` needs the

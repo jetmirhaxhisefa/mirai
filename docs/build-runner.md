@@ -40,7 +40,7 @@ Everything lives in `~/.mirai-build/`, outside every repo.
 
 3. **Read the result** in `results/<id>.json`: the state (`running`, `pass`, `fail`, `refused`,
    `error`), the minutes and a summary. The full output is in `results/<id>.log`.
-   `runner.log` has one line per request: the job, the commit, its branch, its diff against `main`
+   `runner.log` has a line when a request starts and when it ends: the job, the commit, its branch, its diff against `main`
    and the outcome.
 
 ### The jobs
@@ -48,7 +48,7 @@ Everything lives in `~/.mirai-build/`, outside every repo.
 | Job | What it runs | Argument |
 |---|---|---|
 | `tests` | MIRAI's unit tests, on a clean export of the commit | none |
-| `probes` | one file from `test/probes/` | the file name; its result is reused until the file or a tool version (Claude Code, Docker, git, Node) changes |
+| `probes` | one file from `test/probes/` | the file name; a pass is reused until the file or a tool version (Claude Code, Docker, git, Node) changes |
 | `baseline` | `mirai baseline` on the sample app | none |
 | `redteam-cases` | only some red-team cases: **feedback only, never a result record**; `pass` when every case in its report passed | one fact the cases carry (`hook`, `bundle`, `G17`, …), or case ids |
 | `redteam-full` | the full red team, which writes a result record | none |
@@ -63,14 +63,14 @@ A request can't name a command, a path or a flag. Anything else is refused and l
 - no SSH agent;
 - no git, GitHub or GitLab credentials;
 - no Claude token;
-- a home folder and a temp folder of its own.
+- a home folder of its own, with your real home closed to it by a macOS sandbox.
 
 **Sample-app jobs** use `~/Projects/mirai-sample-app` with your real MIRAI store and keys, as when
 you run things by hand. Before each job, the runner itself (not the job):
 
 1. **Checks the checkout.** It must be on `main`, clean, and level with `origin/main`. If not, the
    job is refused. The runner never resets, stashes or overwrites anything.
-2. **Refreshes MIRAI** from the requested commit (`mirai init --refresh`).
+2. **Refreshes MIRAI** from the requested commit (`mirai init --refresh`). Steps 2 to 4 are skipped when `main` already carries that commit.
 3. **Commits and pushes `main`.** The commit is "MIRAI refresh: <branch> at <commit> (build
    runner)", with a `MIRAI-Build-Commit:` line.
 4. **Records the baseline.**
