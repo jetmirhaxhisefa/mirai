@@ -1,0 +1,33 @@
+# An interview: the record of the questions an agent asked the owner, with every answer, the
+# restatement and the owner's "yes" (unit 35; design/01 §3 step 1). It sits beside the brief, at
+# docs/mirai/<initiative>/interview.md, and the brief links it in an "Interview:" line. It has no
+# summary and no approval of its own: an interview that isn't confirmed blocks the brief's
+# approval. The method is the `mirai-interview` skill.
+kind = "document-type"
+schema_version = 1
+name = "interview"
+template = "templates/interview.md"
+template_version = 1
+checklist = "templates/interview-checklist.md"
+status = "forbidden"
+required_sections = ["Questions", "Restatement"]
+section_order = ["Questions", "Restatement"]
+# A paused interview has no restatement yet.
+may_be_empty = ["Restatement"]
+lint_checks = ["interview"]
+
+# open: questions are being asked; paused: the owner said "pause", or no one could be asked
+# (autonomous mode); confirmed: every question answered, and the owner said "yes" to the
+# restatement.
+[frontmatter.fields.state]
+type = "enum"
+values = ["open", "paused", "confirmed"]
+required = true
+
+# Each question is a heading: "### Q-1: Who it's for".
+[[ids]]
+prefix = "Q"
+pattern = "Q-[0-9]+"
+defined_by = "heading"
+required = true
+section = "Questions"

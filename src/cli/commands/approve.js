@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { lstatSync, rmSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -236,7 +236,8 @@ async function approveDocument({ id, type, file, store, io, now, fileArg }) {
   if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, config, project: projectOfConfig(config) });
   if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project: projectOfConfig(config) });
   const text = file.bytes.toString('utf8');
-  refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true }) }]);
+  const linked = type === 'brief' ? interviewOf(store, file.path, text, registry) : {};
+  refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true, linked }) }]);
   const reader = readerFor({ store, config, def: registry.documentTypes[type], value: fm.value, id, path: file.path, text });
   const hash = contentHash(file.bytes);
   const before = documentApproval(store, id, file.bytes);
@@ -298,6 +299,34 @@ function linkedBrief(store, prdPath, text, def) {
   return { link, file: brief, value: readFrontmatter(brief.bytes)?.value ?? {} };
 }
 
+// The interview beside a brief (unit 35, Scope 4), for the brief's lint as `linked`: the one its
+// "Interview:" line links, or else an interview.md beside it, which then fails as unlinked. A
+// linked interview that isn't a file in the repo refuses the approval: the gate can't be
+// checked without it. An entry beside the brief that isn't a regular file is passed empty, so
+// the lint still reports it.
+function interviewOf(store, briefPath, text, registry) {
+  let doc;
+  try {
+    doc = parseDocument(text, briefPath);
+  } catch {
+    return {};
+  }
+  const own = linkLinesOf(doc.scan, registry.documentTypes.brief).find((l) => l.link.label === 'Interview');
+  const target = own ? own.targets[0].split('#')[0] : 'interview.md';
+  const rel = posix.normalize(posix.join(posix.dirname(briefPath), target));
+  try {
+    return { [target]: readApprovedFile(store.checkout, store.checkout, rel).bytes.toString('utf8') };
+  } catch {
+    if (own) throw Object.assign(new MiraiError(`${briefPath} links its interview ${plain(target)}, which isn't a file in the repo; nothing was written`, EXIT.BLOCKED), { hint: 'correct the "Interview:" line, then approve again' });
+    try {
+      lstatSync(join(store.checkout, rel));
+      return { [target]: '' };
+    } catch {
+      return {};
+    }
+  }
+}
+
 // mirai approve <prd-id> --file <prd.md> (unit 32, Scope 7; decision 7). The PRD is linted with
 // its brief, both as at approval.
 // - standard (and quick): you read the PRD's summary, which covers both documents, and decide
@@ -314,7 +343,7 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   const pair = fm.value.track !== 'full';
   const briefText = brief.file.bytes.toString('utf8');
   const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [brief.link]: briefText } }) }];
-  if (pair) results.unshift({ path: brief.file.path, errors: lintText(briefText, { source: brief.file.path, registry, project, approving: true }) });
+  if (pair) results.unshift({ path: brief.file.path, errors: lintText(briefText, { source: brief.file.path, registry, project, approving: true, linked: interviewOf(store, brief.file.path, briefText, registry) }) });
   refuseOnLint(io, results);
   const briefBefore = documentApproval(store, briefId, brief.file.bytes);
   if (!pair && !briefBefore.approved) {

@@ -18,7 +18,8 @@ import { ticketsOf } from '../../lint/graph.js';
 // it's parked. Read-only, so it's safe from your session too (/mirai show).
 // mirai show <initiative> (unit 32, Scope 8; Jet's decision 8): the documents in
 // <docs_root>/<initiative>/, each with its type, id, approval state and full path, so you can
-// open it with one click. Also read-only: no store write.
+// open it with one click (unit 35: an interview with its own state instead). Also read-only: no
+// store write.
 export default {
   name: 'show',
   summary: 'Print one ticket\'s page (plan, build, reviews, MR, rounds, usage, parking), or one initiative\'s documents',
@@ -107,9 +108,11 @@ function initiativeOf({ cwd, env, name }) {
         }
       }
       const a = !id || !bytes ? { approved: false, stale: false } : tickets ? epicApproval(store, id, bytes, tickets) : documentApproval(store, id, bytes);
+      // Unit 35: an interview isn't approved; its state (open, paused, confirmed) is its own.
+      const interview = value.type === 'interview';
       docs.push({
         file, type: typeof value.type === 'string' ? value.type : null, id, track: typeof value.track === 'string' ? value.track : null,
-        state: bytes === null ? 'unreadable' : a.approved ? 'approved' : a.stale ? 'changed since approval' : 'not approved',
+        state: bytes === null ? 'unreadable' : interview ? (typeof value.state === 'string' ? value.state : 'no state') : a.approved ? 'approved' : a.stale ? 'changed since approval' : 'not approved',
         path: join(dir, file),
         ...(tickets ? { tickets: tickets.length } : {}),
       });
