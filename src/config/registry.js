@@ -199,8 +199,8 @@ export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date'
 // Checks written in code that a type switches on by name, `lint_checks = ["ticket"]` (unit 08a;
 // src/lint/checks.js). Unit 37's overlays may add lint checks, never remove them.
 // Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
-// and `brief`. Unit 32: `prd`.
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd']);
+// and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint).
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
@@ -287,6 +287,9 @@ const DOCUMENT_TYPE = {
     // The summary for approval's word budget (unit 31; research/13 §9a), for a type that lists
     // the `summary` check.
     summary_words: { type: 'integer', min: 50, max: 2000 },
+    // Where the summary's budget starts to warn, when it isn't at 80% (unit 33: an epic warns at
+    // 300 of 400 words).
+    summary_warn_words: { type: 'integer', min: 50, max: 2000 },
     // Variants of one type (unit 32: a PRD's lite and full), chosen by the frontmatter's
     // `variant` field: each with the word cap for the whole document and the optional sections
     // it requires.
@@ -306,15 +309,27 @@ const DOCUMENT_TYPE = {
       keyPattern: /^[a-z][a-z0-9-]*$/,
       keyHint: 'a variant name such as "lite"',
     },
-    // The line between the title and the summary that links the upstream document (unit 32:
-    // "Brief: [title](brief.md)"), with the upstream's type.
+    // The lines between the title and the summary that link the documents this one comes from
+    // (unit 32: "Brief: [title](brief.md)"; unit 33 widened it to a list, for an epic's "PRD:" and
+    // "Design:" lines), in order. A link with a `type` is the upstream document, read for its IDs
+    // (one per type); one without is only checked to resolve. `many`: the line may hold several
+    // links, comma-separated. `required` (default true): the line must be there.
     upstream_link: {
-      type: 'table',
-      fields: {
-        label: { type: 'string', pattern: /^[A-Z][A-Za-z ]{0,30}$/, patternHint: 'a word such as "Brief"' },
-        type: { type: 'string', pattern: NAME },
+      type: 'array',
+      items: {
+        type: 'table',
+        fields: {
+          label: { type: 'string', pattern: /^[A-Z][A-Za-z ]{0,30}$/, patternHint: 'a word such as "Brief"' },
+          type: { type: 'string', pattern: NAME },
+          many: { type: 'boolean' },
+          required: { type: 'boolean' },
+        },
+        required: ['label'],
       },
-      required: ['label', 'type'],
+      uniqueBy: 'label',
+      check(value, path, report) {
+        if (value.filter((l) => l?.type !== undefined).length > 1) report(path, `${path} names more than one upstream type`, 'one link line is the upstream document; the others have no type', 'duplicate');
+      },
     },
     // H3 parts the template fixes word for word (unit 32: the PRD glossary's ID prefixes): the
     // document keeps them as they are, and they aren't leftover text or counted as words.
@@ -379,6 +394,7 @@ function checkDocumentType(def, path, report) {
   } else if (def.summary_words !== undefined) {
     report('summary_words', 'summary_words is only for a type with the summary check', undefined, 'invalid');
   }
+  if (def.summary_warn_words !== undefined && !checks.includes('summary')) report('summary_warn_words', 'summary_warn_words is only for a type with the summary check', undefined, 'invalid');
   const seen = new Set();
   all.forEach((name, i) => {
     const where = i < required.length ? `required_sections[${i}]` : `optional_sections[${i - required.length}]`;

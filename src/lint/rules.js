@@ -48,23 +48,68 @@ export function checkDocument(doc, def, ctx) {
 
 // ---- The upstream document (unit 32) -------------------------------------------------------
 
-// A type with `upstream_link` names its upstream document in one line right under the title:
-// "Brief: [title](brief.md)". Returns { status: 'ok', doc, def, ids } (ids: prefix → Map of the
-// upstream's defined IDs), { status: 'unavailable' } when the text was linted alone, or
-// { status: 'broken' } after reporting why.
-export const upstreamLine = (def) => new RegExp(`^${escapeRegex(def.upstream_link.label)}: \\[[^\\]]+\\]\\(([^)\\s]+)\\)[ \t]*$`);
+// A type with `upstream_link` names the documents it comes from in lines right under the title:
+// "Brief: [title](brief.md)" (unit 32). Unit 33 widened it to a list of lines, so an epic has
+// "PRD: [title](prd.md)" and "Design: [HLD](hld.md), [LLD](lld-x.md)". The line whose link has a
+// `type` names the upstream document, read for its IDs. Returns { status: 'ok', doc, def, ids }
+// (ids: prefix → Map of the upstream's defined IDs), { status: 'unavailable' } when the text was
+// linted alone, or { status: 'broken' } after reporting why; null for a type with no typed link.
+const LINK = '\\[[^\\]]+\\]\\(([^)\\s]+)\\)';
+const LINKS = /\[[^\]]+\]\(([^)\s]+)\)/g;
+export const upstreamLinks = (def) => (Array.isArray(def.upstream_link) ? def.upstream_link : def.upstream_link ? [def.upstream_link] : []);
+// The typed link's line, with its one target (approval reads it the same way).
+export const upstreamLine = (def) => {
+  const link = upstreamLinks(def).find((l) => l.type) ?? upstreamLinks(def)[0];
+  return new RegExp(`^${escapeRegex(link.label)}: ${LINK}[ \t]*$`);
+};
+const linkLineRe = (link) => new RegExp(`^${escapeRegex(link.label)}: ${LINK}${link.many ? `(?:, *${LINK})*` : ''}[ \t]*$`);
+
+// The link lines right under the title, as written: [{ link, line, targets }]. They stop at the
+// first rendered line (text, a fence or a heading) that isn't one; comments and blank lines
+// don't count.
+export function linkLinesOf(scan, def) {
+  const links = upstreamLinks(def);
+  const title = scan.headings.find((h) => h.level === 1);
+  if (!title || !links.length) return [];
+  const out = [];
+  for (const l of scan.lines) {
+    if (l.line <= title.line || !(l.kind === 'text' || l.kind === 'fence' || l.kind === 'heading')) continue;
+    if (l.kind !== 'text') break;
+    const text = (l.visible ?? l.text).trim();
+    const link = links.find((k) => linkLineRe(k).test(text));
+    if (!link) break;
+    out.push({ link, line: l.line, targets: [...text.matchAll(LINKS)].map((m) => m[1]) });
+  }
+  return out;
+}
 
 function upstreamOf(doc, def, ctx, add) {
-  if (!def.upstream_link) return null;
-  const { label, type } = def.upstream_link;
+  const links = upstreamLinks(def);
+  if (!links.length) return null;
   const title = doc.scan.headings.find((h) => h.level === 1);
   const first = title && doc.scan.lines.find((l) => l.line > title.line && (l.kind === 'text' || l.kind === 'fence' || l.kind === 'heading'));
-  const m = first?.kind === 'text' ? upstreamLine(def).exec((first.visible ?? first.text).trim()) : null;
-  const where = { line: first?.line ?? title?.line ?? doc.bodyLine, column: 1 };
-  if (!m) {
-    add({ code: 'upstream-link', ...where, reason: `the line under the title must link the ${type}: "${label}: [<its title>](${type}.md)"`, hint: `add it right under the # title, before "## Summary for approval"` });
-    return { status: 'broken' };
+  const lines = linkLinesOf(doc.scan, def);
+  const seen = new Set();
+  for (const f of lines) {
+    if (seen.has(f.link.label)) add({ code: 'upstream-link', line: f.line, column: 1, reason: `the "${f.link.label}:" line is there twice`, hint: 'keep one, with every link on it' });
+    seen.add(f.link.label);
   }
+  const order = lines.map((f) => links.indexOf(f.link));
+  if (order.some((n, i) => i > 0 && n < order[i - 1])) add({ code: 'upstream-link', line: lines[0].line, column: 1, reason: 'the link lines under the title are out of order', hint: `the order is: ${links.map((l) => `"${l.label}:"`).join(', ')}` });
+  const after = { line: lines.at(-1)?.line ?? first?.line ?? title?.line ?? doc.bodyLine, column: 1 };
+  for (const link of links) {
+    if ((link.required ?? true) && !seen.has(link.label)) {
+      const what = link.type ?? link.label.toLowerCase();
+      add({ code: 'upstream-link', ...after, reason: `the line under the title must link the ${what}: "${link.label}: [<its title>](${what}.md)"`, hint: `add it right under the # title, before "## Summary for approval"` });
+    }
+  }
+  const typed = links.find((l) => l.type);
+  if (!typed) return null;
+  const { type } = typed;
+  const own = lines.find((f) => f.link === typed);
+  if (!own) return { status: 'broken' };
+  const m = [null, own.targets[0]];
+  const where = { line: own.line, column: 1 };
   const found = ctx.readDocument ? ctx.readDocument(m[1]) : { problem: 'unavailable' };
   if (found.problem === 'unavailable') return { status: 'unavailable' };
   if (found.problem) {
@@ -419,7 +464,7 @@ const ANY_ID = '[A-Za-z0-9][A-Za-z0-9._-]{0,63}?';
 
 // Returns the defined IDs (prefix → Map id → { line, column }). `upstream` (unit 32): kinds
 // marked `cite` are defined there only, `continue` kinds in both, never the same ID twice.
-function checkIds(doc, def, add, upstream) {
+export function checkIds(doc, def, add, upstream) {
   // `{id}` is this document's own id. Without a usable id (missing, or not the type's shape,
   // which the frontmatter rules report), an {id} kind matches nothing and isn't required.
   const id = doc.value.id;

@@ -1,0 +1,71 @@
+# An epic: the page you approve a ticket set from (design/01 §5; D-09). Written by the ticket
+# planner (Tess), checked by the verifier (Vera), approved by you at the `tickets` gate, which is
+# always yours (D6). Its status lives in the store (D-06).
+# Unit 33 (Jet's decisions 2026-11-20): one epic file per epic, at
+# <docs_root>/<initiative>/epic-<slug>.md, with its tickets in <initiative>/tickets/ (every ticket
+# whose `epic` field names it). Tess writes the judgement parts (the summary, the order, the
+# release mode, what's left out); `mirai epic render` writes the four parts that restate the
+# tickets, between markers, and the lint fails when they no longer match. The `epic` check runs
+# the ticket graph lint (src/lint/graph.js).
+kind = "document-type"
+schema_version = 1
+name = "epic"
+template = "templates/epic.md"
+template_version = 1
+checklist = "templates/epic-checklist.md"
+status = "forbidden"
+required_sections = ["Summary for approval", "Order", "Release", "Not in this epic", "Tickets", "Dependencies", "Coverage", "Design decisions"]
+optional_sections = []
+summary_words = 400
+summary_warn_words = 300
+lint_checks = ["summary", "writing", "epic"]
+
+# "PRD: [<title>](prd.md)", always; then "Design: [HLD](hld.md), [LLD for reminders](lld-x.md)",
+# required on `full`, and on `standard` when a ticket names an ADR (the epic check says when).
+[[upstream_link]]
+label = "PRD"
+type = "prd"
+
+[[upstream_link]]
+label = "Design"
+many = true
+required = false
+
+[frontmatter.fields.track]
+type = "enum"
+values = ["quick", "standard", "full"]
+required = true
+
+# How the epic goes live (design/01 §12a): each ticket on its own after its merge (the default),
+# or the whole epic at once from feature/<epic>, which needs a reason and your decision.
+[frontmatter.fields.release]
+type = "enum"
+values = ["per-ticket", "together"]
+required = true
+
+# The PRD's IDs, cited here (in the summary, the order and the generated tables), never defined.
+[[ids]]
+prefix = "FR"
+pattern = "FR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+[[ids]]
+prefix = "NFR"
+pattern = "NFR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+[[ids]]
+prefix = "AC"
+pattern = "AC-(FR-[0-9]+)\\.[0-9]+"
+defined_by = "bullet"
+parent = "FR"
+upstream = "cite"
+
+[[ids]]
+prefix = "ACNFR"
+pattern = "AC-(NFR-[0-9]+)\\.[0-9]+"
+defined_by = "bullet"
+parent = "NFR"
+upstream = "cite"

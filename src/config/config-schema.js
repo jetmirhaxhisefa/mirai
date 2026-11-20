@@ -313,6 +313,12 @@ export const CONFIG_SCHEMA = {
             prd_full_summary_words: { type: 'integer', min: 100, max: 2000 },
             prd_lite_words: { type: 'integer', min: 500, max: 10000 },
             prd_full_words: { type: 'integer', min: 500, max: 10000 },
+            // Unit 33 (Jet's decision 3): an epic's ticket caps and its summary budget. No
+            // exception route: over a cap, the PRD is split or the work moves to `full`.
+            epic_tickets: { type: 'integer', min: 2, max: 50 },
+            epic_l_tickets: { type: 'integer', min: 0, max: 20 },
+            epic_summary_words: { type: 'integer', min: 100, max: 2000 },
+            epic_summary_warn_words: { type: 'integer', min: 100, max: 2000 },
           },
         },
       },

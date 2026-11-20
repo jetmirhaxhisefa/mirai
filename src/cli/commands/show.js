@@ -9,7 +9,9 @@ import { openStore } from '../../store/home.js';
 import { snapshot, trustedConfig } from '../../trust/snapshot.js';
 import { readFrontmatter } from '../../lint/frontmatter.js';
 import { plain } from '../../status/text.js';
-import { documentApproval } from './approve.js';
+import { documentApproval, epicApproval } from './approve.js';
+import { readTicketFolder } from '../../lint/lint.js';
+import { ticketsOf } from '../../lint/graph.js';
 
 // mirai show <ticket> (unit 28, decision 7; design/03 "mirai show"): the ticket's page from the
 // store: its plan, build, review rounds with every blocking finding, the MR, rounds, usage and why
@@ -90,11 +92,26 @@ function initiativeOf({ cwd, env, name }) {
         value = {};
       }
       const id = typeof value.id === 'string' ? value.id : null;
-      const a = id && bytes ? documentApproval(store, id, bytes) : { approved: false, stale: false };
+      // Unit 33: an epic is approved with its tickets (tickets/ beside it, by their `epic` field),
+      // so its state and its ticket count come from them.
+      let tickets = null;
+      if (value.type === 'epic' && id) {
+        tickets = [];
+        for (const t of ticketsOf(readTicketFolder(dir, { root: store.checkout }).all, id)) {
+          try {
+            tickets.push({ path: `${shown}/${t.path}`, ...readApprovedFile(store.checkout, store.checkout, `${shown}/${t.path}`) });
+          } catch {
+            // a ticket file that can't be read can't be approved: the epic shows as not approved
+            tickets.push({ path: `${shown}/${t.path}`, bytes: Buffer.alloc(0) });
+          }
+        }
+      }
+      const a = !id || !bytes ? { approved: false, stale: false } : tickets ? epicApproval(store, id, bytes, tickets) : documentApproval(store, id, bytes);
       docs.push({
         file, type: typeof value.type === 'string' ? value.type : null, id, track: typeof value.track === 'string' ? value.track : null,
         state: bytes === null ? 'unreadable' : a.approved ? 'approved' : a.stale ? 'changed since approval' : 'not approved',
         path: join(dir, file),
+        ...(tickets ? { tickets: tickets.length } : {}),
       });
     }
   }
@@ -107,8 +124,10 @@ function initiativeText({ name, docs, shown }) {
   const track = docs.find((d) => d.type === 'prd')?.track ?? docs.find((d) => d.type === 'brief')?.track ?? null;
   const out = [`${plain(name)}   ${track ? plain(track) : 'no track yet'}`];
   if (!docs.length) out.push(`  no documents yet in ${plain(shown)}/`);
-  const w = (k) => Math.max(...docs.map((d) => plain(String(d[k] ?? '—')).length));
-  for (const d of docs) {
+  // An epic's type says how many tickets it holds (unit 33): "epic (7 tickets)".
+  const rows = docs.map((d) => ({ ...d, type: d.tickets === undefined ? d.type : `${d.type} (${d.tickets} ticket${d.tickets === 1 ? '' : 's'})` }));
+  const w = (k) => Math.max(...rows.map((d) => plain(String(d[k] ?? '—')).length));
+  for (const d of rows) {
     out.push(`  ${plain(d.file).padEnd(w('file'))}   ${plain(d.type ?? '—').padEnd(w('type'))}   ${plain(d.id ?? '—').padEnd(w('id'))}   ${d.state.padEnd(22)}   ${plain(d.path)}`);
   }
   return `${out.join('\n')}\n`;

@@ -222,9 +222,38 @@ export function lintFile(file, ctx) {
   const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine, text: bytes.toString('utf8') };
   const linkTarget = (path) => resolveLink(dirname(abs), path, ctx);
   const readDocument = (path) => readLinked(dirname(abs), path, ctx);
+  const readTickets = () => readTicketFolder(dirname(abs), ctx);
   const template = inside ? templateOf(type, def, ctx) : null;
-  for (const p of checkDocument(doc, def, { linkTarget, readDocument, file, project: ctx.project, template, registry: ctx.registry })) problems.push({ file, ...p });
+  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry })) problems.push({ file, ...p });
   return { linted: true, problems };
+}
+
+// The tickets beside a document (unit 33: an epic's), every Markdown file in its tickets/ folder
+// that reads as a MIRAI document: { status: 'ok', all: [{ path, value, doc }] }, `path` relative
+// to the document's folder. A file that doesn't read is left out here; it is linted on its own.
+// The folder must be a real folder inside the repo, as documents are.
+export function readTicketFolder(fromDir, ctx) {
+  const dir = join(fromDir, 'tickets');
+  const all = [];
+  let names = [];
+  try {
+    if (!lstatSync(dir).isDirectory()) return { status: 'ok', all };
+    const real = realpathSync.native(dir);
+    const root = realpathSync.native(ctx.root);
+    if (!real.startsWith(root + sep)) return { status: 'ok', all };
+    names = readdirSync(dir).filter((n) => MARKDOWN.test(n)).sort();
+  } catch {
+    return { status: 'ok', all };
+  }
+  for (const name of names) {
+    try {
+      const doc = parseDocument(readRegularFile(join(dir, name)).toString('utf8'), `tickets/${name}`);
+      all.push({ path: `tickets/${name}`, value: doc.value, doc });
+    } catch {
+      // not a document: its own lint says why
+    }
+  }
+  return { status: 'ok', all };
 }
 
 // The document a relative link leads to, parsed (unit 32: a PRD's brief): { value, scan, text }
@@ -354,7 +383,9 @@ function bodyOf(text) {
 // Relative links aren't followed: there's no repo around the text. Returns the problems.
 // `linked` maps a relative link's path to the linked document's text (unit 32: approval passes
 // a PRD's brief); a link not in it can't be read, and checks that need it are skipped.
-export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {} }) {
+// `tickets` (unit 33: an epic's) maps each ticket file's path, relative to the document
+// (tickets/<key>.md), to its text; without it, the checks that need the tickets are skipped.
+export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null }) {
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
   if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
@@ -399,6 +430,19 @@ export function lintText(text, { source = '<text>', registry, project = projectD
       return { problem: 'unreadable' };
     }
   };
-  for (const p of checkDocument(doc, def, { linkTarget, readDocument, file: source, project, template, registry, files, approving })) problems.push({ file: source, ...p });
+  const readTickets = () => {
+    if (tickets === null) return { status: 'unavailable' };
+    const all = [];
+    for (const [path, t] of Object.entries(tickets).sort(([a], [b]) => (a < b ? -1 : 1))) {
+      try {
+        const parsed = parseDocument(t, path);
+        all.push({ path, value: parsed.value, doc: parsed });
+      } catch {
+        // not a document: its own lint says why
+      }
+    }
+    return { status: 'ok', all };
+  };
+  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

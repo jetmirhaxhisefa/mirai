@@ -78,16 +78,32 @@ export const EVENT_TYPES = Object.freeze({
       // `merge` (unit 29d): you merged the ticket's MR from MIRAI; `path` is `mr/<number>` and
       // `content_hash` the code hash at the head you merged.
       // `brief` (unit 31), `prd` (unit 32): a document you approved; `path` is its file in the repo.
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd'] },
+      // `epic` (unit 33): a ticket set; `path` and `content_hash` are the epic file's, and `files`
+      // lists each of its ticket files with its hash, so one signed line covers every byte you
+      // approved, and a later change to any of them needs a new approval.
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo (a ticket) or in the store (a plan)' },
       content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
       decision: { type: 'enum', values: ['accepted', 'edited', 'rejected'] },
       reason: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
       answered_after_s: { type: 'number', min: 0 },
+      files: {
+        type: 'array',
+        items: {
+          type: 'table',
+          fields: {
+            path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo' },
+            content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
+          },
+          required: ['path', 'content_hash'],
+        },
+        uniqueBy: 'path',
+      },
     },
     required: ['item', 'kind', 'path', 'content_hash', 'decision', 'answered_after_s'],
     check(e, report) {
       if (e.reason !== undefined && e.decision === 'accepted') report('reason', 'a reason goes with edited or rejected only');
+      if ((e.kind === 'epic') !== (e.files !== undefined)) report('files', 'files goes with an epic\'s approval, and only there');
     },
   },
   // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.

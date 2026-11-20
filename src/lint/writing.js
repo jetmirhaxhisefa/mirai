@@ -70,8 +70,11 @@ export function checkWriting(doc, def, ctx, add) {
   const kind = variant?.summary_words ? `${doc.value.variant} ${def.name}` : def.name;
   if (s && budget) {
     const count = summaryLines.filter((l) => l.kind === 'text' && !TABLE.test(l.text)).reduce((n, l) => n + words(l.text.replace(LIST_ITEM, '')).length, 0);
+    // Unit 33: a type may warn somewhere else than at 80% (an epic: at 300 of 400 words), and a
+    // project may move it (`<type>_summary_warn_words`).
+    const warnAt = (variant?.summary_words ? null : ctx.project?.limits?.[`${def.name}_summary_warn_words`] ?? def.summary_warn_words) ?? Math.ceil(budget * 0.8);
     if (count > budget) add({ code: 'writing-budget', line: s.h2.line, column: 1, reason: `the summary has ${count} words; a ${kind}'s budget is ${budget}`, hint: 'cut what the approver doesn\'t need to decide; the detail keeps it' });
-    else if (count >= Math.ceil(budget * 0.8)) add({ code: 'writing-budget', severity: 'warning', line: s.h2.line, column: 1, reason: `the summary has ${count} words, close to the ${kind}'s budget of ${budget}`, hint: 'one page is the target' });
+    else if (count >= warnAt) add({ code: 'writing-budget', severity: 'warning', line: s.h2.line, column: 1, reason: `the summary has ${count} words, close to the ${kind}'s budget of ${budget}`, hint: 'one page is the target' });
   }
 
   const ids = new Set((def.ids ?? []).map((k) => k.prefix));

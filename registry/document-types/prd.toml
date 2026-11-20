@@ -23,7 +23,8 @@ fixed_parts = ["ID prefixes"]
 uncounted_sections = ["Glossary", "Open questions"]
 lint_checks = ["summary", "writing", "prd"]
 
-[upstream_link]
+# The line under the title that links the brief: "Brief: [<title>](brief.md)".
+[[upstream_link]]
 label = "Brief"
 type = "brief"
 
