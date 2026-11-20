@@ -46,7 +46,9 @@ the writing rules; these need judgement.
 - Is the release mode right: `per-ticket` unless the epic must go live as one piece, and then
   with its reason?
 - Is `risk: high` set on every ticket that touches a risk path, and `e2e: true` only on a ticket
-  that creates or changes a critical journey?
+  that creates or changes a critical journey? A critical journey is one listed in the project's
+  feature map (setup, design/01 §10); with no list yet, only the PRD's main user journey counts,
+  and the choice is named under "Decisions for you".
 - Does each "Decisions for you" item give the approver a real choice, with a one-line reason?
 
 ## Words and scope

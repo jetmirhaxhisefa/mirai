@@ -58,7 +58,7 @@
 | Probe | Result |
 |---|---|
 | **P1 Your read** | not run yet |
-| **P2 An agent splits a PRD** | not run yet |
+| **P2 An agent splits a PRD** | **pass, one round.** A fresh agent got 32's P2 PRD (task comments), the epic and story templates and checklists. It wrote an epic and 8 tickets (sizes S and M; `release: together`, because the tracer bullet alone would make comments readable before the access checks). After `mirai epic render`, the first lint had **0 errors** (33 warnings: long sentences, mostly in the given PRD and brief; the summary at 356 of 400 words), so no fixing round. Every FR, NFR and AC is covered. **Nothing added, nothing cut:** a second fresh agent found 0 real problems; borderline: an AC on keyboard access to error messages (TC-9) and a stable order for same-second comments (TC-6) go a little past the PRD; FR-5 is checked only in the UI, as the PRD's own AC is; NG-7 notes that SM-1 needs change timestamps nobody has confirmed (a PRD gap, rightly sent back). **Template findings, fixed:** the story template didn't show the `epic:` field; "critical journey" wasn't defined (now: the feature map's list, else the PRD's main journey, named under "Decisions for you"); the release-mode decision has no ticket key (now: the epic's own). Kept: `p2/`. |
 
 ## Changed from the spec
 

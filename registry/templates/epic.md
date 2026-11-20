@@ -59,7 +59,7 @@ What the tickets build together, and why they come in this order.
 
 ### Decisions for you
 
-<!-- done when: one item per ticket that needs the approver's call, each by ticket key with a one-line reason: every risk: high ticket, every e2e: true ticket, every tdd or tests override, and the release mode when it is together; or one line: None — <why nothing needs your call> -->
+<!-- done when: one item per ticket that needs the approver's call, each by ticket key with a one-line reason: every risk: high ticket, every e2e: true ticket, every tdd or tests override, and the release mode when it is together, cited by the epic's own key; or one line: None — <why nothing needs your call> -->
 1. A ticket that needs your call (PMT-12): what it is, and why it needs you.
 
 ### Not in this
