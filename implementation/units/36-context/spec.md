@@ -1,7 +1,7 @@
 ---
 unit: "36"
 name: context
-status: draft (decisions 1–7 from Jet's interview answers, 2026-11-20; restatement confirmed "yes")
+status: approved (Jet, 2026-11-20: "approve 36"; decisions 1–7 from his interview answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 36; design/01 setup steps 3a, 4 and 6, §10; D-41, D-43, D-44 (design/04); 08 Q4, Q6; R2-M11
 depends_on: ["31", "34"]
 ---
