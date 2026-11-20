@@ -1,7 +1,7 @@
 ---
 unit: "33"
 name: epic
-status: draft (interview confirmed by Jet, 2026-11-20; to be reshaped by 32's probes before "approve 33")
+status: draft, reshaped after 32 (interview confirmed by Jet, 2026-11-20; waiting for "approve 33")
 roadmap: design/07-implementation-roadmap.md, row 33; design/01 §5, §5a, §6, §12a; D-09, D-35, D-36 (design/04); design/09 PM-03; research/13 §9a
 depends_on: ["08", "32"]
 ---
@@ -116,11 +116,22 @@ the tickets workflow (45) build on both.
    - `registry/templates/epic.md` and `epic-checklist.md`;
    - `registry/examples/epic.md`: the due-dates epic from 32's example PRD, with its tickets in
      `registry/examples/tickets/`. It lints clean.
+   - **No list lead-ins or sample sentences an agent would copy** (32's P2: copied lead-ins
+     failed as leftover text). Guidance sits in `done when` comments.
+   - **The checklist gains 32's P3 lessons** (a section "What the set must not add"):
+     - no ticket builds something the PRD doesn't ask for: every ticket's work traces to its FRs
+       and NFRs, and nothing else;
+     - a ticket records data for a metric only when a BR asks for it (32's round-2 scope creep:
+       a change log and a report nobody asked for);
+     - a question a builder would have to ask about what is built or who may do what goes back
+       to the PRD, not into a ticket's guess.
 3. **`mirai epic render <epic file>`:**
    - reads the epic's ticket files (every ticket whose `epic` field names it) and the PRD;
    - rewrites only the four generated sections;
    - prints the epic's clickable path (32's link rule);
    - it writes the repo's docs only, so it's on the `/mirai` session list (21f).
+   - **`mirai show <initiative>`** (32) lists the epic too, with its state, ticket count and full
+     path, so the approver finds it in one click.
 4. **The graph lint** (`src/lint/graph.js`, run on an epic with its tickets and PRD):
    - **Fail:**
      - a cycle in `after`;
@@ -149,7 +160,8 @@ the tickets workflow (45) build on both.
 
    The inbox screen and the docs MR merge stay in 45.
 7. **Config:** the four `docs.limits` keys (decision 3).
-8. **Docs:** an "Epics and ticket sets" section in `docs/documents.md`:
+8. **Docs:** fix the epic's budget in "The summary for approval" (it says 250; it is 400), and add
+   an "Epics and ticket sets" section in `docs/documents.md`:
    - reading an epic as its approver;
    - what is generated;
    - the caps;
@@ -163,7 +175,7 @@ the tickets workflow (45) build on both.
 - `mirai trace` from tickets down to tests and QA evidence (47).
 - The epic's runtime states and `release: together` branches (design/01 §12a; later units).
 
-## Tests (outline; final list after 32's probes)
+## Tests
 
 - **T1** The type, the template and the example: the example lints clean with its PRD and
   tickets; the template left as it is fails.
@@ -182,8 +194,10 @@ the tickets workflow (45) build on both.
   refused; a personal file can't set them.
 - **T7** Approval: one decision signs the epic and every ticket; a changed ticket makes the
   approval stale; an epic with a graph-lint error is refused.
+- **T8** `mirai show due-dates` lists the brief, the PRD and the epic, each with its state and
+  full path; the epic line gives its ticket count.
 
-## Probes (real; final shape after 32's P3)
+## Probes (real)
 
 - **P1 Your read:** you approve the example ticket set from the epic's summary, about 5 minutes.
   **Pass when** you knew what gets built, in what order, and what to decide, without opening a
@@ -191,10 +205,15 @@ the tickets workflow (45) build on both.
 - **P2 An agent splits a PRD:** a fresh agent gets 32's P2 PRD, the epic and story templates
   and checklists. It writes the epic and tickets, then runs `mirai epic render`. **Pass when:**
   - the set lints clean after at most one round of fixing;
-  - every PRD AC is covered.
+  - every PRD AC is covered;
+  - **nothing added:** a second fresh agent compares each ticket with the PRD and finds no ticket
+    work that no FR or NFR asks for (32's P3 lesson). Anything found becomes a checklist or
+    template finding.
+  - **nothing cut to fit:** the agent didn't merge or drop work to stay under the caps (32's P2
+    agent cut ACs to fit the PRD cap).
 
 ## Done when
 
-- T1–T7 pass, and the full suite passes through the build runner and CI.
+- T1–T8 pass, and the full suite passes through the build runner and CI.
 - P1 and P2 pass.
 - The roadmap row's done-when holds: the graph lint catches a cycle and an uncovered AC.
