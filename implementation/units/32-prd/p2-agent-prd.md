@@ -57,7 +57,7 @@ Team leads and their 3 to 10 team members discuss tasks in a chat tool, where th
 ### Capabilities
 
 - FR-1: A team member who can see a task can post a comment on it while it is open or done. (BR-1) (BR-4) (A-6)
-  - AC-FR-1.1: Given Ana can see an open or done task, when she posts "Client moved the date", then the discussion shows that text with her name and the time.
+  - AC-FR-1.1: Given Ana can see an open or done task, when she posts "Client moved the date", then the discussion shows that text. It also shows her name and the time.
 - FR-2: A team member who can see a task can read its whole discussion, oldest comment first, whenever they joined the team. (BR-2) (BR-4)
   - AC-FR-2.1: Given a task with 3 comments from before Priya joined, when she opens it, then she sees all 3, oldest first.
 - FR-3: A team member can open the notice list and see their notices, newest first. (BR-3) (A-3)
@@ -66,12 +66,12 @@ Team leads and their 3 to 10 team members discuss tasks in a chat tool, where th
 
 ### Triggers and states
 
-- FR-4: When a comment is posted, the system must give one notice to the task's owner and one to its assignee, but none to the comment's author. (BR-3) (A-1)
+- FR-4: When a comment is posted, the system must give one notice to the task's owner and one to its assignee. The comment's author gets none. (BR-3) (A-1)
   - AC-FR-4.1: Given Omar owns a task assigned to Ana, when Ben comments, then Omar and Ana each get one notice.
   - AC-FR-4.2: Given Omar is both owner and assignee, when Ben comments, then Omar gets one notice.
 - FR-5: While a person can't see a task, its comments and notices must stay hidden from them, including links, notice lists and search. (BR-4)
-  - AC-FR-5.1: Given Ben can't see a task, when he opens its link, then he gets the same "no access" result as today and sees no comment text.
-- FR-6: When a comment is posted, the system must keep it, with its author, time and text, unchanged for as long as the task exists, and offer no edit or delete. (BR-2) (A-2)
+  - AC-FR-5.1: Given Ben can't see a task, when he opens its link, then he gets the same "no access" result as today. He sees no comment text.
+- FR-6: When a comment is posted, the system must keep it with its author, time and text. It stays unchanged while the task exists, with no edit or delete. (BR-2) (A-2)
   - AC-FR-6.1: Given a posted comment, when its author views it, then no edit or delete control is shown.
 - FR-7: When a person posts a comment, other people viewing the task must see it on their next reload, not before. (BR-1) (A-4)
   - AC-FR-7.1: Given Ana has a task open, when Ben posts a comment, then Ana's page shows nothing new until she reloads.
@@ -82,16 +82,16 @@ Team leads and their 3 to 10 team members discuss tasks in a chat tool, where th
 
 ### Failures
 
-- FR-10: If a comment is empty or holds only spaces and line breaks, then the system must refuse it and show "Write a comment before posting." (BR-1)
+- FR-10: If a comment is empty or holds only spaces and line breaks, then the system must refuse it. It must show "Write a comment before posting." (BR-1)
   - AC-FR-10.1: Given the comment box holds 3 spaces, when Ana posts, then that message shows and no comment is added.
-- FR-11: If a comment is longer than 2,000 characters, then the system must refuse it, keep the text in the box and show "A comment can have at most 2,000 characters." (BR-1) (A-5)
+- FR-11: If a comment is longer than 2,000 characters, then the system must refuse it and keep the text in the box. It must show "A comment can have at most 2,000 characters." (BR-1) (A-5)
   - AC-FR-11.1: Given a comment of exactly 2,000 characters, when Ana posts, then it is added.
   - AC-FR-11.2: Given a comment of 2,001 characters, when Ana posts, then it is refused with that message and the text stays in the box.
 - FR-12: If saving a comment fails, then the system must show "Your comment was not posted. Try again.", keep the text in the box and send no notice. (BR-2)
   - AC-FR-12.1: Given saving is down, when Ana posts, then that message shows, her text stays and no notice is created.
 - FR-13: If two people post at the same moment, then the system must keep both and order them by the time each was accepted. (BR-2)
   - AC-FR-13.1: Given Ana and Ben post at once, when the task is reloaded, then both show, in the order the system accepted them.
-- FR-14: If a person posts after the task is deleted or after they lost access, then the system must refuse it and show "You can no longer comment on this task." (BR-4)
+- FR-14: If a person posts after the task is deleted or after they lost access, then the system must refuse it. It must show "You can no longer comment on this task." (BR-4)
   - AC-FR-14.1: Given Ben's access was removed while he typed, when he posts, then that message shows and no comment is added.
 
 ### Unchanged behaviour
@@ -106,7 +106,7 @@ Team leads and their 3 to 10 team members discuss tasks in a chat tool, where th
 ## Non-functional requirements
 
 - NFR-1: After a person posts, the comment must show in the discussion within 2 seconds for 95% of posts.
-  - AC-NFR-1.1: Given a task with 200 comments and 10 people posting in the same minute, when 100 posts are timed in the browser from click to display, then 95 or more take 2 seconds or less.
+  - AC-NFR-1.1: Given a task with 200 comments and 10 people posting in the same minute, when 100 posts are timed in the browser, then 95 or more take 2 seconds or less. Each time runs from click to display.
 - NFR-2: Comment text and notices must reach 0 people who can't see the task.
   - Verified by: a manual check with two accounts, one without access, over the task page, its link and the notice list.
 - NFR-3: Comment times must show as "YYYY-MM-DD HH:MM" in the viewer's browser time zone. (A-7)
