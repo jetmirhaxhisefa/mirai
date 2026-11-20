@@ -127,3 +127,37 @@
   calls the marked option "your guess", the term this skill uses.
 - **`docs/agents.md` and `registry/README.md`** name the skill; `docs/documents.md` adds "The
   interview" before "The business brief", and the brief's approval paragraph names the gate.
+
+## Rebase onto 34 and 34b (2026-11-20)
+
+**How.** The branch had 35's 8 commits on an old state of unit 34 (merge-base `c604af3`). Since
+then 34 was finished and merged (PR #87, approved in #88) and 34b, the docs check, was merged
+(PR #90). `git rebase --onto origin/main c604af3` applied all 8 commits with **no conflicts**,
+onto `ae9641a`. Nothing was dropped on either side: 35's files are as they were, and main's final
+34 (`src/write/reader.js`, the P3 probes, the PRD guide) and 34b (`test/docs/`, `docs/config.md`,
+`docs/README.md`, `docs/internal-list.toml`) are unchanged by it.
+
+**Double-check against the final 34 and 34b.**
+
+| What | Finding | Fix |
+|---|---|---|
+| 34's reader test (`src/write/reader.js`: section-scoped quotes via `summarySection`, the who-seed, the prompt) | It reads only a document's summary. An interview has no summary, is never approved, so it never gets a reader test; the brief's `Interview:` line sits outside its summary, so the quotes and the who-seed don't see it. | none needed |
+| 34's approval (`approve.js`: `readerFor`, `readerField`, the reader-test requirement) | 35 adds `linked` to the brief's lint and `files` to the brief's line beside 34's `reader_test`; it doesn't touch `readerFor`. On a brief (full) and a PRD (standard/quick), the reader test is still required and recorded as before; the interview gate and the `files` binding run alongside it. A changed interview makes only the brief's line stale, not the PRD's. 34's `write.test.js` passes with 35's fixture (the example interview beside the example brief). | none needed |
+| 34's skill `registry/skills/mirai-write/` | `mirai-interview/SKILL.md` links `../mirai-write/SKILL.md` and `../mirai-write/guides/session.md`; both exist. The session guide links back to `../../mirai-interview/SKILL.md`, which resolves. The split is clean: the interview skill says how to ask, the session guide how to word the step and an explanation. | none needed |
+| Duplication with 34 | None found. The interview type's lint is its own (`lint_checks = ["interview"]`), not a copy of 34's writing rules; the wording rules stay in the session guide. | none |
+
+**34b's P2 (`node --test test/docs/coverage.test.js`).** Before: 13/14; T1 named exactly one thing:
+
+> document type `interview` (registry/document-types/interview.toml) isn't named in
+> docs/documents.md or a page it links: add it to the document types table in
+> docs/documents.md, or to docs/internal-list.toml with a reason
+
+"The interview" section already existed in `docs/documents.md`, but the check counts a type only
+in a code span, block or heading, and the types table didn't list it. Fixed by adding an
+`interview` row to the document types table in `docs/documents.md` (not the internal list). The
+brief's `Interview:` link was already documented (in "The interview" and the brief's approval
+paragraph); 35 adds no command or config key. After: 14/14.
+
+**Full suite (`caffeinate -i npm test`).** 722 tests: 721 pass, 1 fail, the known flake
+`test/launch/strict.test.js` T5/T6 ("a failed launch left its scratch folder", the /private/tmp
+race). That file alone: 14/14 pass.
