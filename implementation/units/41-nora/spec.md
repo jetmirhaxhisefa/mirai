@@ -1,7 +1,7 @@
 ---
 unit: "41"
 name: nora
-status: draft, waiting for "approve 41" (decisions 1–5 from Jet's interview, 2026-11-20; built only after 40 is finished, and re-checked against 36–40 first)
+status: approved (Jet, 2026-11-20: "add it. approve 41"; decisions 1–6 from his interview the same day; built only after 40 is finished, and re-checked against 36–40 first)
 roadmap: design/07-implementation-roadmap.md, row 41; D-41 (strict templates, the template-gap signal), D-43 (business context kept current), D-14 (PRD writing on deep); units 19a–19c (launch, roles, broker and `start_agent`), 31–35 (types, skills), 36 (business.md), 38 (store, links), 40 (Vera)
 depends_on: ["19c", "31", "32", "34", "35", "36", "38", "40"]
 ---
@@ -40,6 +40,11 @@ approved PRD.
    done ("the PRD is ready to approve") or paused (her question), with the file's path and link.
    The inbox lists it too (unit 46). Until then, `mirai show <initiative>` shows her state.
 5. **Brief and PRD only.** The epic and tickets are Tess's (42).
+6. **Your own requirements list is kept, and every line is covered** (Jet, "add it"). When you
+   give a list of requirements (pasted, or a file), it's kept as a source of the initiative. The
+   interview asks only what the list leaves open or contradicts. Nora writes every line into the
+   PRD, tracing each requirement to its line. Vera checks that no line is lost or changed: a
+   missing or weakened line is a must-fix ("line 23, '1 day before', isn't in any FR").
 
 ## Scope
 
@@ -90,7 +95,19 @@ approved PRD.
    - the journal records each step, for the inbox (46).
 8. **The run record:** each Nora run logs its tier, model, rounds used per check, template gaps
    and outcome (done, paused, failed), as other agents' runs do.
-9. **Docs:** `docs/agents.md` lists Nora. `docs/documents.md` gains "From request to approval",
+9. **Requirements sources** (decision 6):
+   - **kept:** a pasted list is saved as `docs/mirai/<initiative>/requirements.md`, and a file is
+     linked as it is. Each line gets an ID (`R-1`, `R-2`, …) so it can be cited. The brief lists it
+     under its sources;
+   - **the interview** reads it first and asks only about gaps and contradictions between lines;
+   - **traced:** each PRD requirement that comes from a line cites it (`(R-23)`), and the lint
+     fails an `R-n` the source doesn't define;
+   - **Vera's coverage check:** Vera (40) gains a fourth input, the requirements source. Every
+     `R-n` must be cited by an FR, NFR or AC that keeps its meaning and its numbers. A line no
+     requirement cites, or one cited with a number or condition changed, is a must-fix on the
+     `checklist` layer. A line you dropped on purpose is listed under "Not in this" with the
+     reason, and isn't a finding.
+10. **Docs:** `docs/agents.md` lists Nora. `docs/documents.md` gains "From request to approval",
    with the steps in order. Any new key goes in `docs/config.md` (34b's check).
 
 **Out**
@@ -120,6 +137,10 @@ approved PRD.
 - **T7 Telling you:** `mirai show <initiative>` shows running, paused (with the question) and
   done. `agent_status` returns the same.
 - **T8 The docs check** (34b) passes.
+- **T9 Requirements source:** a pasted list becomes `requirements.md` with `R-1`…`R-n`. A PRD
+  citing an undefined `R-n` fails the lint. A fake Vera result on a PRD missing `R-23` and one
+  that changed "1 day" to "before" each give a must-fix. A line listed under "Not in this" with
+  a reason gives none.
 
 ## Probes (real)
 
@@ -136,10 +157,15 @@ approved PRD.
   (a conventions rule the PRD would break). **Pass when** Nora pauses, the question is in
   `interview.md`, your session shows it, and after your answer a new run finishes.
 
+- **P4 Your own list:** you give a list of 20–50 requirement lines for a small feature. **Pass
+  when** the interview asks only about gaps and contradictions, every line is cited in the PRD,
+  and a line seeded as dropped (removed from the PRD after Nora's run) is caught by Vera as a
+  must-fix.
+
 ## Done when
 
 - T1–T8 pass, and the full suite passes through the build runner and CI.
-- P1–P3 pass.
+- P1–P4 pass.
 
 ## Checked against the queued units
 
@@ -148,5 +174,7 @@ approved PRD.
 - **36:** `business.md` changes only through `business-change.md`. 36's approval of
   `business.md` stays as it is.
 - **38:** paths come from `pathOf`, and links come from 38's document links.
-- **40:** Nora calls `verify` and fixes within `verify_fix_rounds`.
+- **40:** Nora calls `verify` and fixes within `verify_fix_rounds`. 41 extends Vera with the
+  requirements-source coverage check (Scope 9); 40's spec is unchanged, and 41 adds the input and
+  the check on top of it.
 - **44:** chains these steps behind `/mirai-new`. Row 41's "document links" item is 38's.
