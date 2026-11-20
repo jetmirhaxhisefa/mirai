@@ -22,9 +22,9 @@
     cycle (SAMPLE-51 → SAMPLE-53 → SAMPLE-54 → SAMPLE-51), an `after` naming SAMPLE-99, an
     uncovered Failures AC (AC-FR-7.1), an uncovered Unchanged behaviour FR (FR-9), an uncovered
     NFR, a ticket covering FR-12, an XL size, a 21st ticket (fail) and a 16th (warning only), a
-    sixth L ticket, a third stacking level (SAMPLE-51 → SAMPLE-53 → SAMPLE-54 → SAMPLE-57), an
-    `after` into another epic, a ticket with no AC, one with no `verify`, no ticket at all; the
-    same file in two unlinked tickets warns. A ticket covering nothing (a refactor sweep) passes;
+    sixth L ticket, a ticket with no AC, one with no `verify`, no ticket at all; the same file in
+    two unlinked tickets warns. A chain of five tickets (SAMPLE-51 → 53 → 54 → 55 → 57), an
+    `after` into another epic's ticket, and a ticket covering nothing (a refactor sweep) pass;
   - T4: the example without its SAMPLE-53 item fails (risk: high, e2e: true); a `risk: high`
     ticket, an `e2e: true` ticket and a `tdd`/`tests` override not listed each fail, and pass once
     listed by key. `release: together` fails without a decision item and while "## Release"
@@ -68,8 +68,7 @@
   `content_hash`. No journal schema version bump, as 31 and 32 added their kinds without one.
 - **A ticket joining or leaving the epic also makes its approval stale,** not only a changed file
   ("a later change to any of those files" read as the set too).
-- **"Stacking across epics" fails any `after` naming a ticket of another epic,** since a lint over
-  files can't tell whether that ticket will be built or merged first.
+- Stacking (design/01 §6) is a runtime limit, enforced by the scheduler in a later unit; the graph lint doesn't check after-chain depth (the spec's Scope 4 item was wrong, corrected 2026-11-20).
 - **On `full`, coverage counts every epic's tickets in `tickets/`,** and each epic's Coverage table
   lists only the IDs its own tickets cover (so an epic's generated part depends only on its own
   tickets). On `standard` the table lists every PRD ID, `—` where nothing covers it.

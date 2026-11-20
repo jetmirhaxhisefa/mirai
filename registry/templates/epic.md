@@ -27,8 +27,8 @@ any line or the id left word for word from this template.
   included. A ticket builds only what its FRs and NFRs ask for, and nothing else.
 - Slicing (design/01 §5): each ticket is a vertical slice with one runnable check, sized S, M or L.
   The first is a tracer bullet (the thinnest path through every layer); next comes the one you
-  are least sure of. "after" lists real prerequisites only; a chain stacks at most 2 levels
-  (A → B → C), inside this epic.
+  are least sure of. "after" lists real prerequisites only (a ticket of another epic is
+  fine: this one waits until it's done).
 - Caps: 20 tickets (a warning at 16) and 5 L tickets; the project may set others. Over a cap,
   split the PRD or move to the full track. Never merge, shrink or drop tickets or ACs to fit.
 - No "how": no endpoints, tables, libraries or file names in the epic (files belong in a

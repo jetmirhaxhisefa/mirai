@@ -1,19 +1,20 @@
 // The ticket graph lint (unit 33; design/01 §5, §5a, §6; D-09). It runs on an epic, with its
 // tickets (every ticket in <initiative>/tickets/ whose `epic` names it) and its PRD, and checks
 // that the set is complete and can be built:
-// - fail: a cycle in `after`; an `after` naming a ticket that doesn't exist; stacking deeper than
-//   2 levels (A → B → C) or across epics (§6); a PRD FR, NFR or AC (Failures and Unchanged
+// - fail: a cycle in `after`; an `after` naming a ticket that doesn't exist (one of another epic
+//   is fine: this one waits until it's done); a PRD FR, NFR or AC (Failures and Unchanged
 //   behaviour included) that no ticket covers; a ticket covering an ID the PRD doesn't define; a
 //   size other than S, M or L; more tickets or L tickets than the caps; a ticket with no AC or no
 //   `verify`;
 // - warn: two tickets listing the same file in `files_likely` with no `after` between them; the
 //   ticket count close to the cap.
+// Stacking (at most 2 levels, inside one epic; §6) is a runtime limit the scheduler keeps, not a
+// rule on how long an `after` chain may be, so it isn't linted (corrected 2026-11-20).
 // Every message names the ticket and the fix. The caps come from `[docs.limits]` (project layer
 // only, ranged), with no exception route: over a cap, the PRD is split or the work moves to `full`
 // (Jet's decision 3); tickets are never merged to fit.
 
 export const SIZES = Object.freeze(['S', 'M', 'L']);
-export const STACKING_DEPTH = 2;
 export const CAPS = Object.freeze({ tickets: 20, l: 5 });
 
 const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
@@ -93,7 +94,7 @@ export function graphProblems({ epicId, track, tickets, all, items, caps = CAPS 
     if (typeof t.value.verify !== 'string' || t.value.verify.trim() === '') fail('graph-verify', `${keyOf(t)} has no verify line`, `add verify: "<one sentence: how a person or a test checks it works>" to ${t.path}`);
   }
 
-  // ---- after: known tickets of this epic, no cycle, at most 2 levels ---------------------------
+  // ---- after: known tickets, no cycle ----------------------------------------------------------
   const edges = new Map(); // key → keys it waits for, inside the epic
   for (const t of tickets) {
     const deps = [];
@@ -101,36 +102,16 @@ export function graphProblems({ epicId, track, tickets, all, items, caps = CAPS 
       const k = a.toLowerCase();
       if (same(a, t.value.id)) continue; // the ticket check reports it
       if (inEpic.has(k)) deps.push(keyOf(inEpic.get(k)));
-      else if (inFolder.has(k)) fail('graph-stacking', `${keyOf(t)} waits for ${a}, which is in another epic (${String(inFolder.get(k).value.epic ?? 'none')})`, `a ticket waits only for tickets of its own epic (design/01 §6): move ${a} into ${epicId}, or remove it from ${keyOf(t)}'s after`);
+      // Another epic's ticket: this one waits until it's done (stacking is the scheduler's, §6).
+      else if (inFolder.has(k)) continue;
       else fail('graph-after', `${keyOf(t)}'s after names ${a}, which isn't a ticket in tickets/`, `correct the key in ${t.path}, or write the missing ticket`);
     }
     edges.set(keyOf(t), deps);
   }
   const cycles = findCycles(edges);
   for (const c of cycles) fail('graph-cycle', `a cycle in after: ${[...c, c[0]].join(' → ')}`, `remove the after entry that isn't a real prerequisite, so ${c[0]} can start`);
-  if (cycles.length === 0) {
-    const depth = new Map();
-    const chainOf = new Map();
-    const visit = (k) => {
-      if (depth.has(k)) return depth.get(k);
-      let best = 0;
-      let chain = [k];
-      for (const d of edges.get(k) ?? []) {
-        const n = visit(d) + 1;
-        if (n > best) {
-          best = n;
-          chain = [...chainOf.get(d), k];
-        }
-      }
-      depth.set(k, best);
-      chainOf.set(k, chain);
-      return best;
-    };
-    for (const k of edges.keys()) visit(k);
-    for (const [k, n] of depth) {
-      if (n > STACKING_DEPTH) fail('graph-stacking', `${k} stacks ${n} levels deep (${chainOf.get(k).join(' → ')}); stacking is at most ${STACKING_DEPTH} levels`, `let ${k} wait only for what it really needs, or split the chain over two epics (design/01 §6)`);
-    }
-  }
+  // No depth check: stacking (at most 2 levels, inside one epic; design/01 §6) is a runtime limit
+  // the scheduler keeps. A ticket deeper in an after chain waits until its parents are merged.
 
   // ---- Coverage: every PRD FR, NFR and AC; nothing the PRD doesn't define ----------------------
   if (items) {

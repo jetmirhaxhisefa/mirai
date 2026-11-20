@@ -267,11 +267,14 @@ test('33 T3: the graph lint: each failure caught on a seeded set, naming the tic
   for (const k of ['SAMPLE-51', 'SAMPLE-54', 'SAMPLE-57']) large = withTicket(k, (t) => swap(t, 'size: M', 'size: L'), large);
   for (const k of ['SAMPLE-52', 'SAMPLE-55']) large = withTicket(k, (t) => swap(t, 'size: S', 'size: L'), large);
   assert.deepEqual(graph(seeded(large), 'graph-cap').map((p) => p.reason), ['the epic has 6 L tickets (SAMPLE-51, SAMPLE-52, SAMPLE-53, SAMPLE-54, SAMPLE-55, SAMPLE-57); the cap is 5']);
-  // A third stacking level, and stacking across epics.
-  const deep = seeded(withTicket('SAMPLE-57', (t) => swap(t, 'after: [SAMPLE-56]', 'after: [SAMPLE-56, SAMPLE-54]')));
-  assert.deepEqual(graph(deep, 'graph-stacking').map((p) => `${p.reason} | ${p.hint}`), ['SAMPLE-57 stacks 3 levels deep (SAMPLE-51 → SAMPLE-53 → SAMPLE-54 → SAMPLE-57); stacking is at most 2 levels | let SAMPLE-57 wait only for what it really needs, or split the chain over two epics (design/01 §6)']);
+  // A long after chain passes: stacking depth (design/01 §6) is a runtime limit the scheduler
+  // keeps, not a lint rule (corrected 2026-11-20). Five tickets in a row: 51 → 53 → 54 → 55 → 57.
+  const chain = seeded(withTicket('SAMPLE-57', (t) => swap(t, 'after: [SAMPLE-56]', 'after: [SAMPLE-56, SAMPLE-55]'), withTicket('SAMPLE-55', (t) => swap(t, 'after: [SAMPLE-53]', 'after: [SAMPLE-54]'))));
+  assert.deepEqual(lint(chain.text, { tickets: chain.tickets }), []);
+  // An after naming another epic's ticket passes: it only waits for that ticket to be done.
   const across = seeded(withTicket('SAMPLE-80', ticket('SAMPLE-80', { epic: 'SAMPLE-79' }), withTicket('SAMPLE-52', (t) => swap(t, 'after: [SAMPLE-51]', 'after: [SAMPLE-51, SAMPLE-80]'))));
-  assert.match(graph(across, 'graph-stacking').map((p) => p.reason).join('\n'), /^SAMPLE-52 waits for SAMPLE-80, which is in another epic \(SAMPLE-79\)$/);
+  assert.deepEqual(errors(across.text, { tickets: across.tickets }), []);
+  assert.match(across.text, /\| \[SAMPLE-52\]\(tickets\/SAMPLE-52\.md\) \| [^|]+ \| S \| normal \| SAMPLE-51, SAMPLE-80 \|/);
   // A ticket with no AC, and one with no verify line.
   const noAc = seeded(withTicket('SAMPLE-52', (t) => t.replace(/- AC-SAMPLE-52\.(\d): /g, '- ')));
   assert.match(graph(noAc, 'graph-ac').map((p) => `${p.reason} | ${p.hint}`).join('\n'), /^SAMPLE-52 has no acceptance criterion \| add AC-SAMPLE-52\.1 under "## Acceptance criteria" in tickets\/SAMPLE-52\.md/);

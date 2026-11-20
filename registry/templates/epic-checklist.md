@@ -1,8 +1,7 @@
 # Epic checklist
 
 For the verifier. Each line is a yes / no question about the epic and its tickets as written. The
-lint has already checked the graph (no cycle, every `after` known, stacking at most 2 levels and
-inside the epic), the coverage of every PRD FR, NFR and AC, the sizes and the caps, each ticket's
+lint has already checked the graph (no cycle, every `after` a ticket that exists), the coverage of every PRD FR, NFR and AC, the sizes and the caps, each ticket's
 ACs and `verify` line, the generated sections, the "Decisions for you" items, the link lines and
 the writing rules; these need judgement.
 

@@ -141,7 +141,7 @@ the tickets workflow (45) build on both.
      - a size other than S, M or L;
      - more tickets or L tickets than the caps;
      - a ticket with no AC or no `verify`;
-     - stacking deeper than 2 levels or across epics (design/01 §6);
+     - (stacking depth is a runtime limit, design/01 §6, not linted; corrected 2026-11-20)
      - a generated section that doesn't match the tickets;
      - a "Decisions for you" item missing for a ticket that needs one (decision 4).
    - **Warn:**
@@ -184,8 +184,7 @@ the tickets workflow (45) build on both.
   - a hand edit inside one fails as drift;
   - a ticket changed after rendering fails until it is rendered again.
 - **T3** The graph lint: each failure in Scope 4 caught on a seeded set, with the ticket named.
-  Includes a cycle, an uncovered Failures AC, a 21st ticket, a sixth L ticket, an XL size, and a
-  third stacking level.
+  Includes a cycle, an uncovered Failures AC, a 21st ticket, a sixth L ticket and an XL size.
 - **T4** "Decisions for you": a `risk: high` ticket or an `e2e: true` ticket not listed fails;
   `release: together` without a decision item fails.
 - **T5** Links: no `PRD:` line fails; `full` without `Design:` fails; a broken `Design:` link

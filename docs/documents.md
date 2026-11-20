@@ -305,12 +305,14 @@ It writes the repo's docs only, so `/mirai epic render <file>` in your session h
 ### The graph lint
 
 The lint checks the set is complete and can be built. Each message names the ticket and the fix.
+An `after` may name another epic's ticket: this one waits until it's done. How long an `after`
+chain is isn't checked: stacking (at most 2 levels, inside one epic; design/01 §6) is a limit the
+scheduler keeps at run time, and a ticket deeper in a chain waits until its parents are merged.
 
 | Fails | Warns |
 |---|---|
 | a cycle in `after` | two tickets list the same file in `files_likely`, with no `after` between them |
-| an `after` naming a ticket that doesn't exist, or one of another epic | 16 tickets or more |
-| stacking deeper than 2 levels (A → B → C) | |
+| an `after` naming a ticket that doesn't exist | 16 tickets or more |
 | a PRD FR, NFR or AC no ticket covers (Failures and Unchanged behaviour included) | |
 | a ticket covering an ID the PRD doesn't define | |
 | a size other than S, M or L | |
