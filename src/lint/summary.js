@@ -1,5 +1,5 @@
 import { SUMMARY_SECTION } from '../config/registry.js';
-import { upstreamLine } from './rules.js';
+import { linkLinesOf } from './rules.js';
 
 // The summary for approval (unit 31; PM-03, research/13 §9a): the same five parts at the top of
 // every document type that lists the `summary` check. It's written for the approver, last, from
@@ -42,10 +42,11 @@ export function checkSummary(doc, def, ctx, add) {
   // Right after the title: nothing that renders between the # title and the summary.
   const title = scan.headings.find((h) => h.level === 1);
   if (title) {
-    // Unit 32: the one line linking the upstream document ("Brief: [title](brief.md)") may sit there.
+    // Unit 32: the line linking the upstream document ("Brief: [title](brief.md)") may sit there;
+    // unit 33: the type's link lines, such as an epic's "PRD:" and "Design:".
     const rendered = scan.lines.filter((l) => l.line > title.line && l.line < s.h2.line && (l.kind === 'text' || l.kind === 'fence' || l.kind === 'heading'));
-    const linkLine = def.upstream_link && rendered[0]?.kind === 'text' && upstreamLine(def).test((rendered[0].visible ?? rendered[0].text).trim()) ? rendered[0] : null;
-    const between = rendered.find((l) => l !== linkLine);
+    const linkLines = new Set(linkLinesOf(scan, def).map((f) => f.line));
+    const between = rendered.find((l) => !linkLines.has(l.line));
     if (between) add({ code: 'summary', line: between.line, column: 1, reason: `text sits between the # title and "## ${SUMMARY_SECTION}"`, hint: 'the summary comes right after the title; move this text into the detail' });
   }
 
@@ -110,7 +111,7 @@ export function checkSummary(doc, def, ctx, add) {
   }
   // Unit 32 (Jet's decision 7): on `standard` the PRD's summary is the one you read for both
   // documents, so the brief's open questions and no-gos reach it too.
-  const up = ctx.upstream?.status === 'ok' && doc.value.track === 'standard' ? ctx.upstream : null;
+  const up = ctx.upstream?.status === 'ok' && ctx.upstream.def.name === 'brief' && doc.value.track === 'standard' ? ctx.upstream : null;
   if (up) {
     const upName = up.def.name;
     const where = { line: s.h2.line, column: 1 };

@@ -21,7 +21,8 @@ line, the id or the verify sentence left word for word from this template.
   Anything bigger is split, never shrunk: "for now" and "wired later" are a second story.
 - Frontmatter: id is the ticket key, and the file is tickets/<id>.md; repo is a name from
   [[repos]] in .mirai/config.toml; covers_fr and covers_ac list the PRD's FR/NFR and AC IDs
-  (AC-FR-n.m, AC-NFR-n.m) this story delivers, empty on the quick track; tdd and tests only
+  (AC-FR-n.m, AC-NFR-n.m) this story delivers, empty on the quick track; add epic: <the epic's
+  id> when the story belongs to an epic (33's P2: the field wasn't shown); tdd and tests only
   when they differ from the project's setting.
 - No status field: the store holds the ticket's status.
 - An optional section that doesn't apply keeps one line: Not applicable — <the reason>.

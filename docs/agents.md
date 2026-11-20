@@ -148,6 +148,7 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai status
 /mirai run SAMPLE-2
 /mirai show SAMPLE-2
+/mirai epic render docs/mirai/due-dates/epic-due-dates.md
 /mirai resume
 /mirai plan SAMPLE-2
 /mirai build SAMPLE-2

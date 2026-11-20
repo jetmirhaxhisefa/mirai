@@ -17,6 +17,9 @@ import { startOf, workerGone } from './agents.js';
 const TICKET = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const CODE = /^[0-9a-f]{16}$/;
+// A Markdown file's path in the repo, relative to its top: no leading / or -, no .., no spaces
+// or control characters (the worker passes it to `mirai` as one argument).
+const FILE = /^(?![-/.])(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}\.md$/;
 // What the red team costs, as the terminal says it before its y/N.
 export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Opus), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
 // One-time codes for a red-team run, kept in this server only, for ten minutes.
@@ -63,6 +66,8 @@ export const COMMANDS = Object.freeze({
   'config show': { quick: true, argv: () => ['config', 'show'] },
   protected: { quick: true, argv: () => ['protected'] },
   'trust check': { quick: true, argv: () => ['trust', 'check'] },
+  // Unit 33: an epic's generated sections, from its ticket files; it writes the repo's docs only.
+  'epic render': { quick: true, needs: ['file'], argv: (a) => ['epic', 'render', a.file] },
   detect: { argv: () => ['detect'] },
 });
 
@@ -108,7 +113,12 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'm1', 'fix', 'diff'].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'file', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff'].includes(k)) return { refused: `${k} isn't an argument here` };
+  }
+  // Unit 33: a document's path in the repo (`epic render`), relative, a Markdown file.
+  if (args.file !== undefined) {
+    if (typeof args.file !== 'string' || !FILE.test(args.file)) return { refused: 'file must be a Markdown file\'s path in the repo, relative to its top, such as docs/mirai/due-dates/epic-due-dates.md' };
+    out.file = args.file;
   }
   if (args.ticket !== undefined) {
     if (typeof args.ticket !== 'string' || !TICKET.test(args.ticket)) return { refused: 'ticket must be a ticket key' };
@@ -122,7 +132,7 @@ export function checkCommand(args) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
   }
-  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'm1', 'fix', 'diff']) {
+  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff']) {
     if (args[flag] === undefined) continue;
     if (typeof args[flag] !== 'boolean') return { refused: `${flag} is true or false` };
     if (!(spec.flags ?? []).includes(flag)) return { refused: `${command} doesn't take ${flag}` };
@@ -130,7 +140,7 @@ export function checkCommand(args) {
   }
   if (!Object.hasOwn(GATES, command)) {
     for (const need of spec.needs ?? []) if (out[need] === undefined) return { refused: `${command} needs ${need}` };
-    for (const k of ['ticket', 'level']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
+    for (const k of ['ticket', 'level', 'file']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
   }
   return { args: out };
 }
@@ -147,6 +157,7 @@ export const miraiCommand = Object.freeze({
       command: { type: 'string', enum: [...Object.keys(COMMANDS), ...Object.keys(GATES)] },
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
+      file: { type: 'string', pattern: FILE.source, description: 'the epic file\'s path in the repo, for epic render (unit 33)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },
       confirm: { type: 'string', pattern: CODE.source, description: 'with redteam run: the one-time code its first answer gave, once the person agreed to the cost' },

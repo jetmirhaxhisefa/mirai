@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
-import { posix } from 'node:path';
+import { join, posix } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
 import { MiraiError, UsageError } from '../errors.js';
@@ -21,8 +21,9 @@ import { decisionSigner } from '../../sign/signer.js';
 import { branchKeys } from '../../sign/keys.js';
 import { noteAgainstTicket } from '../../agent/review-notes.js';
 import { readFrontmatter } from '../../lint/frontmatter.js';
-import { lintText, parseDocument, projectOf as projectOfConfig } from '../../lint/lint.js';
-import { upstreamLine } from '../../lint/rules.js';
+import { lintText, parseDocument, projectOf as projectOfConfig, readTicketFolder } from '../../lint/lint.js';
+import { ticketsOf } from '../../lint/graph.js';
+import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -32,8 +33,8 @@ const DECISIONS = { a: 'accepted', e: 'edited', r: 'rejected' };
 
 export default {
   name: 'approve',
-  summary: 'Approve a ticket, a plan or a brief, signed, in a real terminal',
-  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md>',
+  summary: 'Approve a ticket, a plan, a brief, a PRD or an epic with its tickets, signed, in a real terminal',
+  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md>',
   positionals: { min: 1, max: 1 },
   options: {
     file: { type: 'string', description: 'the ticket file you approve' },
@@ -210,7 +211,7 @@ function noteAgainstTicketFile(store, keys, ticket, reason) {
 // The document types approved with --file that aren't tickets. More come with B's units (epic,
 // HLD …); each is approved on its exact bytes, after the lint as at approval. Unit 32 adds the
 // PRD, approved with its brief (approvePrd).
-const DOCUMENTS = new Set(['brief', 'prd']);
+const DOCUMENTS = new Set(['brief', 'prd', 'epic']);
 
 function documentTypeOf(bytes) {
   try {
@@ -230,6 +231,7 @@ async function approveDocument({ id, type, file, store, io, now, fileArg }) {
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(trust);
   const registry = trustedRegistry(trust);
+  if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, project: projectOfConfig(config) });
   if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, project: projectOfConfig(config) });
   const text = file.bytes.toString('utf8');
   refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true }) }]);
@@ -360,8 +362,108 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, pro
 // Only your signed lines count (readJournal verifies them); your last decision on the document
 // is the one that holds.
 export function documentApproval(store, id, bytes) {
-  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && DOCUMENTS.has(e.kind) && e.item === id).at(-1);
+  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && DOCUMENTS.has(e.kind) && e.kind !== 'epic' && e.item === id).at(-1);
   if (!last || last.decision === 'rejected') return { approved: false, stale: false, seq: last?.seq ?? null };
   const same = last.content_hash === contentHash(bytes);
+  return { approved: same, stale: !same, seq: last.seq };
+}
+
+// ---- The epic (unit 33, Scope 6) -----------------------------------------------------------
+
+// The epic's inputs, read from the repo as `mirai approve` reads any file (in the repo, a regular
+// file): its PRD (the "PRD:" line), its design links (the "Design:" line, which must resolve), and
+// every ticket in tickets/ beside it, the epic's own marked by their `epic` field.
+export function epicInputs(checkout, epicPath, text, registry) {
+  const def = registry.documentTypes.epic;
+  const doc = parseDocument(text, epicPath);
+  const id = String(doc.value.id);
+  const lines = linkLinesOf(doc.scan, def);
+  const dir = posix.dirname(epicPath);
+  const inRepo = (link) => posix.normalize(posix.join(dir, link));
+  const prdLine = lines.find((l) => l.link.type === 'prd');
+  if (!prdLine) throw Object.assign(new MiraiError(`${epicPath} doesn't link its PRD in the line under its title; nothing was written`, EXIT.BLOCKED), { hint: 'add "PRD: [<its title>](prd.md)" under the # title, then approve again' });
+  const prd = readApprovedFile(checkout, checkout, inRepo(prdLine.targets[0]));
+  const prdValue = readFrontmatter(prd.bytes)?.value ?? {};
+  for (const target of lines.filter((l) => l.link.label === 'Design').flatMap((l) => l.targets)) {
+    try {
+      readApprovedFile(checkout, checkout, inRepo(target.split('#')[0]));
+    } catch {
+      throw Object.assign(new MiraiError(`${epicPath}'s "Design:" line links ${plain(target)}, which isn't a file in the repo; nothing was written`, EXIT.BLOCKED), { hint: 'correct the link, then approve again' });
+    }
+  }
+  const folder = readTicketFolder(join(checkout, dir), { root: checkout });
+  const tickets = ticketsOf(folder.all, id).map((t) => ({ ...readApprovedFile(checkout, checkout, inRepo(t.path)), id: String(t.value.id) }));
+  return { id, doc, prdLink: prdLine.targets[0], prd, prdValue, tickets, folder: Object.fromEntries(folder.all.map((t) => [t.path, t.doc.text])) };
+}
+
+// mirai approve <epic-id> --file <epic.md> (unit 33, Scope 6; Jet's decision 1). The `tickets`
+// gate, always yours (D6): the epic is linted with its PRD and every ticket, the graph included,
+// and each ticket on its own, all as at approval; the PRD must be approved as it is now (as a full
+// PRD waits for its brief, 32). You decide once, and one signed line covers the epic's bytes and
+// each ticket file's bytes, so a later change to any of them needs a new approval. The inbox
+// screen and the docs MR merge are unit 45's.
+async function approveEpic({ id, file, store, io, now, registry, project }) {
+  const text = file.bytes.toString('utf8');
+  const input = epicInputs(store.checkout, file.path, text, registry);
+  const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [input.prdLink]: input.prd.bytes.toString('utf8') }, tickets: input.folder }) }];
+  for (const t of input.tickets) results.push({ path: t.path, errors: lintText(t.bytes.toString('utf8'), { source: t.path, registry, project, approving: true }) });
+  refuseOnLint(io, results);
+  const prdId = typeof input.prdValue.id === 'string' ? input.prdValue.id : null;
+  const prdBefore = prdId ? documentApproval(store, prdId, input.prd.bytes) : { approved: false, stale: false };
+  if (!prdBefore.approved) {
+    throw Object.assign(new MiraiError(`the PRD ${prdId ?? input.prd.path} isn't approved${prdBefore.stale ? ' as it is now (it changed since its approval)' : ''}; its tickets are approved after it; nothing was written`, EXIT.BLOCKED), { hint: `run: mirai approve ${prdId ?? '<prd-id>'} --file ${input.prd.path}` });
+  }
+  const hash = contentHash(file.bytes);
+  const files = input.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }));
+  const signature = (list) => list.map((f) => `${f.path} ${f.content_hash}`).join('\n');
+  const before = epicApproval(store, id, file.bytes, input.tickets);
+  const n = files.length;
+  io.stdout.write(`epic:    ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it or a ticket has changed since)' : ''}\nfile:    ${file.path}\nhash:    ${hash}\nprd:     ${prdId} (approved, as it is now)\ntickets: ${n}, signed with the epic\n`);
+  for (const f of files) io.stdout.write(`  ${plain(f.path)}   ${f.content_hash}\n`);
+  io.stdout.write(`${plain(join(store.checkout, file.path))}\n`);
+  const prompter = createPrompter(io);
+  try {
+    const asked = now().getTime();
+    const answer = (await prompter.ask('accepted as is / edited / rejected? [a/e/r] ')).toLowerCase();
+    const decision = DECISIONS[answer];
+    if (!decision) throw new UsageError(`${JSON.stringify(answer.slice(0, 10))} is not a, e or r; nothing was written`, 'run it again');
+    const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
+    let reason;
+    if (decision !== 'accepted') {
+      reason = await prompter.ask('reason (optional, one line): ');
+      if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
+      if (reason === '') reason = undefined;
+    }
+    const signer = await decisionSigner(io, store, { prompter, ticket: id, confirm: confirmByTyping });
+    // What you approved is what was shown: no file may have changed while you answered, and no
+    // ticket may have joined or left the epic.
+    const nowBytes = readApprovedFile(store.checkout, store.checkout, file.path).bytes;
+    const again = epicInputs(store.checkout, file.path, nowBytes.toString('utf8'), registry);
+    if (contentHash(nowBytes) !== hash || signature(again.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }))) !== signature(files)) {
+      throw new MiraiError(`${file.path} or one of its tickets changed while you were answering; nothing was written`, EXIT.FAILURE);
+    }
+    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
+    const seq = withSeq(store, (ctx) => {
+      const k = ctx.take();
+      ctx.event(k, approval, { signer });
+      return k;
+    });
+    io.stdout.write(decision === 'rejected'
+      ? `recorded: the epic ${id} and its ${n} tickets rejected (signed with ${signer.keyId}, seq ${seq})\n`
+      : `approved: the epic ${id} and its ${n} tickets, as they are now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to any of them needs a new approval\n`);
+    return EXIT.OK;
+  } finally {
+    prompter.close();
+  }
+}
+
+// Whether the epic `id` and its tickets ([{ path, bytes }]) are as you last approved them:
+// { approved, stale, seq }: the epic's bytes, and the same ticket files with the same bytes.
+export function epicApproval(store, id, bytes, tickets) {
+  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'epic' && e.item === id).at(-1);
+  if (!last || last.decision === 'rejected') return { approved: false, stale: false, seq: last?.seq ?? null };
+  const now = tickets.map((t) => `${t.path} ${contentHash(t.bytes)}`).sort().join('\n');
+  const then = (last.files ?? []).map((f) => `${f.path} ${f.content_hash}`).sort().join('\n');
+  const same = last.content_hash === contentHash(bytes) && now === then;
   return { approved: same, stale: !same, seq: last.seq };
 }
