@@ -60,8 +60,8 @@
 
 | Probe | Result |
 |---|---|
-| **P1 A real interview** | not run yet |
-| **P2 Pause and resume** | not run yet |
+| **P1 A real interview** | **pass** (Jet, 2026-11-20: "35 P1 pass"). In a folder with only 35's skills and templates (`~/mirai-p35`), Jet asked in one line for night runs to stop at a default time. Every question had the header, the confidence line, one question with lettered options and a guess, and one "Your step". "explain" gave plain words and an example (a run stuck on T-4 at 09:30), then the same question. Jet's first answer reframed the feature (a night run is a batch run over an epic, at any time of day), and the agent rethought it instead of pressing its stop-time question. It ended with a restatement naming what's not included and "Confirmed: yes (2026-11-20)"; `mirai lint` (35's code): 0 problems, 0 warnings (`p1/interview.md`). Its content is an input for unit 55. |
+| **P2 Pause and resume** | **pass** (2026-11-20). After two answers Jet typed "pause": `interview.md` held Q-3–Q-8 with options, guesses and empty `Answer:` lines, `state: paused`, the restatement kept blank (the P3 fix in place). A new session asked to resume started at Q-3 with a one-line recap and asked no answered question again. |
 | **P3 Autonomous mode** | **pass** (2026-11-20). A fresh Sonnet agent, told it runs unattended, got only the skills and the request "Add reminders for overdue tasks." in a folder with no app code. It wrote no brief, and `interview.md` (`p3/interview.md`) holds 8 questions (who, why now, who is reminded, how often, channel, success, time limits, what's left out), each with lettered options, a guess and its reason, an empty `Answer:` line, `state: paused`, and a note on what it couldn't look up. `mirai lint`: paused with Q-1–Q-8 open. A brief written by hand beside it fails the lint ("the interview interview.md has open questions: Q-1 … Q-8"), so it can't be approved. Finding: the agent dropped the `## Restatement` section, which the lint also failed; the skill now says to keep the template's sections, the restatement unfilled, when pausing. |
 
 ## Changed from the spec
