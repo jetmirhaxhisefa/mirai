@@ -381,10 +381,15 @@ which documents are required.
 | **Human checkpoint** | `prd` gate (default `human` in every preset; Q5) |
 
 **Steps:**
-1. **Interview, if the input is thin.** Use `mirai-interview`: one question at a time, each with a
-   guess, until the agent is about 95% sure or you say "draft it". In autonomous mode there is no
-   interview: the agent writes `[ASSUMPTION]` tags and an open-questions list. A blocking open
-   question parks the item.
+1. **Interview, if the input is thin.** Use `mirai-interview` (unit 35): one question at a time,
+   each with lettered options and the agent's guess, until the agent can predict your next three
+   answers. It ends in a restatement you confirm with an explicit "yes". Every question and answer
+   goes into `interview.md` beside the brief, which links it. When you say "pause", the agent
+   writes its remaining questions into `interview.md` and stops; a new session resumes at the
+   first open question. In autonomous mode the agent writes its questions into `interview.md`
+   (state `paused`) and parks the feature: no draft on `[ASSUMPTION]` tags. Every open question
+   blocks: no brief is written, and a brief can't be approved while its interview isn't
+   confirmed.
 2. **Draft from the template.**
    - Functional requirements have stable IDs (`FR-n`) and sit in four groups, each with one
      sentence shape (unit 32, decision 2; the shapes come from EARS):

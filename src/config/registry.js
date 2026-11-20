@@ -199,8 +199,8 @@ export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date'
 // Checks written in code that a type switches on by name, `lint_checks = ["ticket"]` (unit 08a;
 // src/lint/checks.js). Unit 37's overlays may add lint checks, never remove them.
 // Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
-// and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint).
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic']);
+// and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint). Unit 35: `interview`.
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';

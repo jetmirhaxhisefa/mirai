@@ -32,6 +32,8 @@ const read = (rel) => readFileSync(join(REGISTRY_DIR, rel), 'utf8');
 const EPIC = read('examples/epic.md');
 const PRD = read('examples/prd.md');
 const BRIEF = read('examples/brief.md');
+// Unit 35: the example brief links the interview it came from.
+const INTERVIEW = read('examples/interview.md');
 const TEMPLATE = read('templates/epic.md');
 const DEF = REGISTRY.documentTypes.epic;
 const TICKETS = Object.fromEntries(readdirSync(join(REGISTRY_DIR, 'examples', 'tickets')).sort().map((f) => [`tickets/${f}`, read(`examples/tickets/${f}`)]));
@@ -158,6 +160,7 @@ function repo({ epic = EPIC, tickets = TICKETS, files = {} } = {}) {
   const dir = join(root, 'docs', 'mirai', 'due-dates');
   mkdirSync(join(dir, 'tickets'), { recursive: true });
   writeFileSync(join(dir, 'brief.md'), BRIEF);
+  writeFileSync(join(dir, 'interview.md'), INTERVIEW);
   writeFileSync(join(dir, 'prd.md'), PRD);
   writeFileSync(join(dir, 'epic-due-dates.md'), epic);
   for (const [path, text] of Object.entries(tickets)) writeFileSync(join(dir, path), text);
@@ -194,7 +197,8 @@ test('33 T2: mirai epic render writes the four generated sections exactly; a han
   assert.match(first.out, /^SAMPLE-50: rendered Tickets, Dependencies, Coverage and Design decisions from 7 tickets and the PRD\n/);
   assert.equal(first.out.trim().split('\n').at(-1), epicPath, 'the last line is the epic\'s full path');
   assert.match((await r.run('epic', 'render', 'docs/mirai/due-dates/epic-due-dates.md')).out, /^SAMPLE-50: already up to date with its 7 tickets and the PRD\n/);
-  assert.deepEqual((await r.run('lint')).out, '10 files, 0 problems, 0 warnings, 0 skipped\n');
+  // 11 files: the brief, its interview (unit 35), the PRD, the epic and 7 tickets.
+  assert.deepEqual((await r.run('lint')).out, '11 files, 0 problems, 0 warnings, 0 skipped\n');
   // A hand edit inside a generated part is drift.
   const edited = swap(EPIC, '| [SAMPLE-52](tickets/SAMPLE-52.md) | A due date in the past is refused | S |', '| [SAMPLE-52](tickets/SAMPLE-52.md) | A due date in the past is refused | M |');
   one(edited, 'epic-generated', /"## Tickets" doesn't match the ticket files and the PRD \(edited by hand, or a ticket changed since it was rendered\) \| run: mirai epic render/);
@@ -422,7 +426,7 @@ async function tty(argv, { cwd, env }, answers) {
 
 const D = 'docs/mirai/due-dates';
 function setFixture() {
-  const files = { [`${D}/brief.md`]: BRIEF_READY, [`${D}/prd.md`]: PRD_READY, [`${D}/epic-due-dates.md`]: EPIC };
+  const files = { [`${D}/brief.md`]: BRIEF_READY, [`${D}/interview.md`]: INTERVIEW, [`${D}/prd.md`]: PRD_READY, [`${D}/epic-due-dates.md`]: EPIC };
   for (const [path, text] of Object.entries(TICKETS)) files[`${D}/${path}`] = text;
   const f = installed({ files });
   const key = createKeyPair(f.env);
@@ -500,7 +504,9 @@ test('33 T8: mirai show due-dates lists the brief, the PRD and the epic, each wi
   assert.match(first.out, new RegExp(`^  brief\\.md +brief +due-dates-brief +not approved +${esc(join(dir, 'brief.md'))}$`, 'm'));
   assert.match(first.out, new RegExp(`^  prd\\.md +prd +due-dates-prd +not approved +${esc(join(dir, 'prd.md'))}$`, 'm'));
   assert.match(first.out, new RegExp(`^  epic-due-dates\\.md +epic \\(7 tickets\\) +SAMPLE-50 +not approved +${esc(join(dir, 'epic-due-dates.md'))}$`, 'm'));
-  assert.equal(first.out.split('\n').filter(Boolean).length, 4, 'the tickets are counted on the epic line, not listed');
+  // Unit 35: the interview beside the brief is listed with its own state.
+  assert.match(first.out, new RegExp(`^  interview\\.md +interview +due-dates-interview +confirmed +${esc(join(dir, 'interview.md'))}$`, 'm'));
+  assert.equal(first.out.split('\n').filter(Boolean).length, 5, 'the tickets are counted on the epic line, not listed');
   await passReader(f, `${D}/prd.md`);
   await passReader(f, `${D}/epic-due-dates.md`);
   assert.equal((await tty(APPROVE_PRD, f.io, ['a', 'due-dates-prd'])).code, EXIT.OK);

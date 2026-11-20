@@ -34,6 +34,8 @@ const ROOT = join(REGISTRY_DIR, '..');
 const read = (rel) => readFileSync(join(REGISTRY_DIR, rel), 'utf8');
 const PRD = read('examples/prd.md');
 const BRIEF = read('examples/brief.md');
+// Unit 35: the example brief links the interview it came from.
+const INTERVIEW = read('examples/interview.md');
 const EPIC = read('examples/epic.md');
 // The guides and the document type each covers; `session` (decision 11) covers your session, no type.
 const GUIDES = { brief: 'brief', prd: 'prd', epic: 'epic', ticket: 'story', session: null };
@@ -179,7 +181,7 @@ const PRD_READY = swap(swap(PRD,
   'the recommendation for the brief\'s Q-1.', 'as settled in review.');
 
 function fixture({ config, files = {} } = {}) {
-  const f = installed({ files: { [`${D}/brief.md`]: BRIEF_READY, [`${D}/prd.md`]: PRD_READY, ...files }, ...(config ? { config } : {}) });
+  const f = installed({ files: { [`${D}/brief.md`]: BRIEF_READY, [`${D}/interview.md`]: INTERVIEW, [`${D}/prd.md`]: PRD_READY, ...files }, ...(config ? { config } : {}) });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
   f.git('add', '-A');

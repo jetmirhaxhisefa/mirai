@@ -4,8 +4,9 @@ This guide is for the text you write to the owner in a Claude Code session: the 
 must do, and your explanations. The owner sees only your final message, often after a long wait,
 and acts on it alone. Write it so they can follow it without asking anything.
 
-**Asking the owner a question** follows the `mirai-interview` skill (unit 35, not built yet): one
-question at a time, with options and your recommendation.
+**Asking the owner a question** follows the `mirai-interview` skill (unit 35,
+[its SKILL.md](../../mirai-interview/SKILL.md)): one question at a time, with options and your
+guess.
 
 ## Manual steps
 
@@ -126,7 +127,7 @@ Who runs it:
 - **(B) MIRAI, after the lint and before you approve.** You see the four answers on your approval screen.
 - **(C) Nobody, until Vera's review** in unit 40.
 
-My recommendation is B, because only MIRAI's run is recorded. Ask me if you want to see what each option looks like in practice.
+My guess is B, because only MIRAI's run is recorded. Ask me if you want to see what each option looks like in practice.
 ```
 
 **Checked by:** judgement.

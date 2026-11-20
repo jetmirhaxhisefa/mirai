@@ -23,6 +23,9 @@ lint flags any line or the id left word for word from this template.
 -->
 # The outcome this initiative buys, in a few words
 
+<!-- done when: the request was thin and was interviewed (mirai-interview): this line links the interview beside the brief, by its title. With no interview.md beside the brief, delete the line -->
+Interview: [Interview: the request, in a few words](interview.md)
+
 ## Summary for approval
 
 ### The ask

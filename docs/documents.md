@@ -18,6 +18,7 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 
 | Type | What it is | Where it lives | Explained in |
 |---|---|---|---|
+| `interview` | the questions an agent asked you before the brief, your answers and your "yes"; no approval of its own, but an unconfirmed one blocks the brief's | `docs/mirai/<initiative>/interview.md` | "The interview", below |
 | `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
 | `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
@@ -182,6 +183,72 @@ reader_test = false
 Approval then skips the test and says so on its screen. This is for a project with no
 subscription to spare for it, not a way to pass a weak summary.
 
+## The interview
+
+When your request is thin, Nora interviews you before she writes the brief (unit 35, the
+`mirai-interview` skill). Setup uses the same method for the gaps its sources leave. The agent
+looks facts up itself and asks you only decisions.
+
+**What you see:** one question per message, like this:
+
+```
+## Feature: due dates on tasks (brief)
+
+Confidence: about 60%. Still open: whether people get reminded, and what the lead sees.
+
+**Q-3: Should the app remind the person a task is assigned to?**
+
+- A: no reminder; overdue tasks are only marked in the list
+- B: one reminder the day before the task is due
+- C: reminders at times each person chooses
+
+My guess: B. Leads said chasing people is the work they want gone.
+
+Your step: reply A, B or C, or add a note ("B, but not on weekends").
+```
+
+**How to reply:**
+
+- A letter is enough: "B". "yes" takes the agent's guess. "B, but no email" adds a note.
+- **"explain"** gets plain words and an example, then the same question again.
+- **"pause"** saves every question the agent still has, with its options and guess, and stops. A
+  new session picks up at the first open question and asks no answered one again.
+
+The interview has no fixed length. It stops when the agent can predict your next three answers.
+If three answers in a row don't make it surer, it stops and asks you how to go on.
+
+**The end:** the agent restates what you want in six lines: outcome, who it's for, why now,
+success, limits, and what's not included. Only an explicit "yes" closes it. "Sounds good" gets one
+more question that names the choice.
+
+**Where the record lives:** `docs/mirai/<initiative>/interview.md`, beside the brief. It holds every
+question with its options, the guess and your answer, the restatement, and your "yes" with its
+date. The brief links it in the line under its title:
+`Interview: [Interview: due dates on tasks](interview.md)`. A filled example is
+`registry/examples/interview.md`. Its `state` is `open`, `paused` or `confirmed`, and
+`mirai show <initiative>` lists it with that state.
+
+**What blocks approval:** an interview isn't approved on its own, but `mirai lint` fails it until
+it is confirmed. The brief beside it then fails too, naming the open questions, so
+`mirai approve` refuses the brief (on `standard`, the brief and PRD pair) and writes nothing:
+
+```
+docs/mirai/due-dates/brief.md:12: the interview interview.md has open questions: Q-6 and Q-7 (answer them in your session, then run mirai lint)
+```
+
+An `interview.md` beside a brief that doesn't link it fails the same way. A brief with no
+interview beside it (the request was clear) is linted as before.
+
+**Approval binds the interview.** When you approve a brief that links its interview (on `full`
+the brief alone, on `standard` with its PRD), the brief's signed line records the interview's path
+and hash, as an epic's line records its tickets. A change to the interview after that makes the
+brief's approval stale, even when the brief itself is unchanged: `mirai show` lists the brief as
+"changed since approval", and it needs a new approval. As with a changed brief, only the brief's
+line goes stale; the PRD's stays approved.
+
+In autonomous mode no one can answer, so the agent writes its questions into `interview.md`,
+leaves it `paused` and stops. The feature waits for you.
+
 ## The business brief
 
 The brief is the first document of a feature. Its template is `registry/templates/brief.md`, and
@@ -207,8 +274,8 @@ a filled example is `registry/examples/brief.md`. After the summary come these s
 mirai approve <brief-id> --file docs/mirai/<initiative>/brief.md
 ```
 
-It refuses a brief that fails the lint, or still has an open question. Your answer is signed on
-the file's exact bytes, so a brief changed after its approval needs a new approval.
+It refuses a brief that fails the lint, still has an open question, or has an interview beside it
+that isn't confirmed ("The interview", above). Your answer is signed on the file's exact bytes, so a brief changed after its approval needs a new approval.
 
 On the `standard` track, you approve the brief together with the PRD (unit 32). On `full`, it
 has its own approval.
