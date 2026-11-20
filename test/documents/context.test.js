@@ -151,6 +151,8 @@ test('36 T4: feature map and project: a handle not in the code, a route not in i
   one(errors(swap(P, 'npm run coverage', 'npm run nope'), 'project-frontend'), 'project-command', /^"docker compose exec frontend npm run nope": frontend\/package\.json has no script "nope" \| its scripts are: dev, build, lint, test, coverage/);
   one(errors(swap(P, 'root: frontend', 'root: web'), 'project-frontend'), 'project-path', /the service's folder web doesn't exist/);
   one(errors(swap(EX['project-backend'], '`docker/php/Dockerfile`', '`docker/php8/Dockerfile`'), 'project-backend'), 'project-path', /docker\/php8\/Dockerfile doesn't exist/);
+  // A host name isn't a path (36's P2 on Thudos): `api.example.test` and `.example.test` aren't checked as files.
+  assert.deepEqual(errors(swap(EX['project-backend'], '`docker/php/Dockerfile`', '`docker/php/Dockerfile`, at `api.example.test` and `.example.test`'), 'project-backend').filter((p) => p.code === 'project-path'), []);
   // The file's name follows its service.
   one(errors(P, 'project-web'), 'context-name', /a project file in \.mirai\/context\/ is named project-frontend\.md/);
   // Through mirai lint, in a copy of the sample app: the seven examples in .mirai/context/ lint

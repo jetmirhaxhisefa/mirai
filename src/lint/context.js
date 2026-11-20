@@ -397,6 +397,9 @@ export function checkFeatureMap(doc, def, ctx, add) {
 // ---- project-<service>.md ------------------------------------------------------------------
 
 const PATH_LIKE = /^(?![@-])[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@-]+)*\/?$/;
+// A host name, not a path (36's P2 on Thudos: `api.thudos.test` was checked as a file): no slash,
+// and it ends in a top-level domain no file is named with.
+const HOST_LIKE = /^\.?(?:[A-Za-z0-9-]+\.)+(?:test|local|localhost|internal|example|invalid|com|org|net|io|dev|app|de|eu)$/i;
 const spansIn = (text) => [...String(text ?? '').matchAll(/`([^`]+)`/g)].map((m) => m[1].trim());
 
 // The scripts a command runs, by the stacks' [[scripts]] data: [{ script, rule }].
@@ -436,7 +439,7 @@ export function checkProject(doc, def, ctx, add) {
     return;
   }
   const checkPath = (p, line) => {
-    if (!PATH_LIKE.test(p) || !/\/|\.[A-Za-z][A-Za-z0-9]*$/.test(p)) return;
+    if (!PATH_LIKE.test(p) || HOST_LIKE.test(p) || !/\/|\.[A-Za-z][A-Za-z0-9]*$/.test(p)) return;
     const n = repoPath(p);
     if (n === null || !ctx.repo.exists(n)) add({ code: 'project-path', line, column: 1, reason: `${clip(p)} doesn't exist`, hint: 'correct the path, from the repo\'s top folder, or remove the line' });
   };
