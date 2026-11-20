@@ -46,12 +46,42 @@ export const DOCUMENTS = Object.freeze([
 // Who a summary is for, as the six summaries name people: every one becomes "someone".
 const PEOPLE = /\b(?:new team members?|team leads?|team members?|leads?|assignees?|owners?|viewers?|creators?|commenters?|authors?|people|persons?|users?|members|outsiders|everyone|anyone|others|the team(?:'s)?|team's)\b/gi;
 
-// The seeds: each removes one thing from the summary and names the question that must then fail.
+// Words that still point at a person once the nouns are gone ("the person a task is assigned to",
+// "anyone who can see a task").
+const PERSON_HINT = /\b(?:assigned to|can see|who can|who has|their|they|them|someone)\b/i;
+// A "What changes" bullet that states what stays out or unchanged: it cites a non-goal, or says
+// something stays, isn't live, or works as today (P2's first run: "The chat tool stays in use for
+// everything else (NG-1)" and "… stay as they are" told the reader what was left out).
+const LEFT_OUT_HINT = /\(NG-[0-9]|\bNG-[0-9]|\bstays?\b|\bnot live\b|\bas (?:they do|it does) today\b|\bas today\b|\bunchanged\b/i;
+
+// The seeds: each removes one thing from the summary, everywhere it is stated, and names the
+// question that must then fail. P2's first run (2026-11-20) showed the first seeds left the
+// left-out items and the audience stated elsewhere; these remove them there too.
 export const SEEDS = Object.freeze([
-  { key: 'no-left-out', question: 'left_out', what: 'the "Not in this" items', apply: (t) => emptyPart(t, 'Not in this') },
-  { key: 'no-decision', question: 'decide', what: 'the decisions for you', apply: (t) => emptyPart(t, 'Decisions for you') },
-  { key: 'no-who', question: 'for_whom', what: 'who it is for ("Why" emptied, people named as "someone")', apply: (t) => inSummary(emptyPart(t, 'Why'), (s) => s.replace(PEOPLE, 'someone')) },
+  { key: 'no-left-out', question: 'left_out', what: 'what is left out ("Not in this" emptied, and the "What changes" bullets that say what stays out)', apply: (t) => dropBullets(emptyPart(t, 'Not in this'), 'What changes', LEFT_OUT_HINT) },
+  { key: 'no-decision', question: 'decide', what: 'the decisions for you ("Decisions for you" emptied)', apply: (t) => emptyPart(t, 'Decisions for you') },
+  { key: 'no-who', question: 'for_whom', what: 'who it is for ("Why" emptied, "What changes" bullets naming a person dropped, other people named "someone")', apply: (t) => inSummary(dropBullets(emptyPart(t, 'Why'), 'What changes', (l) => new RegExp(PEOPLE.source, 'i').test(l) || PERSON_HINT.test(l)), (s) => s.replace(PEOPLE, 'someone')) },
 ]);
+
+// Drops the bullets of one part that match `test` (a regex or a function); the part keeps at least
+// one bullet, or the seed would also remove what is built.
+function dropBullets(text, part, test) {
+  const match = (l) => {
+    if (typeof test === 'function') return test(l);
+    test.lastIndex = 0;
+    return test.test(l);
+  };
+  return inSummary(text, (s) => {
+    const lines = s.split('\n');
+    const at = lines.indexOf(`### ${part}`);
+    if (at < 0) throw new Error(`no "### ${part}"`);
+    let next = lines.findIndex((l, i) => i > at && /^### /.test(l));
+    if (next < 0) next = lines.length;
+    const body = lines.slice(at + 1, next).filter((l) => !(/^\s*[-*] /.test(l) && match(l)));
+    if (!body.some((l) => /^\s*[-*] /.test(l))) throw new Error(`"### ${part}" would have no bullet left`);
+    return [...lines.slice(0, at + 1), ...body, ...lines.slice(next)].join('\n');
+  });
+}
 
 // The summary's line range in a document: [start, end) of the lines after "## Summary for approval".
 function summaryRange(lines) {
@@ -99,12 +129,18 @@ export function buildSet() {
       const seeded = s.apply(text);
       const summary = summaryText(seeded);
       if (summary === good) throw new Error(`${d.key} ${s.key}: the seeding changed nothing`);
-      if (s.question === 'left_out' && partBody(summary, 'Not in this') !== '') throw new Error(`${d.key} ${s.key}: "Not in this" isn't empty`);
+      if (s.question === 'left_out') {
+        if (partBody(summary, 'Not in this') !== '') throw new Error(`${d.key} ${s.key}: "Not in this" isn't empty`);
+        const left = (partBody(summary, 'What changes') ?? '').split('\n').filter((l) => LEFT_OUT_HINT.test(l));
+        if (left.length) throw new Error(`${d.key} ${s.key}: "What changes" still says what stays out: ${left.join(' | ')}`);
+      }
       if (s.question === 'decide' && partBody(summary, 'Decisions for you') !== '') throw new Error(`${d.key} ${s.key}: "Decisions for you" isn't empty`);
       if (s.question === 'for_whom') {
         if (partBody(summary, 'Why') !== '') throw new Error(`${d.key} ${s.key}: "Why" isn't empty`);
         const left = summary.match(PEOPLE);
         if (left) throw new Error(`${d.key} ${s.key}: people are still named: ${left.join(', ')}`);
+        const hinted = (partBody(summary, 'What changes') ?? '').split('\n').filter((l) => PERSON_HINT.test(l));
+        if (hinted.length) throw new Error(`${d.key} ${s.key}: "What changes" still points at a person: ${hinted.join(' | ')}`);
       }
       // Nothing outside the summary changed.
       if (seeded.replace(/## Summary for approval[\s\S]*?(?=\n## )/, '') !== text.replace(/## Summary for approval[\s\S]*?(?=\n## )/, '')) throw new Error(`${d.key} ${s.key}: the detail changed`);
@@ -185,7 +221,7 @@ export async function runModel({ home, tier, set, launch, log, token, claude = n
     let row;
     try {
       const r = await runReaderTest({ cwd: home.root, env: home.env, file, launch: rec.launch, ...(claude ? { claude } : {}) });
-      row = { ...item, result: r.entry.result, failed: r.entry.failed, model: r.entry.model, reused: r.reused };
+      row = { ...item, result: r.entry.result, failed: r.entry.failed, model: r.entry.model, reused: r.reused, answers: r.entry.answers };
     } catch (err) {
       const last = rec.runs.at(-1);
       const stderr = last ? redact(String(last.raw.stderr ?? ''), token).trim().slice(0, 400) : '';
@@ -218,6 +254,8 @@ export function verdictOf(results) {
 }
 
 const label = (q) => QUESTIONS.find((x) => x.key === q)?.label ?? q;
+// A reader's words on one line, shortened; never anything shaped like a token.
+const clean = (t) => redact(String(t ?? ''), null).replace(/\s+/g, ' ').slice(0, 300);
 
 export function table(result, log) {
   log(`\n${result.tier === 'light' ? 'Haiku (light)' : 'Sonnet (standard)'}${result.model ? `, ${result.model}` : ''}`);
@@ -226,6 +264,19 @@ export function table(result, log) {
   for (const r of result.rows) log(`| ${r.doc}${r.kind === 'bad' ? ` (${r.name.split('/')[1]})` : ''} | ${r.kind === 'good' ? 'good' : `bad: removed ${r.seed}`} | ${r.result}${r.error ? ` (${r.error.slice(0, 120)})` : ''} | ${r.failed.map(label).join(', ') || '—'} |`);
   const j = judge(result.rows);
   log(`${j.ok ? 'every bad summary caught, no good one failed' : `${j.misses.length} miss(es): ${j.misses.map((m) => `${m.name} (${m.kind}: ${m.result})`).join('; ')}`}; cost: ${result.cost === null ? 'not reported' : `$${result.cost.toFixed(4)}`}`);
+  // What the reader said for each miss: a bad summary that passed shows its answer and quote for
+  // the removed question; a good one that failed shows each failed question's answer, quote and why.
+  for (const m of j.misses) {
+    const qs = m.kind === 'bad' ? [m.question] : m.failed;
+    for (const q of qs) {
+      const a = m.answers?.[q];
+      if (!a) {
+        log(`  ${m.name}, ${label(q)}: no answer kept (${m.result}${m.error ? `: ${m.error.slice(0, 200)}` : ''})`);
+        continue;
+      }
+      log(`  ${m.name}, ${label(q)}: answer ${JSON.stringify(clean(a.answer))}; quote ${JSON.stringify(clean(a.quote))}${a.why ? `; ${clean(a.why)}` : ''}`);
+    }
+  }
 }
 
 // The init check first (unit 34's open question): does the kept Claude Code accept `--tools ""`
