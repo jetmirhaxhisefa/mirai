@@ -64,8 +64,8 @@
 | Probe | Result |
 |---|---|
 | **P1 Your read** | **pass** (Jet read the 15 examples, the 12 for the documents and the 3 in `guides/session.md`, 2026-11-20: "34 P1 pass"). |
-| **P2 The reader's model** | not run yet; the probe is `test/probes/reader-probes.js` (a `probes` job: 6 good summaries and 18 seeded bad ones, Haiku and Sonnet each in its own probe home, the init check first; `--seeds-only` checks the set with no model). Until it runs, `reader-test` defaults to `standard`; P2 sets the final default (`light` if Haiku catches every seeded bad summary and fails no good one). |
-| **P3 A fresh agent writes with the skill** | not run yet |
+| **P2 The reader's model** | **pass on the third run** (u34-p2-3, commit `252da69`): Sonnet passed every good summary and failed every seeded bad one on the removed question. Runs 1 and 2 failed (weak seeds; the reader took "Approve …" as the decision); fixes are below. Haiku also failed a good epic summary, so the default stays **`standard`**. |
+| **P3 A fresh agent writes with the skill** | **pass** (2026-11-20). A fresh Sonnet agent got only the skill, the PRD template and checklist, and 31's P2 brief, and wrote a lite PRD (`p3/prd.md`; first draft `p3/prd-round0.md`). Lint: 10 problems (9 sentences over 25 words, most of them Given/when/then ACs; 1 short form not spelled out), **0 after one fixing round** (`p3/lint-round1.txt`), 37 FRs and 41 ACs both times, nothing cut; 2,756 words, summary 477. Reader test (u34-p3, `reader-p3-probes.js`, Sonnet): **pass on the first run**, every answer quoting the summary, $0.018. Finding: the agent asked whether an AC counts as one sentence; `guides/prd.md` now says so (a rule line, no new example). |
 
 ## Changed from the spec
 

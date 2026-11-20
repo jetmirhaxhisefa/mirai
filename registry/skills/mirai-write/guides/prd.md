@@ -14,6 +14,9 @@ The PRD says what the product must do, for whom, and how each requirement is che
 - **An exception or a second duty gets its own sentence, or its own requirement.** "…, but none
   to the author" inside the main clause makes a sentence no one can check in one test. A failure
   is its own "If …, then the system must …" requirement.
+- **An AC's "Given … when … then …" is one sentence for the lint** (25 words at most). When it runs
+  longer, end the sentence after "then …" and put the rest of the outcome in a second sentence,
+  as Example 3 does. Keep every condition and every outcome; never drop one to fit (unit 34's P3).
 - **Exact values, quoted.** A message the user sees is written in quotes, word for word. A limit
   has its number and its unit ("2,000 characters").
 - **No escape clauses or open ends.** "Where possible", "as appropriate", "if necessary",
