@@ -1,7 +1,7 @@
 ---
 unit: "34"
 name: write
-status: draft (interview confirmed by Jet, 2026-11-20: "yes"; waiting for "approve 34")
+status: approved (Jet, 2026-11-20: "approve 34"; decisions 1–10 from his interview answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 34; design/09 PM-03 and §4 row 4; design/03 (`mirai-write`); D-27 (design/04, changed here); research/06 §2; research/13 §9a, §9c, §9e
 depends_on: ["31", "32", "33"]
 ---
