@@ -27,6 +27,8 @@ const REGISTRY = loadRegistry(REGISTRY_DIR);
 const read = (rel) => readFileSync(join(REGISTRY_DIR, rel), 'utf8');
 const PRD = read('examples/prd.md');
 const BRIEF = read('examples/brief.md');
+// Unit 35: the example brief links the interview it came from.
+const INTERVIEW = read('examples/interview.md');
 const TEMPLATE = read('templates/prd.md');
 const DEF = REGISTRY.documentTypes.prd;
 
@@ -121,6 +123,7 @@ test('32 T4: a broken Brief: link fails through mirai lint', async () => {
   mkdirSync(join(root, 'docs', 'mirai', 'due-dates'), { recursive: true });
   writeFileSync(join(root, 'docs', 'mirai', 'due-dates', 'prd.md'), PRD);
   writeFileSync(join(root, 'docs', 'mirai', 'due-dates', 'brief.md'), BRIEF);
+  writeFileSync(join(root, 'docs', 'mirai', 'due-dates', 'interview.md'), INTERVIEW);
   let out = '';
   const io = { stdout: { write: (s) => (out += s) }, stderr: { write: () => {} }, env: { PATH: process.env.PATH, HOME: root }, cwd: root };
   assert.equal(await main(['lint'], io, [createLintCommand()]), EXIT.OK, out);
@@ -251,7 +254,7 @@ async function tty(argv, { cwd, env }, answers) {
 }
 
 function pairFixture() {
-  const f = installed({ files: { 'docs/mirai/due-dates/brief.md': BRIEF, 'docs/mirai/due-dates/prd.md': PRD_READY } });
+  const f = installed({ files: { 'docs/mirai/due-dates/brief.md': BRIEF, 'docs/mirai/due-dates/interview.md': INTERVIEW, 'docs/mirai/due-dates/prd.md': PRD_READY } });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
   f.git('add', '-A');

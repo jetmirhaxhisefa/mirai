@@ -65,7 +65,7 @@ test('T1: the bundle is deterministic, and changes only with what it\'s made of'
   const a = buildBundle(registry, { models: MODELS, renderAgent });
   const b = buildBundle(loadRegistry(join(PKG, 'registry')), { models: { ...MODELS }, renderAgent });
   assert.equal(a.sharedHash, b.sharedHash);
-  assert.deepEqual(a.files.map((f) => f.path), ['agents/mirai-developer.md', 'agents/mirai-fixture-reviewer.md', 'agents/mirai-reviewer.md', 'skills/mirai-docs/SKILL.md', 'skills/mirai-fixture-skill/SKILL.md', 'skills/mirai-fixture-skill/references/more.md', 'skills/mirai-write/CREDITS.md', 'skills/mirai-write/SKILL.md', 'skills/mirai-write/guides/brief.md', 'skills/mirai-write/guides/epic.md', 'skills/mirai-write/guides/prd.md', 'skills/mirai-write/guides/session.md', 'skills/mirai-write/guides/ticket.md']);
+  assert.deepEqual(a.files.map((f) => f.path), ['agents/mirai-developer.md', 'agents/mirai-fixture-reviewer.md', 'agents/mirai-reviewer.md', 'skills/mirai-docs/SKILL.md', 'skills/mirai-fixture-skill/SKILL.md', 'skills/mirai-fixture-skill/references/more.md', 'skills/mirai-interview/CREDITS.md', 'skills/mirai-interview/SKILL.md', 'skills/mirai-write/CREDITS.md', 'skills/mirai-write/SKILL.md', 'skills/mirai-write/guides/brief.md', 'skills/mirai-write/guides/epic.md', 'skills/mirai-write/guides/prd.md', 'skills/mirai-write/guides/session.md', 'skills/mirai-write/guides/ticket.md']);
   // The tier the agent uses changes it; another tier doesn't.
   assert.notEqual(buildBundle(registry, { models: { ...MODELS, standard: 'claude-opus-5-5' }, renderAgent }).sharedHash, a.sharedHash);
   assert.equal(buildBundle(registry, { models: { ...MODELS, light: 'claude-sonnet-5-5' }, renderAgent }).sharedHash, a.sharedHash);
@@ -262,10 +262,10 @@ test('T6: skill, agent and adapter definitions are checked, with file, line and 
 
 test('T7: the skill MIRAI ships passes its own checks and uses only the portable fields', () => {
   const registry = loadRegistry(join(PACKAGE_ROOT, 'registry'));
-  // Unit 34: mirai-write, listed for every author as mirai-docs is.
-  assert.deepEqual(Object.keys(registry.skills), ['mirai-docs', 'mirai-write']);
+  // Unit 34: mirai-write, listed for every author as mirai-docs is; unit 35: mirai-interview.
+  assert.deepEqual(Object.keys(registry.skills), ['mirai-docs', 'mirai-interview', 'mirai-write']);
   assert.deepEqual(Object.keys(registry.adapters), ['claude-code']);
-  for (const name of ['mirai-docs', 'mirai-write']) {
+  for (const name of ['mirai-docs', 'mirai-interview', 'mirai-write']) {
     const f = readFrontmatter(readFileSync(join(PACKAGE_ROOT, `registry/skills/${name}/SKILL.md`)));
     assert.deepEqual(Object.keys(f.value), ['name', 'description']);
     assert.ok(f.value.description.length <= 1024);
