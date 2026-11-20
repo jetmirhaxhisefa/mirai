@@ -1,7 +1,7 @@
 ---
 unit: "33"
 name: epic
-status: approved (Jet, 2026-11-20: "approve 33"; decisions 1–5 from his interview answers the same day)
+status: done (spec and unit approved by Jet, 2026-11-20: "approve 33"; decisions 1–5 from his interview answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 33; design/01 §5, §5a, §6, §12a; D-09, D-35, D-36 (design/04); design/09 PM-03; research/13 §9a
 depends_on: ["08", "32"]
 ---
