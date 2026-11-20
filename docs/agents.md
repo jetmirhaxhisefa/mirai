@@ -9,7 +9,9 @@ Every author agent gets two skills: `mirai-docs` (a document's form: template, c
 and before/after examples from real drafts; `docs/documents.md` has the reader test that checks
 the result). Its `guides/session.md` also covers how any agent writes to you in a session:
 manual steps numbered from the first action, with what you should see and what to do if it fails,
-and explanations that answer first, with one example, one idea at a time.
+and explanations that answer first, with one example, one idea at a time. Nora and setup also get
+`mirai-interview` (unit 35: how to ask you for decisions, one question at a time, with the record
+in `interview.md` beside the brief).
 
 ## Roles
 
