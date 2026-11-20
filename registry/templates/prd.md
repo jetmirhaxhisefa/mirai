@@ -36,7 +36,11 @@ PRD keeps exactly as it is.
   - boundaries: every limit says how it's counted and what happens exactly at it; every date or
     time says its format and time zone; an order says how ties are broken;
   - when others see a change: at once, or on their next reload;
-  - what someone who loses access still sees (notices already sent, links, search);
+  - what someone who loses access still sees (notices already sent, links, search), and whether
+    a notice or message is sent at all to someone who can't see the thing it's about;
+  - where else the new data shows up in today's product (search, exports, notices) and who sees it
+    there;
+  - what happens to the new data when its author's account is removed or deactivated;
   - how each success metric is measured, which may be outside the product (a survey, analytics);
     an FR records data only when a BR in the brief asks for it, otherwise the method is an
     assumption. Don't add features the brief doesn't ask for.

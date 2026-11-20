@@ -43,7 +43,11 @@ judgement.
 - Is every boundary defined: how a limit is counted and what happens exactly at it, each date or
   time's format and time zone, how ties in an order are broken?
 - Does it say when other people see a change: at once, or on their next reload?
-- Does it say what someone who loses access still sees: notices already sent, links, search?
+- Does it say what someone who loses access still sees: notices already sent, links, search? And
+  whether a notice is sent at all to someone who can't see what it's about?
+- Does it say where else the new data shows up in today's product (search, exports, notices), and
+  who sees it there?
+- Does it say what happens to the new data when its author's account is removed or deactivated?
 - Does it say how each success metric is measured, without adding a feature the brief doesn't ask
   for (a report, a log) just to measure it?
 - Does each measured NFR name its conditions: the data size, the load, where it's measured, and

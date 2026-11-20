@@ -43,9 +43,9 @@
 
 | Probe | Result |
 |---|---|
-| **P1 Jet's read** | pending (the main session and Jet) |
-| **P2 an agent fills it** | pending (the main session and Jet) |
-| **P3 an agent builds from it** | pending (the main session and Jet) |
+| **P1 Jet's read** | pending |
+| **P2 an agent fills it** | **three rounds, each a fresh Sonnet agent** given only the template, the checklist and 31's P2 brief (task comments). Round 1: 7 errors after the first lint, 2 of them MIRAI's (an FR citing its assumptions after its BR; the brief's open questions listed again, which the template didn't forbid); 0 after one round. Round 2 (stricter template): 9 errors, 3 MIRAI's (several assumption groups; an NFR verified by its own AC; a copied lead-in); 0 after one round, 1,904 words. Round 3: 11 errors, 3 MIRAI's (date placeholders and UTC read as acronyms); **1 left after one round** (a 31-word sentence), 1,898 words. The agent cut a failure FR and some edge-case ACs to stay under the cap, which the template forbids. Kept: `p2-agent-prd.md` (round 3). Its summary still needs Jet's read. |
+| **P3 an agent builds from it** | **Not passed; a known limit (Jet's decision, 2026-11-20).** A fresh agent cut tickets from P2's PRD (13, 11 and 12 tickets, every AC covered each time) and listed the questions it would have to ask. Round 1: 11. The template and checklist gained seven kinds of gap (what exists today, roles and states, boundaries, when others see a change, lost access, metric data, measurement conditions). Round 2: 16; the metric rule had made the agent add features the brief didn't ask for (a change log, a report), and the questions got finer. Jet changed the bar ("P3 as recommended"): pass when no question changes what is built or who may do what; a second agent sorts them. Round 3 (metric rule fixed): 10 questions, sorted A 3 (must be in the PRD), B 3 (the plan can settle), C 4 (already answered; the sorter's own total said A 2, its verdicts say 3). The three A questions became template and checklist rules: whether a notice reaches someone who can't see its subject; where else the new data shows up (search, exports); what happens to it when its author's account is removed. |
 
 ## Changed from the spec
 
@@ -70,3 +70,11 @@
 - **The journal's `approval` event gains `kind: prd`,** as 31 added `kind: brief`.
 - **Approval refusals now show their hint.** 31's lint refusal passed its hint where
   `MiraiError` has none, so "fix them, run mirai lint, then approve again" never printed.
+- **P3's pass bar** (Jet, 2026-11-20, after round 2): no question that changes what is built or
+  who may do what; plan-level questions don't count; one last round, leftovers become template
+  findings and a known limit.
+- **The completeness rules** (P3) are now in the template's top comment and a checklist section,
+  "What a builder would have to ask".
+- **Date and time placeholders and UTC** are on the acronym list.
+- **Commit `c92cd80`'s message is wrong:** it says round 3 linted clean with no fixing round; it
+  had 8 long sentences, fixed in `63ddc35`.
