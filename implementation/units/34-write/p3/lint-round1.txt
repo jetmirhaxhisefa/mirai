@@ -1,0 +1,99 @@
+implementation/units/34-write/p3/prd.md:11:1: warning: the PRD has 2766 words, close to a lite PRD's cap of 3000
+  hint: if it keeps growing, plan the split now
+implementation/units/34-write/p3/prd.md:19:1: warning: a sentence of 23 words: "Approve the brief and this PRD for task comments, so that 60% of task changes c…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:23:1: warning: a sentence of 23 words: "The reasons for a change get buried there, and new team members cannot see why …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:27:1: a sentence of 30 words: "A person who can see a task can post a text comment on it and read all its comm…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:28:1: warning: a sentence of 23 words: "The task's owner and assignee get an in-app notice when someone else comments, …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:30:1: a sentence of 28 words: "A comment that is empty, over 2,000 characters or not saved is refused with a s…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:53:1: warning: a sentence of 24 words: "A team lead changes a task's owner, scope or due date, then posts a comment on …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:54:1: warning: a sentence of 24 words: "A new team member opens an old task, reads its comments oldest first and learns…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:55:1: warning: a sentence of 22 words: "An assignee sees a notice that a colleague commented, opens the task from it an…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:56:1: warning: a sentence of 21 words: "A team member loses the ability to see a task and no longer sees its comments o…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:63:1: a sentence of 26 words: "Given Ana can see the open task T, when she posts "Moved the due date because t…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:64:1: "T2" isn't spelled out at its first use
+  hint: write it in full the first time, then the short form in brackets: "… (T2)"
+implementation/units/34-write/p3/prd.md:66:1: warning: a sentence of 25 words: "Given T has comments posted on 2026-11-01, 2026-11-05 and 2026-11-10, when Ben …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:68:1: warning: a sentence of 23 words: "Given Ben joined the team on 2026-11-15 and T has a comment from 2026-11-01, wh…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:70:1: warning: a sentence of 21 words: "Given Ana posted a comment, when Ben opens the task, then the comment shows "An…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:74:1: a sentence of 27 words: "Given Ben has a notice created at 10:00 and one at 11:00, when he opens the not…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:84:1: warning: a sentence of 23 words: "When a comment is posted and the owner and assignee are the same person, the sy…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:85:1: warning: a sentence of 21 words: "Given Ana is both owner and assignee of T, when Ben posts a comment, then Ana h…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:89:1: warning: a sentence of 21 words: "Given Ben comments on the task "Plan release", when Ana's notice is created, th…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:93:1: warning: a sentence of 23 words: "Given Ana is the author of a comment on T, when she looks at it, then no edit o…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:95:1: warning: a sentence of 22 words: "Given Ana has one unread and one read notice, when she opens the notice area, t…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:96:1: warning: a sentence of 21 words: "When a person can no longer see a task, the system must remove that task's noti…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:97:1: warning: a sentence of 24 words: "Given Ben has a notice about T, when Ben stops being able to see T, then the no…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:99:1: warning: a sentence of 25 words: "Given Ben could read T's comments, when Ben stops being able to see T, then no …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:104:1: warning: a sentence of 23 words: "While comments are listed, the system must order those posted in the same minut…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:105:1: warning: a sentence of 21 words: "Given Ana's comment is received before Ben's in the same minute, when anyone op…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:106:1: warning: a sentence of 23 words: "When a person's account is removed or deactivated, the system must keep that pe…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:107:1: warning: a sentence of 24 words: "Given Ana posted a comment on T and her account is deactivated, when Ben opens …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:110:1: warning: a sentence of 24 words: "While a comment is shown, the system must write its time as YYYY-MM-DD HH:MM in…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:111:1: warning: a sentence of 22 words: "Given a comment posted at 2026-11-19 13:05 UTC, when a reader in Berlin opens i…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:115:1: a sentence of 26 words: "If a comment is empty or holds only spaces and line breaks, then the system mus…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:116:1: warning: a sentence of 24 words: "Given Ana can see T, when she posts only spaces, then no comment is added and t…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:117:1: a sentence of 28 words: "If a comment has more than 2,000 characters, then the system must refuse it and…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:119:1: a sentence of 27 words: "Given Ana types 2,001 characters, when she posts, then no comment is added and …"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:120:1: warning: a sentence of 24 words: "If the system cannot save a comment, then it must keep the typed text in the bo…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:121:1: warning: a sentence of 23 words: "Given saving fails, when Ana posts "Reason A", then no comment is added, "Reaso…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:122:1: a sentence of 29 words: "If a person who can no longer see a task posts on it, then the system must refu…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:123:1: warning: a sentence of 25 words: "Given Ben had T open and then lost the ability to see T, when he posts, then no…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:124:1: warning: a sentence of 24 words: "If a person posts once and presses the post button again before the first post …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:125:1: warning: a sentence of 21 words: "Given Ana presses the post button twice within 1 second, when both presses are …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:129:1: warning: a sentence of 21 words: "Given Ben is the assignee of T and cannot see T, when Ana posts a comment, then…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:132:1: warning: a sentence of 22 words: "If a task has no owner or no assignee, then the system must create a notice onl…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:133:1: warning: a sentence of 23 words: "Given T has an owner Ana and no assignee, when Ben posts, then Ana has one noti…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:139:1: warning: a sentence of 23 words: "Where a person changes a task's owner, scope or due date, the product must let …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:141:1: warning: a sentence of 22 words: "Where a person decides who can see a task, the product must apply the rules it …"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:151:1: a sentence of 27 words: "Given a task with 200 comments and 10 people posting at once on the staging sys…"
+  hint: keep sentences to 25 words or fewer: split it, or make a list
+implementation/units/34-write/p3/prd.md:153:1: warning: a sentence of 22 words: "Given the same staging setup, when 10 people open the task, then 95% of opens s…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:155:1: warning: a sentence of 24 words: "Verified by: an automated test on the staging system that posts 100 comments an…"
+  hint: aim for 20 words or fewer
+implementation/units/34-write/p3/prd.md:156:1: warning: a sentence of 23 words: "The comment box, the post button, the notice area and each notice must work wit…"
+  hint: aim for 20 words or fewer
+1 file, 10 problems, 39 warnings, 0 skipped
