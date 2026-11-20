@@ -150,7 +150,8 @@ confirmed interview. The brief links it in the line under its title:
 ## Pause and resume
 
 **Pause.** When the owner says "pause" (or "draft it"), write every question you still have into
-`interview.md`, each with its options and your guess, and an empty `Answer:` line. Set
+`interview.md`, each with its options and your guess, and an empty `Answer:` line. Keep every
+section of the template, `## Restatement` included, with its lines still unfilled. Set
 `state: paused`, and stop.
 
 **Nothing moves on with an open question.** Don't write the brief until every question is
@@ -163,7 +164,8 @@ never asks an answered one again. Set `state: open` while you ask.
 ## Autonomous mode
 
 With no one to ask (a non-interactive run), don't guess and don't draft. Write your questions into
-`interview.md`, each with its options and your guess, set `state: paused`, and stop. Don't write
+`interview.md`, each with its options and your guess, keep the template's `## Restatement`
+unfilled, set `state: paused`, and stop. Don't write
 `[ASSUMPTION]` tags in place of an answer. Every open question blocks the feature until the owner
 answers it.
 

@@ -62,7 +62,7 @@
 |---|---|
 | **P1 A real interview** | not run yet |
 | **P2 Pause and resume** | not run yet |
-| **P3 Autonomous mode** | not run yet |
+| **P3 Autonomous mode** | **pass** (2026-11-20). A fresh Sonnet agent, told it runs unattended, got only the skills and the request "Add reminders for overdue tasks." in a folder with no app code. It wrote no brief, and `interview.md` (`p3/interview.md`) holds 8 questions (who, why now, who is reminded, how often, channel, success, time limits, what's left out), each with lettered options, a guess and its reason, an empty `Answer:` line, `state: paused`, and a note on what it couldn't look up. `mirai lint`: paused with Q-1–Q-8 open. A brief written by hand beside it fails the lint ("the interview interview.md has open questions: Q-1 … Q-8"), so it can't be approved. Finding: the agent dropped the `## Restatement` section, which the lint also failed; the skill now says to keep the template's sections, the restatement unfilled, when pausing. |
 
 ## Changed from the spec
 
