@@ -56,7 +56,7 @@
   - `test/cli/cli.test.js` T14 (the command list), `test/doctor/doctor.test.js` (the items, now
     with `word-list`) and `test/detect/detect.test.js` 17a T8 (the instruction files an install
     leaves, now with `mirai-write`'s six).
-- **The full suite:** 702/702 on the Mac (`caffeinate -i npm test`), 7 tests in `write.test.js`.
+- **The full suite:** 702/702 on the Mac (`caffeinate -i npm test`), 7 tests in `write.test.js`; again 702/702 after decision 11 and the merge of main.
   The build runner and CI run on the final commit.
 
 ## Probes (real)
