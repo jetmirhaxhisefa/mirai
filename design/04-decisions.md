@@ -990,8 +990,11 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
       `.mirai/framework/vendor/`;
     - each vendored file has an entry in `vendor/PROVENANCE.json`: source URL, author, license,
       pinned commit, the vetting entry in `research/06-skill-vetting.md`, and the file hash.
-  - Today the only vendored file is a reviewed, pinned copy of `blader-humanizer` (approved in
-    `research/06`).
+  - Today no file is vendored. `blader-humanizer` (approved in `research/06`) was read once at
+    commit `8c307f3`, and the patterns that add something were rewritten in MIRAI's own words in
+    the `mirai-write` skill, with credit and its MIT notice in `CREDITS.md`. There is no copy and
+    no tracking of upstream: later improvements come from MIRAI's own evaluation and any source we
+    choose (changed with unit 34, Jet's decision 9, 2026-11-20).
   - Every future external skill goes through the vetting gate (D-31).
 
 ### D-28 · Pilot: a clean branch from main; MIRAI replaces the council and BMAD there

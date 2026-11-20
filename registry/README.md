@@ -11,7 +11,9 @@ MIRAI's own definitions (D-37), shipped with it:
 - **`examples/`:** a filled example of each type. These are the examples the unit tests and
   agents follow.
 - **`agents/`:** agent definitions, from the agent units on (Kai in unit 21, Rex in unit 24).
-- **`skills/`:** skills, one folder each with its `SKILL.md` (unit 11): `mirai-docs` so far.
+- **`skills/`:** skills, one folder each with its `SKILL.md` (unit 11): `mirai-docs` (a document's
+  form) and `mirai-write` (unit 34: how to word the documents you approve, and tickets, with
+  per-type guides and before/after examples in `guides/`). Every author agent gets both.
 - **`protected-paths/`:** the protected-path rules (unit 12): which changed files force high
   risk, and which run by themselves (`auto-run`). `core.toml` holds what's true on every stack
   and is always on; the others are ecosystem packs (`node`, `php`, `python`, `rust`, `go`,
