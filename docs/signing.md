@@ -75,7 +75,7 @@ Each decision asks **your passphrase in place of typing the ticket key**. (A key
 **How long it stays unlocked is your setting:** `[signing] unlock` in `~/.config/mirai/config.toml` (your global file only; a project can't set it).
 
 - `"each"` (the default): your passphrase for each decision; nothing stays unlocked.
-- a duration up to 30 days (`"8h"`, `"3d"`): after you type it, a small MIRAI process keeps your key unlocked that long; `mirai key lock` locks it, so does a restart.
+- a duration up to 30 days (`"8h"`, `"3d"`): after you type it, a small MIRAI process keeps your key unlocked that long. `mirai key unlock` asks your passphrase and starts that time now. `mirai key lock` locks it, so does a restart.
 - **The cost:** while it's unlocked, any program running as you, a Claude session included, can ask that process to sign. The real-terminal check stays, but a session can fake a terminal (`expect`, `script`). So for the time you choose, a session can sign as you; outside it, it can't. `mirai doctor` and `mirai key status` show "unlocked until".
 
 Touch ID is later work: a key behind biometry needs an Apple-signed helper (the data-protection keychain refuses an unsigned one, error -34018).

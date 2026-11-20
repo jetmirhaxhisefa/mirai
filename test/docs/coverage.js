@@ -183,7 +183,10 @@ export function checkDocs(input) {
   for (const text of Object.values(pages)) {
     // A `/mirai` section runs from its heading to the next heading at its level or above.
     let level = 0;
+    let fenced = false;
     for (const line of text.split('\n')) {
+      if (/^\s*(`{3,}|~{3,})/.test(line)) fenced = !fenced;
+      if (fenced) continue;
       const h = line.match(/^(#{1,6})\s+(.*)$/);
       if (h) level = h[2].includes('/mirai') ? h[1].length : level && h[1].length > level ? level : 0;
       else if (level) for (const m of line.matchAll(/`([^`]+)`/g)) sectionCode.push(m[1]);

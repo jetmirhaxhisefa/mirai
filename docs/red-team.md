@@ -11,7 +11,8 @@ part of MIRAI that decides what an agent can do (R3-M7; unit 19 enforces it; uni
 mirai redteam run                 # run it (asks you first: it uses your Claude subscription)
 mirai redteam run --only g18-default,bundle-env   # some cases only: reported, never recorded
 mirai redteam status              # is this machine's result green for what's installed now?
-mirai redteam show [<key>]        # print a stored result (the newest by default)
+mirai redteam show [<key or blocker id>]   # print a stored result (the newest by default), or a blocker
+mirai redteam accept-blocker <id> --note <why>   # your signed decision to go on after a blocker
 ```
 
 ## When to run it
@@ -326,7 +327,7 @@ A result holds for exactly these, and any change makes it **stale**:
 |---|---|---|
 | `green` | every case passed 3 times; S1–S5 hold | nothing: unattended launches may use it |
 | `red` | a case failed, or the binary or the floor has something new | don't launch; each failure is a gap to fix first |
-| `blocker` | a host-credential, escape, container or MIRAI-git finding of V1's kind | **V1's condition** (D-30): no unattended run, and the decision to run agents as you without a container comes back to you. A later green on the same Claude Code and macOS doesn't erase it: `status` keeps showing it |
+| `blocker` | a host-credential, escape, container or MIRAI-git finding of V1's kind | **V1's condition** (D-30): no unattended run, and the decision to run agents as you without a container comes back to you. A later green on the same Claude Code and macOS doesn't erase it: `status` keeps showing it. `mirai redteam accept-blocker <id> --note <why>` signs your decision; launches then go ahead once a current result is green |
 | `incomplete` | inconclusive cases, a check that couldn't be read, or the run stopped | run it again |
 | `stale` | a result exists, but something in the key changed | run it again |
 | `none` | no result yet | run it |

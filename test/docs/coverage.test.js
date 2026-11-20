@@ -15,7 +15,7 @@ function fixture() {
     files: ['README.md', 'run.md', 'config.md', 'documents.md', 'internal-list.toml'],
     pages: {
       'README.md': '# Docs\n\n- [run.md](run.md): runs.\n- [config.md](config.md): keys.\n- [documents.md](documents.md): documents.\n- [internal-list.toml](internal-list.toml): exceptions.\n',
-      'run.md': '# `mirai run`\n\n```\nmirai run SAMPLE-1\nmirai redteam run\n```\n\nAccept one with `mirai redteam accept-blocker <id>`.\n\n## `/mirai` in your session\n\n```\n/mirai run SAMPLE-1\n```\n\n- **Gates:** `redteam accept-blocker`.\n- **Not from a session:** `hook`.\n',
+      'run.md': '# `mirai run`\n\n```\nmirai run SAMPLE-1\nmirai redteam run\n```\n\nAccept one with `mirai redteam accept-blocker <id>`.\n\n## `/mirai` in your session\n\n```\n# a comment in a block isn't a heading\n/mirai run SAMPLE-1\n```\n\n- **Gates:** `redteam accept-blocker`.\n- **Not from a session:** `hook`.\n',
       'config.md': '# Config\n\n## [run]\n\n| Key | Who may set it | Default | What it does |\n|---|---|---|---|\n| `run.stop_by` | project, personal repo | none | When a run stops. |\n| `schema_version` | project | `1` | The format. |\n\n## [checks]\n\n| Key | Who may set it | Default | What it does |\n|---|---|---|---|\n| `checks.<name>` | project | none | A check. |\n| `checks.<name>.command` | project | none | Its command. |\n',
       'documents.md': '# Documents\n\n| Type | File |\n|---|---|\n| `brief` | `registry/document-types/brief.toml` |\n',
     },

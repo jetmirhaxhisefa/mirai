@@ -17,6 +17,11 @@ mirai --version        # 0.2.0
 mirai which            # outside a repo: "not inside a git repository"
 ```
 
+- **`mirai version`** (or `mirai --version`) prints the version.
+- **`mirai help`** lists every command; `mirai help <command>` (or `mirai <command> --help`)
+  shows one command's usage and options.
+- **Every config key** is in [config.md](config.md); [README.md](README.md) lists every page.
+
 `-g` puts the `mirai` command in npm's global bin folder, which is on your PATH. So `mirai`
 runs from any folder, with no alias and nothing set up per repo.
 

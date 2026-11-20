@@ -161,6 +161,28 @@ It prints:
 may write is MIRAI's trust-root snapshot, if there isn't one yet: the same cached copy every
 launch builds, kept outside the project.
 
+### Protected paths: `mirai protected`
+
+Some files can change MIRAI's rules, hide code from review, or run by themselves. A change that
+touches one is forced to high risk (unit 12):
+- **`protected`:** high risk. The ticket parks for you only when its plan didn't declare the path.
+- **`auto-run`:** runs by itself when you open or install the branch (`.vscode/`, `.husky/`, install
+  scripts). High risk, and it always parks, in both presets.
+
+**Where the rules come from:** `registry/protected-paths/`. The core is always on. Ecosystem packs
+(`node`, `php`, `python` and others) are on when `[gate] packs` lists them. `[gate] protected` adds
+the project's own, and `[testing] e2e_paths` adds the E2E tests. A project can't remove a core rule.
+All of them are read from the trust root, so a branch can't loosen them.
+
+```
+mirai protected                     # your work tree, against the integration branch's commit
+mirai protected main..my-branch     # a branch, from where it left main (.. and ... mean the same)
+```
+
+It prints each protected path the change touches, with its class and rule, then `risk: high`.
+Ignored files under protected paths are listed apart: they aren't part of any branch. It changes
+nothing, apart from the trust-root snapshot every launch builds.
+
 ## Your own Claude Code sessions in a MIRAI project
 
 Your interactive sessions don't run in the strict bundle: you're there, approving what they
@@ -198,6 +220,7 @@ or removes a server named `mirai` that it didn't register.
 - **Keeping it current:** `mirai render`, run in your terminal, registers it again only when it's
   behind the integration branch. It never registers a project that hasn't been, so `remove` lasts.
   `mirai session-server status` says where it stands.
+- **Taking it out:** `mirai session-server remove` removes the registration and the rules install added.
 - **A moved project folder** loses the entry (it's keyed by the folder's path): run install again.
 - **A failed or impossible install** (no `claude` on your PATH) leaves the registration that's
   running alone: each policy file is named by its own hash, and its trust root is kept.
@@ -634,6 +657,8 @@ checks, and later units add tools to the table rather than new ways in.
   list, so an agent can't write them.
 - **The line says it's the agent's:** `by: "agent"` and the launch it came from. Your own
   `mirai log` lines say `by: "unverified"`, and your signed lines `by: "human"`.
+  From your terminal: `mirai log note --message <text>` and
+  `mirai log template_gap --message <text> --template <t> --section <s>`.
 - **The agent doesn't choose the ticket.** The line is filed under the launch's own item, which
   MIRAI sets; an `item` argument is refused.
 - **Plain text only:** no control characters but newlines and tabs, no bidi overrides, nothing
@@ -773,7 +798,8 @@ launch ends. A change stops the run and names what changed (`config`, `hooks`, `
 **Your global excludes file still applies.** MIRAI reads the path of your global excludes
 (`core.excludesFile`, or `~/.config/git/ignore`) and passes it in, so files only it ignores
 (`.DS_Store`, IDE folders) stay ignored. An excludes file inside the project isn't used.
-`mirai trust check` shows which git MIRAI uses and which excludes file it honours.
+`mirai trust check` shows which git MIRAI uses and which excludes file it honours. `mirai trust snapshot`
+builds the trust root for the integration branch's commit (MIRAI does this itself before every step).
 
 **How it was tested.** `test/probes/git-probes.js --mirai` runs every git call MIRAI makes
 against 38 hostile repos from unit 14a, each with one key planted whose program only writes a
@@ -928,7 +954,7 @@ bypass nobody is approving, so that's all that stands there. Unit 18e tried the 
   - **Claude Code asks you before each one.** The tool has no allow rule, `session-server install` adds an `ask` rule for it and for `start_agent` in your git-ignored `.claude/settings.local.json` (ask beats allow, so a "don't ask again" can't silence them; when it can't write that file, it says so), and the `/mirai` command file pre-approves only reading a status. The model can't start `/mirai` by itself (`disable-model-invocation`).
   - **The red team** first answers with its rough cost and a one-time code, tied to `--kept` or not, and runs only when that code comes back. The protection is Claude Code's prompt on that second call; the code only makes sure the cost was given out first.
 - **How a command runs:** the server makes a request in MIRAI's store, and a detached worker from the trust root runs `mirai <command>` with that request named. `plan`, `build`, `fix`, `review`, `run`, `resume` and `redteam run` accept the request in place of a terminal only when the store confirms it: the worker's own record, written before the command starts, says it's their parent and names that very command, and the request is still running. **This stops agents, not programs running as you.** Agents can't write the store or run `mirai`. Your own session's Bash, or any program running as you, could write such a record, as it could already drive a terminal with `script` (18e).
-- **The gates never run through `/mirai`.** Approvals, `discard`, `unpark`, accepting a blocker, your key and your token need your key and your typed confirmation in a terminal, so the model in your session can't approve its own plan through `/mirai`, even if a file it read told it to. Until row 29b, a session's Bash still could, as 18e found.
+- **The gates never run through `/mirai`.** Approvals, `drop`, `discard`, `unpark`, `gate record`, `merge`, accepting a blocker, your key, your token and `session-server` need your key and your typed confirmation in a terminal, so the model in your session can't approve its own plan through `/mirai`, even if a file it read told it to. Until row 29b, a session's Bash still could, as 18e found.
 - **What comes back:** MIRAI's output and its lines as it prints them: 21e's filtered progress lines, and MIRAI's own report, which can quote an agent's handover. The login token is taken out of both. The command file tells your session to treat all of it as data, never instructions.
 - **A branch can change `/mirai`.** `.claude/commands/mirai.md` is in your work tree, so a branch can edit it, and your session loads it when it's checked out. `mirai status` warns when it isn't the file MIRAI renders; `mirai render` puts it back.
 

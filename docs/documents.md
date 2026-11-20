@@ -11,6 +11,42 @@ one file:
 Briefs have it from unit 31, PRDs from unit 32, epics from unit 33. HLDs, LLDs and ADRs get it as their units come.
 Tickets and plans don't: they're short already, and their gates are different.
 
+## The document types
+
+Each type is a file in `registry/document-types/`, with its template and checklist in
+`registry/templates/`.
+
+| Type | What it is | Where it lives | Explained in |
+|---|---|---|---|
+| `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
+| `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
+| `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
+| `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |
+| `bug` | a ticket: what's wrong, how to reproduce it, and how the fix is proven | `docs/mirai/<initiative>/tickets/<key>.md` | [tdd.md](tdd.md) for its red test |
+| `plan` | how one ticket will be built and proven, written by Kai | the store: `<store>/tickets/<ticket>/plan.md` | [agents.md](agents.md), "The plan step" |
+
+`docs/mirai` is the default `[docs] root` ([config.md](config.md)).
+
+## The lint: `mirai lint`
+
+`mirai lint` checks the shape of MIRAI documents: frontmatter, sections, IDs, links, and each
+type's own checks. It writes nothing.
+
+```
+mirai lint                 # every MIRAI document in the repo
+mirai lint docs/mirai/     # only these files or folders
+mirai lint --json          # the result as JSON
+```
+
+- **Which files:** every Markdown file inside the docs root. Outside it, only a file whose
+  frontmatter names a known type and has `template:`.
+- **Exit codes:** 0 when clean (warnings allowed), 1 with problems, 2 for a usage error, 3 for a
+  broken registry or config.
+- **The rules come from the MIRAI you run.** No flag or setting points it at other rules.
+  `[docs] root` and the repo names come from `.mirai/config.toml` only, never your personal files.
+- **From your session:** `/mirai lint`, or MIRAI's `lint` tool, which uses the trust root's rules
+  ([agent-safety.md](agent-safety.md)).
+
 ## The summary for approval
 
 It comes right after the document's `# title`:

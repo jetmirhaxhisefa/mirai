@@ -151,32 +151,61 @@ The ticket must be `in-progress`, with a plan whose approval verifies as it is n
 
 ## `/mirai` in your Claude Code session (unit 21f)
 
-Every MIRAI command that isn't a gate runs from your own Claude Code session as `/mirai <command>`, as well as from your terminal:
+Every MIRAI command that isn't a gate runs from your own Claude Code session as `/mirai <command>`, as well as from your terminal. The full list:
 
 ```
-/mirai status
+# A ticket
 /mirai run SAMPLE-2
-/mirai show SAMPLE-2
+/mirai resume                 # or: /mirai resume --abandon
+/mirai show SAMPLE-2          # --full, --json; --docs for an initiative's documents
+/mirai plan SAMPLE-2
+/mirai build SAMPLE-2         # or: /mirai build SAMPLE-2 --recheck
+/mirai fix SAMPLE-2
+/mirai review SAMPLE-2
+/mirai ship SAMPLE-2
+/mirai review-mr SAMPLE-2     # --diff, --json; read-only here (the merge is a gate)
+/mirai branch verify SAMPLE-2
+
+# Documents
+/mirai lint
 /mirai epic render docs/mirai/due-dates/epic-due-dates.md
 /mirai reader-test docs/mirai/due-dates/prd.md
-/mirai resume
-/mirai plan SAMPLE-2
-/mirai build SAMPLE-2
-/mirai build SAMPLE-2 --recheck
+
+# Tests and the red team
+/mirai test unit              # a test level or check by name
 /mirai baseline
-/mirai redteam run --kept
+/mirai baseline show
+/mirai redteam status
+/mirai redteam show
+/mirai redteam run            # or: /mirai redteam run --kept
+
+# The repo and MIRAI
+/mirai status
+/mirai doctor                 # or: /mirai doctor --fix
+/mirai report                 # --json; --m1 for the acceptance rate
+/mirai detect
+/mirai config check
+/mirai config show
+/mirai protected
+/mirai trust check
+/mirai sandbox show
+/mirai version
+/mirai help
 ```
+
+From a session, `protected`, `sandbox show`, `config show` and `redteam show` take no arguments: they show the default.
 
 **How it works:**
 - `mirai init` installs `.claude/commands/mirai.md` (MIRAI's, in the lock). It tells your session to call MIRAI's tool `mirai_command` on your session's MIRAI server (`mirai session-server install`), and to show MIRAI's progress lines and output as they are.
 - **Claude Code asks you before each command:** `mirai_command` gets no allow rule and an `ask` rule, and your session's model can't start `/mirai` on its own. If a file talks your session into a call, you see the prompt.
 - **`/mirai redteam run`** first answers with what it roughly costs (about 320 short runs, 25 to 35 minutes, on your subscription) and a one-time code. Your session is told to show you the cost and ask; your real yes is Claude Code's prompt on the second call, which carries the code.
-- **Not from a session:** `init --refresh` and `render`. Run them in your terminal: a session's copy of MIRAI is the trust root's, so it couldn't bring in a newer MIRAI anyway. A few have a session form of their own instead: `agent` is `start_agent`, `log` is `log_event`, `session` is `session_start` and `session_end`; git runs `hook`.
+- **Not from a session:** `init` and `render`. Run them in your terminal: a session's copy of MIRAI is the trust root's, so it couldn't bring in a newer MIRAI anyway. `trust snapshot` neither: MIRAI builds the trust root itself before every step.
+- **A session form of their own instead:** `agent` is `start_agent`, `log` is `log_event`, `feedback` is `log_event`'s feedback type, `session` is `session_start` and `session_end`. Git runs `hook`.
 - **Every new command follows this rule** (your standing rule, 2026-11-12): it runs from your session, or it's a gate, or it's named as not from a session with the reason. A test holds the whole command list to it.
-- **`/mirai run`** stops before the proofs: your key signs them in your terminal only, until row 29b. It shows `mirai gate record <ticket>` to type, then `/mirai run <ticket>` again opens the MR (docs/run.md).
+- **`/mirai run`** signs the proofs with the machine key when it's set up (unit 29b). Without it, the run stops before the proofs: it shows `mirai gate record <ticket>` to type in your terminal, then `/mirai run <ticket>` again opens the MR (docs/run.md).
 - **If `/mirai` doesn't look like MIRAI's** (a branch changed `.claude/commands/mirai.md`), `mirai status` says so.
-- **A command runs in the background,** as `mirai <command>` from MIRAI's own copy, and your session follows it with `mirai_status` about every 30 seconds, showing 21e's filtered progress lines. Quick commands (`status`, `lint`, `baseline show`, `redteam status`) answer at once.
-- **The gates stay in your terminal:** `approve`, `approve --plan`, `drop`, `discard`, `unpark`, `gate record`, `redteam accept-blocker`, `key`, `token` and `session-server`. `/mirai approve SAMPLE-2 --plan` answers with the exact terminal command to type, and runs nothing. They need your signing key and your typed confirmation, which the model in your session can't give.
+- **A command runs in the background,** as `mirai <command>` from MIRAI's own copy, and your session follows it with `mirai_status` about every 30 seconds, showing 21e's filtered progress lines. Quick commands, such as `status`, `lint`, `show`, `baseline show` and `redteam status`, answer at once.
+- **The gates stay in your terminal:** `approve`, `approve --plan`, `drop`, `discard`, `unpark`, `gate record`, `merge`, `redteam accept-blocker`, `key`, `token` and `session-server`. `/mirai approve SAMPLE-2 --plan` answers with the exact terminal command to type, and runs nothing. They need your signing key and your typed confirmation, which the model in your session can't give.
 - **Codex and Cursor** get their own `/mirai` file, calling the same tool, when their adapters come.
 
 ## What you see while a step runs (unit 21e)
