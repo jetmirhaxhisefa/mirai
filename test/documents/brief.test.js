@@ -183,6 +183,6 @@ test('31 T6: approving a brief: lint first, signed on its bytes, a change needs 
   assert.deepEqual(documentApproval(store, 'due-dates-brief', Buffer.from(changed)), { approved: false, stale: true, seq: line.seq });
   const again = await tty(['approve', 'due-dates-brief', '--file', 'docs/mirai/due-dates/brief.md'], io, ['a', 'due-dates-brief']);
   assert.equal(again.code, EXIT.OK, again.err);
-  assert.match(again.out, /^brief: due-dates-brief \(approved before; it has changed since\)/);
+  assert.match(again.out, /^brief: due-dates-brief \(approved before; it or its interview has changed since\)/);
   assert.equal(documentApproval(store, 'due-dates-brief', Buffer.from(changed)).approved, true);
 });

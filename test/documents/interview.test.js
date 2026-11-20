@@ -15,6 +15,8 @@ import { EXIT } from '../../src/cli/exit-codes.js';
 import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
+import { contentHash } from '../../src/sign/sign.js';
+import { briefFiles, documentApproval } from '../../src/cli/commands/approve.js';
 import { installed } from '../tests/run-fixture.js';
 import { passReader } from '../helpers/reader.js';
 
@@ -205,7 +207,7 @@ function fixture() {
 }
 const approvals = (f) => readJournal(openStore(f.io)).events.filter((e) => e.type === 'approval');
 
-test('35 T5: approval through the CLI: a brief on full, and the pair on standard, are refused while the interview is paused; confirmed, approval goes on as before', async () => {
+test('35 T5: approval through the CLI: a brief on full, and the pair on standard, are refused while the interview is paused; confirmed, approval goes on as before and binds the interview; a changed interview makes the brief stale', async () => {
   const f = fixture();
   const APPROVE_FULL = ['approve', 'due-dates-full-brief', '--file', `${FULL}/brief.md`];
   const APPROVE_PAIR = ['approve', 'due-dates-prd', '--file', `${D}/prd.md`];
@@ -245,6 +247,36 @@ test('35 T5: approval through the CLI: a brief on full, and the pair on standard
   assert.equal(pair.code, EXIT.OK, pair.err);
   assert.match(pair.out, /approved: the brief due-dates-brief and the PRD due-dates-prd/);
   assert.deepEqual(approvals(f).map((e) => `${e.kind} ${e.item}`), ['brief due-dates-full-brief', 'brief due-dates-brief', 'prd due-dates-prd']);
+  // Each brief's line binds the interview it links, by path and hash, as an epic's binds its
+  // tickets; the PRD's line binds nothing more.
+  const hashOf = (text) => contentHash(Buffer.from(text));
+  const [fullLine, briefLine, prdLine] = approvals(f);
+  assert.deepEqual(fullLine.files, [{ path: `${FULL}/interview.md`, content_hash: hashOf(INTERVIEW) }]);
+  assert.deepEqual(briefLine.files, [{ path: `${D}/interview.md`, content_hash: hashOf(INTERVIEW) }]);
+  assert.equal(prdLine.files, undefined);
+  assert.match(full.out, new RegExp(`^interview: docs/mirai/due-dates-full/interview\\.md {3}${hashOf(INTERVIEW)}, signed with the brief$`, 'm'));
+  const store = openStore(f.io);
+  const brief = (dir, text) => documentApproval(store, dir === FULL ? 'due-dates-full-brief' : 'due-dates-brief', Buffer.from(text), briefFiles(f.root, `${dir}/brief.md`, Buffer.from(text)));
+  assert.equal(brief(FULL, FULL_BRIEF).approved, true);
+  assert.equal(brief(D, BRIEF_READY).approved, true);
+  // A changed interview after approval makes the brief's approval stale, the brief file unchanged.
+  const edited = swap(INTERVIEW, 'Answer: B.\n', 'Answer: A. Leads filter the list themselves.\n');
+  writeFileSync(join(f.root, FULL, 'interview.md'), edited);
+  writeFileSync(join(f.root, D, 'interview.md'), edited);
+  assert.deepEqual(brief(FULL, FULL_BRIEF), { approved: false, stale: true, seq: fullLine.seq });
+  assert.deepEqual(brief(D, BRIEF_READY), { approved: false, stale: true, seq: briefLine.seq });
+  // As in 32 for a changed brief: only the line that binds the changed file goes stale; the PRD's
+  // own bytes are as approved.
+  const shown = await tty(['show', 'due-dates'], f.io, []);
+  assert.match(shown.out, /^ {2}brief\.md +brief +due-dates-brief +changed since approval +\//m);
+  assert.match(shown.out, /^ {2}prd\.md +prd +due-dates-prd +approved +\//m);
+  assert.match((await tty(['show', 'due-dates-full'], f.io, [])).out, /^ {2}brief\.md +brief +due-dates-full-brief +changed since approval +\//m);
+  // A new approval of the brief covers the interview as it is now.
+  const again = await tty(APPROVE_FULL, f.io, ['a', 'due-dates-full-brief']);
+  assert.equal(again.code, EXIT.OK, again.err);
+  assert.match(again.out, /^brief: due-dates-full-brief \(approved before; it or its interview has changed since\)/);
+  assert.deepEqual(approvals(f).at(-1).files, [{ path: `${FULL}/interview.md`, content_hash: hashOf(edited) }]);
+  assert.equal(brief(FULL, FULL_BRIEF).approved, true);
 });
 
 test('35 T6: mirai show due-dates lists the interview with its state and full path', async () => {

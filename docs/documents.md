@@ -238,6 +238,13 @@ docs/mirai/due-dates/brief.md:12: the interview interview.md has open questions:
 An `interview.md` beside a brief that doesn't link it fails the same way. A brief with no
 interview beside it (the request was clear) is linted as before.
 
+**Approval binds the interview.** When you approve a brief that links its interview (on `full`
+the brief alone, on `standard` with its PRD), the brief's signed line records the interview's path
+and hash, as an epic's line records its tickets. A change to the interview after that makes the
+brief's approval stale, even when the brief itself is unchanged: `mirai show` lists the brief as
+"changed since approval", and it needs a new approval. As with a changed brief, only the brief's
+line goes stale; the PRD's stays approved.
+
 In autonomous mode no one can answer, so the agent writes its questions into `interview.md`,
 leaves it `paused` and stops. The feature waits for you.
 

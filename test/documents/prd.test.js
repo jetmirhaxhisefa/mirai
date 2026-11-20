@@ -311,7 +311,7 @@ test('32 T7: approving the PRD: on standard one decision signs both files; full 
   writeFileSync(f.at('docs/mirai/due-dates/prd.md'), fullPrd);
   const refused = await tty(APPROVE_PRD, f.io, ['a', 'due-dates-prd']);
   assert.equal(refused.code, EXIT.BLOCKED, refused.out);
-  assert.match(refused.err, /the brief due-dates-brief isn't approved as it is now \(it changed since its approval\); on the full track it's approved before its PRD; nothing was written/);
+  assert.match(refused.err, /the brief due-dates-brief isn't approved as it is now \(it or its interview changed since its approval\); on the full track it's approved before its PRD; nothing was written/);
   assert.match(refused.err, /mirai approve due-dates-brief --file docs\/mirai\/due-dates\/brief\.md/);
   // The brief alone, as in 31: one line, kind brief.
   const briefOk = await tty(['approve', 'due-dates-brief', '--file', 'docs/mirai/due-dates/brief.md'], f.io, ['a', 'due-dates-brief']);

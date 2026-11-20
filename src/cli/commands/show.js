@@ -9,7 +9,7 @@ import { openStore } from '../../store/home.js';
 import { snapshot, trustedConfig } from '../../trust/snapshot.js';
 import { readFrontmatter } from '../../lint/frontmatter.js';
 import { plain } from '../../status/text.js';
-import { documentApproval, epicApproval } from './approve.js';
+import { briefFiles, documentApproval, epicApproval } from './approve.js';
 import { readTicketFolder } from '../../lint/lint.js';
 import { ticketsOf } from '../../lint/graph.js';
 
@@ -107,7 +107,7 @@ function initiativeOf({ cwd, env, name }) {
           }
         }
       }
-      const a = !id || !bytes ? { approved: false, stale: false } : tickets ? epicApproval(store, id, bytes, tickets) : documentApproval(store, id, bytes);
+      const a = !id || !bytes ? { approved: false, stale: false } : tickets ? epicApproval(store, id, bytes, tickets) : documentApproval(store, id, bytes, value.type === 'brief' ? briefFiles(store.checkout, rel, bytes) : undefined);
       // Unit 35: an interview isn't approved; its state (open, paused, confirmed) is its own.
       const interview = value.type === 'interview';
       docs.push({

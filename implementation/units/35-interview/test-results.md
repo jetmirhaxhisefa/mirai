@@ -31,7 +31,11 @@
     written. An unlinked interview beside the brief is refused too, and so is a link to a file
     that isn't there. Once confirmed, the full brief still needs its reader-test result (34), then
     is approved; the pair is approved after the PRD's reader test. The journal holds exactly the
-    three approvals;
+    three approvals. Each brief's line has `files` with its interview's path and hash; the PRD's
+    has none. An edited interview then makes both briefs stale (`documentApproval` with
+    `briefFiles`), and `mirai show` lists each brief as "changed since approval" while the PRD
+    stays "approved". Approving the full brief again says "it or its interview has changed since"
+    and binds the new hash;
   - T6: `mirai show due-dates` lists `interview.md   interview   due-dates-interview   paused`
     with its full path, then `confirmed` and `open` as the file changes; the brief's line is
     unchanged.
@@ -47,7 +51,7 @@
   - `test/adapters/claude-code.test.js` T1 (the bundle's file list) and T7 (the shipped skills:
     `mirai-docs`, `mirai-interview`, `mirai-write`), and `test/detect/detect.test.js` 17a T8 (the
     instruction files an install leaves, now with `mirai-interview`'s two).
-- **The full suite:** 708/708 on the Mac (`caffeinate -i npm test`), 6 tests in
+- **The full suite:** 708/708 on the Mac, before and after the binding change (`caffeinate -i npm test`), 6 tests in
   `interview.test.js`. A first run had one failure in `test/launch/strict.test.js` T5/T6 ("a failed
   launch left its scratch folder", a `mirai-*` folder in the shared temp folder); that file passed
   alone (14/14) and the next full run passed. The build runner and CI run on the final commit.
@@ -99,6 +103,19 @@
   interview that isn't a regular file in the repo refuses the approval ("links its interview …,
   which isn't a file in the repo"); an unlinked entry that isn't a regular file still fails as
   unlinked.
+- **Approval binds the interview (added after the first hand-over, at the coordinator's
+  request).** A brief's approval line, on `full` alone and on `standard` with its PRD, records the
+  linked interview's path and hash in `files`, as an epic's line records its tickets (33). The
+  journal now allows `files` on a `brief` line (it was epic-only); an epic's line still needs it.
+  `documentApproval` takes the files a line binds as they are now (`briefFiles` reads the
+  interview a brief links), so a changed interview makes the brief stale: in `mirai show`, at its
+  own approval ("it or its interview has changed since"), and for a PRD on `full`, which is
+  refused until the brief is approved again. A change while you answer refuses the approval. On
+  `standard` only the brief's line goes stale, not the PRD's, as 32 does for a changed brief: the
+  PRD's line binds only the PRD's bytes. No journal schema bump, as 31–34 added fields without
+  one.
+  31 T6 and 32 T7 now expect the new wording ("it or its interview has changed since", "it or
+  its interview changed since its approval").
 - **`mirai show` gives an interview's own state** (`open`, `paused`, `confirmed`, or "no state")
   in the column where other documents show their approval state.
 - **The grilling source's path is `skills/productivity/grilling/SKILL.md`.** The spec says
