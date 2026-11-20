@@ -96,7 +96,9 @@ Keys nothing reads yet (their rows say so): `loop.ticket_turns`, `loop.ticket_to
 `repos[].health`, `workspace.e2e`, `workspace.worktree_safe` (written by `mirai detect`),
 `resources.*`, `retention.*`, `subscription.plan`, and `gates.*` (question 1).
 
-**P1** (your read of `run.stop_by` and `docs.root`) is yours to run.
+**P1: pass** (Jet, 2026-11-20: "34b P1 pass with one change: run.stop_by should be configurable"). It already is (project and personal repo files, no default); whether it should get a default stop time is asked, and any code change is a follow-up outside this docs-only unit.
+
+**Build runner:** u34b-tests pass (14.1 min, on `3a5225c`; the merge of main after it changed only PROGRESS's Next line). CI pass on PR #90.
 
 ## The read (Scope 6)
 
@@ -252,4 +254,4 @@ test-baseline.md's `no-e2e` (any level with "e2e" in its name); ci.md's guard li
   free-text "isn't available" can't be checked reliably.
 - **The who-may-set check** is extra.
 - **PROGRESS:** rows are added on approval, so 34b is on the Next line only, between 34 and 35.
-- **P1 and P2** are yours: P1 your read of config.md; P2 runs at 35's rebase.
+- **P1** passed (above); **P2** runs at 35's rebase.
