@@ -44,8 +44,8 @@ judgement.
   time's format and time zone, how ties in an order are broken?
 - Does it say when other people see a change: at once, or on their next reload?
 - Does it say what someone who loses access still sees: notices already sent, links, search?
-- Can every success metric be measured with what the product records, or is there an FR that
-  records it?
+- Does it say how each success metric is measured, without adding a feature the brief doesn't ask
+  for (a report, a log) just to measure it?
 - Does each measured NFR name its conditions: the data size, the load, where it's measured, and
   what the time includes?
 

@@ -322,6 +322,10 @@ documents.
 - **P3 An agent builds from it:** a second fresh agent gets only P2's PRD and lists the tickets
   it would cut and the questions it would have to ask. **Pass when** it asks no question the PRD
   should have answered. Each one it does ask goes back into the template or the checklist.
+  **Changed by Jet, 2026-11-20 ("P3 as recommended"), after two rounds:** pass when it asks no
+  question that changes what is built or who may do what; questions a builder can settle in the
+  plan don't count. A second fresh agent sorts the questions, and Jet sees the list. One last
+  round; anything of the first kind left over becomes a template finding and a known limit.
 
 ## Done when
 

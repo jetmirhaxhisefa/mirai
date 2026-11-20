@@ -37,7 +37,9 @@ PRD keeps exactly as it is.
     time says its format and time zone; an order says how ties are broken;
   - when others see a change: at once, or on their next reload;
   - what someone who loses access still sees (notices already sent, links, search);
-  - how each success metric is measured: if the product doesn't record the data yet, an FR does.
+  - how each success metric is measured, which may be outside the product (a survey, analytics);
+    an FR records data only when a BR in the brief asks for it, otherwise the method is an
+    assumption. Don't add features the brief doesn't ask for.
 - Requirements say what and why, never how: no tables, endpoints, libraries or file names (those
   are the design's and the tickets').
 - Plain sentences of 25 words or fewer; "must", never "shall"; no "fast" or "secure" without a
