@@ -275,6 +275,13 @@ test('33 T3: the graph lint: each failure caught on a seeded set, naming the tic
   const across = seeded(withTicket('SAMPLE-80', ticket('SAMPLE-80', { epic: 'SAMPLE-79' }), withTicket('SAMPLE-52', (t) => swap(t, 'after: [SAMPLE-51]', 'after: [SAMPLE-51, SAMPLE-80]'))));
   assert.deepEqual(errors(across.text, { tickets: across.tickets }), []);
   assert.match(across.text, /\| \[SAMPLE-52\]\(tickets\/SAMPLE-52\.md\) \| [^|]+ \| S \| normal \| SAMPLE-51, SAMPLE-80 \|/);
+  // But a loop through two epics fails, naming each ticket and its epic: SAMPLE-52 (epic
+  // SAMPLE-50) waits for SAMPLE-80 (epic SAMPLE-79), which waits for SAMPLE-52.
+  const loop = seeded(withTicket('SAMPLE-80', ticket('SAMPLE-80', { epic: 'SAMPLE-79', after: ['SAMPLE-52'] }), across.tickets));
+  assert.deepEqual(graph(loop, 'graph-cycle').map((p) => `${p.reason} | ${p.hint}`), ['a cycle in after: SAMPLE-52 (epic SAMPLE-50) → SAMPLE-80 (epic SAMPLE-79) → SAMPLE-52 (epic SAMPLE-50) | remove the after entry that isn\'t a real prerequisite, so SAMPLE-52 can start; the loop runs through more than one epic']);
+  // A loop only among another epic's tickets is that epic's to report, not this one's.
+  const theirs = seeded(withTicket('SAMPLE-81', ticket('SAMPLE-81', { epic: 'SAMPLE-79', after: ['SAMPLE-82'] }), withTicket('SAMPLE-82', ticket('SAMPLE-82', { epic: 'SAMPLE-79', after: ['SAMPLE-81'] }))));
+  assert.deepEqual(graph(theirs, 'graph-cycle'), []);
   // A ticket with no AC, and one with no verify line.
   const noAc = seeded(withTicket('SAMPLE-52', (t) => t.replace(/- AC-SAMPLE-52\.(\d): /g, '- ')));
   assert.match(graph(noAc, 'graph-ac').map((p) => `${p.reason} | ${p.hint}`).join('\n'), /^SAMPLE-52 has no acceptance criterion \| add AC-SAMPLE-52\.1 under "## Acceptance criteria" in tickets\/SAMPLE-52\.md/);

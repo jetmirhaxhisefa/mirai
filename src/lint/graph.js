@@ -108,8 +108,20 @@ export function graphProblems({ epicId, track, tickets, all, items, caps = CAPS 
     }
     edges.set(keyOf(t), deps);
   }
-  const cycles = findCycles(edges);
-  for (const c of cycles) fail('graph-cycle', `a cycle in after: ${[...c, c[0]].join(' → ')}`, `remove the after entry that isn't a real prerequisite, so ${c[0]} can start`);
+  // Cycles over every ticket in tickets/, all epics: an after into another epic can close a loop
+  // that no single epic shows. Each epic reports the loops that pass through its own tickets.
+  const folderEdges = new Map();
+  for (const t of all) {
+    if (typeof t.value.id !== 'string') continue;
+    folderEdges.set(t.value.id, list(t.value.after).filter((a) => !same(a, t.value.id) && inFolder.has(a.toLowerCase())).map((a) => String(inFolder.get(a.toLowerCase()).value.id)));
+  }
+  const epicOf = (k) => String(inFolder.get(k.toLowerCase())?.value.epic ?? 'no epic');
+  for (const c of findCycles(folderEdges)) {
+    if (!c.some((k) => inEpic.has(k.toLowerCase()))) continue;
+    const across = new Set(c.map(epicOf)).size > 1;
+    const shown = [...c, c[0]].map((k) => (across ? `${k} (epic ${epicOf(k)})` : k)).join(' → ');
+    fail('graph-cycle', `a cycle in after: ${shown}`, `remove the after entry that isn't a real prerequisite, so ${c[0]} can start${across ? '; the loop runs through more than one epic' : ''}`);
+  }
   // No depth check: stacking (at most 2 levels, inside one epic; design/01 §6) is a runtime limit
   // the scheduler keeps. A ticket deeper in an after chain waits until its parents are merged.
 

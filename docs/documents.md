@@ -311,7 +311,7 @@ scheduler keeps at run time, and a ticket deeper in a chain waits until its pare
 
 | Fails | Warns |
 |---|---|
-| a cycle in `after` | two tickets list the same file in `files_likely`, with no `after` between them |
+| a cycle in `after`, checked over every epic's tickets in `tickets/` | two tickets list the same file in `files_likely`, with no `after` between them |
 | an `after` naming a ticket that doesn't exist | 16 tickets or more |
 | a PRD FR, NFR or AC no ticket covers (Failures and Unchanged behaviour included) | |
 | a ticket covering an ID the PRD doesn't define | |

@@ -24,7 +24,9 @@
     NFR, a ticket covering FR-12, an XL size, a 21st ticket (fail) and a 16th (warning only), a
     sixth L ticket, a ticket with no AC, one with no `verify`, no ticket at all; the same file in
     two unlinked tickets warns. A chain of five tickets (SAMPLE-51 → 53 → 54 → 55 → 57), an
-    `after` into another epic's ticket, and a ticket covering nothing (a refactor sweep) pass;
+    `after` into another epic's ticket, and a ticket covering nothing (a refactor sweep) pass; a
+    loop through two epics (SAMPLE-52 in SAMPLE-50 ↔ SAMPLE-80 in SAMPLE-79) fails, naming each
+    ticket and its epic, and a loop only among another epic's tickets is left to that epic;
   - T4: the example without its SAMPLE-53 item fails (risk: high, e2e: true); a `risk: high`
     ticket, an `e2e: true` ticket and a `tdd`/`tests` override not listed each fail, and pass once
     listed by key. `release: together` fails without a decision item and while "## Release"
@@ -69,6 +71,9 @@
 - **A ticket joining or leaving the epic also makes its approval stale,** not only a changed file
   ("a later change to any of those files" read as the set too).
 - Stacking (design/01 §6) is a runtime limit, enforced by the scheduler in a later unit; the graph lint doesn't check after-chain depth (the spec's Scope 4 item was wrong, corrected 2026-11-20).
+- **The cycle check runs over every ticket in `tickets/`, all epics,** since an `after` may name
+  another epic's ticket and so close a loop no single epic shows. Each epic reports the loops that
+  pass through its own tickets; a loop across epics names each ticket with its epic.
 - **On `full`, coverage counts every epic's tickets in `tickets/`,** and each epic's Coverage table
   lists only the IDs its own tickets cover (so an epic's generated part depends only on its own
   tickets). On `standard` the table lists every PRD ID, `—` where nothing covers it.
