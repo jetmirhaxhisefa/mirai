@@ -40,4 +40,6 @@ export const ACRONYMS = new Set([
   'PR', 'MR', 'CI', 'QA', 'PRD', 'HLD', 'LLD', 'ADR', 'OK', 'AI', 'MIRAI', 'GDPR', 'EU', 'US', 'UK', 'iOS',
   'TODO', 'UNKNOWN', 'FAQ', 'SaaS', 'SSO', 'MVP', 'KPI', 'SLA', 'SLO', 'CPU', 'RAM', 'GB', 'MB', 'KB', 'TB', 'TLS', 'SSH', 'DNS',
   'YYYY', 'YY', 'MM', 'DD', 'HH', 'SS', 'UTC',
+  // Unit 36: the journeys' "E2E test:" line, MIRAI's own label.
+  'E2E',
 ]);

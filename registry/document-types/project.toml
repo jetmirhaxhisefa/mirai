@@ -1,0 +1,26 @@
+# One service's facts: its stack and versions, run and test commands, folder layout, test levels
+# and where its own instructions are (unit 36; design/01 setup step 4). It lives at
+# .mirai/context/project-<service>.md. It isn't approved: the lint checks each path and each
+# command's script against the code (Jet's decision 5).
+kind = "document-type"
+schema_version = 1
+name = "project"
+template = "templates/project.md"
+template_version = 1
+checklist = "templates/project-checklist.md"
+status = "forbidden"
+required_sections = ["Stack", "Commands", "Layout", "Test levels", "Instructions"]
+optional_sections = []
+lint_checks = ["project"]
+
+# The service's name, as the file name has it (project-<service>.md).
+[frontmatter.fields.service]
+type = "string"
+pattern = "[a-z0-9][a-z0-9-]*"
+required = true
+
+# The service's folder, from the repo's top folder ("." for the top folder): the manifests its
+# commands' scripts are read from.
+[frontmatter.fields.root]
+type = "string"
+required = true

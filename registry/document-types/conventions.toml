@@ -1,0 +1,20 @@
+# One service's rules: each a bullet tagged (enforced by <check>), a named check in the config, or
+# (judgment), with an example (unit 36; design/01 setup step 4). It lives at
+# .mirai/context/conventions-<service>.md, and you approve the whole file (Jet's decision 5). A
+# rule a check already enforces is one line, never prose.
+kind = "document-type"
+schema_version = 1
+name = "conventions"
+template = "templates/conventions.md"
+template_version = 1
+checklist = "templates/conventions-checklist.md"
+status = "forbidden"
+required_sections = ["Rules"]
+optional_sections = []
+lint_checks = ["writing", "conventions"]
+
+# The service's name, as the file name has it (conventions-<service>.md).
+[frontmatter.fields.service]
+type = "string"
+pattern = "[a-z0-9][a-z0-9-]*"
+required = true

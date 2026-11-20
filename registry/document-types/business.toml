@@ -1,0 +1,21 @@
+# The business context: what the product does, who it's for and why, in about two pages, every
+# claim with its source (unit 36; D-43; design/01 setup step 3a). It lives at
+# .mirai/context/business.md, agents load it on every run, and you approve the whole file (Jet's
+# decision 1): a change to it needs a new approval. Setup (39) writes it from your sources and
+# an interview; Nora (44) proposes updates.
+kind = "document-type"
+schema_version = 1
+name = "business"
+template = "templates/business.md"
+template_version = 1
+checklist = "templates/business-checklist.md"
+status = "forbidden"
+required_sections = ["What the product does", "Who it's for", "Business model and goals", "What this repo is responsible for", "Business rules", "Glossary", "Constraints", "Sources"]
+optional_sections = ["Stakeholders"]
+section_order = ["What the product does", "Who it's for", "Business model and goals", "What this repo is responsible for", "Business rules", "Glossary", "Constraints", "Stakeholders", "Sources"]
+# About two pages (Jet's decision 3): fails past 1,000 words, warns past 800; the Sources table
+# isn't counted. [docs.limits] business_words and business_warn_words move both.
+document_words = 1000
+document_warn_words = 800
+uncounted_sections = ["Sources"]
+lint_checks = ["writing", "business"]
