@@ -125,3 +125,71 @@ under the full suite's load). This unit doesn't change `scanMarkdown`; T12 passe
 before the rebase (711/715) had it and three other load-timing failures (14c T8, the strict
 launch's T5/T6 scratch folder, which unit 35's results also note, and the doctor's item count,
 which this unit changed and now fixes). The build runner and CI run on the final commit.
+
+## Rebase onto 34, 34b and 35 (2026-11-20)
+
+**How.** `git rebase --onto origin/main aad81c1` of 36's 8 commits (old head `f9282fc`) onto
+main at the PR #92 merge (`bb19c07`), which has the final 34, 34b and 35. A rebase, not a merge.
+
+**Conflicts.** One: `docs/documents.md`, in "docs/context.md; documents.md points to it". Main
+(34b) had added "The document types" table and "The lint" sections where 36 added its paragraph
+on the context files. Kept both: 36's paragraph after the summary paragraph, then main's two
+sections unchanged. Everything else (approve.js, journal.js, registry.js, the lint, doctor,
+show, the tests) applied cleanly.
+
+**Double-check against the final 34, 34b and 35.**
+
+- Approval: `mirai approve --file .mirai/context/<file>.md` goes to `approveContext` before the
+  `DOCUMENTS` branch, so it never reaches 34's reader-test requirement (`readerFor` /
+  `needsReaderTest`) or 35's interview binding (`interviewOf`, briefs only). No reader test is
+  asked for (decision 1). The journal keeps 35's `files` on a brief and 36's `kind: context` with
+  `file_type` side by side; `reader_test` stays limited to brief, PRD and epic. No change needed.
+- Document types: `registry/document-types/` has 35's `interview` and 36's five (`business`,
+  `journeys`, `feature-map`, `project`, `conventions`); `BUILT_IN_CHECKS` lists all of them. No
+  change needed.
+
+**34b's docs check** (`node --test test/docs/coverage.test.js`) failed T1 after the rebase,
+naming exactly:
+
+1. config key `docs.limits.business_words` has no row in docs/config.md;
+2. config key `docs.limits.business_warn_words` has no row in docs/config.md;
+3. document types `business`, `conventions`, `feature-map`, `journeys` and `project` aren't
+   named in docs/documents.md or a page it links (context.md is linked, but names files, not
+   types);
+4. docs/context.md isn't listed in docs/README.md.
+
+Fixed by documenting each, nothing added to `docs/internal-list.toml`: two rows in
+docs/config.md's `[docs]` table (project, defaults 1000 and 800, with their ranges), five rows
+in documents.md's document types table, each pointing to context.md, and a line for context.md
+in docs/README.md. The check then passed, 14/14.
+
+**The earlier review's three notes.**
+
+- a) BMAD against stack lists and folder trees: stated and resolved in research/15, §2.4 ("The
+  tension, and MIRAI's answer": keep the sections, the lint checks every path and every
+  command's script, no copied manifests or trees), and in the summary table and §6. One part
+  stays open: the Stack table's versions aren't checked against the manifests, only its "Set
+  in" files exist (a question for Jet, below).
+- b) The sample app's conventions example: `test/fixtures/sample-app/` has no
+  `.mirai/config.toml`, by design (it's a copy of mirai-sample-app; setup writes `[checks]`).
+  The tests pass the README's five named checks as the config's (`CHECKS`), and T5 shows a name
+  missing from them fails (`eslint-x`). In a repo, `projectOf` always gives `checks` (an empty
+  table when the config has none), so the check runs; it's skipped only with no repo (a template
+  or an example in the registry). So it passes for the right reason. The real sample app's
+  config still lists only `lint` (noted above): its conventions files would fail there until
+  its config lists the others.
+- c) The feature map's handle check is a plain, case-sensitive substring search: each fixed part
+  of the handle's value (the parts between `<…>`, `{…}`, `:name`, `*`) must appear somewhere in
+  one non-test source file under `code:`; the parts needn't be next to each other, and the role
+  isn't searched (only the name). Probed on the fixture: `data-testid="id"`,
+  `data-testid="e"` and `button "a"` all pass; `button "Zzzqx"` fails. A handle that's all
+  placeholder (`<id>`) always fails. Not changed: tightening it is a behaviour change (a
+  question for Jet, below).
+
+**Questions for Jet.** (1) Should the handle check match the value as a whole quoted string or
+attribute (`"id"`, `'id'`, `>id<`), or warn on a very short value? (2) Should the project lint
+check the Stack table's versions against the files in "Set in"?
+
+**The full suite** (`caffeinate -i npm test`, after the rebase and the docs fix): 728/729. The
+one failure was the known `/private/tmp` race in `test/launch/strict.test.js` T5/T6 ("a failed
+launch left its scratch folder"); the file alone passed 14/14.
