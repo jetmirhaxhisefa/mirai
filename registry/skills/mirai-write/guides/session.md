@@ -127,7 +127,7 @@ Who runs it:
 - **(B) MIRAI, after the lint and before you approve.** You see the four answers on your approval screen.
 - **(C) Nobody, until Vera's review** in unit 40.
 
-My recommendation is B, because only MIRAI's run is recorded. Ask me if you want to see what each option looks like in practice.
+My guess is B, because only MIRAI's run is recorded. Ask me if you want to see what each option looks like in practice.
 ```
 
 **Checked by:** judgement.
