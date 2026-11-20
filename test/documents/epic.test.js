@@ -24,6 +24,7 @@ import { contentHash } from '../../src/sign/sign.js';
 import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { installed } from '../tests/run-fixture.js';
+import { passReader } from '../helpers/reader.js';
 
 // Unit 33: the epic and the ticket graph lint, read with the PRD and the tickets.
 const REGISTRY = loadRegistry(REGISTRY_DIR);
@@ -459,7 +460,10 @@ test('33 T7: approving the epic: one decision signs the epic and every ticket; a
   assert.match(early.err, /the PRD due-dates-prd isn't approved; its tickets are approved after it; nothing was written/);
   assert.match(early.err, /mirai approve due-dates-prd --file docs\/mirai\/due-dates\/prd\.md/);
   assert.equal(lines(), before);
+  // Unit 34: the PRD's and the epic's summaries pass the reader test before their approvals.
+  await passReader(f, `${D}/prd.md`);
   assert.equal((await tty(APPROVE_PRD, f.io, ['a', 'due-dates-prd'])).code, EXIT.OK);
+  const reader = await passReader(f, `${D}/epic-due-dates.md`);
   // One decision, one signed line over the epic and its seven tickets.
   const n = lines();
   const ok = await tty(APPROVE_EPIC, f.io, ['a', 'SAMPLE-50']);
@@ -473,6 +477,7 @@ test('33 T7: approving the epic: one decision signs the epic and every ticket; a
   assert.deepEqual([e.kind, e.item, e.path, e.content_hash, e.decision], ['epic', 'SAMPLE-50', `${D}/epic-due-dates.md`, contentHash(Buffer.from(EPIC)), 'accepted']);
   assert.deepEqual(e.files, Object.entries(TICKETS).map(([p, t]) => ({ path: `${D}/${p}`, content_hash: contentHash(Buffer.from(t)) })));
   assert.ok(e.signature);
+  assert.equal(e.reader_test, reader.entry.hash);
   assert.equal(epicApproval(store, 'SAMPLE-50', Buffer.from(EPIC), ticketBytes(f)).approved, true);
   // A changed ticket makes the approval stale; so does a ticket joining the epic.
   writeFileSync(f.at('tickets/SAMPLE-55.md'), swap(TICKETS[T('SAMPLE-55')], 'size: S', 'size: M'));
@@ -496,6 +501,8 @@ test('33 T8: mirai show due-dates lists the brief, the PRD and the epic, each wi
   assert.match(first.out, new RegExp(`^  prd\\.md +prd +due-dates-prd +not approved +${esc(join(dir, 'prd.md'))}$`, 'm'));
   assert.match(first.out, new RegExp(`^  epic-due-dates\\.md +epic \\(7 tickets\\) +SAMPLE-50 +not approved +${esc(join(dir, 'epic-due-dates.md'))}$`, 'm'));
   assert.equal(first.out.split('\n').filter(Boolean).length, 4, 'the tickets are counted on the epic line, not listed');
+  await passReader(f, `${D}/prd.md`);
+  await passReader(f, `${D}/epic-due-dates.md`);
   assert.equal((await tty(APPROVE_PRD, f.io, ['a', 'due-dates-prd'])).code, EXIT.OK);
   assert.equal((await tty(APPROVE_EPIC, f.io, ['a', 'SAMPLE-50'])).code, EXIT.OK);
   const after = await show();

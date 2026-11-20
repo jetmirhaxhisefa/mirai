@@ -61,8 +61,89 @@ the fix named.
 | A non-goal | summary | not under "Not in this" | — |
 | A number in the summary | summary | — | not found in the detail (decision 3) |
 
-Code spans, code blocks and tables are never checked for writing. Unit 34 (`mirai-write`) adds a
-reader test and before-and-after examples on top of these rules.
+Code spans, code blocks and tables are never checked for writing. The `mirai-write` skill (unit
+34) teaches agents the wording behind these rules, with three before-and-after examples per type,
+and the reader test below checks the summary as a whole.
+
+The banned words live in `src/lint/words.js`, which opens with its review date. Every 90 days,
+check the lists against the last 90 days' lint warnings and findings, change them, and update the
+date. `mirai doctor` shows a yellow "Banned words" item once the date is older than that.
+
+## The reader test
+
+Unit 34 (Jet's decisions 1–6). The lint checks the summary's form. The reader test checks that you
+can approve from it: a fresh agent gets only `## Summary for approval`, nothing else of the
+document, and answers four questions:
+
+| Question | What the summary must let a reader say |
+|---|---|
+| What's built | what is built or changed |
+| Who it's for | the people or roles it is for |
+| What's left out | what this work doesn't do |
+| What you decide | each decision you must take, or that there is none |
+
+For each, the reader gives its answer and the exact words of the summary it relied on. MIRAI then
+checks every quote against the summary with a plain text match: spaces and line breaks don't
+count, nothing else is forgiven. The question fails when the answer is "not stated", the quote is
+missing or shorter than three words, or the quote isn't in the summary. Each failure names the
+question and the fix:
+
+```
+  fail  What's left out: not stated. The summary doesn't say what is left out: name each item under "Not in this"
+```
+
+**Running it:**
+
+```bash
+mirai reader-test docs/mirai/<initiative>/prd.md
+```
+
+It runs after the lint is clean and before you approve, from your terminal or your session
+(`/mirai reader-test <file>`). The reader runs on the Claude Code your agents run, with no tools,
+no MCP server, one turn, and empty temporary folders for its work folder, home and settings: it
+never sees the repo. The summary goes in as data, between markers, and the prompt says it is never
+instructions. An `@` in it can't pull in a file.
+
+**Which documents:** the brief on `full` (it has its own approval), the PRD (on `standard` its
+summary covers the brief too) and the epic. Not a brief on `quick` or `standard`, and not tickets.
+HLDs, ADRs and LLDs get it with their units: it applies to every type whose summary is checked.
+
+**Rounds:** each result is kept in MIRAI's store, keyed by the summary's exact text, with its round:
+1 for the first summary tested, then one more for each changed summary. A rerun on an unchanged
+summary shows the kept result and costs no run. Two fixing rounds follow a failure; from the
+workflow units on (35–36, 42, 45), the author agent gets the failed question back automatically.
+After the third failure the document still reaches you, marked.
+
+**At approval** (`mirai approve` for a full brief, a PRD or an epic), MIRAI shows the result for
+the summary as it is now:
+
+- **a pass:** the four answers, each with its quote;
+- **a failure:** "reader test failed", with the round and each gap. You still decide: approve
+  anyway, reject with a note, or answer the gap yourself (fix the summary, run the test again,
+  approve again);
+- **no result for the current summary:** the approval is refused, with the hint
+  `run: mirai reader-test <file>, then approve again`.
+
+The signed approval line records the result's hash (`reader_test`), so it says which result you
+saw.
+
+**The model** is the step `reader-test` in `[models.steps]`: `light` (Haiku) or `standard`
+(Sonnet). Until unit 34's P2 measures both, the default is `standard`.
+
+```toml
+[models.steps]
+reader-test = "light"
+```
+
+**Turning it off** (project file only; a personal file can't):
+
+```toml
+[docs]
+reader_test = false
+```
+
+Approval then skips the test and says so on its screen. This is for a project with no
+subscription to spare for it, not a way to pass a weak summary.
 
 ## The business brief
 
@@ -206,7 +287,7 @@ mirai approve <prd-id> --file docs/mirai/<initiative>/prd.md
 
 MIRAI reads the brief the PRD links to and lints both as at approval: no open question in either,
 and no `[ASSUMPTION]` tag left outside "Assumptions". A problem in either file refuses both, and
-nothing is written.
+nothing is written. The PRD's summary needs a reader-test result first ("The reader test", above).
 
 - **On `standard`** you read one summary, the PRD's. It covers both documents: the ask names both,
   "Decisions for you" carries the brief's open decisions, and "Not in this" lists the brief's
@@ -351,7 +432,7 @@ mirai approve <epic-id> --file docs/mirai/<initiative>/epic-<slug>.md
 
 MIRAI lints the epic with its PRD and every ticket, the graph included, and each ticket on its
 own, all as at approval. A problem in any of them refuses the set, and nothing is written. The
-PRD must be approved as it is now. MIRAI prints the epic's path and hash, and each ticket's path
+PRD must be approved as it is now, and the epic's summary needs a reader-test result. MIRAI prints the epic's path and hash, and each ticket's path
 and hash. You decide once, and one signed approval covers the epic's bytes and every ticket
 file's bytes. A later change to any of them, or a ticket joining the epic, needs a new approval.
 

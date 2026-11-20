@@ -1,4 +1,5 @@
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { readInstall, ticketImages } from '../agent/install.js';
 import { join } from 'node:path';
 
@@ -352,7 +353,22 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (left.length) return yellow(`${left.length} image(s) of tickets that no longer need them: ${left.slice(0, 4).map((i) => i.tag).join(', ')}`, `docker image rm ${left.slice(0, 4).map((i) => i.tag).join(' ')}`);
     return ok(found.length ? `${found.length} ticket image(s), each for a ticket with installed packages` : 'no ticket has its own image');
   });
+  await check('word-list', 'Banned words', () => wordListCheck(readFileSync(WORDS_FILE, 'utf8'), now));
   return items;
+}
+
+// Unit 34 (Scope 7): the banned-word list's review. src/lint/words.js opens with a dated line,
+// "// Reviewed: YYYY-MM-DD"; past 90 days it's yellow, with what a review is.
+export const WORDS_FILE = fileURLToPath(new URL('../lint/words.js', import.meta.url));
+export const WORDS_REVIEW_DAYS = 90;
+export function wordListCheck(text, now) {
+  const m = /^\/\/ Reviewed: ([0-9]{4}-[0-9]{2}-[0-9]{2})$/m.exec(String(text).split('\n').slice(0, 5).join('\n'));
+  const at = m ? Date.parse(`${m[1]}T00:00:00Z`) : NaN;
+  const hint = `review it: check the lists in ${WORDS_FILE} against the last ${WORDS_REVIEW_DAYS} days' lint warnings and findings, change them, then update the "// Reviewed:" date at its top`;
+  if (!Number.isFinite(at)) return yellow('the banned-word list has no review date', hint);
+  const days = Math.floor((now().getTime() - at) / DAY);
+  if (days > WORDS_REVIEW_DAYS) return yellow(`the banned-word list was last reviewed ${days} days ago (${m[1]}), more than ${WORDS_REVIEW_DAYS}`, hint);
+  return ok(`reviewed ${m[1]}, ${days} day${days === 1 ? '' : 's'} ago`);
 }
 
 function loginCheck(env, now) {

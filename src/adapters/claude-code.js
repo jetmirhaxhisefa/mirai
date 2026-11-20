@@ -83,14 +83,14 @@ export const isMiraiName = (name) => name.toLowerCase().startsWith('mirai-');
 export const MIRAI_COMMAND_FILE = 'mirai.md';
 export const commandPath = (profile) => (profile.interactive.commands ? `${profile.interactive.commands}/${MIRAI_COMMAND_FILE}` : null);
 export const MIRAI_COMMAND = `---
-description: Run a MIRAI command here, as \`mirai <command>\` in your terminal (status, run, resume, show, report, feedback, plan, build, fix, review, ship, baseline, lint, test, redteam status, …)
+description: Run a MIRAI command here, as \`mirai <command>\` in your terminal (status, run, resume, show, report, feedback, plan, build, fix, review, ship, baseline, lint, reader-test, test, redteam status, …)
 argument-hint: <command> [ticket | file] [--recheck | --kept | --abandon | --full | --json | --docs | --m1 | level]
 allowed-tools: mcp__mirai__mirai_status
 disable-model-invocation: true
 ---
 Run MIRAI's command \`$ARGUMENTS\` through MIRAI's own tools, and nothing else:
 
-1. Read the command from the arguments: the command's words (such as \`status\`, \`run\`, \`resume\`, \`show\`, \`plan\`, \`build\`, \`review\`, \`ship\`, \`baseline show\`, \`redteam run\`), then a ticket key or a level name where it takes one (for \`epic render\`, the epic file's path in the repo, as \`file\`), and \`--recheck\` (build), \`--kept\` (redteam run), \`--abandon\` (resume), \`--full\`, \`--json\` or \`--docs\` (show). Don't guess a ticket: if one is needed and missing, ask.
+1. Read the command from the arguments: the command's words (such as \`status\`, \`run\`, \`resume\`, \`show\`, \`plan\`, \`build\`, \`review\`, \`ship\`, \`baseline show\`, \`redteam run\`), then a ticket key or a level name where it takes one (for \`epic render\` and \`reader-test\`, the document's path in the repo, as \`file\`), and \`--recheck\` (build), \`--kept\` (redteam run), \`--abandon\` (resume), \`--full\`, \`--json\` or \`--docs\` (show). Don't guess a ticket: if one is needed and missing, ask.
 2. Call \`mcp__mirai__mirai_command\` with \`command\` and those arguments. Claude Code asks the person first, every time. Never run \`mirai\` or its files with Bash yourself.
    For \`feedback <ticket> <text>\` only: call \`mcp__mirai__log_event\` with \`type\` \`feedback\`, \`ticket\`, and \`message\` set to the person's words exactly as they wrote them, on one line. Never write feedback in your own words, and never without the person asking for it.
 3. If the answer says \`yours\` (an approval, signing the proofs, a discard, an unpark, the key or the token): show the terminal command it gives, word for word, and say the person must type it in a terminal. Don't run it.

@@ -34,7 +34,8 @@ const OUTSIDE = new Set(['init', '--version', '--help', '-h', 'help', undefined]
 const SELF = new Set(['init', 'update', 'token']);
 // Commands that sign or start agents: they need a committed copy, (A). `redteam` signs a result
 // that names the committed framework (18a review).
-const NEEDS_COMMITTED = new Set(['approve', 'drop', 'key', 'run', 'agent', 'handover', 'unpark', 'resume', 'redteam']);
+// `reader-test` (unit 34) starts a model with your token, as an agent launch does.
+const NEEDS_COMMITTED = new Set(['approve', 'drop', 'key', 'run', 'agent', 'handover', 'unpark', 'resume', 'redteam', 'reader-test']);
 const LAUNCHER_VERSION = packageInfo().version;
 const REPO_ID = /^[a-z0-9][a-z0-9._-]{0,80}-[0-9a-f]{12}$/;
 const CACHE = 'launcher.json';

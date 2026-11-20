@@ -1,3 +1,8 @@
+// Reviewed: 2026-11-20
+// The review (unit 34): every 90 days, check these lists against the last 90 days' lint warnings
+// and findings (words that keep turning up, words that never do), change them, then update the
+// date above. `mirai doctor` warns once the date is more than 90 days old.
+//
 // The writing lint's word lists (unit 31; research/13 §9c). One place, read by the lint only:
 // never pasted into an agent's prompt (unit 34 teaches the style with examples instead).
 //
