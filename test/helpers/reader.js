@@ -15,7 +15,7 @@ export function summaryFromPrompt(prompt) {
 
 // Quotes a careful reader would give: a line from each part, its list marker and IDs dropped.
 export function quotesFrom(summary) {
-  const clean = summary.replace(/​/g, '');
+  const clean = summary.replace(/\u200B/g, '');
   const part = (name) => {
     const m = new RegExp(`^### ${name}\\n([\\s\\S]*?)(?=^### |(?![\\s\\S]))`, 'm').exec(clean);
     const line = (m?.[1] ?? '').split('\n').find((l) => /^\s*(?:[-*]|[0-9]+\.)\s+\S/.test(l)) ?? (m?.[1] ?? '').split('\n').find((l) => l.trim()) ?? '';

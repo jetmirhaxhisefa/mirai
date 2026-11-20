@@ -37,7 +37,7 @@ export const STEP = 'reader-test';
 export const ROUNDS = 3;
 export const QUOTE_MIN_WORDS = 3;
 export const TIMEOUT_MS = 180_000;
-const ZWSP = '​';
+const ZWSP = '\u200B';
 
 // The four questions, in the order the reader answers and you read them.
 export const QUESTIONS = Object.freeze([

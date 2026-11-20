@@ -2,6 +2,13 @@
 
 An **agent** is who runs: its prompt and what it's for. A **role** is what a run may change and which step it is. MIRAI keeps the two apart, so one agent can do two jobs safely. Both are data in the registry (decision D-37); a project can add its own roles in `.mirai/custom/roles/`, read from the trust root.
 
+## Writing skills
+
+Every author agent gets two skills: `mirai-docs` (a document's form: template, checklist, IDs) and
+`mirai-write` (unit 34: how to word the documents you approve and the tickets, with per-type guides
+and before/after examples from real drafts; `docs/documents.md` has the reader test that checks
+the result).
+
 ## Roles
 
 | Role | Mode | Step | May change |
@@ -149,6 +156,7 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai run SAMPLE-2
 /mirai show SAMPLE-2
 /mirai epic render docs/mirai/due-dates/epic-due-dates.md
+/mirai reader-test docs/mirai/due-dates/prd.md
 /mirai resume
 /mirai plan SAMPLE-2
 /mirai build SAMPLE-2
