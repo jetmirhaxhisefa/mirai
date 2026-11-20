@@ -386,13 +386,23 @@ which documents are required.
    interview: the agent writes `[ASSUMPTION]` tags and an open-questions list. A blocking open
    question parks the item.
 2. **Draft from the template.**
-   - Functional requirements have stable IDs (`FR-n`) in the form "[Actor] can [capability]
-     [under conditions]". Each one carries acceptance criteria with IDs `AC-FR-n.m`, and each
-     traces to a `BR-n` from the brief. This is the start of the one ID chain (§5a).
-   - **The lite PRD uses the same IDs:** its Capabilities are `FR-n` with `AC-FR-n.m` (R2-M11).
+   - Functional requirements have stable IDs (`FR-n`) and sit in four groups, each with one
+     sentence shape (unit 32, decision 2; the shapes come from EARS):
+     - **Capabilities:** "[Actor] can …", for something a person does;
+     - **Triggers and states:** "When …, the system must …" or "While …, … must …";
+     - **Failures:** "If …, then … must …", for bad input, outages and edge cases;
+     - **Unchanged behaviour:** "Where …, … must …", for what must stay as it is today.
+
+     Failures and Unchanged behaviour are always there; with nothing to list, they hold
+     `None — <reason>`. Every statement says "must", never "shall". Each FR carries acceptance
+     criteria with IDs `AC-FR-n.m` (Given / When / Then), and each ends with the `BR-n` from the
+     brief it serves. This is the start of the one ID chain (§5a).
+   - **The lite PRD uses the same IDs and groups** (R2-M11). The full PRD adds key flows, risks,
+     dependencies and rollout.
    - Non-functional requirements get their own IDs (`NFR-n`). A missing number is written as
      `UNKNOWN`, never invented. **Every NFR names its verification method:** acceptance criteria
-     `AC-NFR-n.m`, or a `check:` ID that `mirai trace` verifies like an ADR Confirmation.
+     `AC-NFR-n.m`, or a line "Verified by: <a test level, a measurement or a manual check>" (unit 32)
+     that `mirai trace` checks like an ADR Confirmation.
    - User journeys get `UJ-n` IDs.
    - The PRD has non-goals (at least one), success metrics plus counter-metrics, and an
      assumptions index.

@@ -1,0 +1,139 @@
+# A product requirements document (PRD): what the product must do for one feature, and how each
+# requirement is checked (design/01 §3, D-35). Written by the product manager (Nora), checked by
+# the verifier (Vera), approved by you: on `standard` together with its brief, in one step (U4).
+# Its status lives in the store (D-06).
+# Unit 32 (PM-03; research/13 §7, §9d; Jet's decisions 2026-11-19): one type, two variants. Lite
+# is the required core; full adds key flows, risks, dependencies and rollout. Requirements are
+# worded by kind (Capabilities, Triggers and states, Failures, Unchanged behaviour); the shapes
+# come from EARS (Mavin et al., RE'09), in MIRAI's own words.
+kind = "document-type"
+schema_version = 1
+name = "prd"
+template = "templates/prd.md"
+template_version = 1
+checklist = "templates/prd-checklist.md"
+status = "forbidden"
+required_sections = ["Summary for approval", "User journeys", "Functional requirements", "Non-functional requirements", "Non-goals", "Assumptions", "Open questions", "Glossary"]
+optional_sections = ["Key flows", "Risks", "Dependencies", "Rollout"]
+section_order = ["Summary for approval", "User journeys", "Functional requirements", "Non-functional requirements", "Key flows", "Non-goals", "Risks", "Dependencies", "Rollout", "Assumptions", "Open questions", "Glossary"]
+may_be_empty = ["Open questions"]
+summary_words = 600
+fixed_parts = ["ID prefixes"]
+# Not counted in the word cap (Jet, 2026-11-20): reference and open items, not requirements.
+uncounted_sections = ["Glossary", "Open questions"]
+lint_checks = ["summary", "writing", "prd"]
+
+[upstream_link]
+label = "Brief"
+type = "brief"
+
+[variants.lite]
+document_words = 3000
+
+[variants.full]
+document_words = 5000
+# A full PRD's summary may say more (Jet, 2026-11-20): up to 12 "What changes" bullets, grouped.
+summary_words = 1000
+required_sections = ["Key flows", "Risks", "Dependencies", "Rollout"]
+
+[frontmatter.fields.track]
+type = "enum"
+values = ["quick", "standard", "full"]
+required = true
+
+[frontmatter.fields.variant]
+type = "enum"
+values = ["lite", "full"]
+required = true
+
+# Over the word cap with a reason it can't be split: the cap warns instead, and you decide it
+# under "Decisions for you" (Jet's decision 5).
+[frontmatter.fields.length_exception]
+type = "string"
+
+# The brief's IDs, cited here: business requirements and success metrics.
+[[ids]]
+prefix = "BR"
+pattern = "BR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+[[ids]]
+prefix = "SM"
+pattern = "SM-[0-9]+"
+defined_by = "table"
+upstream = "cite"
+
+[[ids]]
+prefix = "UJ"
+pattern = "UJ-[0-9]+"
+defined_by = "bullet"
+required = true
+section = "User journeys"
+
+[[ids]]
+prefix = "FR"
+pattern = "FR-[0-9]+"
+defined_by = "bullet"
+required = true
+section = "Functional requirements"
+
+[[ids]]
+prefix = "AC"
+pattern = "AC-(FR-[0-9]+)\\.[0-9]+"
+defined_by = "bullet"
+parent = "FR"
+section = "Functional requirements"
+
+[[ids]]
+prefix = "NFR"
+pattern = "NFR-[0-9]+"
+defined_by = "bullet"
+section = "Non-functional requirements"
+
+[[ids]]
+prefix = "ACNFR"
+pattern = "AC-(NFR-[0-9]+)\\.[0-9]+"
+defined_by = "bullet"
+parent = "NFR"
+section = "Non-functional requirements"
+
+# Shared with the brief: the PRD's own numbers carry on after the brief's highest.
+[[ids]]
+prefix = "NG"
+pattern = "NG-[0-9]+"
+defined_by = "bullet"
+section = "Non-goals"
+upstream = "continue"
+
+[[ids]]
+prefix = "R"
+pattern = "R-[0-9]+"
+defined_by = "bullet"
+section = "Risks"
+upstream = "continue"
+
+[[ids]]
+prefix = "Q"
+pattern = "Q-[0-9]+"
+defined_by = "bullet"
+section = "Open questions"
+upstream = "continue"
+
+[[ids]]
+prefix = "DEP"
+pattern = "DEP-[0-9]+"
+defined_by = "bullet"
+section = "Dependencies"
+
+[[ids]]
+prefix = "PH"
+pattern = "PH-[0-9]+"
+defined_by = "bullet"
+section = "Rollout"
+
+[[ids]]
+prefix = "A"
+pattern = "A-[0-9]+"
+defined_by = "bullet"
+section = "Assumptions"

@@ -50,7 +50,7 @@ export const COMMANDS = Object.freeze({
   // resume; a ticket's page; and ship, which signs nothing.
   run: { needs: ['ticket'], tty: true, run: true, argv: (a) => ['run', a.ticket] },
   resume: { flags: ['abandon'], tty: true, run: true, argv: (a) => ['resume', ...(a.abandon ? ['--abandon'] : [])] },
-  show: { quick: true, needs: ['ticket'], flags: ['full', 'json'], argv: (a) => ['show', a.ticket, ...(a.full ? ['--full'] : []), ...(a.json ? ['--json'] : [])] },
+  show: { quick: true, needs: ['ticket'], flags: ['full', 'json', 'docs'], argv: (a) => ['show', a.ticket, ...(a.full ? ['--full'] : []), ...(a.json ? ['--json'] : []), ...(a.docs ? ['--docs'] : [])] },
   ship: { needs: ['ticket'], argv: (a) => ['ship', a.ticket] },
   // Read-only, or a draft for you to review (unit 28, the standing rule).
   // Unit 29c (decision 3): doctor and its safe repairs, from your session too.
@@ -153,6 +153,7 @@ export const miraiCommand = Object.freeze({
       abandon: { type: 'boolean', description: 'with resume: give the stopped run up instead' },
       full: { type: 'boolean', description: 'with show: every finding\'s text, the plan, the parking note whole' },
       json: { type: 'boolean', description: 'with show or report: as JSON' },
+      docs: { type: 'boolean', description: 'with show: the initiative\'s documents (docs/mirai/<name>/), when the name is also a ticket (unit 32)' },
       m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every merged or closed MR' },
       diff: { type: 'boolean', description: 'with review-mr: the whole diff of the code' },
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },

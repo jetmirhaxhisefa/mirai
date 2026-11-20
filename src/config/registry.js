@@ -199,8 +199,8 @@ export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date'
 // Checks written in code that a type switches on by name, `lint_checks = ["ticket"]` (unit 08a;
 // src/lint/checks.js). Unit 37's overlays may add lint checks, never remove them.
 // Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
-// and `brief`.
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief']);
+// and `brief`. Unit 32: `prd`.
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
@@ -259,6 +259,10 @@ const ID_KIND = {
     required: { type: 'boolean' },
     // Definitions count only in this section (a ticket's own ACs in "Acceptance criteria").
     section: sectionName,
+    // IDs the upstream document defines (unit 32: a PRD and its brief). `cite`: defined there
+    // only, mentioned here (BR, SM). `continue`: both define them, this document's numbers
+    // carry on after the upstream's highest (NG, R, Q), so one ID means one thing in both.
+    upstream: { type: 'enum', values: ['cite', 'continue'] },
   },
   required: ['prefix', 'pattern', 'defined_by'],
 };
@@ -283,6 +287,40 @@ const DOCUMENT_TYPE = {
     // The summary for approval's word budget (unit 31; research/13 §9a), for a type that lists
     // the `summary` check.
     summary_words: { type: 'integer', min: 50, max: 2000 },
+    // Variants of one type (unit 32: a PRD's lite and full), chosen by the frontmatter's
+    // `variant` field: each with the word cap for the whole document and the optional sections
+    // it requires.
+    variants: {
+      type: 'table',
+      map: {
+        type: 'table',
+        fields: {
+          document_words: { type: 'integer', min: 500, max: 10000 },
+          // The variant's own summary budget, when it differs from the type's summary_words
+          // (unit 32: a full PRD's summary is 1,000 words; Jet, 2026-11-20).
+          summary_words: { type: 'integer', min: 50, max: 2000 },
+          required_sections: sectionList,
+        },
+        required: ['document_words'],
+      },
+      keyPattern: /^[a-z][a-z0-9-]*$/,
+      keyHint: 'a variant name such as "lite"',
+    },
+    // The line between the title and the summary that links the upstream document (unit 32:
+    // "Brief: [title](brief.md)"), with the upstream's type.
+    upstream_link: {
+      type: 'table',
+      fields: {
+        label: { type: 'string', pattern: /^[A-Z][A-Za-z ]{0,30}$/, patternHint: 'a word such as "Brief"' },
+        type: { type: 'string', pattern: NAME },
+      },
+      required: ['label', 'type'],
+    },
+    // H3 parts the template fixes word for word (unit 32: the PRD glossary's ID prefixes): the
+    // document keeps them as they are, and they aren't leftover text or counted as words.
+    fixed_parts: sectionList,
+    // Sections left out of a variant's word cap (unit 32, Jet's decision 2026-11-20).
+    uncounted_sections: sectionList,
     versioned: { type: 'boolean' },
     id_pattern: regex,
     frontmatter: {
@@ -358,7 +396,19 @@ function checkDocumentType(def, path, report) {
     }
   }
 
-  for (const key of ['may_be_empty', 'frozen_sections']) {
+  // Unit 32: a variant requires only listed optional sections, and needs the `variant` field.
+  for (const [name, v] of Object.entries(def.variants ?? {})) {
+    (Array.isArray(v?.required_sections) ? v.required_sections : []).forEach((sec, i) => {
+      if (!optional.includes(sec)) report(`variants.${name}.required_sections[${i}]`, `variants.${name}.required_sections[${i}] is not one of the optional sections`, 'a variant can only require an optional section', 'unknown-section');
+    });
+  }
+  if (def.variants !== undefined) {
+    const field = def.frontmatter?.fields?.variant;
+    const names = Object.keys(def.variants);
+    if (field?.type !== 'enum' || !field.required || (field.values ?? []).join('\n') !== names.join('\n')) report('variants', 'a type with variants needs a required enum field "variant" listing them, in order', `add [frontmatter.fields.variant] with values = ${JSON.stringify(names)} and required = true`, 'required');
+  }
+
+  for (const key of ['may_be_empty', 'frozen_sections', 'uncounted_sections']) {
     (Array.isArray(def[key]) ? def[key] : []).forEach((name, i) => {
       if (!seen.has(name)) report(`${key}[${i}]`, `${key}[${i}] is not one of the listed sections`, undefined, 'unknown-section');
     });

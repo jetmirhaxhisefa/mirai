@@ -1,6 +1,7 @@
 import { checkSummary } from './summary.js';
 import { checkWriting } from './writing.js';
 import { checkBrief } from './brief.js';
+import { checkPrd } from './prd.js';
 import { DEPENDENCY_KINDS, installData, parseDependency } from '../agent/dependency-rows.js';
 
 // Built-in checks a document type switches on by name (`lint_checks = ["ticket"]`, unit 08a).
@@ -141,6 +142,8 @@ export const CHECKS = Object.freeze({
   summary: (...a) => checkSummary(...a),
   writing: (...a) => checkWriting(...a),
   brief: (...a) => checkBrief(...a),
+  // Unit 32: the PRD.
+  prd: (...a) => checkPrd(...a),
   // A ticket (story or bug): its repo is one of the config's repos (D-42); it doesn't wait
   // for itself or name a prerequisite twice; under a tickets/ folder its file is <id>.md
   // (design/03, the repo layout).

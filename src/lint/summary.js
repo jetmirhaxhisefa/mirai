@@ -1,4 +1,5 @@
 import { SUMMARY_SECTION } from '../config/registry.js';
+import { upstreamLine } from './rules.js';
 
 // The summary for approval (unit 31; PM-03, research/13 §9a): the same five parts at the top of
 // every document type that lists the `summary` check. It's written for the approver, last, from
@@ -41,7 +42,10 @@ export function checkSummary(doc, def, ctx, add) {
   // Right after the title: nothing that renders between the # title and the summary.
   const title = scan.headings.find((h) => h.level === 1);
   if (title) {
-    const between = scan.lines.find((l) => l.line > title.line && l.line < s.h2.line && (l.kind === 'text' || l.kind === 'fence' || l.kind === 'heading'));
+    // Unit 32: the one line linking the upstream document ("Brief: [title](brief.md)") may sit there.
+    const rendered = scan.lines.filter((l) => l.line > title.line && l.line < s.h2.line && (l.kind === 'text' || l.kind === 'fence' || l.kind === 'heading'));
+    const linkLine = def.upstream_link && rendered[0]?.kind === 'text' && upstreamLine(def).test((rendered[0].visible ?? rendered[0].text).trim()) ? rendered[0] : null;
+    const between = rendered.find((l) => l !== linkLine);
     if (between) add({ code: 'summary', line: between.line, column: 1, reason: `text sits between the # title and "## ${SUMMARY_SECTION}"`, hint: 'the summary comes right after the title; move this text into the detail' });
   }
 
@@ -104,6 +108,21 @@ export function checkSummary(doc, def, ctx, add) {
       }
     }
   }
+  // Unit 32 (Jet's decision 7): on `standard` the PRD's summary is the one you read for both
+  // documents, so the brief's open questions and no-gos reach it too.
+  const up = ctx.upstream?.status === 'ok' && doc.value.track === 'standard' ? ctx.upstream : null;
+  if (up) {
+    const upName = up.def.name;
+    const where = { line: s.h2.line, column: 1 };
+    const shownDecisions = idsIn(decisions?.lines ?? []);
+    for (const id of up.ids.get('Q')?.keys() ?? []) {
+      if (!shownDecisions.has(id)) add({ code: 'summary-decision', ...where, reason: `the ${upName}'s open question ${id} isn't under "Decisions for you"`, hint: `on standard you approve both documents here: add ${id} with its options and your recommendation, or answer it in the ${upName}` });
+    }
+    const shownNotIn = idsIn(notIn?.lines ?? []);
+    for (const id of up.ids.get('NG')?.keys() ?? []) {
+      if (!shownNotIn.has(id)) add({ code: 'summary-not-in', ...where, reason: `the ${upName}'s non-goal ${id} isn't under "Not in this"`, hint: `on standard this summary covers both documents: add ${id} with its reason` });
+    }
+  }
   if (notIn) {
     const shown = idsIn(notIn.lines);
     const defined = definedIn('NG');
@@ -117,9 +136,15 @@ export function checkSummary(doc, def, ctx, add) {
 
   // Numbers (warn): a number the summary states that the detail doesn't.
   const detailText = detail.filter((l) => l.kind === 'text' || l.kind === 'heading' || l.kind === 'fence').map((l) => (l.visible ?? l.text)).join('\n').replace(ID_TOKEN, ' ');
-  const detailNumbers = new Set(detailText.match(NUMBER) ?? []);
+  // Unit 32: a number may come from the upstream document (a PRD's summary quotes the brief).
+  const upText = ctx.upstream?.status === 'ok' ? ctx.upstream.doc.scan.lines.filter((l) => l.kind === 'text' || l.kind === 'heading' || l.kind === 'fence').map((l) => (l.visible ?? l.text)).join('\n').replace(ID_TOKEN, ' ') : '';
+  const detailNumbers = new Set([...(detailText.match(NUMBER) ?? []), ...(upText.match(NUMBER) ?? [])]);
+  // Unit 32 (decision 5): the length-exception item gives the word count and the cap, which the
+  // lint computes rather than the detail stating; that line's numbers aren't checked.
+  const exception = typeof doc.value?.length_exception === 'string' && doc.value.length_exception.trim() !== '';
   for (const l of s.lines) {
     if (l.kind !== 'text') continue;
+    if (exception && /\bwords\b/.test(l.text) && /\bcap\b/.test(l.text)) continue;
     const text = l.text.replace(ID_TOKEN, ' ').replace(/^ *(?:[-*+]|[0-9]{1,9}[.)])[ \t]+/, '');
     for (const n of text.match(NUMBER) ?? []) {
       if (!detailNumbers.has(n)) add({ code: 'summary-number', severity: 'warning', line: l.line, column: 1, reason: `the summary says ${n}, which the detail doesn't`, hint: 'every number in the summary comes from the detail; add its source there, or correct it' });
@@ -127,7 +152,7 @@ export function checkSummary(doc, def, ctx, add) {
   }
 }
 
-const NUMBER = /(?<![\p{L}\p{N}_.-])[0-9][0-9,]*(?:\.[0-9]+)?%?(?![\p{L}\p{N}_])/gu;
+const NUMBER = /(?<![\p{L}\p{N}_.-])[0-9](?:[0-9,]*[0-9])?(?:\.[0-9]+)?%?(?![\p{L}\p{N}_])/gu;
 export const clip = (text, n = 80) => {
   const t = String(text).replace(/\s+/g, ' ').trim();
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;

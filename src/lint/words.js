@@ -28,9 +28,11 @@ export const BANNED = Object.freeze([
 export const VAGUE = Object.freeze(['fast', 'scalable', 'secure', 'robust', 'intuitive', 'user-friendly', 'efficient', 'performant', 'reliable', 'flexible']);
 
 // Acronyms a reader of MIRAI's documents knows: no need to spell them out. UNKNOWN is the
-// templates' own word for a missing baseline (31's P2: the lint took it for an acronym).
+// templates' own word for a missing baseline (31's P2: the lint took it for an acronym). The
+// date and time placeholders (YYYY-MM-DD HH:MM:SS, 32's P2) and UTC aren't acronyms to spell out.
 export const ACRONYMS = new Set([
   'API', 'APIs', 'UI', 'UX', 'URL', 'HTTP', 'HTTPS', 'JSON', 'CSV', 'PDF', 'SQL', 'HTML', 'CSS', 'ID', 'IDs',
   'PR', 'MR', 'CI', 'QA', 'PRD', 'HLD', 'LLD', 'ADR', 'OK', 'AI', 'MIRAI', 'GDPR', 'EU', 'US', 'UK', 'iOS',
   'TODO', 'UNKNOWN', 'FAQ', 'SaaS', 'SSO', 'MVP', 'KPI', 'SLA', 'SLO', 'CPU', 'RAM', 'GB', 'MB', 'KB', 'TB', 'TLS', 'SSH', 'DNS',
+  'YYYY', 'YY', 'MM', 'DD', 'HH', 'SS', 'UTC',
 ]);
