@@ -1,7 +1,7 @@
 ---
 unit: "34b"
 name: docs-check
-status: draft, waiting for "approve 34b" (Jet's interview, 2026-11-20; built after 34 is merged, before 35 is rebased and built)
+status: approved (Jet, 2026-11-20: "approve 34b, and add the read"; Jet's interview the same day; built after 34 is merged, before 35 is rebased and built)
 roadmap: new, from unit 38's interview (Jet, 2026-11-20: "how will you be sure in the end that all these configs and commands are documented?"; placement "A")
 depends_on: ["34"]
 ---
@@ -30,6 +30,8 @@ additions before it merges.
    one sentence on what it does. The test checks the rows against the schema in both directions.
 3. **Exceptions live on one short list,** each with a reason.
 4. **The check proves a mention, not quality.** A read of the docs before v1.0 checks the wording.
+5. **A read of the existing docs now** (Jet, "approve 34b, and add the read"). Every page in
+   `docs/` is read against the code as it is on main, and what's out of date is fixed in this unit.
 
 ## Scope
 
@@ -60,12 +62,20 @@ additions before it merges.
    the three files and what each may set (D-57). `docs/install.md` links it.
 4. **Fill today's gaps:** `mirai lint`, `mirai protected`, `mirai help` and `mirai version` get
    their lines in the right pages, plus any other gap the first run shows. The PR lists each one.
-5. **`docs/README.md` (new, short):** what each page in `docs/` covers, so a new page has a place
+6. **The read** (decision 5): an agent reads each existing page in `docs/` against the code
+   (commands' usage strings and options, config defaults, file paths, error codes, flows) and lists
+   every statement that is no longer true, with the page, the line and what the code says.
+   - Each item is fixed in this unit. The list goes in `test-results.md` as a table: page, old
+     text, new text, the code it was checked against.
+   - Something that looks wrong but may be intended is not changed. It goes to Jet as a question.
+   - The read covers wording rules too (`research/14-document-wording.md`): a page that breaks
+     them is noted, and fixed only where the fix is small.
+7. **`docs/README.md` (new, short):** what each page in `docs/` covers, so a new page has a place
    in the index. The test checks that every file in `docs/` is listed.
 
 **Out**
 
-- Checking that the docs are correct or well written (a read before v1.0).
+- A test for correctness. The read (Scope 6) is a one-time pass; the read before v1.0 repeats it.
 - Agent and skill files, and MCP tool descriptions (they describe themselves).
 - Descriptions inside the config schema (decision 2's option C).
 - Units 35–38's additions. Each of them documents its own, and this check holds them to it.
@@ -97,5 +107,6 @@ additions before it merges.
 ## Done when
 
 - T1–T4 pass, and the full suite passes through the build runner and CI.
+- The read's table is in `test-results.md`, every item fixed or asked.
 - P1 passes. P2 runs during 35's rebase and is recorded in 34b's test results.
 - PROGRESS lists 34b between 34 and 35.
