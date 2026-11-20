@@ -35,7 +35,8 @@ const read = (rel) => readFileSync(join(REGISTRY_DIR, rel), 'utf8');
 const PRD = read('examples/prd.md');
 const BRIEF = read('examples/brief.md');
 const EPIC = read('examples/epic.md');
-const GUIDES = { brief: 'brief', prd: 'prd', epic: 'epic', ticket: 'story' };
+// The guides and the document type each covers; `session` (decision 11) covers your session, no type.
+const GUIDES = { brief: 'brief', prd: 'prd', epic: 'epic', ticket: 'story', session: null };
 const swap = (text, from, to) => {
   assert.ok(text.includes(from), `no ${JSON.stringify(from)}`);
   return text.replace(from, to);
@@ -44,7 +45,7 @@ const swap = (text, from, to) => {
 // A guide's examples: { title, rule, file, commit, part, before, after, lint }.
 function examplesOf(text) {
   return text.split(/^### Example \d+: /m).slice(1).map((p) => {
-    const before = /^\*\*Before\*\*, from `([^`]+)`(?: at commit `([0-9a-f]{7,40})`)?.*\((the summary|the detail)\):\n\n```markdown\n([\s\S]*?)\n```$/m.exec(p);
+    const before = /^\*\*Before\*\*, from `([^`]+)`(?: at commit `([0-9a-f]{7,40})`)?.*\((the summary|the detail|a session reply)\):\n\n```markdown\n([\s\S]*?)\n```$/m.exec(p);
     const after = /^\*\*After:\*\*\n\n```markdown\n([\s\S]*?)\n```$/m.exec(p);
     const rule = /^\*\*Rule:\*\* (\S[\s\S]*?)\n\n/m.exec(p);
     const by = /^\*\*Checked by:\*\* (?:the lint, `([a-z-]+)`|judgement)\.$/m.exec(p);
@@ -52,7 +53,7 @@ function examplesOf(text) {
   });
 }
 
-test('34 T1: the skill\'s files: SKILL.md names every guide, each guide has 3 examples with before, after and rule, CREDITS names humanizer', () => {
+test('34 T1: the skill\'s files: SKILL.md names every guide (the session guide too), each guide has 3 examples with before, after and rule, CREDITS names humanizer', () => {
   const skill = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
   assert.equal(REGISTRY.skills['mirai-write'].description.length > 0, true);
   for (const g of Object.keys(GUIDES)) {
@@ -76,12 +77,15 @@ test('34 T1: the skill\'s files: SKILL.md names every guide, each guide has 3 ex
       assert.ok(e.before && e.after && e.rule && e.file && e.lint !== undefined, `${g} "${e.title}": before, after, rule, source and how it's checked`);
       assert.notEqual(e.before, e.after);
     }
-    // A pointer to the type's template and checklist (mirai-docs holds the form).
-    assert.match(text, new RegExp(`templates/${GUIDES[g]}\\.md`));
-    assert.match(text, new RegExp(`${GUIDES[g]}-checklist\\.md`));
+    // A pointer to the type's template and checklist (mirai-docs holds the form); the session
+    // guide points to mirai-interview for questions instead.
+    if (GUIDES[g]) {
+      assert.match(text, new RegExp(`templates/${GUIDES[g]}\\.md`));
+      assert.match(text, new RegExp(`${GUIDES[g]}-checklist\\.md`));
+    } else assert.match(text, /`mirai-interview` skill \(unit 35/);
     total += examples.length;
   }
-  assert.equal(total, 12);
+  assert.equal(total, 15);
   const credits = readFileSync(join(SKILL, 'CREDITS.md'), 'utf8');
   assert.match(credits, /blader\/humanizer/);
   assert.match(credits, /8c307f367c91bd974002f10f2be2965d642c13df/);
@@ -94,7 +98,7 @@ test('34 T1: the skill\'s files: SKILL.md names every guide, each guide has 3 ex
 test('34 T2: each example\'s after passes the lint as a fragment; its before fails the rule it names, where the lint checks it; before is the draft as it was', () => {
   let linted = 0;
   for (const [g, type] of Object.entries(GUIDES)) {
-    const ids = (REGISTRY.documentTypes[type].ids ?? []).map((k) => k.prefix);
+    const ids = type ? (REGISTRY.documentTypes[type].ids ?? []).map((k) => k.prefix) : [];
     for (const e of examplesOf(readFileSync(join(SKILL, 'guides', `${g}.md`), 'utf8'))) {
       assert.deepEqual(lintFragment(e.after, { part: e.part, ids }).map((p) => `${p.code}: ${p.reason}`), [], `${g} "${e.title}": the after lints clean, with no warning`);
       if (e.lint) {
@@ -103,8 +107,8 @@ test('34 T2: each example\'s after passes the lint as a fragment; its before fai
         assert.ok(!lintFragment(e.after, { part: e.part, ids }).some((p) => p.code === e.lint));
       }
       // The draft as it was: a file kept in the repo holds it word for word. (A draft from an older
-      // commit is checked against the file at that commit by hand; a CI clone may not have it.)
-      if (!e.commit) assert.ok(readFileSync(join(ROOT, e.file), 'utf8').includes(e.before), `${g} "${e.title}": quoted exactly from ${e.file}`);
+      // commit, or a reply from a session transcript, is checked by hand: a CI clone has neither.)
+      if (!e.commit && !e.file.startsWith('session transcript')) assert.ok(readFileSync(join(ROOT, e.file), 'utf8').includes(e.before), `${g} "${e.title}": quoted exactly from ${e.file}`);
     }
   }
   assert.equal(linted, 4, 'four of the twelve rules are lint-checkable');

@@ -7,7 +7,9 @@ An **agent** is who runs: its prompt and what it's for. A **role** is what a run
 Every author agent gets two skills: `mirai-docs` (a document's form: template, checklist, IDs) and
 `mirai-write` (unit 34: how to word the documents you approve and the tickets, with per-type guides
 and before/after examples from real drafts; `docs/documents.md` has the reader test that checks
-the result).
+the result). Its `guides/session.md` also covers how any agent writes to you in a session:
+manual steps numbered from the first action, with what you should see and what to do if it fails,
+and explanations that answer first, with one example, one idea at a time.
 
 ## Roles
 

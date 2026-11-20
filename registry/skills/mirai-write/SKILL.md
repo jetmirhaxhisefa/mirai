@@ -1,6 +1,6 @@
 ---
 name: mirai-write
-description: "How to word the MIRAI documents the owner reads and approves (brief, PRD, epic) and the tickets: plain sentences for the owner, exact detail for agents, the summary written last, and the AI-writing habits to cut. Use it whenever you write or change one of those documents or a ticket."
+description: "How to word the MIRAI documents the owner reads and approves (brief, PRD, epic) and the tickets, and how to write manual steps and explanations to the owner in the session: plain sentences for the owner, exact detail for agents, the summary written last, and the AI-writing habits to cut. Use it whenever you write or change one of those documents or a ticket, or give the owner steps to do or explain something to them."
 ---
 
 # Wording MIRAI documents
@@ -10,6 +10,9 @@ holds how to word it. Use both.
 
 **Use it when** you write or change a brief, a PRD, an epic or a ticket. HLD, ADR and LLD guides
 come with their own units; until then, follow the rules on this page for them.
+
+**Use it too when** you write to the owner in the session: manual steps they must do, or an
+explanation. Follow [guides/session.md](guides/session.md).
 
 ## Two readers
 
@@ -42,12 +45,14 @@ and each sentence:
 
 ## The per-type guides
 
-Each guide has the type's wording rules and three before/after examples from real agent drafts:
+Each guide has the type's wording rules and three before/after examples from real agent drafts and replies:
 
 - [guides/brief.md](guides/brief.md): the business brief;
 - [guides/prd.md](guides/prd.md): the PRD;
 - [guides/epic.md](guides/epic.md): the epic and its summary;
-- [guides/ticket.md](guides/ticket.md): stories and bugs.
+- [guides/ticket.md](guides/ticket.md): stories and bugs;
+- [guides/session.md](guides/session.md): manual steps and explanations for the owner in the
+  session.
 
 ## Rules for every type
 

@@ -69,6 +69,15 @@ skill first.
 10. **The skill is for every document you read and approve** (Jet). Tickets follow its ticket
     guide too.
 
+11. **The skill also covers how agents talk to you in the session** (Jet, 2026-11-20, "A", added
+    after the build): manual steps and explanations. In his words: "sometimes ... the manual steps
+    that I have to do are not explain properly step by step in details, sometimes claude misses
+    the first steps or details of the step how to do something, or when it explains things
+    explains a lot at the same time and the explanation is not clear." A fifth guide,
+    `guides/session.md`, with its own rules and 3 before/after examples from real replies in this
+    project's sessions. How to ask you questions stays with `mirai-interview` (unit 35); the guide
+    only points to it.
+
 ## Scope
 
 **In**
@@ -84,7 +93,8 @@ skill first.
    this unit takes into the guides, and what it leaves for 62 and later.
 2. **The skill: `registry/skills/mirai-write/`**:
    - **`SKILL.md`:**
-     - when to use it: writing or changing any document you approve, and tickets;
+     - when to use it: writing or changing any document you approve, and tickets; and (decision
+       11) writing manual steps or explanations to you in the session;
      - the two readers: you get plain sentences, the most important thing first and no AI tells;
        agents get dense, exact detail, one term per concept and real names;
      - how to write the summary last, from the detail;
@@ -96,12 +106,24 @@ skill first.
      - the type's wording rules, short;
      - its 3 before/after examples;
      - a pointer to the type's template and checklist (the `mirai-docs` skill holds the form).
+   - **`guides/session.md`** (decision 11): how an agent talks to you in the session:
+     - manual steps: numbered from the very first action (which app or window, which folder); one
+       action per step; the exact command or click, ready to copy and tested where possible; "You
+       should see: …" after a step that changes something; "If you see …, do …" for the likely
+       failure; the steps last in the reply; no step treated as obvious;
+     - explanations: the answer first in one or two plain sentences; one concrete example with
+       real names and values; one idea at a time; stop and offer what to explain next; a term
+       defined the first time; asked to explain again, explain differently, not longer;
+     - questions to you: a one-line pointer to `mirai-interview` (unit 35);
+     - its 3 before/after examples, quoted from real assistant replies in this project's session
+       transcript (checked by hand: CI can't see it).
    - **`CREDITS.md`:** blader-humanizer (Siqi Chen, MIT, commit `8c307f3`), pstack
      `technical-writing` and `unslop`, and each source the research cites.
    - **The banned-word list stays in the lint** (`src/lint/words.js`), not the prompt. The skill
      says the lint enforces it.
    - The skill is listed for author agents, the way `mirai-docs` is (unit 11).
-3. **The examples:** 12, from the drafts kept in `implementation/units/31-brief/`, `32-prd/`,
+3. **The examples:** 12 for the document types, plus 3 for the session guide (decision 11), 15 in
+   all. The 12 come from the drafts kept in `implementation/units/31-brief/`, `32-prd/`,
    `33-epic/p2/` and their probe rounds. Each example:
    - quotes the draft as it was;
    - gives the fixed text;
@@ -161,8 +183,8 @@ skill first.
 
 ## Tests
 
-- **T1** The skill's files: `SKILL.md` names every guide, and every guide file exists. Each guide
-  has exactly 3 examples, each with before, after and rule. `CREDITS.md` names humanizer with
+- **T1** The skill's files: `SKILL.md` names every guide (the four types and `session.md`), and
+  every guide file exists. Each guide has exactly 3 examples, each with before, after and rule. `CREDITS.md` names humanizer with
   its commit and license.
 - **T2** Each example's "after" passes the lint as a fragment, and its "before" fails it or the
   rule it names. Both are checked where the rule is lint-checkable.
@@ -191,7 +213,8 @@ skill first.
 
 ## Probes (real)
 
-- **P1 Your read:** you read the 12 before/after examples, about 10 minutes. **Pass when** each
+- **P1 Your read:** you read the 15 before/after examples (the 12 for the documents and the 3 in
+  `guides/session.md`), about 15 minutes. **Pass when** each
   "after" is clearly better, and each rule is one you'd want every agent to follow.
 - **P2 The reader's model:** Haiku and Sonnet each run the reader test on the same set:
   - the good summaries: the 31–33 examples and the agent-written P2 documents;

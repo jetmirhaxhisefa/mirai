@@ -8,6 +8,8 @@
     "When not to act", "Write the summary last" and the pointer to the lint's word list. Each
     guide has exactly 3 examples, each with its rule, its before (with the draft's file), its
     after and how it's checked, and points to its type's template and checklist; 12 in all.
+    Decision 11 (added after the build) adds `guides/session.md`, also named in `SKILL.md`, with
+    its 3 examples (15 in all) and a pointer to `mirai-interview` instead of a template;
     `CREDITS.md` names humanizer with its commit `8c307f3…`, Siqi Chen, MIT and the notice, and
     pstack;
   - T2: every "after" lints clean as a fragment (`lintFragment`, summary or detail rules as the
@@ -15,7 +17,9 @@
     2: `writing-sentence`; ticket 1: `writing-vague`) fail that rule before and pass it after. Each
     "before" from a file kept in the repo is found in it word for word; the two from earlier
     commits (`c92cd80`, `4cb2003`) were checked against `git show` by hand (a CI clone may not
-    have them). A seeded banned word ("leverage") fails;
+    have them). The session guide's three quotes come from the session transcript `60ff2a19`
+    (assistant replies only) and were checked by hand against it for the same reason. A seeded
+    banned word ("leverage") fails;
   - T3: the quote check with a fake reader: quotes found in the summary pass; a quote not in it
     fails, naming "What's left out"; "not stated" fails with the fix; no quote, or a two-word one,
     fails; a quote that differs only in line breaks and spaces passes; a changed letter fails; a
@@ -59,7 +63,7 @@
 
 | Probe | Result |
 |---|---|
-| **P1 Your read** | not run yet |
+| **P1 Your read** | not run yet (the 15 examples: the 12 for the documents and the 3 in `guides/session.md`) |
 | **P2 The reader's model** | not run yet. Until it runs, `reader-test` defaults to `standard`; P2 sets the final default (`light` if Haiku catches every seeded bad summary and fails no good one). |
 | **P3 A fresh agent writes with the skill** | not run yet |
 
@@ -107,3 +111,10 @@
   comment line, `// Reviewed: YYYY-MM-DD`, set to 2026-11-20.
 - **`/mirai reader-test` isn't `quick`:** a model run takes seconds to minutes, so the session
   follows it with `mirai_status`, as for `plan`.
+- **Decision 11, after the build (Jet, 2026-11-20, "A"):** `guides/session.md`, how agents write
+  manual steps and explanations to you in the session. Its "before" quotes are from three real
+  replies in this project's session transcript `60ff2a19` (the unit 32 spec handover's step; the
+  unit 34 interview's Q1, after which you asked for "more details" and "examples"; and Q3's
+  option B, after which you asked whether you had to write the sentences). Its examples use the
+  source form `(a session reply)`, linted with the detail's rules. The questions you're asked stay
+  with `mirai-interview` (35): the guide only points to it.
