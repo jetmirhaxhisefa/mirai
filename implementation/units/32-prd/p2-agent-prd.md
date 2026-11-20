@@ -8,7 +8,7 @@ owner: mirai-product-manager
 created: "2026-11-20"
 upstream: [task-comments-brief]
 ---
-# Comments on tasks, with notices to the people responsible
+# People discuss a task where the task lives
 
 Brief: [Keep the reasons behind a task with the task](brief.md)
 
@@ -16,139 +16,125 @@ Brief: [Keep the reasons behind a task with the task](brief.md)
 
 ### The ask
 
-Approve the brief and this PRD for task comments with in-app notices, so that 60% of task changes carry a written reason (SM-1).
+Approve the brief and this PRD for task comments, so that 60% of task changes carry a written reason in the app (SM-1).
 
 ### Why
 
-Team leads and their 3 to 10 team members discuss tasks in chat, so the reasons get buried (see the brief, SM-1, SM-2).
+Team leads and their 3 to 10 team members discuss tasks in a chat tool, where the reasons for changes get buried (BR-2). The brief rests on the team's own report, not measured data.
 
 ### What changes
 
-- Anyone who can see an open or done task can add a text comment and read all comments (FR-1, FR-2)
-- The owner and assignee get an in-app notice per comment (FR-3, FR-7)
-- Comments are permanent and appear for others on reload, not live (FR-8, FR-9)
-- The app records task changes and gives team leads the SM-1 figure (FR-5, FR-6)
-- Bad input, failed saves, lost access and failed notices lose no text and leak nothing (FR-10 to FR-15)
-- Access rules, task changes and search stay as today; no change needs a comment (FR-16 to FR-18)
+- A team member who can see a task can post a comment on it, in an open or done task (FR-1)
+- Anyone who can see a task reads its whole discussion, oldest first (FR-2)
+- The owner and assignee get an in-app notice when someone else comments, in a new notice list (FR-3, FR-4)
+- Empty, too long or unsaved comments are refused with a message and no text is lost (FR-10, FR-11, FR-12)
+- Others see a new comment on their next reload, not live (FR-7)
+- Tasks, access rules and the chat tool stay as they are, and a change needs no comment (FR-16, FR-17)
 
 ### Decisions for you
 
-1. Who is told about a new comment (Q-1)? Options: owner and assignee only, or everyone who has commented. Recommendation: owner and assignee only; a past commenter may miss a reply. Assumed in A-1.
-2. Can people edit or delete comments (Q-2)? Options: allowed, or permanent. Recommendation: permanent; a typo cannot be fixed. Assumed in A-2.
+1. Who is told about a new comment (Q-1)? Options: the owner and assignee only, or everyone who has commented. Recommendation: owner and assignee only; it costs a past commenter possibly missing a reply. This PRD is written on that choice (A-1).
+2. Can people edit or delete their comments (Q-2)? Options: edit and delete allowed, or comments are permanent. Recommendation: permanent; it costs the ability to fix a typo. This PRD is written on that choice (A-2).
 
 ### Not in this
 
 - Replacing or linking the chat tool, because it serves other needs (NG-1)
 - File attachments, because text covers the need (NG-2)
 - Comments by people outside the team, because the problem is internal (NG-3)
-- Importing chat history, because it is costly and hard to match (NG-4)
-- Email or push notices, because in-app notices cover the need (NG-5)
-- Searching comment text, because the brief does not ask for it (NG-6)
-- Forcing a reason on every task change, because it slows people down (NG-7)
+- Importing old chat history, because it is costly and hard to match to tasks (NG-4)
+- Live updates, email or chat notices, replies, mentions and comment search, (NG-5, NG-6, NG-7, NG-8)
+- A report or screen for measuring SM-1 and SM-2, because the app's own data and a survey are enough (NG-9)
 
 ## User journeys
 
-- UJ-1: Ana, an owner, reassigns a task to Ben and comments why; Ben gets a notice.
-- UJ-2: Cy, a new team member, reads a done task's comments to learn why it was done that way.
-- UJ-3: Dee, an assignee, reads Ana's new comment from the notice area and marks it read.
-- UJ-4: Eli, a team lead, picks a date range and sees how many changed tasks carry a reason.
+- UJ-1: Omar, a team lead, changes a task's owner or due date, then posts a comment saying why.
+- UJ-2: Priya, a new team member, opens a task she can see and reads its discussion to learn why it was done that way.
+- UJ-3: Ana, an assignee, opens a notice about a comment, reads the task and replies.
+- UJ-4: Ben loses access to a task, or it is deleted, and no longer sees its comments or notices.
 
 ## Functional requirements
 
 ### Capabilities
 
-- FR-1: A viewer can add a text comment of 1 to 2,000 characters to an open or done task. (BR-1) (A-3) (A-4)
-  - AC-FR-1.1: Given an open task, when Ana submits "Moved to Friday", then it appears last with her name and time.
-  - AC-FR-1.2: Given a done task, when Ana comments, then it is saved.
-  - AC-FR-1.3: Given exactly 2,000 characters, when Ana submits, then all are saved.
-- FR-2: A viewer can read every comment on a task, oldest first, each with its author, time and text. (BR-2)
-  - AC-FR-2.1: Given 3 comments, when Cy, who got access today, opens the task, then he sees all 3, oldest first.
-  - AC-FR-2.2: Given two comments saved in the same second, when a viewer opens the task, then the one received first is first.
-- FR-3: A viewer can open the notice area from any page, read their notices newest first, and mark one read. (BR-3) (A-8)
-  - AC-FR-3.1: Given Dee has 2 notices, when she opens the notice area, then she sees both, newest first, with author, task title and time.
-  - AC-FR-3.2: Given Dee has a notice, when she selects it, then the task page opens at that comment.
-- FR-4: A viewer can see the count of their unread notices in the notice area. (BR-3)
-  - AC-FR-4.1: Given Dee has 2 unread notices, when she marks one read, then the count shows 1.
-- FR-5: A team lead can pick a date range and see the changed tasks they can see, and how many have a reason. (BR-2) (A-9)
-  - AC-FR-5.1: Given 4 changed tasks in range, 3 with a comment within 24 hours, when Eli picks it, then he sees 4, 3 and 75%.
-  - AC-FR-5.2: Given no changed tasks in range, when Eli picks it, then he sees "No task changes" and no percentage.
+- FR-1: A team member who can see a task can post a comment on it while it is open or done. (BR-1) (BR-4) (A-6)
+  - AC-FR-1.1: Given Ana can see an open or done task, when she posts "Client moved the date", then the discussion shows that text with her name and the time.
+- FR-2: A team member who can see a task can read its whole discussion, oldest comment first, whenever they joined the team. (BR-2) (BR-4)
+  - AC-FR-2.1: Given a task with 3 comments from before Priya joined, when she opens it, then she sees all 3, oldest first.
+- FR-3: A team member can open the notice list and see their notices, newest first. (BR-3) (A-3)
+  - AC-FR-3.1: Given Ana has 2 notices, when she opens the notice list, then the newer is first and each names the task and commenter.
+  - AC-FR-3.2: Given Ana has a notice, when she opens it, then she sees the task and the notice leaves her list.
 
 ### Triggers and states
 
-- FR-6: When a task change happens, the system must record its kind, the person and the time. (BR-2) (A-5)
-  - AC-FR-6.1: Given Ana moves a due date, when she saves, then the record holds "due date", her name and the time.
-- FR-7: When a comment is saved, the system must create one notice each for the owner and the assignee, except the author. (BR-3) (A-1)
-  - AC-FR-7.1: Given owner Ana and assignee Ben, when Cy comments, then each gets one notice.
-  - AC-FR-7.2: Given Ana is owner and assignee, when Cy comments, then she gets one notice.
-  - AC-FR-7.3: Given Ana is owner, with no assignee, when she comments, then no notice is created.
-- FR-8: While a comment exists, the system must keep its text, author and time unchanged and offer no edit or delete. (BR-2) (A-2)
-  - AC-FR-8.1: Given a saved comment, when its author views it, then no edit or delete action shows.
-- FR-9: When a comment is saved, the system must show it to other viewers on their next reload. (BR-1) (A-7)
-  - AC-FR-9.1: Given Ben has the task open, when Cy comments, then Ben sees it only after reloading.
-  - AC-FR-9.2: Given Ben has any page open, when Cy comments, then Ben's notice shows after reloading.
-- FR-10: While a person is not a viewer of a task, the system must hide its comments and notices from them. (BR-4)
-  - AC-FR-10.1: Given Dee lost access to a task, when she reloads, then its notices are gone from her notice area.
-  - AC-FR-10.2: Given Dee lost access, when she opens a link to the task, then she sees the usual no-access message.
-  - AC-FR-10.3: Given Dee commented and then lost access, when a viewer opens the task, then her comment is still shown.
+- FR-4: When a comment is posted, the system must give one notice to the task's owner and one to its assignee, but none to the comment's author. (BR-3) (A-1)
+  - AC-FR-4.1: Given Omar owns a task assigned to Ana, when Ben comments, then Omar and Ana each get one notice.
+  - AC-FR-4.2: Given Omar is both owner and assignee, when Ben comments, then Omar gets one notice.
+- FR-5: While a person can't see a task, its comments and notices must stay hidden from them, including links, notice lists and search. (BR-4)
+  - AC-FR-5.1: Given Ben can't see a task, when he opens its link, then he gets the same "no access" result as today and sees no comment text.
+- FR-6: When a comment is posted, the system must keep it, with its author, time and text, unchanged for as long as the task exists, and offer no edit or delete. (BR-2) (A-2)
+  - AC-FR-6.1: Given a posted comment, when its author views it, then no edit or delete control is shown.
+- FR-7: When a person posts a comment, other people viewing the task must see it on their next reload, not before. (BR-1) (A-4)
+  - AC-FR-7.1: Given Ana has a task open, when Ben posts a comment, then Ana's page shows nothing new until she reloads.
+- FR-8: When a person loses the right to see a task, the system must remove that task's notices from their list. (BR-4)
+  - AC-FR-8.1: Given Ben has a notice for a task, when he loses access to it, then his notice list no longer shows that notice.
+- FR-9: When a task is deleted, the system must delete its comments and its notices. (BR-4) (A-6)
+  - AC-FR-9.1: Given a task with 2 comments and 1 notice, when the task is deleted, then the comments and the notice are gone.
 
 ### Failures
 
-- FR-11: If a comment is empty, only spaces, or over 2,000 characters, then the system must reject it and say why. (BR-1) (A-4)
-  - AC-FR-11.1: Given 2,001 characters, when Ana submits, then nothing is saved and the message states the 2,000 limit.
-  - AC-FR-11.2: Given a comment of only spaces, when Ana submits it, then nothing is saved and the message says a comment cannot be empty.
-- FR-12: If saving a comment fails, then the system must keep the typed text, say it was not saved, and create no notice. (BR-1)
-  - AC-FR-12.1: Given the save fails, when Ana submits, then her text stays, the message says "Not saved", and no notice exists.
-- FR-13: If the author loses access, or the task is archived, before the save, then the system must reject the comment and say why. (BR-4) (A-3)
-  - AC-FR-13.1: Given Eli archives the task while Ana types, when she submits, then nothing is saved and the message says it is archived.
-  - AC-FR-13.2: Given Dee loses access while typing, when she submits, then nothing is saved and the message says she has no access.
-- FR-14: If two people submit comments at the same time, then the system must save both, in the order received. (BR-1)
-  - AC-FR-14.1: Given Ana and Ben submit together, when a viewer reloads, then both comments show.
-- FR-15: If a notice cannot be created, then the system must still save the comment and record the failure. (BR-3)
-  - AC-FR-15.1: Given notice creation fails, when Cy comments, then his comment shows on the task and the failure is recorded.
+- FR-10: If a comment is empty or holds only spaces and line breaks, then the system must refuse it and show "Write a comment before posting." (BR-1)
+  - AC-FR-10.1: Given the comment box holds 3 spaces, when Ana posts, then that message shows and no comment is added.
+- FR-11: If a comment is longer than 2,000 characters, then the system must refuse it, keep the text in the box and show "A comment can have at most 2,000 characters." (BR-1) (A-5)
+  - AC-FR-11.1: Given a comment of exactly 2,000 characters, when Ana posts, then it is added.
+  - AC-FR-11.2: Given a comment of 2,001 characters, when Ana posts, then it is refused with that message and the text stays in the box.
+- FR-12: If saving a comment fails, then the system must show "Your comment was not posted. Try again.", keep the text in the box and send no notice. (BR-2)
+  - AC-FR-12.1: Given saving is down, when Ana posts, then that message shows, her text stays and no notice is created.
+- FR-13: If two people post at the same moment, then the system must keep both and order them by the time each was accepted. (BR-2)
+  - AC-FR-13.1: Given Ana and Ben post at once, when the task is reloaded, then both show, in the order the system accepted them.
+- FR-14: If a person posts after the task is deleted or after they lost access, then the system must refuse it and show "You can no longer comment on this task." (BR-4)
+  - AC-FR-14.1: Given Ben's access was removed while he typed, when he posts, then that message shows and no comment is added.
 
 ### Unchanged behaviour
 
-- FR-16: Where a person changes a task's owner, scope or due date, the product must accept the change without a comment, as today. (BR-1)
-  - AC-FR-16.1: Given Ana changes a due date, when she saves without a comment, then it is saved.
-- FR-17: Where a person can or cannot see a task today, the product must give the same answer after release. (BR-4)
-  - AC-FR-17.1: Given Fay cannot see a task today, when she opens it after release, then she sees nothing of it.
-- FR-18: Where tasks are shown or searched today, the product must give the same fields, order and results, without searching comment text. (BR-1)
-  - AC-FR-18.1: Given a word only in a comment, when Ana searches it, then no task is found.
+- FR-15: Where a person changes a task's owner, scope or due date, the app must work as today and not require a comment. (BR-1)
+  - AC-FR-15.1: Given Omar moves a due date, when he saves without a comment, then the change is saved as today.
+- FR-16: Where a person lists, opens, assigns or finishes a task, the app must behave as it does today. (BR-1)
+  - AC-FR-16.1: Given an existing task, when Omar assigns it to Ana, then it behaves as before this feature.
+- FR-17: Where a person can or can't see a task today, the same must hold after this feature. (BR-4)
+  - AC-FR-17.1: Given Ben couldn't see a task before release, when he browses the app after release, then he still can't.
 
 ## Non-functional requirements
 
-- NFR-1: A task page with 200 comments must show them all in 2 seconds or less at the 95th percentile.
-  - Verified by: a staging load test, 10 viewers at once, timed from page request to the last comment shown.
-- NFR-2: Comments and notices must reach 0 people who are not viewers of the task.
-  - Verified by: AC-NFR-2.1.
-  - AC-NFR-2.1: Given Fay is not a viewer, when she uses every page, then no comment or notice of that task is shown.
-- NFR-3: Adding and reading comments and using the notice area must work by keyboard alone.
-  - Verified by: a manual check of those actions by keyboard only, in current desktop browsers.
+- NFR-1: After a person posts, the comment must show in the discussion within 2 seconds for 95% of posts.
+  - AC-NFR-1.1: Given a task with 200 comments and 10 people posting in the same minute, when 100 posts are timed in the browser from click to display, then 95 or more take 2 seconds or less.
+- NFR-2: Comment text and notices must reach 0 people who can't see the task.
+  - Verified by: a manual check with two accounts, one without access, over the task page, its link and the notice list.
+- NFR-3: Comment times must show as "YYYY-MM-DD HH:MM" in the viewer's browser time zone. (A-7)
+  - Verified by: a manual check in two browser time zones.
 
 ## Non-goals
 
-Besides the brief's no-gos (NG-1):
-
-- NG-5: Email or push notices. In-app notices cover the need.
-- NG-6: Searching comment text. The brief asks only to read reasons on the task.
-- NG-7: Requiring a comment on a task change. It would slow people down.
+- NG-5: Live updates without reload. The brief doesn't ask for them.
+- NG-6: Email or chat notices. In-app notices cover BR-3 within the appetite.
+- NG-7: Threads, mentions and reactions. Plain comments cover the need.
+- NG-8: Searching inside comments. The brief asks only to read a task's discussion.
+- NG-9: A report or screen for SM-1 and SM-2. SM-1 uses the app's own data (A-8); SM-2 is a day-30 survey outside the product.
+- NG-1 to NG-4 stay as in the brief.
 
 ## Assumptions
 
-- A-1: Q-1 is answered "owner and assignee only". If it is everyone who commented, FR-7 grows.
-- A-2: Q-2 is answered "permanent". If edit or delete is allowed, FR-8 is replaced.
-- A-3: A task is open, done or archived, never deleted. If tasks can be deleted, comments need a rule.
-- A-4: A limit of 2,000 characters, counted after trimming spaces at both ends, is enough. If not, FR-1 and FR-11 change.
-- A-5: The app records no task changes today. If it does, FR-6 shrinks.
-- A-6: The app records when a task is done, for SM-1's counter-metric. If not, a new FR is needed.
-- A-7: Pages refresh only on reload today. If live updates exist, FR-9 changes.
-- A-8: The app has no notice area today. If one exists, FR-3 reuses it.
-- A-9: Times show as "2026-11-20 14:05" in the viewer's time zone, or in Coordinated Universal Time (UTC) if unset. FR-5 uses whole UTC days. If local days are wanted, FR-5 changes.
-- A-10: SM-2 is a survey outside the app, so no FR serves it. If not, a new FR is needed.
+- A-1: Q-1 is answered "owner and assignee only". If everyone who has commented is told, FR-4 and its ACs gain past commenters.
+- A-2: Q-2 is answered "comments are permanent". If edit or delete is allowed, FR-6 changes and edit and delete FRs, rules and failures are added.
+- A-3: No notice list exists today, so it is new. Notices are in-app only and stay until opened. If a list exists, FR-3 reuses it.
+- A-4: Other people see changes on reload. If they must see them at once, a new FR and NFR are needed.
+- A-5: The 2,000-character limit is a guess, counted as characters including spaces and line breaks. A different limit changes FR-11.
+- A-6: A task is open or done, has one owner and one assignee who may be the same person, and can be deleted. Another state needs its own rule in FR-1.
+- A-7: Times are stored and shown in the viewer's browser time zone. A fixed time zone changes NFR-3.
+- A-8: The app already records when a task's owner, scope or due date changed. If not, SM-1 can't be measured without a feature the brief doesn't ask for.
 
 ## Open questions
 
-None — the brief's Q-1 and Q-2 sit under "Decisions for you", and this PRD raises no other.
+None — the brief's two questions sit under "Decisions for you", and this PRD's guesses are listed as assumptions.
 
 ## Glossary
 
@@ -171,16 +157,15 @@ None — the brief's Q-1 and Q-2 sit under "Decisions for you", and this PRD rai
 
 ### Terms
 
-- Task: a unit of work with an owner, a description, a due date and a state. Exists today, with its task page.
-- Owner: the one person responsible for a task. Exists today.
-- Assignee: the person a task is assigned to, at most one. Exists today.
-- Team member: a person in the team who uses the task app. Exists today.
-- Team lead: a team member who owns tasks assigned to others; not a separate role.
-- Viewer: a person who can see a task under today's access rules.
-- Open task, done task, archived task: the task states; comments are allowed in the first two. Exist today.
-- Task change: a change to a task's owner, scope (its description) or due date. Exists today.
-- Changed task: a task with a task change in the chosen date range.
-- Reason: a comment on a changed task saved within 24 hours after its task change.
-- Comment: a plain-text message on a task. Its author is the viewer who wrote it. New.
-- Notice: an in-app message about a new comment, read or unread. New.
-- Notice area: the new place, reachable from every page, where notices are read. New.
+- Task: a piece of work in the task app, open or done; exists today.
+- Open, done: the two states of a task today; a done task still gets comments (A-6).
+- Team member: a person with an account in the task app; exists today.
+- Owner: the one team member who owns a task today.
+- Assignee: the one team member a task is assigned to today; may be the owner.
+- Can see a task: a team member who may open that task under today's access rules; this feature adds no rule.
+- Comment: a written text of up to 2,000 characters posted on a task by a team member who can see it; new.
+- Discussion: all comments of one task, oldest first; new.
+- Notice: a short in-app message telling an owner or assignee about a new comment, naming the task title and commenter; new.
+- Notice list: the new page where a team member sees their notices.
+- Task change: a new owner, a new scope or a new due date on a task; exists today.
+- Written reason: a comment posted within 24 hours after a task change; used by SM-1.
