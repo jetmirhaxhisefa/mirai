@@ -200,6 +200,20 @@ function configProblems(o) {
   return assert.fail('expected config problems');
 }
 
+test('32 T5: a full PRD\'s summary budget is 1,000 words; a lite one\'s stays 600 (Jet, after P1)', () => {
+  // About 480 more words in "What changes": over the lite budget, under the full one.
+  const extra = Array.from({ length: 34 }, () => '- A team lead sees every overdue task of the team on one page (FR-2).').join('\n');
+  const pad = (text) => swap(text, '- Tasks without a date look and sort exactly as they do today (FR-9).\n', `- Tasks without a date look and sort exactly as they do today (FR-9).\n${extra}\n`);
+  one(pad(PRD), 'writing-budget', /a prd's budget is 600/);
+  assert.deepEqual(codes(errors(pad(full()))).filter((c) => c === 'writing-budget'), []);
+  // The project moves the full budget with its own key; prd_summary_words leaves it alone.
+  one(pad(full()), 'writing-budget', /a full prd's budget is 700/, { project: { repos: ['.'], limits: { prd_full_summary_words: 700 } } });
+  assert.deepEqual(codes(errors(pad(full()), { project: { repos: ['.'], limits: { prd_summary_words: 700 } } })).filter((c) => c === 'writing-budget'), []);
+  const { config } = loadConfig(configFiles({ project: `${MINIMAL}[docs.limits]\nprd_full_summary_words = 1200\n` }));
+  assert.deepEqual(config.docs.limits, { prd_full_summary_words: 1200 });
+  assert.match(configProblems({ project: `${MINIMAL}[docs.limits]\nprd_full_summary_words = 5000\n` }).join('\n'), /prd_full_summary_words/);
+});
+
 test('32 T6: the variant and the glossary', () => {
   one(full({ rollout: false }), 'missing-section', /"Rollout" is missing/);
   // A lite PRD may fill a full-only section.

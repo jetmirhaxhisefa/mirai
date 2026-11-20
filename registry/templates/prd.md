@@ -14,7 +14,7 @@ any line or the id left word for word from this template, except "### ID prefixe
 PRD keeps exactly as it is.
 - Two readers. "Summary for approval" is for the person who approves. On the standard track it
   covers the brief too: they read this summary and approve both documents in one step. Write it
-  LAST, from the finished detail, in at most 600 words, and say nothing the detail doesn't hold.
+  LAST, from the finished detail, in at most 600 words (1,000 on a full PRD), and say nothing the detail doesn't hold.
   Everything after it is for the agents: complete enough to cut tickets and build without guessing.
 - Variants: lite (standard track) is every required section. Full (full track) adds Key flows,
   Risks, Dependencies and Rollout. A lite PRD leaves those four out.
@@ -73,7 +73,7 @@ Who has the problem and what it costs them, in a sentence that points to the bri
 
 ### What changes
 
-<!-- done when: three to seven bullets say what a user or the system does differently; each ends with the FR, NFR or BR IDs it sums up; failures and unchanged behaviour the approver would worry about are named -->
+<!-- done when: three to seven bullets say what a user or the system does differently; each ends with the FR, NFR or BR IDs it sums up; failures and unchanged behaviour the approver would worry about are named. A full PRD may have up to twelve, grouped under short lead-ins ending with ":" (for example "For team leads:") -->
 - What a person can do that they can't today (FR-1)
 - What the system does by itself, and when (FR-2)
 - What happens when something goes wrong (FR-3)

@@ -36,7 +36,10 @@
     same name asks for `--docs`; `--docs` and `--json` choose. An unknown name says what was
     looked for.
 - **The suites from 31** (`test/documents/brief.test.js`, `test/lint/`) pass unchanged.
-- **The full suite:** 686/686 on the Mac (`npm test`), 9 of them new in `prd.test.js`. The build
+- **T5 (summary budget, after P1):** a full PRD's summary may have 1,000 words, a lite one's
+    600. About 800 words fails a lite PRD and passes a full one; `prd_full_summary_words` moves
+    the full budget, and `prd_summary_words` doesn't touch it; out of range is refused.
+- **The full suite:** 687/687 on the Mac (`npm test`), 10 tests in `prd.test.js`. The build
   runner and CI run on the final commit.
 
 ## Probes (real)
@@ -88,3 +91,8 @@ gate.
 - **Date and time placeholders and UTC** are on the acronym list.
 - **Commit `c92cd80`'s message is wrong:** it says round 3 linted clean with no fixing round; it
   had 8 long sentences, fixed in `63ddc35`.
+- **A full PRD's summary is 1,000 words** (Jet, 2026-11-20, P1: "if the task is more complicated
+  the summary has more details"; "summary as recommended"). Up to 12 "What changes" bullets,
+  grouped under lead-ins; lite stays at 600 words and 3–7 bullets. A variant can carry its own
+  `summary_words`; the project key is `prd_full_summary_words`. The bullet count is template
+  guidance, not a lint rule, as in 31.

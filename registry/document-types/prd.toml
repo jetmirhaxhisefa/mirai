@@ -32,6 +32,8 @@ document_words = 3000
 
 [variants.full]
 document_words = 5000
+# A full PRD's summary may say more (Jet, 2026-11-20): up to 12 "What changes" bullets, grouped.
+summary_words = 1000
 required_sections = ["Key flows", "Risks", "Dependencies", "Rollout"]
 
 [frontmatter.fields.track]

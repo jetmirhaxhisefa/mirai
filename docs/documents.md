@@ -40,7 +40,7 @@ an ID you want to check.
 
 - **Write it last,** from the finished detail.
 - **Say nothing the detail doesn't hold.**
-- **Keep to the word budget:** brief 400, PRD 600, HLD 600, LLD 500, ADR 250, epic 250. A project can change the brief and PRD budgets (see "The caps" below).
+- **Keep to the word budget:** brief 400, PRD 600 (a full PRD 1,000), HLD 600, LLD 500, ADR 250, epic 250. A project can change the brief and PRD budgets (see "The caps" below).
 
 ## The writing rules
 
@@ -125,6 +125,10 @@ One type, two variants, set by `variant:` in the frontmatter:
 | lite | `standard` | Summary for approval, User journeys, Functional requirements, Non-functional requirements, Non-goals, Assumptions, Open questions, Glossary |
 | full | `full` | the lite sections, plus Key flows, Risks, Dependencies and Rollout |
 
+A full PRD's summary may say more: up to 1,000 words (lite: 600), and up to 12 "What changes"
+bullets, grouped under short lead-ins such as "For team leads:" (lite: 3–7). The work is bigger,
+so the approver needs more of it on the page (Jet, after 32's P1).
+
 A lite PRD becomes a full one by filling in the four extra sections; nothing is rewritten. A lite
 PRD may fill any of them. The lint warns when the variant and the track disagree.
 
@@ -189,6 +193,7 @@ can't. Each key has a range, so a cap can't be switched off:
 [docs.limits]
 brief_summary_words = 400   # 100–2,000
 prd_summary_words = 600     # 100–2,000
+prd_full_summary_words = 1000  # 100–2,000
 prd_lite_words = 3000       # 500–10,000
 prd_full_words = 5000       # 500–10,000
 ```

@@ -82,6 +82,9 @@ documents.
      words (warning at 2,400), full 5,000 (warning at 4,000); the Glossary and Open questions
      aren't counted. Three agent PRDs for a small feature landed at 1,860–1,990 words, and one cut
      requirements to fit.
+   - **The summary budget by variant (Jet, 2026-11-20, after P1, "summary as recommended"):** a
+     full PRD's summary is 1,000 words with up to 12 grouped "What changes" bullets; lite stays
+     at 600 words and 3–7 bullets. Project key: `prd_full_summary_words`.
    - **Counted:** everything below the frontmatter, ACs included.
    - **Not counted:** the frontmatter, code blocks, and the glossary's fixed ID-prefix block.
    - **Over the cap fails the lint.** The message says to split the feature into two PRDs, or
@@ -142,7 +145,7 @@ documents.
 
      | Section | Holds | IDs |
      |---|---|---|
-     | `## Summary for approval` | 31's five parts, budget 600 words | — |
+     | `## Summary for approval` | 31's five parts, budget 600 words (full: 1,000, see decision 4) | — |
      | `## User journeys` | each journey: who, the situation, the steps in a sentence or two | `UJ-n` |
      | `## Functional requirements` | four H3 groups (decision 2), each FR with its ACs | `FR-n`, `AC-FR-n.m` |
      | `## Non-functional requirements` | statement, target (or `UNKNOWN`), and how it's verified | `NFR-n`, `AC-NFR-n.m` |

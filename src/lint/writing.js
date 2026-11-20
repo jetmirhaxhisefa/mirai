@@ -61,11 +61,17 @@ export function checkWriting(doc, def, ctx, add) {
   const detailLines = scan.lines.filter((l) => !inSummary(l) && l.kind !== 'heading');
 
   // 1. The word budget: the project's `[docs.limits] <type>_summary_words` (unit 32), else the type's.
-  const budget = ctx.project?.limits?.[`${def.name}_summary_words`] ?? def.summary_words;
+  // A variant with its own budget (a full PRD: 1,000 words, Jet 2026-11-20) uses
+  // `<type>_<variant>_summary_words`, else the variant's.
+  const variant = def.variants?.[doc.value?.variant];
+  const budget = variant?.summary_words
+    ? ctx.project?.limits?.[`${def.name}_${doc.value.variant}_summary_words`] ?? variant.summary_words
+    : ctx.project?.limits?.[`${def.name}_summary_words`] ?? def.summary_words;
+  const kind = variant?.summary_words ? `${doc.value.variant} ${def.name}` : def.name;
   if (s && budget) {
     const count = summaryLines.filter((l) => l.kind === 'text' && !TABLE.test(l.text)).reduce((n, l) => n + words(l.text.replace(LIST_ITEM, '')).length, 0);
-    if (count > budget) add({ code: 'writing-budget', line: s.h2.line, column: 1, reason: `the summary has ${count} words; a ${def.name}'s budget is ${budget}`, hint: 'cut what the approver doesn\'t need to decide; the detail keeps it' });
-    else if (count >= Math.ceil(budget * 0.8)) add({ code: 'writing-budget', severity: 'warning', line: s.h2.line, column: 1, reason: `the summary has ${count} words, close to the ${def.name}'s budget of ${budget}`, hint: 'one page is the target' });
+    if (count > budget) add({ code: 'writing-budget', line: s.h2.line, column: 1, reason: `the summary has ${count} words; a ${kind}'s budget is ${budget}`, hint: 'cut what the approver doesn\'t need to decide; the detail keeps it' });
+    else if (count >= Math.ceil(budget * 0.8)) add({ code: 'writing-budget', severity: 'warning', line: s.h2.line, column: 1, reason: `the summary has ${count} words, close to the ${kind}'s budget of ${budget}`, hint: 'one page is the target' });
   }
 
   const ids = new Set((def.ids ?? []).map((k) => k.prefix));

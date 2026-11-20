@@ -310,6 +310,7 @@ export const CONFIG_SCHEMA = {
           fields: {
             brief_summary_words: { type: 'integer', min: 100, max: 2000 },
             prd_summary_words: { type: 'integer', min: 100, max: 2000 },
+            prd_full_summary_words: { type: 'integer', min: 100, max: 2000 },
             prd_lite_words: { type: 'integer', min: 500, max: 10000 },
             prd_full_words: { type: 'integer', min: 500, max: 10000 },
           },

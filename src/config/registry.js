@@ -296,6 +296,9 @@ const DOCUMENT_TYPE = {
         type: 'table',
         fields: {
           document_words: { type: 'integer', min: 500, max: 10000 },
+          // The variant's own summary budget, when it differs from the type's summary_words
+          // (unit 32: a full PRD's summary is 1,000 words; Jet, 2026-11-20).
+          summary_words: { type: 'integer', min: 50, max: 2000 },
           required_sections: sectionList,
         },
         required: ['document_words'],
