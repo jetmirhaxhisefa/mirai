@@ -72,10 +72,10 @@ test('32 T1: the type and the template: left as it is it fails, both variants ma
 });
 
 test('32 T2: requirements: each problem names the FR and the fix; a shape only warns', () => {
-  one(swap(PRD, 'for themselves. (BR-2)', 'for themselves.'), 'prd-trace', /FR-3 doesn't name the business requirement it serves \| end it with the brief's BR in brackets, then any assumptions it rests on/);
+  one(swap(PRD, 'covers every task they have. (BR-2)', 'covers every task they have.'), 'prd-trace', /FR-3 doesn't name the business requirement it serves \| end it with the brief's BR in brackets, then any assumptions it rests on/);
   // P2 (unit 32): assumptions cited after the BR are fine; anything else after it isn't.
-  assert.deepEqual(errors(swap(PRD, 'for themselves. (BR-2)', 'for themselves. (BR-2) (A-2)')).filter((p) => p.code === 'prd-trace'), []);
-  one(swap(PRD, 'for themselves. (BR-2)', 'for themselves. (BR-2) (see FR-1)'), 'prd-trace');
+  assert.deepEqual(errors(swap(PRD, 'covers every task they have. (BR-2)', 'covers every task they have. (BR-2) (A-2)')).filter((p) => p.code === 'prd-trace'), []);
+  one(swap(PRD, 'covers every task they have. (BR-2)', 'covers every task they have. (BR-2) (see FR-1)'), 'prd-trace');
   one(swap(PRD, '  - AC-FR-3.1: Given Ana has turned reminders off, when a task of hers is due tomorrow, then she gets no email.\n', ''), 'prd-ac', /FR-3 has no acceptance criterion \| add AC-FR-3.1 under it/);
   one(swap(PRD, 'then she gets no email', 'and she gets no email'), 'prd-ac', /AC-FR-3.1 has no "Then" \| write it as: Given/);
   one(swap(PRD, '### Failures\n\n', ''), 'prd-groups', /"Functional requirements" has no "### Failures" \| the four groups, in order/);
@@ -87,7 +87,7 @@ test('32 T2: requirements: each problem names the FR and the fix; a shape only w
   one(swap(PRD, 'AC-FR-3.1:', 'AC-FR-3.2:'), 'prd-numbering', /AC-FR-3.2 should be AC-FR-3.1: a requirement's ACs run .1, .2, .3/);
   one(swap(PRD, '  - AC-FR-9.1:', '  - AC-FR-12.1: Given a task, when it is opened, then it shows.\n  - AC-FR-9.1:'), 'missing-parent', /AC-FR-12.1 belongs to FR-12, which isn't defined/);
   // A Capabilities FR written as a trigger only warns (decision 2: until we've seen real PRDs).
-  const shape = swap(PRD, 'An assignee can turn reminder emails off, and on again, for themselves.', 'When an assignee asks, the system must stop their reminder emails.');
+  const shape = swap(PRD, 'An assignee can turn all of their own reminder emails off, and on again.', 'When an assignee asks, the system must stop their reminder emails.');
   assert.deepEqual(errors(shape), []);
   assert.deepEqual(codes(warnings(shape)), ['prd-shape']);
   assert.match(warnings(shape)[0].hint, /write it as "\[Actor\] can …", or move it to the group it belongs to/);
@@ -103,7 +103,7 @@ test('32 T3: an NFR names how it is verified: an AC-NFR, or a Verified by line w
 test('32 T4: across the brief: every BR served, IDs resolve, the brief\'s IDs are cited not redefined, the link, the summary\'s no-gos', () => {
   const br3 = '- BR-3: A lead can see every overdue task of their team at once. Source: the November 2026 lead interviews.\n';
   one(PRD, 'prd-trace', /the brief's BR-4 isn't served by any FR or NFR \| add the requirement that delivers BR-4, ending with \(BR-4\)/, { brief: swap(BRIEF, br3, `${br3}- BR-4: A lead can export the team's deadlines. Source: the November 2026 lead interviews.\n`) });
-  one(swap(PRD, 'for themselves. (BR-2)', 'for themselves. (BR-9)'), 'unknown-id', /BR-9 is mentioned but defined neither here nor in the brief/);
+  one(swap(PRD, 'covers every task they have. (BR-2)', 'covers every task they have. (BR-9)'), 'unknown-id', /BR-9 is mentioned but defined neither here nor in the brief/);
   one(swap(PRD, '- NG-4: Reminders', '- NG-2: Phone numbers. None are held.\n- NG-4: Reminders'), 'upstream-id', /NG-2 is already the brief's/);
   one(swap(PRD, '- NG-4: Reminders', '- NG-1: Reminders').replace('(NG-4)', '(NG-1)'), 'upstream-id', /NG-1 is already the brief's/);
   one(PRD.replaceAll('NG-4', 'NG-5'), 'prd-numbering', /NG-5 should be NG-4: the PRD's own NG IDs carry on after the brief's \(it ends at NG-3\)/);

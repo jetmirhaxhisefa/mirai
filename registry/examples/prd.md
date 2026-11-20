@@ -26,7 +26,7 @@ Team leads keep deadlines in a spreadsheet beside the task app. Last month 4 of 
 
 Once this is built:
 
-- A task's creator can give it a due date, and overdue tasks are marked in the list (FR-1, FR-5).
+- A task's creator or team lead can date it. Overdue tasks are marked in the list (FR-1, FR-5).
 - An assignee gets one email the day before a task is due, listing all of that day's tasks (FR-4).
 - A team lead sees every overdue task of the team on one page (FR-2).
 - A date in the past is refused, and a failed email is retried once (FR-6, FR-7).
@@ -56,13 +56,14 @@ The journeys this feature changes:
 
 ### Capabilities
 
-- FR-1: A task's creator can set, change or remove the due date of a task. (BR-1)
+- FR-1: A task's creator or its team lead can set, change or remove the task's due date. (BR-1)
   - AC-FR-1.1: Given a task with no due date, when its creator sets 2027-01-15, then the task shows "Due 15 Jan 2027".
   - AC-FR-1.2: Given a task due 2027-01-15, when its creator removes the date, then the task shows no due date.
+  - AC-FR-1.3: Given Ben didn't create the task and isn't its lead, when he opens it, then he can't change its date.
 - FR-2: A team lead can see all of the team's overdue tasks on one page, the most overdue first. (BR-3)
   - AC-FR-2.1: Given tasks 1, 5 and 2 days overdue, when the lead opens the page, then they show 5, 2, 1.
   - AC-FR-2.2: Given a team with no overdue task, when the lead opens the overdue page, then it says "Nothing is overdue".
-- FR-3: An assignee can turn reminder emails off, and on again, for themselves. (BR-2)
+- FR-3: An assignee can turn all of their own reminder emails off, and on again. The setting covers every task they have. (BR-2)
   - AC-FR-3.1: Given Ana has turned reminders off, when a task of hers is due tomorrow, then she gets no email.
 
 ### Triggers and states
@@ -70,8 +71,9 @@ The journeys this feature changes:
 - FR-4: When a day ends, the system must send each assignee one email listing their tasks due the next day. (BR-2)
   - AC-FR-4.1: Given Ana has two tasks due 2027-01-15, when 2027-01-14 ends, then Ana gets one email naming both.
   - AC-FR-4.2: Given the reminders for 2027-01-14 were sent, when the job runs again that day, then no second email is sent.
-- FR-5: While a task is past its due date and not done, the task list must mark it as overdue. (BR-1)
-  - AC-FR-5.1: Given an open task due 2027-01-15, when anyone opens the list on 2027-01-16, then the task is marked overdue.
+  - AC-FR-4.3: Given Ana was reminded of a task, when it moves to 2027-01-20, then she is reminded again as 2027-01-19 ends.
+- FR-5: While a task is past its date and not done, the list must show it as overdue to its viewers. (BR-1)
+  - AC-FR-5.1: Given an open task due 2027-01-15, when a team member opens the list on 2027-01-16, then it is marked overdue.
   - AC-FR-5.2: Given that task is then marked done, when the list is opened again, then it is no longer marked overdue.
 
 ### Failures
@@ -134,5 +136,8 @@ Besides the brief's no-gos (NG-1, NG-2, NG-3):
 - Due date: the calendar day a task should be done by, in the team's time zone (the brief's R-1).
 - Overdue: past its due date and not done.
 - Assignee: the one person a task is assigned to.
-- Team lead: the person who assigns a team's tasks and answers for its deadlines.
+- Team lead: the one person per team, set in today's team settings, who assigns its tasks. Only a team lead opens the overdue page, for their own team.
+- Can see a task: is a member of the task's team, under today's access rules, which this PRD doesn't change.
+- Done: the task status the app has today. A reopened task counts as not done again.
+- Exists today: tasks, teams, team leads, the done status and email addresses. New: due dates, the overdue mark and page, and reminder emails.
 - Day ends: midnight in the team's own time zone.
