@@ -11,6 +11,10 @@ one file:
 Briefs have it from unit 31, PRDs from unit 32, epics from unit 33. HLDs, LLDs and ADRs get it as their units come.
 Tickets and plans don't: they're short already, and their gates are different.
 
+The project's context files in `.mirai/context/` (business, critical journeys, feature map,
+project facts and conventions, unit 36) have no summary: you approve the whole file. See
+[context.md](context.md).
+
 ## The document types
 
 Each type is a file in `registry/document-types/`, with its template and checklist in
