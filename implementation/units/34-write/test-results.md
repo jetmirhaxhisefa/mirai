@@ -118,3 +118,20 @@
   option B, after which you asked whether you had to write the sentences). Its examples use the
   source form `(a session reply)`, linted with the detail's rules. The questions you're asked stay
   with `mirai-interview` (35): the guide only points to it.
+- **After P2's two runs (u34-p2, u34-p2-2), the reader's "decide" and "left out" are scoped to
+  their parts.** Both models answered "What you decide" for a summary with an empty "Decisions for
+  you" by quoting the ask ("Approve …"), and the quote matched. Now:
+  - the prompt says approving or rejecting the document itself is not a decision, that a stated
+    "no decisions" is an answer, and to quote "left out" from "Not in this" and "decide" from
+    "Decisions for you";
+  - MIRAI's quote check requires the "decide" quote to be in "Decisions for you" and the "left
+    out" quote in "Not in this"; a quote from another part fails, naming the part. Parts are found
+    by name through one function, `summarySection` (unit 37's overlays can map renamed parts
+    there). All six good summaries of P2's set state both in those parts (checked in T3).
+- **P2's seeds** (`test/probes/reader-probes.js`): the first run's left-out and who-it's-for seeds
+  left the removed facts stated elsewhere ("The chat tool stays in use for everything else (NG-1)";
+  "The someone a task is assigned to …"). The left-out seed also drops "What changes" bullets that
+  state an exclusion; the who-it's-for seed drops every summary sentence that names or points at a
+  person (the second run showed "so that someone can record and read the reasons" still read as
+  an audience), keeping at least one "What changes" bullet. Every miss prints the reader's answer
+  and quote.

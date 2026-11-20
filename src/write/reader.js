@@ -43,8 +43,8 @@ const ZWSP = '\u200B';
 export const QUESTIONS = Object.freeze([
   { key: 'built', label: 'What\'s built', what: 'what is built', fix: 'say it in "What changes", one bullet per change' },
   { key: 'for_whom', label: 'Who it\'s for', what: 'who it is for', fix: 'name the people or roles in "Why" or "What changes"' },
-  { key: 'left_out', label: 'What\'s left out', what: 'what is left out', fix: 'name each item under "Not in this"' },
-  { key: 'decide', label: 'What you decide', what: 'what you must decide', fix: 'list each decision under "Decisions for you", or write "None — <why nothing needs your call>"' },
+  { key: 'left_out', label: 'What\'s left out', what: 'what is left out', fix: 'name each item under "Not in this"', section: 'Not in this' },
+  { key: 'decide', label: 'What you decide', what: 'what you must decide', fix: 'list each decision under "Decisions for you", or write "None — <why nothing needs your call>"', section: 'Decisions for you' },
 ]);
 
 // Which documents need the test before approval (decision 6): a type whose lint checks include
@@ -76,6 +76,18 @@ export function summaryText(text) {
 
 export const summaryHash = (summary) => contentHash(Buffer.from(summary, 'utf8'));
 
+// One part of the summary by its name ("Not in this", "Decisions for you"): the text under its
+// "### " heading, up to the next one, or null when the summary has no such part. Every lookup of
+// a part by name goes through here, so a template that renames a part (unit 37's overlays) maps it
+// in one place.
+export function summarySection(summary, name) {
+  const lines = String(summary).split('\n');
+  const at = lines.findIndex((l) => l.trim() === `### ${name}`);
+  if (at < 0) return null;
+  const next = lines.findIndex((l, i) => i > at && /^### /.test(l));
+  return lines.slice(at + 1, next < 0 ? lines.length : next).join('\n');
+}
+
 const normal = (s) => String(s ?? '').replace(new RegExp(ZWSP, 'g'), '').replace(/\s+/g, ' ').trim();
 const wordCount = (s) => (normal(s).match(/[\p{L}\p{N}][\p{L}\p{N}'’.%-]*/gu) ?? []).length;
 const NOT_STATED = /^not stated\.?$/i;
@@ -93,7 +105,9 @@ export function readerPrompt(summary) {
     '1. built: what will be built or changed?',
     '2. for_whom: who is it for?',
     '3. left_out: what is left out?',
-    '4. decide: what must the approver decide? If the summary says there is nothing to decide, that is an answer: quote where it says so.',
+    '4. decide: what must the approver decide besides approving the document: the options or open questions the summary puts to them? Approving or rejecting the document itself is not an answer. If the summary says there is nothing to decide, that is an answer: quote where it says so.',
+    '',
+    'Quote left_out from the part headed "Not in this", and decide from the part headed "Decisions for you". If that part doesn\'t state it, the answer is "not stated".',
     '',
     `For each, give your answer in one sentence, and the exact words from the summary you relied on: one passage of at least ${QUOTE_MIN_WORDS} words from one place, copied character for character. If the summary doesn't state it, the answer is "not stated" and the quote is "".`,
     '',
@@ -140,6 +154,9 @@ export function checkAnswers(summary, reply) {
     if (NOT_STATED.test(normal(answer)) || normal(answer) === '') why = `${q.label}: not stated. The summary doesn't say ${q.what}: ${q.fix}`;
     else if (normal(quote) === '') why = `${q.label}: the reader gave no quote. The summary doesn't show ${q.what} in words a reader can point to: ${q.fix}`;
     else if (!text.includes(normal(quote))) why = `${q.label}: the quote "${normal(quote).slice(0, 120)}" isn't in the summary, so the answer rests on nothing it says: ${q.fix}`;
+    // Unit 34's P2: what is left out and what you decide must be stated in their own parts. A
+    // quote from elsewhere (the ask's "Approve …" for a decision) doesn't count.
+    else if (q.section && !normal(summarySection(summary, q.section) ?? '').includes(normal(quote))) why = `${q.label}: the quote "${normal(quote).slice(0, 120)}" isn't under "${q.section}", where the summary must say ${q.what}: ${q.fix}`;
     else if (wordCount(quote) < QUOTE_MIN_WORDS) why = `${q.label}: the quote "${normal(quote)}" is too short to show where the summary says it: ${q.fix}`;
     answers[q.key] = { answer, quote, ok: why === null, why };
     if (why) failed.push(q.key);

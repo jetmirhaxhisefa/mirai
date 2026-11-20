@@ -43,7 +43,7 @@ export const DOCUMENTS = Object.freeze([
   { key: 'p2-epic', path: 'implementation/units/33-epic/p2/epic-task-comments.md' },
 ]);
 
-// Who a summary is for, as the six summaries name people: every one becomes "someone".
+// Who a summary is for, as the six summaries name people.
 const PEOPLE = /\b(?:new team members?|team leads?|team members?|leads?|assignees?|owners?|viewers?|creators?|commenters?|authors?|people|persons?|users?|members|outsiders|everyone|anyone|others|the team(?:'s)?|team's)\b/gi;
 
 // Words that still point at a person once the nouns are gone ("the person a task is assigned to",
@@ -60,8 +60,27 @@ const LEFT_OUT_HINT = /\(NG-[0-9]|\bNG-[0-9]|\bstays?\b|\bnot live\b|\bas (?:the
 export const SEEDS = Object.freeze([
   { key: 'no-left-out', question: 'left_out', what: 'what is left out ("Not in this" emptied, and the "What changes" bullets that say what stays out)', apply: (t) => dropBullets(emptyPart(t, 'Not in this'), 'What changes', LEFT_OUT_HINT) },
   { key: 'no-decision', question: 'decide', what: 'the decisions for you ("Decisions for you" emptied)', apply: (t) => emptyPart(t, 'Decisions for you') },
-  { key: 'no-who', question: 'for_whom', what: 'who it is for ("Why" emptied, "What changes" bullets naming a person dropped, other people named "someone")', apply: (t) => inSummary(dropBullets(emptyPart(t, 'Why'), 'What changes', (l) => new RegExp(PEOPLE.source, 'i').test(l) || PERSON_HINT.test(l)), (s) => s.replace(PEOPLE, 'someone')) },
+  // P2's second run: a sentence rewritten to "someone" ("so that someone can record and read the
+  // reasons") still reads as an audience, so every sentence that names or points at a person goes.
+  { key: 'no-who', question: 'for_whom', what: 'who it is for (every sentence that names or points at a person dropped)', apply: (t) => inSummary(t, dropPersonSentences) },
 ]);
+
+const names = (sentence) => new RegExp(PEOPLE.source, 'i').test(sentence) || PERSON_HINT.test(sentence);
+// Drops, in every part of the summary, each sentence that names or points at a person; a list item
+// or line left with no sentence goes too. Headings and lead-ins without a person stay.
+function dropPersonSentences(summary) {
+  const out = [];
+  for (const line of summary.split('\n')) {
+    if (/^#/.test(line) || !line.trim()) {
+      out.push(line);
+      continue;
+    }
+    const m = /^(\s*(?:[-*]|[0-9]+\.)\s+)?(.*)$/.exec(line);
+    const kept = m[2].split(/(?<=[.!?])\s+/).filter((sentence) => !names(sentence));
+    if (kept.length) out.push(`${m[1] ?? ''}${kept.join(' ')}`);
+  }
+  return out.join('\n');
+}
 
 // Drops the bullets of one part that match `test` (a regex or a function); the part keeps at least
 // one bullet, or the seed would also remove what is built.
@@ -136,11 +155,12 @@ export function buildSet() {
       }
       if (s.question === 'decide' && partBody(summary, 'Decisions for you') !== '') throw new Error(`${d.key} ${s.key}: "Decisions for you" isn't empty`);
       if (s.question === 'for_whom') {
-        if (partBody(summary, 'Why') !== '') throw new Error(`${d.key} ${s.key}: "Why" isn't empty`);
         const left = summary.match(PEOPLE);
         if (left) throw new Error(`${d.key} ${s.key}: people are still named: ${left.join(', ')}`);
-        const hinted = (partBody(summary, 'What changes') ?? '').split('\n').filter((l) => PERSON_HINT.test(l));
-        if (hinted.length) throw new Error(`${d.key} ${s.key}: "What changes" still points at a person: ${hinted.join(' | ')}`);
+        const hinted = summary.split('\n').filter((l) => PERSON_HINT.test(l));
+        if (hinted.length) throw new Error(`${d.key} ${s.key}: the summary still points at a person: ${hinted.join(' | ')}`);
+        // It still says what is built.
+        if (!(partBody(summary, 'What changes') ?? '').split('\n').some((l) => /^\s*[-*] /.test(l))) throw new Error(`${d.key} ${s.key}: "What changes" has no bullet left, so what is built went too`);
       }
       // Nothing outside the summary changed.
       if (seeded.replace(/## Summary for approval[\s\S]*?(?=\n## )/, '') !== text.replace(/## Summary for approval[\s\S]*?(?=\n## )/, '')) throw new Error(`${d.key} ${s.key}: the detail changed`);
