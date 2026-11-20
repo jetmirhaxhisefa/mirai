@@ -63,8 +63,8 @@
 
 | Probe | Result |
 |---|---|
-| **P1 Your read** | not run yet (the 15 examples: the 12 for the documents and the 3 in `guides/session.md`) |
-| **P2 The reader's model** | not run yet. Until it runs, `reader-test` defaults to `standard`; P2 sets the final default (`light` if Haiku catches every seeded bad summary and fails no good one). |
+| **P1 Your read** | **pass** (Jet read the 15 examples, the 12 for the documents and the 3 in `guides/session.md`, 2026-11-20: "34 P1 pass"). |
+| **P2 The reader's model** | not run yet; the probe is `test/probes/reader-probes.js` (a `probes` job: 6 good summaries and 18 seeded bad ones, Haiku and Sonnet each in its own probe home, the init check first; `--seeds-only` checks the set with no model). Until it runs, `reader-test` defaults to `standard`; P2 sets the final default (`light` if Haiku catches every seeded bad summary and fails no good one). |
 | **P3 A fresh agent writes with the skill** | not run yet |
 
 ## Changed from the spec
