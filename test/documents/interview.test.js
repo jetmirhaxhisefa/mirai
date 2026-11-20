@@ -78,7 +78,7 @@ test('35 T1: the skill: the five rules, pause, resume, autonomous mode, the stuc
   assert.match(body, /\*\*Resume\.\*\* A new session reads `interview\.md` first\. It starts at the first open question, and\s+never asks an answered one again/);
   assert.match(body, /## Autonomous mode\n\nWith no one to ask .*don't guess and don't draft\. Write your questions into\s+`interview\.md`.*set `state: paused`, and stop/s);
   assert.match(body, /Write it as you go: each question when you ask it, each answer as soon as it comes/);
-  assert.match(body, /\[`mirai-write`\]\(\.\.\/mirai-write\/SKILL\.md\)/);
+  assert.match(body, /\[`mirai-write`\]\(\.\.\/mirai-write\/SKILL\.md\) skill,\nin its \[session guide\]\(\.\.\/mirai-write\/guides\/session\.md\)/);
   assert.match(body, /You don't run `mirai`/);
   // CREDITS: both sources, each at its commit, MIT, with its notice.
   assert.match(CREDITS, /https:\/\/github\.com\/addyosmani\/agent-skills, file `skills\/interview-me\/SKILL\.md`, read at commit\s+`[0-9a-f]{40}`/);

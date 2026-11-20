@@ -71,8 +71,8 @@ Your step: reply A, B or C, or add a note ("B, but not on weekends"). "explain" 
 "pause" saves and stops.
 ```
 
-How to word the step and an explanation is in the [`mirai-write`](../mirai-write/SKILL.md) skill.
-Follow it here too.
+How to word the step and an explanation is in the [`mirai-write`](../mirai-write/SKILL.md) skill,
+in its [session guide](../mirai-write/guides/session.md). Follow it here too.
 
 ## Listening
 
