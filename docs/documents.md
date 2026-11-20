@@ -8,7 +8,7 @@ one file:
 - **The detail** is for the agents. It must be complete enough that the next step needs no
   guessing.
 
-Briefs have it from unit 31, PRDs from unit 32. Epics, HLDs, LLDs and ADRs get it as their units come.
+Briefs have it from unit 31, PRDs from unit 32, epics from unit 33. HLDs, LLDs and ADRs get it as their units come.
 Tickets and plans don't: they're short already, and their gates are different.
 
 ## The summary for approval
@@ -40,7 +40,7 @@ an ID you want to check.
 
 - **Write it last,** from the finished detail.
 - **Say nothing the detail doesn't hold.**
-- **Keep to the word budget:** brief 400, PRD 600 (a full PRD 1,000), HLD 600, LLD 500, ADR 250, epic 250. A project can change the brief and PRD budgets (see "The caps" below).
+- **Keep to the word budget:** brief 400, PRD 600 (a full PRD 1,000), HLD 600, LLD 500, ADR 250, epic 400. A project can change the brief, PRD and epic budgets (see "The caps" below, and "Epics and ticket sets").
 
 ## The writing rules
 
@@ -49,7 +49,7 @@ the fix named.
 
 | Rule | Where | Fails | Warns |
 |---|---|---|---|
-| The word budget | summary | over the type's budget | at 80% of it |
+| The word budget | summary | over the type's budget | at 80% of it (an epic: at 300 of 400) |
 | Sentence length | everywhere | over 25 words | over 20 words |
 | Banned words | everywhere | "leverage", "utilise", "seamless", "etc."… (`src/lint/words.js`) | — |
 | A vague word with no number | everywhere | "fast", "scalable", "secure", "robust"… in a sentence with no number | — |
@@ -235,3 +235,132 @@ due-dates   standard
 The state is "approved", "changed since approval" or "not approved". When the name is also a
 ticket MIRAI knows, `show` asks you to choose: `--docs` for the documents, `--full` for the
 ticket. It writes nothing, so `/mirai show` in your session has it too.
+
+## Epics and ticket sets
+
+After the PRD, the work is split into tickets, and you approve the set before any of it is built
+(the `tickets` gate is always yours). The epic is the one page you approve it from. Its template
+is `registry/templates/epic.md`, and a filled example is `registry/examples/epic.md`: the
+due-dates epic, with its seven tickets in `registry/examples/tickets/`. Vera's checklist is
+`registry/templates/epic-checklist.md`.
+
+It sits beside the PRD, at `docs/mirai/<initiative>/epic-<slug>.md`. Its tickets are
+`docs/mirai/<initiative>/tickets/<key>.md`, each with `epic: <the epic's id>`. On `standard`
+there is one epic per PRD. On `full` there may be several, each covering its own FRs, and one
+approval covers them all.
+
+It links its PRD, and on `full` its design, in lines under the title:
+
+```
+# Due dates and reminders, in seven tickets
+
+PRD: [Tasks with due dates that people finish on time](prd.md)
+Design: [HLD](hld.md), [LLD for reminders](lld-reminders.md)
+```
+
+`PRD:` is always required. `Design:` is required on `full`, and on `standard` once a ticket names
+an ADR in `governed_by`. The lint checks that its links resolve; their types are checked once
+the HLD and LLD types exist (unit 62).
+
+### Reading an epic as its approver
+
+1. **The summary for approval** (400 words at most) is the same five parts as every document.
+   "What changes" groups the tickets by what they deliver, each bullet ending with its ticket
+   keys and FRs: "Reminder emails go out the evening before, retried once (SAMPLE-53, SAMPLE-54;
+   FR-4, FR-7)".
+2. **Decisions for you** lists, by ticket key with a one-line reason, everything that needs your
+   call: every `risk: high` ticket, every `e2e: true` ticket, every `tdd` or `tests` override,
+   and the release mode when it's `together`. The lint checks each one is there.
+3. **Order** says why the tickets come in this order: the tracer bullet first (the thinnest path
+   through every layer), then the ticket the team is least sure of.
+4. **Release** names the mode: `per-ticket` (the default) or `together`, with its reason.
+5. **Not in this epic** cites the PRD's non-goals, or adds the epic's own as `NG-n`, numbered on
+   from the PRD's and the brief's highest.
+
+You should know what gets built, in what order and what to decide, without opening a ticket.
+
+### What is generated
+
+The last four sections restate the tickets, so MIRAI writes them, never the author:
+
+| Section | What it holds |
+|---|---|
+| Tickets | a table: key (linked), title, size, risk, `after`, the FRs and ACs it covers, its ADRs |
+| Dependencies | a Mermaid diagram of `after` |
+| Coverage | every FR, NFR and AC of the PRD, with its group (Failures, Unchanged behaviour …) and the tickets that cover it |
+| Design decisions | every ADR the tickets name in `governed_by`, linked, or "None" |
+
+Each sits between two markers. The lint fails when one doesn't match the ticket files and the
+PRD: a hand edit inside it, or a ticket changed since it was rendered. The fix is always the
+same:
+
+```bash
+mirai epic render docs/mirai/<initiative>/epic-<slug>.md
+```
+
+It reads every ticket in `tickets/` whose `epic` names the epic, and the PRD, and rewrites only
+those four sections. Its last line is the epic's full path, so you can open it with one click.
+It writes the repo's docs only, so `/mirai epic render <file>` in your session has it too.
+
+### The graph lint
+
+The lint checks the set is complete and can be built. Each message names the ticket and the fix.
+
+| Fails | Warns |
+|---|---|
+| a cycle in `after` | two tickets list the same file in `files_likely`, with no `after` between them |
+| an `after` naming a ticket that doesn't exist, or one of another epic | 16 tickets or more |
+| stacking deeper than 2 levels (A → B → C) | |
+| a PRD FR, NFR or AC no ticket covers (Failures and Unchanged behaviour included) | |
+| a ticket covering an ID the PRD doesn't define, or covering nothing | |
+| a size other than S, M or L | |
+| more tickets, or more L tickets, than the caps | |
+| a ticket with no AC or no `verify` line | |
+| a generated section that doesn't match | |
+| a "Decisions for you" item missing | |
+
+### The caps
+
+| Key | Default | Lint |
+|---|---|---|
+| `epic_tickets` | 20 | warns at 16, fails above 20 |
+| `epic_l_tickets` | 5 | fails above 5 |
+| `epic_summary_words` | 400 | fails above |
+| `epic_summary_warn_words` | 300 | warns at or above |
+
+Sizes stay S, M and L. There is no exception route: on `standard`, a set over a cap means
+splitting the PRD or moving to `full`, never merging, shrinking or dropping tickets to fit. A
+project can change the caps in `.mirai/config.toml`, never in a personal file, each within a
+range:
+
+```toml
+[docs.limits]
+epic_tickets = 20              # 2–50
+epic_l_tickets = 5             # 0–20
+epic_summary_words = 400       # 100–2,000
+epic_summary_warn_words = 300  # 100–2,000
+```
+
+### Approving the set
+
+```bash
+mirai approve <epic-id> --file docs/mirai/<initiative>/epic-<slug>.md
+```
+
+MIRAI lints the epic with its PRD and every ticket, the graph included, and each ticket on its
+own, all as at approval. A problem in any of them refuses the set, and nothing is written. The
+PRD must be approved as it is now. MIRAI prints the epic's path and hash, and each ticket's path
+and hash. You decide once, and one signed approval covers the epic's bytes and every ticket
+file's bytes. A later change to any of them, or a ticket joining the epic, needs a new approval.
+
+`mirai show <initiative>` lists the epic with the brief and the PRD, with its state, its ticket
+count and its full path:
+
+```
+due-dates   standard
+  brief.md            brief              due-dates-brief   approved                 /Users/…/docs/mirai/due-dates/brief.md
+  epic-due-dates.md   epic (7 tickets)   SAMPLE-50         not approved             /Users/…/docs/mirai/due-dates/epic-due-dates.md
+  prd.md              prd                due-dates-prd     approved                 /Users/…/docs/mirai/due-dates/prd.md
+```
+
+The inbox screen for the set and the docs MR merge come with units 45 and 38.

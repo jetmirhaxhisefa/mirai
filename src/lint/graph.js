@@ -187,7 +187,8 @@ export function findCycles(edges) {
     path.push(k);
     for (const d of edges.get(k) ?? []) {
       if (state.get(d) === 1) {
-        const c = path.slice(path.indexOf(d));
+        // Shown in build order (A → B: A comes first), as the Dependencies diagram draws it.
+        const c = path.slice(path.indexOf(d)).reverse();
         const start = c.indexOf([...c].sort(byKey)[0]);
         const norm = [...c.slice(start), ...c.slice(0, start)];
         cycles.set(norm.join('\n'), norm);
