@@ -1,7 +1,7 @@
 ---
 unit: "37"
 name: overlays
-status: draft (decisions 1–8 from Jet's interview answers, 2026-11-20; restatement confirmed "yes")
+status: approved (Jet, 2026-11-20: "approve 37"; decisions 1–8 from his interview answers the same day; built only after 36 is finished, and re-checked against 34–36 first)
 roadmap: design/07-implementation-roadmap.md, row 37; D-37 (design/04, and its unit 21a update); R2-M12; unit 03b (the registry core); units 18 and 21a (the red team and strict launches)
 depends_on: ["03b", "07", "36"]
 ---
@@ -56,7 +56,7 @@ registry. Overlays settle what "the template" means in a project before they're 
 
 1. **Protected parts in each document type:** a `protected_sections` list and `protected_fields`
    list in each `registry/document-types/*.toml` (brief, PRD, epic, story, bug, plan, interview,
-   and the context types from 36). Each entry names what reads it (approval, the reader test,
+   and the context types from 36). The brief's `Interview:` link (35) and the reader test's sections (34: "Decisions for you", "Not in this") are protected. Each entry names what reads it (approval, the reader test,
    `trace`, the epic coverage, the graph lint, the gate). The registry refuses a type whose
    `lint_checks` read a section that isn't protected.
 2. **Section overlays: `.mirai/custom/document-types/<type>.toml`:**
