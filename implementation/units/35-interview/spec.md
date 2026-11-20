@@ -1,7 +1,7 @@
 ---
 unit: "35"
 name: interview
-status: draft (decisions 1–8 from Jet's interview answers, 2026-11-20; restatement confirmed "yes")
+status: approved (Jet, 2026-11-20: "approve 35"; decisions 1–8 from his interview answers the same day)
 roadmap: design/07-implementation-roadmap.md, row 35; design/01 §2 step 1 and setup step 3; design/03 (`mirai-interview`); D-27, D-31 (design/04); research/06 (addyosmani `interview-me`); research/06b (mattpocock `grilling`)
 depends_on: ["11", "31", "34"]
 ---
