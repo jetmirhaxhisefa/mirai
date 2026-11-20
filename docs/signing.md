@@ -39,16 +39,16 @@ Approving a plan signs `approvalHash` over:
 - the fields `ticket`, `acs`, `risk`, `tdd`, `tests` and `round`.
 
 The signing context is `mirai/plan-approval/1:<repo-id>`, its own, so a plan approval can't
-pass for a document approval (`mirai/approval/1:<repo-id>`) or a journal line. An edit to any
+pass for a journal line (`mirai/journal/<version>:<repo-id>`), where document approvals go. An edit to any
 signed part needs a new approval. The code map, the tasks and the logs may change.
 
 ## Branch records (unit 22)
 
-Every ticket branch MIRAI makes starts with a commit of `.mirai/records/<ticket>/branch.json` (D-15): the ticket, the branch, the commit it started from and when. It's signed with your key, under its own context, `mirai/branch-record/1:<repo-id>`. So CI and the pre-push hook (unit 26) can see the branch is MIRAI's even without the store. `mirai branch verify [<branch>]` checks it with the integration branch's public keys, as CI will. Records are signed from your terminal only. Night runs need a machine key, which is row 29b's.
+Every ticket branch MIRAI makes starts with a commit of `.mirai/records/<ticket>/branch.json` (D-15): the ticket, the branch, the commit it started from and when. It's signed with your key, or the machine key once it's set up, under its own context, `mirai/branch-record/1:<repo-id>`. So CI and the pre-push hook (unit 26) can see the branch is MIRAI's even without the store. `mirai branch verify [<branch>]` checks it with the integration branch's public keys, as CI will. Unattended, only the machine key signs one (unit 29b).
 
 ## Proofs (unit 25a)
 
-`mirai gate record <ticket>` mints a ticket's **proofs** after Rex's review passed: a `review` proof and a `gate` proof in `.mirai/records/<ticket>/`, each its own immutable file (`review-r1-<hash>.json`, `gate-r1-<hash>.json`), signed with your key under `mirai/proof/1:<repo-id>`, and committed on the ticket's branch by MIRAI. They're bound to the ticket's **code hash** (D-16): a clean rebase keeps them, any code change doesn't. They say only that the review and the gate passed for that code, never what was found. `mirai gate check <ticket>` recomputes the hash and checks them with the integration branch's public keys only, as the pre-push hook (unit 26) and CI (unit 54) will. Like every record, they're signed from your terminal only; until row 29b's machine key, a night run parks the ticket for you (`sign-proofs`).
+`mirai gate record <ticket>` mints a ticket's **proofs** after Rex's review passed: a `review` proof and a `gate` proof in `.mirai/records/<ticket>/`, each its own immutable file (`review-r1-<hash>.json`, `gate-r1-<hash>.json`), signed with your key, or the machine key once it's set up, under `mirai/proof/1:<repo-id>`, and committed on the ticket's branch by MIRAI. They're bound to the ticket's **code hash** (D-16): a clean rebase keeps them, any code change doesn't. They say only that the review and the gate passed for that code, never what was found. `mirai gate check <ticket>` recomputes the hash and checks them with the integration branch's public keys only, as the pre-push hook (unit 26) and CI (unit 54) will. With the machine key set up (unit 29b), `mirai run` signs them with it, from your session too. Without it, they're signed in your terminal only.
 
 ## Your passphrase and the machine key (unit 29b)
 

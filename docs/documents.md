@@ -85,8 +85,9 @@ document, and answers four questions:
 For each, the reader gives its answer and the exact words of the summary it relied on. MIRAI then
 checks every quote against the summary with a plain text match: spaces and line breaks don't
 count, nothing else is forgiven. The question fails when the answer is "not stated", the quote is
-missing or shorter than three words, or the quote isn't in the summary. Each failure names the
-question and the fix:
+missing or shorter than three words, or the quote isn't in the summary. "What's left out" and
+"What you decide" must quote their own parts: "Not in this" and "Decisions for you". Each failure
+names the question and the fix:
 
 ```
   fail  What's left out: not stated. The summary doesn't say what is left out: name each item under "Not in this"
@@ -128,7 +129,7 @@ The signed approval line records the result's hash (`reader_test`), so it says w
 saw.
 
 **The model** is the step `reader-test` in `[models.steps]`: `light` (Haiku) or `standard`
-(Sonnet). Until unit 34's P2 measures both, the default is `standard`.
+(Sonnet). Unit 34's P2 measured both: Haiku failed a good summary, so the default is `standard`.
 
 ```toml
 [models.steps]
@@ -368,7 +369,7 @@ The last four sections restate the tickets, so MIRAI writes them, never the auth
 |---|---|
 | Tickets | a table: key (linked), title, size, risk, `after`, the FRs and ACs it covers, its ADRs |
 | Dependencies | a Mermaid diagram of `after` |
-| Coverage | every FR, NFR and AC of the PRD, with its group (Failures, Unchanged behaviour …) and the tickets that cover it |
+| Coverage | every FR, NFR and AC of the PRD (on `full`, those its own tickets cover), with its group (Failures, Unchanged behaviour …) and the tickets that cover it |
 | Design decisions | every ADR the tickets name in `governed_by`, linked, or "None" |
 
 Each sits between two markers. The lint fails when one doesn't match the ticket files and the

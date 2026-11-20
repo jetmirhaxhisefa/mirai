@@ -14,7 +14,7 @@ As the repo's admin, you can merge past a red or stuck check. The workflow is
 - its actions are pinned to commit SHAs;
 - its permissions are read-only;
 - it has no secrets;
-- it uses only the `pull_request` trigger.
+- for pull requests, it uses only the `pull_request` trigger.
 
 ## What CI proves, and what it doesn't
 
