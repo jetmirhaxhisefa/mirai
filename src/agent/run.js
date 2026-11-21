@@ -6,7 +6,8 @@ import { dirname, join } from 'node:path';
 
 import { MiraiError, UsageError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
-import { checkInit, expectedInit, finishLaunch, prepareLaunch, removeLaunch } from '../launch/strict.js';
+import { agentTemplate, checkInit, expectedInit, finishLaunch, prepareLaunch, removeLaunch } from '../launch/strict.js';
+import { agentOverlay } from '../trust/overlays.js';
 import { containsToken, parseStream, redact } from '../redteam/claude.js';
 import { resolveClaude } from '../redteam/key.js';
 import { HEALTH, redTeamStatus } from '../redteam/run.js';
@@ -179,13 +180,27 @@ export function checkReviewAgent({ agent, role, step }) {
 // An agent's definition for this launch (unit 21a), from the trust root only: a branch's copy counts
 // for nothing. It launches under its own role or a read-only one (Kai's plan step, as planner),
 // never a role that may change more. Returns { name, json }.
-export function agentFor(trust, name, role, template, { structured = false } = {}) {
+// Unit 37: with `store`, the agent's overlay from the trust root applies: one that isn't approved as
+// it is now (or doesn't validate) refuses the launch rather than running MIRAI's definition; an
+// approved one gives its prompt and, when it changes the tools or widens the agent, a template of
+// its own (src/launch/strict.js, agentTemplate). Returns { name, json, template, change, why,
+// overlay } (`template`: the one this launch runs under).
+export function agentFor(trust, name, role, template, { structured = false, store = null } = {}) {
   const registry = trustedRegistry(trust);
   if (!Object.hasOwn(registry.agents, name)) throw Object.assign(new UsageError(`there's no agent ${JSON.stringify(String(name).slice(0, 40))}; agents: ${Object.keys(registry.agents).sort().join(', ') || 'none'}`), { code: 'unknown-agent' });
-  const def = registry.agents[name];
+  const own = store ? agentOverlay(trust, store, name, { registry }) : null;
+  if (own && (own.state !== 'approved' || !own.overlay.result)) {
+    const why = own.state === 'invalid' ? `doesn't validate (${own.overlay.problems[0]})` : own.state === 'changed' ? 'changed since its approval' : own.state === 'rejected' ? 'rejected' : 'not approved';
+    throw refuse(`${name}'s overlay ${own.path} is ${why}, so ${name} doesn't launch (MIRAI never runs it on its own definition instead)`, 'overlay-not-approved', own.state === 'invalid' ? 'mirai show overlays lists its problems' : `read it, then: mirai approve --file ${own.path}`);
+  }
+  const def = own ? own.overlay.result.def : registry.agents[name];
   checkAgentRole(def, role);
-  const prompt = readFileSync(join(registry.dir, def.prompt));
-  return { name, json: renderAgentsJson(def, prompt, launchTools(template, { structured })) };
+  const prompt = own ? own.overlay.result.prompt : readFileSync(join(registry.dir, def.prompt));
+  const change = own ? own.overlay.result.change : null;
+  const tools = def.tools.allowed;
+  const same = tools.length === template.tools.length && tools.every((t) => template.tools.includes(t));
+  const used = own && (change === 'widening' || !same) ? agentTemplate(template, { agent: name, tools, overlay: def.overlay }) : template;
+  return { name, json: renderAgentsJson(def, prompt, launchTools(used, { structured })), template: used, change, why: own ? own.overlay.result.why : [], overlay: own ? own.path : null };
 }
 
 function recordAgent(store, plan, pid) {
@@ -269,9 +284,11 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   if (expectBase !== null && trust.baseSha !== expectBase) throw refuse(`the integration branch moved (${expectBase.slice(0, 12)} → ${trust.baseSha.slice(0, 12)}) since this launch's inputs were read`, 'base-moved', 'run it again');
   const role = findRole(trustedRoles(trust), roleName);
   const mode = role.mode;
-  const template = trustedStrict(trust, mode);
+  const modeTemplate = trustedStrict(trust, mode);
   const config = trustedConfig(trust);
-  const agentDef = agent === null ? null : agentFor(trust, agent, role, template, { structured: jsonSchema !== null });
+  const agentDef = agent === null ? null : agentFor(trust, agent, role, modeTemplate, { structured: jsonSchema !== null, store });
+  // Unit 37: an agent whose overlay changes its tools runs under its own template.
+  const template = agentDef?.template ?? modeTemplate;
   // The Claude Code the red team tested (unit 18g), never the PATH link the updater moves; one you
   // name (a test, a probe) as given. The gate below judges this same binary.
   // `fallbackClaude`: the broker worker's (found when your session server was registered), used only
@@ -299,7 +316,15 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   checkPendingIgnored(store);
   checkIgnoredCheckable(ignoredState(store.checkout, store.gitEnv));
   // The file it launches, not a link to it (18g re-review: an update could move a link in between).
-  checkRedTeam(await status({ cwd, env, trust, template, claude: c.real }), store);
+  // Unit 37: a widened agent needs a green result that covers its own template, which carries its
+  // overlay's hash; a narrowed one (fewer tools) stands on its mode's.
+  const widened = agentDef?.change === 'widening';
+  try {
+    checkRedTeam(await status({ cwd, env, trust, template: widened || agentDef?.change !== 'narrowing' ? template : modeTemplate, claude: c.real }), store);
+  } catch (err) {
+    if (!widened || !String(err.code ?? '').startsWith('redteam-')) throw err;
+    throw refuse(`${agentDef.name}'s overlay widens it (${agentDef.why.join(', ')}), and no green red-team result covers it (${err.message.replace(/^the red team isn't green for this launch: /, '')})`, 'overlay-widened', `run it yourself: mirai redteam run (it tests ${agentDef.overlay} too)`);
+  }
   stopped();
   // The ticket's first launch pins the binary it runs, once every check has passed (18h).
   if (chosen.toPin) writePin(store, chosen.toPin, tested, loadRecordSigner(env, store), { now });
