@@ -158,6 +158,11 @@ the document reaches you.
 - **34:** its fixed `ROUNDS` becomes `reader_fix_rounds` (decision 2), and the reader test now
   waits for Vera (Scope 6). 34's tests still pass with the default.
 - **36:** the context files are Vera's layer 3 input, and three of them are her documents.
+  Re-checked after 36 was built (2026-11-21): 36's decision 8 added `(open)` for what no source
+  says yet. On a context file, an `(open)` line isn't a finding (the lint warns, and approval
+  refuses it). **A claim whose cited source doesn't say it is a must-fix**: it should be `(open)`
+  and asked. That's the failure P2 found on Thudos, and the lint can't see it; the business
+  checklist's line for it is Vera's.
 - **37:** a section overlay renames sections Vera's checklist names. She reads them through 37's
   rename map, as the reader test does.
 - **38:** her file paths go through the store's `pathOf`.
