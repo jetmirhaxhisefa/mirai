@@ -162,7 +162,8 @@ registry. Overlays settle what "the template" means in a project before they're 
   - `project`: `Layout`, `Stack`, `Commands`, `Test levels` and `Instructions`;
   - `conventions`: `Rules`.
   
-  An overlay can add a section to a context type, but not rename or drop one of these. 36's
+  An overlay can add a section to a context type and rename one of these through the rename map
+  (36's lints then read the project's name), but never drop one. 36's
   `(open)` marker is a line format, not a section, so nothing changes for it.
 - **39:** adds `.mirai/custom/hooks/` and `scripts/` to the overlay folders (39's spec, "Checked
   against the queued units").
