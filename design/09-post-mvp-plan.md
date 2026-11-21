@@ -210,6 +210,7 @@ Each row is a decision you made. "Where" names the addendum that carries the des
 | ID | Decision | Where |
 |---|---|---|
 | PM-46 | A brainstorming skill before Nora's brief: you explore a problem or idea in your session, and the result is one to three candidate briefs that start the normal flow. Late in the plan (stage 6). It was on the original Later list (2026-11-18) | `20` |
+| PM-47 | **Scripts and languages, strictly defined** (Jet, 2026-11-21: "I don't want MIRAI to go crazy with the script setup"). A script does any work that recurs and can be solved without a model, so no tokens are spent on it, and agents never write scripts on demand. MIRAI's scripts are JavaScript, and maybe Python; no mix of many languages, and no pile of one-off Bash scripts. The rules say which language, where scripts live, how they're structured, tested and approved, and how recurring agent work is found and turned into a script. An interview opens the unit (P43) | §5, P43 |
 
 ---
 
@@ -302,6 +303,7 @@ the review of stage 1 confirmed it.
 | P40 | Project skills and agent additions | 6 | MVP units 37, 74, P20 | `18` |
 | P41 | `mirai review-external` | 6 | MVP units 24, 24b, 27a, 27b | `18` |
 | P42 | `mirai-brainstorm` | 6 | Review, MVP units 31, 34, 35, 41, 44 | `20` |
+| P43 | **Scripts and languages** (PM-47). Interview first. It explores and then fixes the rules: <br>• **languages:** JavaScript, and whether Python is allowed, for what, and how its runtime is checked;<br>• **where scripts live and how they're structured:** MIRAI's own, and a project's in `.mirai/custom/scripts/` (39);<br>• **tests and approval;**<br>• **finding work worth a script:** the review's log reading (stage 1) lists the agent work that recurs and costs tokens, and each item is either scripted or kept with a reason;<br>• **a check that refuses** a new language, or a script outside the agreed places.<br>**Done when:** the rules are written and enforced, and a seeded one-off Bash script in a MIRAI change is refused | 4 | Review, MVP units 19c, 37, 38, 39 | §3 PM-47 |
 
 **Dependencies across stages.** The stage order is provisional, so these are the links the
 review must keep when it re-orders:
