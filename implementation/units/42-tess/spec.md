@@ -1,7 +1,7 @@
 ---
 unit: "42"
 name: tess
-status: draft (Jet's interview 2026-11-21: Q1 "C", Q2 "A", Q3 "A", restatement "yes")
+status: draft (Jet's interview 2026-11-21: Q1 "C", Q2 "A", Q3 "A", restatement "yes"; after his read of the draft: Q4 "A" priority, Q5 "a mix of A and B" ticket types, Q6 "A")
 roadmap: design/07-implementation-roadmap.md, row 42; design/01 §5 (tickets) and §7 (`tdd`, `tests`); design/02 (d) (one feature, from idea to live); 09 PM-07 (system-facing criteria); D-41 (strict templates, the template-gap signal); units 19c (`start_agent`, broker tools), 33 (epic, tickets, graph lint), 34 (`mirai-write`), 35 (interview, pause), 36 (journeys), 38 (store, links), 40 (Vera), 41 (Nora, the pause and the run record)
 depends_on: ["19c", "33", "34", "35", "36", "38", "40", "41"]
 ---
@@ -54,6 +54,28 @@ hand.
      GCP use the new structure") instead of a customer, and each must be testable by the
      reviewer.
 
+5. **Priority and order are two things** (Q4, "A", after Jet's read: "Is the priority decided
+   properly?"; it wasn't, anywhere):
+   - **`priority`:** a field on every ticket, `high`, `normal` or `low`, `normal` by default.
+     Tess proposes it (an urgent bug as `high`), and you set it at approval;
+   - **`order`:** within an epic, Tess numbers the tickets: the tracer bullet first, then the one
+     she's least sure of;
+   - **the run's pick:** among the ready tickets (their `after` tickets done), the highest
+     priority first, then the epic's order, then the earliest approval. An urgent bug you ask for
+     by hand goes before a feature's ready tickets.
+6. **Ticket types are the project's** (Q5, "a mix of A and B"; Jet: "Each ticket type should
+   have the name and a description how it is used and for what. Imagine in Jira ticket types
+   might have different names"):
+   - **the defaults:** Story, Bug and Investigation;
+   - **per project, fully yours:** each type has a name and a description of what it's for and
+     when to use it. Tess reads the descriptions to choose a ticket's type. The names can be
+     Jira's (Task, Bug, Spike, Tech Debt), and each type names its tracker issue type (38);
+   - each type may have its own template and checklist.
+7. **Every type runs as one of MIRAI's behaviours** (Q6, "A"): `change` (code and tests), `bug`
+   (a test that reproduces it first) or `investigation` (research and a written finding, no code
+   merge). A type can't invent a new way to run, so the safety model stays the same. A new
+   behaviour is a MIRAI change, never a project setting.
+
 ## Scope
 
 **In**
@@ -95,14 +117,39 @@ hand.
    open question to `interview.md` (with options and a guess), records the run as paused, and
    stops. Your session shows the question. After your answer (and the PRD's new approval, if it
    changed), a new run continues from the documents as they are.
-5. **New critical journeys:** when a feature creates one, the epic's "Decisions for you" lists
+5. **Priority and order** (decision 5): `priority` (`high`, `normal`, `low`; default `normal`)
+   and `order` (a whole number, within the epic) on the story and bug types; the epic's ticket
+   table shows both; `high` is listed under "Decisions for you". The run's pick (the build
+   loop's "next ready ticket") orders by priority, then `order`, then approval time. `mirai show`
+   lists ready tickets in that order.
+6. **Ticket types** (decisions 6 and 7):
+   - **config:** `[[tickets.types]]` (project layer), each with `name`, `description`,
+     `runs_as` (`change`, `bug` or `investigation`), and optional `template`, `checklist` and
+     `tracker_type`. The defaults are Story (`change`), Bug (`bug`) and Investigation
+     (`investigation`). The config check refuses a type with no description, an unknown
+     `runs_as`, or two types with one name;
+   - **the ticket:** its frontmatter gains `ticket_type: "<name>"`. The document type that lints
+     it comes from `runs_as`: `change` is 33's story, `bug` is 33's bug, and `investigation` is a
+     new document type (template, checklist, example: a question, what was looked at, the
+     finding, what to do next, with sources);
+   - **a type's own template** is checked like 37's replacement template: it must keep every
+     protected part of its behaviour's type. It's approved like an overlay (37), and an
+     unapproved one isn't used;
+   - **Tess** gets the types and their descriptions in her input and picks one per ticket. A
+     ticket asked for by hand gets its type from the interview;
+   - **trackers (38)** use `tracker_type` as the issue type when a ticket is published.
+   
+   Running an `investigation` ticket (the research run, the finding, no code merge) is a unit of
+   its own, 42b, in the roadmap. Until it's built, the run refuses to start one, with the reason.
+7. **New critical journeys:** when a feature creates one, the epic's "Decisions for you" lists
    the proposal with the ticket key, and approving the set adds it to `journeys.md` as a change
    you approve with it (36's approval of `journeys.md`, a new signed line).
-6. **Template gaps:** as 41 (D-41): the content goes into the closest section, a `template_gap`
+8. **Template gaps:** as 41 (D-41): the content goes into the closest section, a `template_gap`
    event is logged, and `mirai show <initiative>` lists it.
-7. **The run record:** each Tess run logs its tier, model, rounds used per check, template gaps
+9. **The run record:** each Tess run logs its tier, model, rounds used per check, template gaps
    and outcome (done, paused, failed), as Nora's runs do.
-8. **Docs:** `docs/agents.md` lists Tess. `docs/documents.md`'s "From request to approval" (41)
+10. **Docs:** `docs/agents.md` lists Tess. `docs/tickets.md` (new): the types, priority and
+   order. `docs/documents.md`'s "From request to approval" (41)
    gains the ticket step, and a short section "One ticket by hand". `/mirai ticket` goes on the
    session list (21f). Any new key goes in `docs/config.md` (34b's check).
 
@@ -138,7 +185,15 @@ hand.
   change.
 - **T7 Template gap and run record:** a fake output with one gap writes one `template_gap` event;
   the run record holds tier, model, rounds, gaps and outcome.
-- **T8 The docs check** (34b) passes.
+- **T8 The docs check** (34b) passes, with `[[tickets.types]]` in `docs/config.md`.
+- **T9 Priority and order:** with three ready tickets (a `normal` epic ticket with `order` 1, a
+  `normal` one with `order` 2, and a `high` lone bug), the run picks the bug, then order 1, then
+  order 2. A `high` ticket missing from "Decisions for you" fails the epic lint.
+- **T10 Ticket types:** a project with Task (`change`), Bug (`bug`), Spike (`investigation`) and
+  Tech Debt (`change`, own template): a Tech Debt ticket lints with its own template and 33's
+  story checks; a type with no description, an unknown `runs_as`, and a template missing a
+  protected part are each refused, naming the problem; with no `[[tickets.types]]` the defaults
+  apply; starting an `investigation` ticket is refused until 42b, with the reason.
 
 ## Probes (real)
 
@@ -156,11 +211,14 @@ hand.
   change to the new structure"` on the sample app (or a similar system change). **Pass when** she
   asks at most 3 questions, and the ticket's ACs describe the system and are testable by the
   reviewer.
+- **P4 Your work's types:** a project configured with your work's types (Task, Bug,
+  Investigation, each with your description). Tess cuts a small PRD. **Pass when** each ticket's
+  type is the one you'd have chosen, and the set lints clean.
 
 ## Done when
 
-- T1–T8 pass, and the full suite passes through the build runner and CI.
-- P1–P3 pass.
+- T1–T10 pass, and the full suite passes through the build runner and CI.
+- P1–P4 pass.
 - The roadmap row's done-when holds: a graph-lint-clean ticket set; only the journey-changing
   ticket in a seeded set gets `e2e: true`; a seeded technical ticket gets system-facing ACs that a
   check can test; an AC nobody could test fails the lint.
@@ -168,13 +226,15 @@ hand.
 ## Checked against the queued units
 
 - **33:** Tess writes 33's types and passes its graph lint and caps. The testability lint is new,
-  on 33's `ticket` check.
+  on 33's `ticket` check. Story and bug gain `priority`, `order` and `ticket_type`.
+- **37:** a ticket type's own template is checked and approved through 37's replacement path.
 - **35:** the interview skill gains a question cap for a ticket asked by hand.
 - **36:** `e2e` is decided from `journeys.md`. A new journey goes through 36's approval.
-- **37:** her definition validates and can be overlaid like Kai's and Rex's.
+- **37 (agents):** her definition validates and can be overlaid like Kai's and Rex's.
 - **38:** paths come from `pathOf`, links from 38. A lone ticket's documents ride in the code
   merge request (38).
 - **40:** Vera checks the set with the ticket checklist. Her 36 rule applies to journeys.
 - **41:** the pause, the telling, the template gaps and the run record are 41's, reused.
 - **44:** chains Tess after the PRD behind `/mirai-new`.
-- **55:** the night run starts from Tess's approved set.
+- **55:** the night run starts from Tess's approved set, in the run's pick order.
+- **42b (new):** running an `investigation` ticket.
