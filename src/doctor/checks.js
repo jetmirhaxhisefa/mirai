@@ -474,6 +474,10 @@ export function overlaysCheck({ store, trust, events, redTeam = null, registry =
     if (Number.isInteger(then) && Number.isInteger(current) && current > then) {
       notes.push(`MIRAI's ${o.name} template is at version ${current}; your replacement ${o.path} was approved against version ${then}`);
       hint ??= `compare it with MIRAI's, update it, then: mirai approve --file ${o.path}`;
+    } else if (typeof o.line?.template_hash === 'string' && o.line.template_hash !== o.result.coreTemplate.hash) {
+      // Jet's answer to Q5 ("C", 2026-11-21): a text change under the same version counts too.
+      notes.push(`MIRAI's ${o.name} template text changed since your replacement ${o.path} was approved (version ${current ?? 'unknown'} both times)`);
+      hint ??= `compare it with MIRAI's, update it, then: mirai approve --file ${o.path}`;
     }
   }
   const agentLine = `agents: ${agents.join(', ')}`;
