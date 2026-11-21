@@ -82,8 +82,10 @@ This unit adds that place: a **store** per project, with one contract every stor
 3. **Every document path resolves through the store** (roadmap: "document paths resolve through
    the store"):
    - the lint, approval, `mirai show <initiative>`, the reader test (34), the interview link (35),
-     the context files (36) and overlays (37) call `pathOf(type, initiative, name)` instead of
-     joining the docs root themselves;
+     the context files (36) and 37's `mirai epic render` call `pathOf(type, initiative, name)`
+     instead of joining the docs root themselves. 37's overlays stay in `.mirai/custom/` and apply
+     to documents in either store, including the lint `mirai docs merge` runs (it uses the
+     approved overlays and reports any it skips);
    - **the setting** is `[docs] store = "repo" | "local"` in `.mirai/config.toml`, read from the
      integration branch like `docs.root`. A personal file can't set it. Changing it on a project
      that already has documents is refused, naming `mirai docs move` as later work.
@@ -206,3 +208,12 @@ This unit adds that place: a **store** per project, with one contract every stor
   not the docs root, so they never ride in a docs merge request.
 - **54:** CI checks a docs merge request's approvals later. Until then, the gate is MIRAI's own
   check before it merges.
+
+**Re-checked against 37 as built (2026-11-21):**
+
+- Scope 3 said overlays (37) call `pathOf`. As built, overlays never resolve a document path:
+  they are read only from `.mirai/custom/` in the trust root (`src/config/overlays.js`,
+  `CUSTOM_DIR` and `readOverlays`). Changed to: the context files (36) and 37's `mirai epic
+  render` call `pathOf`; 37's overlays stay in `.mirai/custom/` and apply to documents in either
+  store, including the lint `mirai docs merge` runs (it uses the approved overlays and reports any
+  it skips).

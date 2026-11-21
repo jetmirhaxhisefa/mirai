@@ -50,8 +50,10 @@ approved PRD.
 
 **In**
 
-1. **The agent: `registry/agents/mirai-product-manager.toml` + `.md`** (Nora), role `author`.
-   - **Writes** only inside the initiative's folder (the store's `pathOf`, 38).
+1. **The agent: `registry/agents/mirai-product-manager.toml` + `.md`** (Nora), under a role of
+   her own: `registry/roles/product-manager.toml` (read-write, step `prd`).
+   - **Writes** only inside the initiative's folder (the store's `pathOf`, 38): after the run, her
+     changes are checked against that folder.
    - **Reads** the context files, the interview, and the request's sources.
    - **Tools:** `Read`, `Glob`, `Grep`, `Write` and `Edit`, within that write scope.
    - **Gets** 34's `mirai-write` skill.
@@ -119,8 +121,9 @@ approved PRD.
 
 ## Tests
 
-- **T1 The agent:** Nora's definition validates under `author`, with her write scope limited
-  to the initiative's folder. A write outside it is refused (fake launcher). She has the
+- **T1 The agent:** Nora's definition validates under her own role `product-manager`
+  (read-write, step `prd`). After the run, a write outside the initiative's `pathOf` folder is
+  refused (fake launcher). She has the
   `mirai-write` skill.
 - **T2 Broker tools:** `lint`, `verify` and `reader_test` return results as data from a sandboxed
   run, with findings fenced. A path outside the project is refused.
@@ -178,3 +181,22 @@ approved PRD.
   requirements-source coverage check (Scope 9); 40's spec is unchanged, and 41 adds the input and
   the check on top of it.
 - **44:** chains these steps behind `/mirai-new`. Row 41's "document links" item is 38's.
+
+**Re-checked against 37 as built (2026-11-21):**
+
+- **"You don't run `mirai`"** (Scope 1): `mirai-write` says "You don't run `mirai`"
+  (`registry/skills/mirai-write/SKILL.md`; 37's "For later" note). Added: the skill says an agent
+  runs MIRAI's checks through its broker tools.
+- **Her write scope** (Scope 1, T1): the spec gave Nora her own write scope under role `author`.
+  Only a role's `may_write` is applied (`src/config/overlays.js`, `src/agent/scope.js`), and
+  `author` allows `["**"]` with step `build`. Changed to: Nora runs under a role of her own
+  (`registry/roles/product-manager.toml`, read-write, step `prd`); after the run her changes are
+  checked against the initiative's `pathOf` folder.
+- **Skills in a strict launch** (Scope 1, "Gets"): a strict launch loads no skills
+  (`src/launch/strict.js`), so skill overlays reach only Jet's sessions. Added: her prompt
+  carries `mirai-write` as the approved skill overlay renders it, and the type's template as
+  `mirai show template` renders it. Her `lint` broker tool applies the overlays and returns
+  `overlays_skipped` (`src/mcp/tools/lint.js`).
+- **`requirements.md`** (Scope 9): if it's a document type, it declares `[[protected_sections]]`
+  for the section where `R-n` is defined (read by `lint` and `trace`), and it gets an entry in
+  `test/lint/template-versions.json`.
