@@ -30,7 +30,7 @@ Each item is **ok**, **yellow** (works, but worth knowing) or **red** (something
 | Baseline | — | none for the integration branch's commit (the next run records it) |
 | Ticket images | — | Docker didn't answer; images of tickets that no longer need them are left |
 | Banned words | — | the banned-word list has no review date, or its last review is over 90 days old |
-| Overlays | the overlays can't be read | an agent's overlay isn't approved, or widens it with no red-team run covering it; an overlay isn't approved as it is now; MIRAI's template is newer than a replacement template you approved ([overlays.md](overlays.md)) |
+| Overlays | the overlays can't be read | an agent's overlay isn't approved, or widens it with no red-team run covering it; an overlay isn't approved as it is now; MIRAI's template has a newer version, or other text, than a replacement template you approved ([overlays.md](overlays.md)) |
 
 ## What `--fix` repairs
 

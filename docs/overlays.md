@@ -17,6 +17,7 @@ Overlays stay in their project. Which ones go back to MIRAI is `mirai promote`'s
 | `.mirai/custom/agents/<name>.md` | the text added to the agent's prompt |
 | `.mirai/custom/skills/<name>/overlay.toml` | how a skill's text changes |
 | `.mirai/custom/skills/<name>/overlay.md` | the text added to the skill |
+| `.mirai/custom/approvals/<kind>-<name>.json` | your signed approval of one overlay, written by `mirai approve` |
 
 The `.toml` file is the overlay. You approve it, and its approval covers the `.md` beside it.
 
@@ -90,7 +91,9 @@ headings are the type's sections. MIRAI's required sections stay required; your 
 too.
 
 The approval records MIRAI's template version and hash at that time. `mirai doctor` warns when
-MIRAI's template for the type has a newer version than the one recorded.
+MIRAI's template for the type has a newer version than the one recorded, or when its text changed
+under the same version. MIRAI's own tests fail when a template's text changes without its
+`template_version` going up (`test/lint/template-versions.json`).
 
 ### See the template your project uses
 
@@ -175,6 +178,14 @@ part = "## Output"
   with the overlay. Run it yourself: `mirai redteam run`. The red team runs the same escape cases
   under the agent's own template (its tools, its mode's limits), and the result is recorded
   against the overlay's hash. Any change to the overlay needs a new run.
+- **The cases made for the widened tool** run under the agent's template too, and only when an
+  approved overlay widens an agent with that tool:
+  - Bash beyond the agent's mode: writing into the checkout, the network, and the real `.env`
+    files and MIRAI's store (`x-bash-checkout`, `x-bash-network`, `x-bash-secrets`);
+  - Write or Edit for a read-only agent: a protected path (`x-write-protected`,
+    `x-edit-protected`).
+
+  The launch stays refused until every case under the agent's template has passed.
 - **Never:** a tool no launch gets (`WebFetch`, `WebSearch`, `Task`, `Agent`, and the strict
   profile's own denies), or the agent's own `may_write`. For a different write scope, add a role
   in `.mirai/custom/roles/` and name it in `role`.
@@ -194,6 +205,18 @@ mode = "append"
 
 Its text is in `.mirai/custom/skills/mirai-write/overlay.md`.
 
+### In your own sessions
+
+`mirai render` writes the approved agent and skill overlays into your sessions' files:
+`.claude/agents/mirai-*.md` and `.claude/skills/mirai-*/SKILL.md`. It takes an overlay only with a
+committed approval record that matches it as it is now. Any other overlay isn't rendered: MIRAI's
+own file is, and render prints the overlay's line. Run `mirai render` after you approve an agent or
+skill overlay, and commit its files with the record.
+
+The lock's bundle hash stays MIRAI's own bundle: the plugin folder the trust root checks, which
+launches never read. Your sessions' files are listed in the lock one by one, each with the overlay
+files it came from. MIRAI's own launches take the overlay from the trust root at the launch.
+
 ## Approving an overlay
 
 ```
@@ -206,7 +229,24 @@ mirai approve --file .mirai/custom/document-types/prd.toml
   widening agent overlay, it says the red team must run first.
 - Your decision is signed: one journal line, `kind: overlay`, over the file's hash and the files
   it binds. For a replacement template, it also records MIRAI's template version and hash.
+- The same decision is written as a signed record,
+  `.mirai/custom/approvals/<kind>-<name>.json`: the overlay's path, the hash of it and every file
+  it binds, your decision, and for a replacement template MIRAI's template version and hash. Commit
+  it with the overlay. It's how the approval reaches a teammate's checkout and CI.
 - A change to the overlay, or to a file it binds, makes the approval stale. Approve it again.
+
+### Which approval counts
+
+An overlay is approved when its committed record matches it as it is now, checked against the
+public keys committed on the integration branch. With no record, your local journal counts, where
+MIRAI is set up. When there is a record, it decides for everyone:
+
+- a record that doesn't verify (edited, or signed by a key that isn't committed) makes the overlay
+  not approved;
+- a record for other bytes makes it changed since its approval.
+
+So `mirai lint` in a checkout with no MIRAI store, a teammate's before `mirai join` or CI, applies
+every overlay with a valid record.
 
 ## Where MIRAI reads overlays
 
@@ -243,4 +283,5 @@ it yet. From your session: `/mirai show overlays`.
 - `widened: red team needed`: its launches are refused until a red-team run covers it.
 
 It's yellow when an agent's launches are refused, an overlay isn't approved as it is now, or
-MIRAI's template has a newer version than a replacement template was approved against.
+MIRAI's template has a newer version, or other text, than a replacement template was approved
+against.

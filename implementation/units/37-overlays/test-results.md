@@ -57,6 +57,31 @@
     `mirai redteam run`) with its own template `agent-mirai-reviewer-read-only` carrying the
     overlay's hash; a result for another hash doesn't cover it; a fake result covering its hash
     lets it launch, with `--tools Bash,Glob,Grep,Read`.
+- **The fixing round (Jet's answers, 2026-11-21):**
+  - `test/agent/overlays.test.js`, "37 Q4": the widened cases are picked from the overlay's
+    widened tools: none with no widened agent (and none listed as skipped) or a narrowing one; the
+    three Bash cases under the agent's template only for Bash; the two protected-path cases for
+    Write and Edit. T5 also checks that an instruction-only overlay adds no template to the red
+    team, that a Bash overlay adds `agent-mirai-reviewer-read-only` with the three Bash cases, and
+    that the gate stays closed while one of them failed, even on a result covering the hash;
+  - `test/documents/overlays-records.test.js`:
+    - "37 Q3": `mirai approve` writes the record and says to commit it; a fresh clone with no
+      store (a teammate, CI) applies the overlay; a tampered record is "not approved (its
+      approval record doesn't verify: the signature does not match)", journal or not; a changed
+      overlay is "changed since its approval"; a record signed by a key that isn't committed is
+      refused ("key k-… is not on the integration branch");
+    - "37 Q1/Q2": `mirai render` with an unapproved agent and skill overlay renders MIRAI's own
+      files with one line each; approved, it renders both, the lock lists the overlay files in
+      `from`, and the trust root builds on the commit; a changed skill overlay renders MIRAI's
+      skill again, with its line, while the agent's stays;
+    - "37 Q5": doctor warns when the recorded template hash differs, same version;
+    - the gaps: `mirai epic render` with "Tickets" renamed to "Work items", in an LF and a CRLF
+      file, and refused (looking for "## Tickets") while the overlay isn't approved; a CRLF PRD
+      with renamed sections lints clean; MIRAI's `lint` tool from a real session registration
+      (`sessionServer`) skips the unapproved overlay with its line, then applies it once its
+      record is committed;
+  - `test/lint/template-versions.test.js`: every document type's template hash is the one
+    `test/lint/template-versions.json` records for its `template_version`.
 - **Changed tests from earlier units:** `test/lint/plan.test.js` T11 (a frozen section must be
   protected: one case gains `[[protected_sections]]`, one expects `unprotected`);
   `test/doctor/doctor.test.js` 29c (a 20th item, `overlays`).
@@ -67,7 +92,7 @@
 | Probe | Result |
 |---|---|
 | **P1 A company-style PRD on the sample app** | not run yet |
-| **P2 A widened agent** | not run yet. `test/probes/overlay-p2-probes.js` is ready: `--yes --phase before` (the gate refuses Rex, no model), then `mirai redteam run` through the build runner, then `--yes --phase after` (the result covers the overlay's template, by its hash; the gate lets Rex launch), and `--launch` for one real Rex run whose init lists Bash |
+| **P2 A widened agent** | not run yet. `test/probes/overlay-p2-probes.js` is ready: `--yes --phase before` (the gate refuses Rex, no model), then `mirai redteam run` through the build runner, then `--yes --phase after` (the result covers the overlay's template, by its hash; `x-bash-checkout`, `x-bash-network` and `x-bash-secrets` ran under it and passed; the gate lets Rex launch), and `--launch` for one real Rex run whose init lists Bash. Approve the overlay, run `mirai render`, and commit the overlay, the record and the rendered files on main first |
 
 ## Changed from the spec
 
@@ -108,7 +133,7 @@
   that canonical hash. A narrowing overlay that changes the tools runs under its own template too,
   gated by its mode's result. The red team "gains the cases" by running its existing cases under
   each approved widening overlay's template, for each mode the agent may run under (its role's
-  and read-only); it has no new case definitions.
+  and read-only), plus the cases made for its widened tools (below).
 - **The approval line:** `item` is `overlay-<name>` (the key you type to confirm), `files` binds
   the `.md` beside it, and two new journal fields, `template_version` and `template_hash`, go with
   `kind: overlay` only. The overlay is approved as your work tree has it; MIRAI uses the trust
@@ -119,11 +144,40 @@
 - **Added: `mirai show template <type>`** (and `/mirai show template prd`, a new `type`
   argument of `mirai_command`): the type's template with the approved overlays applied. P1's
   fresh agent, and later Nora, need the rendered template from somewhere.
-- **Skill overlays** (`skills/<name>/overlay.toml` + `overlay.md`) are checked, approved, listed
-  and applied in the registry (`skillTexts`), but not placed anywhere yet: MIRAI's skills reach
-  only your own sessions, through `mirai render`, whose files the lock pins (a question below).
-- **Agent overlays apply to MIRAI's launches only.** Your interactive `.claude/agents/` files stay
-  MIRAI's (a question below).
+- **Overlays in your own sessions (Q1, Q2 answered):** `mirai render` (and `mirai init
+  --refresh`) writes approved agent and skill overlays into `.claude/agents/mirai-*.md` and
+  `.claude/skills/mirai-*/SKILL.md`. Only an overlay with a valid committed record that matches
+  it counts there (never the journal alone), so every checkout renders the same files from the
+  same commit; any other is left out, MIRAI's own file rendered, with the skip line on stderr.
+- **The lock and the trust root's bundle check (Q1, Q2):** the lock's bundle hash stays MIRAI's
+  own bundle, the headless plugin folder the trust root checks (launches never read it; they take
+  the overlay at the launch). Your sessions' files are listed in the lock one by one, each with
+  the overlay files it came from (`from`). So the trust root's check doesn't depend on overlays:
+  when it did (the first try), a changed agent overlay on main made the trust root unbuildable,
+  which also stopped the `mirai approve` that would fix it. The two placements no longer share one
+  hash when an overlay applies.
+- **Approval records (Q3 answered):** `mirai approve --file .mirai/custom/<path>` also writes
+  `.mirai/custom/approvals/<kind>-<name>.json` (`schema: mirai-overlay-approval/1`: the path,
+  `hash` = overlayHash of the overlay and every file it binds, `content_hash`, the decision,
+  `approved_at`, and for a replacement template `template_version` and `template_hash`), signed
+  with your key as a decision (context `mirai/overlay-approval/1:<repo-id>`; a machine key never
+  counts), and says to commit it. It sits in `.mirai/custom/`, not `.mirai/records/`, because the
+  trust root and the base-commit readers already read `.mirai/custom/`; agents can't write either.
+- **Which approval counts (Q3):** a committed record that matches, checked against the keys
+  committed on the integration branch's commit, or, with no record, the local journal. A record,
+  when there is one, decides for everyone: one that doesn't verify makes the overlay "not
+  approved" (with the reason in its line), one for other bytes "changed since its approval". `mirai
+  lint` and `mirai epic render` in a checkout with no store read the repo's identity
+  (`repoIdentity`) and apply the overlays with valid records.
+- **Widened cases (Q4 answered):** `src/redteam/cases-widened.js`: `x-bash-checkout`,
+  `x-bash-network` and `x-bash-secrets` for Bash beyond the mode; `x-write-protected` (a CI
+  workflow) and `x-edit-protected` (`.mirai/config.toml`) for Write and Edit given to a read-only
+  agent. A case names its `widened` tools and runs only under an agent template whose
+  `overlay.widened` (the tools its mode doesn't have, now part of the template and its canonical
+  hash) has one of them; elsewhere it isn't run or listed as skipped.
+- **Template text (Q5 answered):** doctor also warns when MIRAI's template text hash differs from
+  the one recorded at approval under the same version. `test/lint/template-versions.json` holds
+  each document type's template hash per version, kept by hand.
 - **`mirai show overlays` lists your work tree's overlays,** each also marked "(not on main yet)"
   or "(main has another version)" when the integration branch differs.
 - **Doctor has one new item, "Overlays"** (the 20th). "widened: red team needed" uses the
@@ -136,34 +190,45 @@
 - **Code moved:** the tool floor (`FLOOR_DENY_TOOLS`) is in `registry.js`, shared with
   `strict.js`; the template check of `redTeamStatus` is `forTemplate`, exported.
 
-## Questions for Jet
+## Questions for Jet (answered 2026-11-21)
 
 1. **Skill overlays in your sessions:** should `mirai render` write an approved skill overlay into
-   `.claude/skills/` (the lock recording it as an overlay, the trust root's bundle check allowing
-   it)? Today they're checked and approved but not placed.
-2. **Agent overlays in your sessions:** should your interactive `.claude/agents/mirai-*.md` files
-   carry the approved overlay too, or stay MIRAI's (they don't launch MIRAI's runs)?
-3. **`mirai lint` without a store:** in a checkout where MIRAI isn't set up (a teammate before
-   `mirai join`, CI later), overlays aren't applied, so a PRD with renamed sections fails there.
-   Keep it so, or trust overlays approved by any committed key?
-4. **The red team for a widened agent:** it runs the same cases as the agent's mode. Should it get
-   cases made for the widened tool (for example a read-only agent with Bash trying to write the
-   checkout)? P2 will show whether the read-only cases pass as they are with Bash added.
-5. **Replacement templates:** doctor warns on a newer MIRAI template version only. Warn also when
-   MIRAI's template text changed with the same version?
+   `.claude/skills/`? **Answered "A", the same everywhere:** yes, built (see "Changed from the
+   spec").
+2. **Agent overlays in your sessions:** should `.claude/agents/mirai-*.md` carry the approved
+   overlay? **Answered "A":** yes, built; an unapproved or changed overlay is never rendered.
+3. **`mirai lint` without a store:** **answered "A", the approval travels in the repo:** a signed
+   record committed beside the overlays; every reader accepts a valid record or the local journal.
+4. **The red team for a widened agent:** **answered "A":** cases made for the widened tool, in 37,
+   before P2. Built: three for Bash, two for Write and Edit.
+5. **Replacement templates:** **answered "C", both:** doctor warns on a changed template hash under
+   the same version, and MIRAI's own suite fails when a template's text changes without a version
+   bump.
+
+## Follow-up
+
+- **Unit 36's context-file approvals have the same local-only limit** the overlays had: they're
+  journal lines only, so a teammate's checkout or CI can't see them. The committed signed record
+  (this unit's `approvals/` pattern) would fit them too.
 
 ## What I'm unsure about
 
-- The red-team cases have never run under an agent's own template (no real run here); a case
-  written for the read-only mode may judge a read-only agent with Bash differently. P2 is the test.
-- The session `lint` tool builds a store handle from its policy (`dir`, `repo_id`, the checkout,
-  the trust root's branch) to read the journal; it's untested against a real session registration.
-- `mirai epic render` with renamed generated sections, and a CRLF file with renames, have no test.
+- The red-team cases, the new widened ones included, have never run under an agent's own
+  template (no real run here). A read-only case may judge a read-only agent with Bash differently,
+  and `x-bash-network`'s loopback canary and `x-write-protected`'s CI path depend on the clone.
+  P2 is the test.
+- A record and a journal line can disagree: a committed record decides, so after you approve a
+  changed overlay, MIRAI uses it only once the new record is committed with it.
+- An agent or skill overlay approved, but committed without `mirai render`, leaves your sessions'
+  files on the old version (the lock check doesn't catch it, by design now); doctor's trust item
+  compares the files with the lock, not with the overlays.
+- The record's signature names the repo id, which comes from the integration branch's first
+  commit and the `origin` remote. A CI clone whose remote normalizes differently would see every
+  record as not verifying.
 
 ## The full suite
 
-`caffeinate -i npm test` on the Mac, on the unit's commits (`202096b`): 736/736 passed, no
-failure and nothing skipped, in about 13 minutes. The known `/private/tmp` race in
-`test/launch/strict.test.js` T5/T6 didn't show this time. One change came after that run (a rename
-in a problem message now uses a replacer function, `src/lint/rules.js`); the lint, PRD and overlay
-test files passed again after it, 55/55. The build runner and CI run on the final commit.
+`caffeinate -i npm test` on the Mac, after the fixing round's last edit: 743/743 passed, no failure
+and nothing skipped, in about 14 minutes. The known `/private/tmp` race in
+`test/launch/strict.test.js` T5/T6 didn't show. (The first round's run, on `202096b`, was 736/736.)
+The build runner and CI run on the final commit.
