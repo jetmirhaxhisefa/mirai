@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, posix } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 
 import { MiraiError } from '../cli/errors.js';
+import { FLOOR_DENY_TOOLS } from '../config/registry.js';
 import { EXIT } from '../cli/exit-codes.js';
 import { configValue, envFiles, lsTree } from '../store/git.js';
 import { miraiHome } from '../store/home.js';
@@ -65,7 +66,7 @@ const INSTRUCTION_NAMES = /^(?:claude|claude\.local|agents|gemini|copilot-instru
 export const MODES = Object.freeze(['read-write', 'read-only']);
 const ADAPTER = 'claude-code';
 // The floors: data can add to these, never take away.
-const MIN_DENY_TOOLS = Object.freeze(['WebFetch', 'WebSearch', 'Task', 'Agent']);
+const MIN_DENY_TOOLS = FLOOR_DENY_TOOLS;
 const MIN_DENY_ENV = Object.freeze(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
 // Protected-path rules whose files run by themselves, so agents may not write them: the
 // `auto-run` class, and git hooks (they run on your next commit when the project points
@@ -121,6 +122,17 @@ export function strictTemplate({ registry, config, mode }) {
 }
 
 export const templateText = (t) => `${JSON.stringify(t, null, 2)}\n`;
+
+// An agent whose overlay changes its tools, or widens it, runs under a template of its own (unit
+// 37): its launch's mode template with the overlay's tools, never one the floor denies, named for
+// the agent and the mode, and carrying the overlay's path and hash, so a red-team result for it
+// covers exactly that overlay (the canonical hash includes them). Everything else (the deny lists,
+// the write-denied paths, the sandbox) is the mode's.
+export const agentTemplateName = (agent, mode) => `agent-${agent}-${mode}`;
+export function agentTemplate(base, { agent, tools, overlay }) {
+  const deny = new Set(base.deny_tools);
+  return { ...base, name: agentTemplateName(agent, base.mode), tools: [...new Set(tools.filter((t) => !deny.has(t)))].sort(), overlay: { path: overlay.path, hash: overlay.hash } };
+}
 
 // The templates a trust root holds: one per access mode.
 export function strictTemplates({ registry, config }) {
@@ -195,7 +207,7 @@ export function readableEnv(template, tracked) {
 // project, so for them the hook only adds refusals.
 export function renderStrict(template, facts) {
   if (template?.schema !== STRICT_SCHEMA) throw new StrictError('the strict template isn\'t one this MIRAI reads', { code: 'bad-template' });
-  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets', 'mcp'];
+  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets', 'mcp', 'overlay'];
   const extra = Object.keys(template).filter((k) => !known.includes(k));
   if (extra.length) throw new StrictError(`the strict template has fields MIRAI doesn't know (${extra.join(', ')})`, { code: 'bad-template' });
   if (!MODES.includes(template.mode)) throw new StrictError('the strict template\'s mode is neither read-write nor read-only', { code: 'bad-template' });
@@ -370,9 +382,11 @@ const CANONICAL = Object.freeze({
 // field as well (unit 15a).
 // The launch flags too, with and without an input folder: --add-dir changes what sandboxed
 // commands may write (unit 15a's b2 probes), so a flag change must change the key.
+// Unit 37: an agent's own template adds its overlay's path and hash.
 export const canonicalSha256 = (template) => sha256(JSON.stringify({
   settings: renderStrict(template, CANONICAL),
   mcp: template.mcp ?? null,
+  ...(template.overlay ? { overlay: template.overlay } : {}),
   args: [null, `${CANONICAL.launchDir}/input/files`].map((inputDir) => launchArgs({ template, settingsFile: `${CANONICAL.launchDir}/input/settings.json`, agentsJson: null, mcpConfig: `${CANONICAL.launchDir}/input/mcp.json`, inputDir })),
 }));
 

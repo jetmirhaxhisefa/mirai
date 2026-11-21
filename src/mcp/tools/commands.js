@@ -54,6 +54,9 @@ export const COMMANDS = Object.freeze({
   run: { needs: ['ticket'], tty: true, run: true, argv: (a) => ['run', a.ticket] },
   resume: { flags: ['abandon'], tty: true, run: true, argv: (a) => ['resume', ...(a.abandon ? ['--abandon'] : [])] },
   show: { quick: true, needs: ['ticket'], flags: ['full', 'json', 'docs'], argv: (a) => ['show', a.ticket, ...(a.full ? ['--full'] : []), ...(a.json ? ['--json'] : []), ...(a.docs ? ['--docs'] : [])] },
+  // Unit 37: a type's template as the project's approved overlays render it (read-only). The
+  // overlay list is `show` with ticket "overlays", as `show context` is.
+  'show template': { quick: true, needs: ['type'], argv: (a) => ['show', 'template', a.type] },
   ship: { needs: ['ticket'], argv: (a) => ['ship', a.ticket] },
   // Read-only, or a draft for you to review (unit 28, the standing rule).
   // Unit 29c (decision 3): doctor and its safe repairs, from your session too.
@@ -115,7 +118,7 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'file', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff'].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'file', 'type', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff'].includes(k)) return { refused: `${k} isn't an argument here` };
   }
   // Unit 33: a document's path in the repo (`epic render`), relative, a Markdown file.
   if (args.file !== undefined) {
@@ -130,6 +133,10 @@ export function checkCommand(args) {
     if (typeof args.level !== 'string' || !NAME.test(args.level)) return { refused: 'level must be a test level or check name' };
     out.level = args.level;
   }
+  if (args.type !== undefined) {
+    if (typeof args.type !== 'string' || !NAME.test(args.type)) return { refused: 'type must be a document type\'s name, such as prd' };
+    out.type = args.type;
+  }
   if (args.confirm !== undefined) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
@@ -142,7 +149,7 @@ export function checkCommand(args) {
   }
   if (!Object.hasOwn(GATES, command)) {
     for (const need of spec.needs ?? []) if (out[need] === undefined) return { refused: `${command} needs ${need}` };
-    for (const k of ['ticket', 'level', 'file']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
+    for (const k of ['ticket', 'level', 'file', 'type']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
   }
   return { args: out };
 }
@@ -159,6 +166,7 @@ export const miraiCommand = Object.freeze({
       command: { type: 'string', enum: [...Object.keys(COMMANDS), ...Object.keys(GATES)] },
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
+      type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template (unit 37)' },
       file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },

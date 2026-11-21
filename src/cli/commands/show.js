@@ -1,12 +1,19 @@
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { contentHash } from '../../sign/sign.js';
+
 import { EXIT } from '../exit-codes.js';
 import { UsageError } from '../errors.js';
 import { checkTicketArg, readApprovedFile } from '../human-move.js';
 import { showData, showText } from '../../run/show.js';
 import { openStore } from '../../store/home.js';
-import { snapshot, trustedConfig } from '../../trust/snapshot.js';
+import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
+import { trustOverlayFiles, trustedOverlays } from '../../trust/overlays.js';
+import { CUSTOM_DIR, STATE_TEXT, overlayFilesIn, overlayState, readOverlays, templateTextOf } from '../../config/overlays.js';
+import { loadRegistry } from '../../config/registry.js';
+import { trustedRoles } from '../../agent/scope.js';
+import { readJournal } from '../../store/journal.js';
 import { readFrontmatter } from '../../lint/frontmatter.js';
 import { plain } from '../../status/text.js';
 import { briefFiles, contextApproval, documentApproval, epicApproval } from './approve.js';
@@ -24,18 +31,26 @@ import { ticketsOf } from '../../lint/graph.js';
 export default {
   name: 'show',
   summary: 'Print one ticket\'s page (plan, build, reviews, MR, rounds, usage, parking), or one initiative\'s documents',
-  usage: 'mirai show <ticket> [--full | --json] | mirai show <initiative> [--docs] | mirai show context',
-  positionals: { min: 1, max: 1 },
+  usage: 'mirai show <ticket> [--full | --json] | mirai show <initiative> [--docs] | mirai show context | mirai show overlays | mirai show template <type>',
+  positionals: { min: 1, max: 2 },
   options: {
     full: { type: 'boolean', description: 'every finding\'s text, the plan, and the parking note whole' },
     json: { type: 'boolean', description: 'the page as JSON, for scripts' },
     docs: { type: 'boolean', description: 'the initiative\'s documents, when the name is also a ticket' },
   },
   async run(args, io) {
-    const [name] = args.positionals;
+    const [name, second] = args.positionals;
     checkTicketArg(name);
+    const plainView = !args.values.full && !args.values.json && !args.values.docs;
+    // Unit 37: the project's overlays, and a type's template as the approved overlays render it.
+    if (name === 'template' && second !== undefined && plainView) return showTemplate({ io, type: second });
+    if (second !== undefined) throw new UsageError('mirai show takes one name', 'mirai show <ticket>, or mirai show template <type>');
+    if (name === 'overlays' && plainView) {
+      io.stdout.write(overlaysText(overlaysOf({ cwd: io.cwd, env: io.env })));
+      return EXIT.OK;
+    }
     // Unit 36: the context files in .mirai/context/, each with its state and full path.
-    if (name === 'context' && !args.values.full && !args.values.json && !args.values.docs) {
+    if (name === 'context' && plainView) {
       io.stdout.write(contextText(contextOf({ cwd: io.cwd, env: io.env })));
       return EXIT.OK;
     }
@@ -193,4 +208,68 @@ function contextText({ dir, rows }) {
   const w = (k) => Math.max(...rows.map((r) => plain(String(r[k] ?? '—')).length));
   for (const r of rows) out.push(`  ${plain(r.file).padEnd(w('file'))}   ${plain(r.type).padEnd(w('type'))}   ${plain(r.id ?? '—').padEnd(w('id'))}   ${r.state.padEnd(22)}   ${plain(r.path)}`);
   return `${out.join('\n')}\n`;
+}
+
+// ---- Overlays (unit 37, Scope 7) -----------------------------------------------------------
+
+// Every overlay in your work tree's .mirai/custom/, each with its kind, the name it changes, its
+// state and its full path: [{ kind, name, state, path, problems, base }]. The state is the work
+// tree copy's against your approvals (approved, changed since approval, not approved, rejected,
+// doesn't validate), checked against MIRAI's definitions in the trust root; `base` says whether
+// the integration branch has it as it is here (MIRAI reads it only from there).
+export function overlaysOf({ cwd, env }) {
+  const store = openStore({ cwd, env });
+  let trust = null;
+  let registry;
+  let roles;
+  try {
+    trust = snapshot({ cwd, env });
+    registry = trustedRegistry(trust);
+    roles = trustedRoles(trust);
+  } catch {
+    // No trust root yet (no pushed integration branch): this checkout's framework copy.
+    registry = loadRegistry(join(store.checkout, '.mirai/framework/registry'));
+    roles = registry.roles;
+  }
+  const events = readJournal(store).events;
+  const base = trust ? trustOverlayFiles(trust) : new Map();
+  const baseHash = (path) => {
+    const bytes = base.get(path.slice(CUSTOM_DIR.length + 1));
+    return bytes ? contentHash(bytes) : null;
+  };
+  const rows = readOverlays(overlayFilesIn(join(store.checkout, CUSTOM_DIR)), registry, { roles }).map((o) => {
+    const st = overlayState(o, events);
+    let state = STATE_TEXT[st.state];
+    if (o.kind === 'agent' && o.result) state += o.result.change === 'widening' ? `; widens it (${o.result.why.join(', ')})` : o.result.change === 'narrowing' ? `; narrows it (${o.result.why.join(', ')})` : '; instructions only';
+    if (o.kind === 'document-type' && o.result) state += o.result.replace ? '; replacement template' : '';
+    const on = baseHash(o.path);
+    const where = on === null ? `not on ${store.branch} yet` : on === o.hash ? null : `${store.branch} has another version`;
+    return { kind: o.kind, name: o.name, state, base: where, problems: o.problems, path: join(store.checkout, o.path) };
+  });
+  return { dir: join(store.checkout, CUSTOM_DIR), branch: store.branch, rows };
+}
+
+function overlaysText({ dir, rows }) {
+  const out = [`overlays   ${plain(dir)}`];
+  if (!rows.length) out.push('  none yet: docs/overlays.md says how to add one');
+  const w = (k) => Math.max(...rows.map((r) => plain(String(r[k])).length));
+  for (const r of rows) {
+    const state = r.base ? `${r.state} (${r.base})` : r.state;
+    out.push(`  ${plain(r.kind).padEnd(w('kind'))}   ${plain(r.name).padEnd(w('name'))}   ${plain(state)}   ${plain(r.path)}`);
+    for (const p of r.problems.slice(0, 10)) out.push(`      ${plain(p)}`);
+  }
+  return `${out.join('\n')}\n`;
+}
+
+// mirai show template <type>: the type's template as this project uses it, from the trust root
+// with the overlays you approved applied: what an agent writing that document starts from.
+function showTemplate({ io, type }) {
+  const store = openStore({ cwd: io.cwd, env: io.env });
+  const trust = snapshot({ cwd: io.cwd, env: io.env });
+  const r = trustedOverlays(trust, store);
+  if (!/^[a-z][a-z0-9-]{0,63}$/.test(type) || !Object.hasOwn(r.registry.documentTypes, type)) throw Object.assign(new UsageError(`there's no document type ${JSON.stringify(type.slice(0, 40))}`, `types: ${Object.keys(r.registry.documentTypes).sort().join(', ')}`), { code: 'unknown-type' });
+  for (const x of r.skipped.filter((y) => y.kind === 'document-type' && y.name === type)) io.stderr.write(`${plain(x.line)}\n`);
+  const def = r.registry.documentTypes[type];
+  io.stdout.write(templateTextOf(r.registry, def));
+  return EXIT.OK;
 }

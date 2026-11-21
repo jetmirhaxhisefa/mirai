@@ -5,7 +5,7 @@ import { ConfigError } from '../cli/errors.js';
 import { closest } from '../util/closest.js';
 import { readFrontmatter } from './frontmatter.js';
 import { scanMarkdown, headingSlugs, fixedParts } from './markdown.js';
-import { checkDocument } from './rules.js';
+import { aliased, checkDocument } from './rules.js';
 import { frameworkDefaults } from '../config/defaults.js';
 import { isContextFile } from './context.js';
 import { repoReader } from './repo.js';
@@ -299,13 +299,15 @@ function templateOf(type, def, ctx) {
   if (ctx.templates.has(type)) return ctx.templates.get(type);
   let template = null;
   try {
-    const fm = readFrontmatter(readRegularFile(join(ctx.registry.dir, def.template)));
+    // Unit 37: the template as the project's overlay renders it, when one applies.
+    const fm = readFrontmatter(typeof def.template_text === 'string' ? def.template_text : readRegularFile(join(ctx.registry.dir, def.template)));
     // Lines are compared as they show (code spans kept), so `npm test` in a real plan isn't
     // the template's `npm test` line unless the whole line matches. Structure the template
     // prescribes isn't a leftover: table header and |---| rows, and lines of fewer than three
     // words (such as a "none" row).
     const lines = new Set();
-    const body = scanMarkdown(fm?.body ?? '');
+    const scannedBody = scanMarkdown(fm?.body ?? '');
+    const body = def.renames ? aliased({ scan: scannedBody }, def).scan : scannedBody;
     const scanned = body.lines;
     const isRule = (l) => l && /^ *\|?[ :|-]+$/.test(l.visible ?? '') && (l.visible ?? '').includes('-');
     // Unit 32: the fixed parts are kept word for word, so they aren't leftovers; their text is

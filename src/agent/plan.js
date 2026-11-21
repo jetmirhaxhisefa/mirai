@@ -27,6 +27,8 @@ import { renderNotes, reviewNotes } from './review-notes.js';
 import { normalizePlan } from '../lint/normalize.js';
 import { readRunState, writeRunState } from '../store/run.js';
 import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
+import { effectiveRegistry } from '../trust/overlays.js';
+import { templateTextOf } from '../config/overlays.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { planInputs, ticketAcs } from './inputs.js';
 import { checkLaunchToken } from './requests.js';
@@ -268,9 +270,10 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
     if (!usage.go) throw usageStop(usage);
     const trust = snapshot({ cwd, env });
     const config = trustedConfig(trust);
-    const registry = trustedRegistry(trust);
+    // Unit 37: with the project's approved overlays (the plan's template as the project renders it).
+    const registry = effectiveRegistry(trust, store);
     const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
-    const template = readFileSync(join(registry.dir, registry.documentTypes.plan.template), 'utf8');
+    const template = templateTextOf(registry, registry.documentTypes.plan);
     // Room left for the fix launch's last-plan.md. Sibling plans only when you approved them.
     const limits = { files: INPUT_LIMITS.files - 1, bytes: INPUT_LIMITS.bytes - PLAN_MAX_BYTES };
     // Unit 30c (F21): your rejection and unpark notes, for the plan and its fix launch.

@@ -8,6 +8,7 @@ import { MiraiError, UsageError } from '../cli/errors.js';
 import { readApprovedFile } from '../cli/human-move.js';
 import { pickTier } from '../agent/tiers.js';
 import { parseDocument } from '../lint/lint.js';
+import { aliased } from '../lint/rules.js';
 import { summaryOf } from '../lint/summary.js';
 import { containsToken, parseStream, redact, runClaude } from '../redteam/claude.js';
 import { resolveClaude } from '../redteam/key.js';
@@ -17,7 +18,8 @@ import { contentHash } from '../sign/sign.js';
 import { readToken } from '../sign/token.js';
 import { openStore } from '../store/home.js';
 import { nextRound, readerResultFor, recordReaderTest } from '../store/reader-tests.js';
-import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
+import { snapshot, trustedConfig } from '../trust/snapshot.js';
+import { effectiveRegistry } from '../trust/overlays.js';
 
 // The reader test (unit 34; PM-03, Jet's decisions 1–6). A fresh agent gets a document's
 // "## Summary for approval" and nothing else, and answers four questions: what is built, for whom,
@@ -58,7 +60,9 @@ export function needsReaderTest(def, value) {
 
 // The summary as the reader gets it: the lines between "## Summary for approval" and the next
 // "##", blank lines at either end dropped, line endings as "\n". Null when there is none.
-export function summaryText(text) {
+// `renames` (unit 37): the type's overlay renames, MIRAI's name to the project's, so a summary
+// under "## Executive summary" is the summary for approval.
+export function summaryText(text, renames = {}) {
   const body = String(text).replace(/\r\n?/g, '\n');
   let doc;
   try {
@@ -66,7 +70,7 @@ export function summaryText(text) {
   } catch {
     return null;
   }
-  const s = summaryOf(doc.scan);
+  const s = summaryOf(aliased(doc, { renames }).scan);
   if (!s) return null;
   const lines = body.split('\n');
   const end = Number.isFinite(s.end) ? s.end : lines.length + 1;
@@ -80,9 +84,10 @@ export const summaryHash = (summary) => contentHash(Buffer.from(summary, 'utf8')
 // "### " heading, up to the next one, or null when the summary has no such part. Every lookup of
 // a part by name goes through here, so a template that renames a part (unit 37's overlays) maps it
 // in one place.
-export function summarySection(summary, name) {
+export function summarySection(summary, name, renames = {}) {
   const lines = String(summary).split('\n');
-  const at = lines.findIndex((l) => l.trim() === `### ${name}`);
+  const shown = Object.hasOwn(renames, name) ? renames[name] : name;
+  const at = lines.findIndex((l) => l.trim() === `### ${shown}`);
   if (at < 0) return null;
   const next = lines.findIndex((l, i) => i > at && /^### /.test(l));
   return lines.slice(at + 1, next < 0 ? lines.length : next).join('\n');
@@ -144,7 +149,7 @@ export function parseReply(text) {
 
 // MIRAI's check of each answer (no AI): { pass, failed: [key …], answers: { key: { answer, quote,
 // ok, why } } }. `why` is the message for a failed question, naming it and the fix.
-export function checkAnswers(summary, reply) {
+export function checkAnswers(summary, reply, renames = {}) {
   const text = normal(summary);
   const answers = {};
   const failed = [];
@@ -156,7 +161,7 @@ export function checkAnswers(summary, reply) {
     else if (!text.includes(normal(quote))) why = `${q.label}: the quote "${normal(quote).slice(0, 120)}" isn't in the summary, so the answer rests on nothing it says: ${q.fix}`;
     // Unit 34's P2: what is left out and what you decide must be stated in their own parts. A
     // quote from elsewhere (the ask's "Approve …" for a decision) doesn't count.
-    else if (q.section && !normal(summarySection(summary, q.section) ?? '').includes(normal(quote))) why = `${q.label}: the quote "${normal(quote).slice(0, 120)}" isn't under "${q.section}", where the summary must say ${q.what}: ${q.fix}`;
+    else if (q.section && !normal(summarySection(summary, q.section, renames) ?? '').includes(normal(quote))) why = `${q.label}: the quote "${normal(quote).slice(0, 120)}" isn't under "${renames[q.section] ?? q.section}", where the summary must say ${q.what}: ${q.fix}`;
     else if (wordCount(quote) < QUOTE_MIN_WORDS) why = `${q.label}: the quote "${normal(quote)}" is too short to show where the summary says it: ${q.fix}`;
     answers[q.key] = { answer, quote, ok: why === null, why };
     if (why) failed.push(q.key);
@@ -182,7 +187,7 @@ export async function runReaderTest({ cwd, env, file, launch = runClaude, claude
   }
   const trust = snapshot({ cwd, env });
   const config = trustedConfig(trust);
-  const registry = trustedRegistry(trust);
+  const registry = effectiveRegistry(trust, store);
   const type = doc.value.type;
   const def = typeof type === 'string' && Object.hasOwn(registry.documentTypes, type) ? registry.documentTypes[type] : null;
   if (!def) throw new UsageError(`${path} has no document type MIRAI knows`, 'run: mirai lint on it');
@@ -191,8 +196,9 @@ export async function runReaderTest({ cwd, env, file, launch = runClaude, claude
     const why = def.name === 'brief' ? `a brief on ${doc.value.track ?? 'its track'} is approved from its PRD's summary, which covers both` : `a ${def.name} has no summary for approval`;
     throw new UsageError(`${path} doesn't take the reader test: ${why}`, def.name === 'brief' ? 'run it on the PRD' : 'the test is for the brief on full, the PRD and the epic');
   }
-  const summary = summaryText(text);
-  if (!summary) throw refuse(`${path} has no "## Summary for approval" to test`, 'no-summary', 'write the summary, run mirai lint, then the reader test');
+  const renames = def.renames ?? {};
+  const summary = summaryText(text, renames);
+  if (!summary) throw refuse(`${path} has no "## ${renames['Summary for approval'] ?? 'Summary for approval'}" to test`, 'no-summary', 'write the summary, run mirai lint, then the reader test');
   const sHash = summaryHash(summary);
   const document = { id, type: def.name, path };
   const before = readerResultFor(store, id, sHash);
@@ -227,7 +233,7 @@ export async function runReaderTest({ cwd, env, file, launch = runClaude, claude
   const said = typeof stream.result?.result === 'string' ? stream.result.result : stream.texts.join('\n');
   const reply = parseReply(containsToken(said, token) ? redact(said, token) : said);
   if (!reply) throw refuse(`the reader's answer isn't the JSON it was asked for; nothing was recorded (no round was used)`, 'reader-unreadable', 'run it again', EXIT.NEEDS_HUMAN);
-  const checked = checkAnswers(summary, reply);
+  const checked = checkAnswers(summary, reply, renames);
   const entry = recordReaderTest(store, id, {
     summary_hash: sHash, round, result: checked.pass ? 'pass' : 'fail', failed: checked.failed, answers: checked.answers,
     model: typeof stream.init.model === 'string' ? stream.init.model.slice(0, 128) : model, tier: picked.tier, path, at: now().toISOString(),

@@ -5,6 +5,7 @@ import { lintPaths, LintPathError, projectOf } from '../../lint/lint.js';
 import { lsFiles } from '../../store/git.js';
 import { escapeInvisible } from '../../status/text.js';
 import { trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
+import { trustedOverlays } from '../../trust/overlays.js';
 
 // lint(paths?) (unit 15b; D-53): `mirai lint` for your own Claude Code session. The document
 // rules, the [docs] root and the project's names come from the trust root (the integration
@@ -56,7 +57,16 @@ export default Object.freeze({
   async run({ paths }, ctx) {
     const { policy, trust } = ctx;
     const config = trustedConfig(trust);
-    const registry = trustedRegistry(trust);
+    // Unit 37: with the project's overlays from the trust root, approved as they are now (your
+    // journal, when this registration knows the store).
+    let registry = trustedRegistry(trust);
+    let overlays = [];
+    if (policy.store) {
+      const store = { dir: policy.store.dir, repoId: policy.store.repo_id, checkout: policy.checkout, branch: trust.branch, gitEnv: { PATH: '/usr/bin:/bin', HOME: ctx.env?.HOME ?? policy.home } };
+      const r = trustedOverlays(trust, store, { registry });
+      registry = r.registry;
+      overlays = r.skipped.map((x) => x.line);
+    }
     const files = lsFiles(policy.checkout, ['.'], ctx.env);
     if (files === null) return { body: { outcome: 'env-fault', code: 'git', message: 'git couldn\'t list the project\'s files' }, isError: true };
     let result;
@@ -77,7 +87,7 @@ export default Object.freeze({
     }
     return {
       // The trust root's base, so a result from a registration that's behind says which rules it used.
-      body: { outcome: errors ? 'fail' : 'pass', trust_base: trust.baseSha ?? null, files: result.files, skipped: result.skipped, errors, warnings: result.problems.length - errors, problems, problems_truncated: problems.length < result.problems.length },
+      body: { outcome: errors ? 'fail' : 'pass', trust_base: trust.baseSha ?? null, files: result.files, skipped: result.skipped, errors, warnings: result.problems.length - errors, problems, problems_truncated: problems.length < result.problems.length, ...(overlays.length ? { overlays_skipped: overlays.map(clean) } : {}) },
       isError: false,
     };
   },

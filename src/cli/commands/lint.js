@@ -7,6 +7,7 @@ import { MiraiError, UsageError } from '../errors.js';
 import { escapeInvisible } from '../../status/text.js';
 import { readConfigFile, checkConfig, PROJECT_CONFIG } from '../../config/load.js';
 import { loadRegistry } from '../../config/registry.js';
+import { projectOverlays } from '../../trust/overlays.js';
 import { frameworkDefaults } from '../../config/defaults.js';
 import { topLevel, lsFiles } from '../../store/git.js';
 import { lintPaths, LintPathError, projectOf } from '../../lint/lint.js';
@@ -39,7 +40,10 @@ export function createLintCommand({ registryDir = REGISTRY_DIR } = {}) {
         throw new UsageError('not inside a git repo, so name the files or folders to lint', 'for example: mirai lint docs/');
       }
       const { docsRoot, project } = projectSettings(root);
-      const registry = loadRegistry(registryDir);
+      // Unit 37: the project's overlays, approved as they are now, from the integration branch.
+      const own = top ? projectOverlays({ cwd: io.cwd, env: io.env, registry: loadRegistry(registryDir), checkout: top }) : { registry: loadRegistry(registryDir), skipped: [], note: null };
+      const { registry } = own;
+      for (const line of [...(own.note ? [own.note] : []), ...own.skipped.map((x) => x.line)]) io.stderr.write(`${clean(line)}\n`);
       // In a git repo, the files are git's list: tracked and new ones, without what
       // .gitignore excludes.
       const files = top ? lsFiles(top, ['.'], io.env) : null;
