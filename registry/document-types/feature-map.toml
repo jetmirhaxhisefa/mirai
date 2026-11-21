@@ -17,3 +17,14 @@ lint_checks = ["feature-map"]
 [frontmatter.fields.code]
 type = "list"
 required = true
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Screens"
+read_by = ["lint"]
+
+[[protected_fields]]
+name = "code"
+read_by = ["lint"]

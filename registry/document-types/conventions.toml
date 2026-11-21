@@ -18,3 +18,14 @@ lint_checks = ["writing", "conventions"]
 type = "string"
 pattern = "[a-z0-9][a-z0-9-]*"
 required = true
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Rules"
+read_by = ["lint"]
+
+[[protected_fields]]
+name = "service"
+read_by = ["lint"]

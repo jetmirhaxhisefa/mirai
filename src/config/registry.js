@@ -27,6 +27,9 @@ const AGENT_DESCRIPTION = description(950);
 // Tool names as Claude Code spells them (Read, Grep, Edit, Bash, mcp__<server>__<tool>): the
 // shared vocabulary of agent definitions; other tools' renderers translate them (unit 11).
 const WRITE_TOOLS = Object.freeze(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash']);
+// Tools no launch ever gets (unit 13b's floor; src/launch/strict.js adds the profile's own): data,
+// an overlay included (unit 37), can't give an agent one of them.
+export const FLOOR_DENY_TOOLS = Object.freeze(['WebFetch', 'WebSearch', 'Task', 'Agent']);
 const NAME_LIST = { type: 'array', items: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9._-]{0,80}$/, patternHint: 'a name such as "dataviz"' } };
 const TOOL_LIST = { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9_-]*$/, patternHint: 'a tool name such as "Read"' } };
 const RELATIVE = { type: 'string', pattern: /^(?!\/)(?!.*(^|\/)\.{1,2}(\/|$))[A-Za-z0-9._@/-]+$/, patternHint: 'a relative path inside the repo, without "." or ".." parts' };
@@ -205,8 +208,34 @@ export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writ
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
-// The summary for approval's section (unit 31, PM-03).
+// The summary for approval's section (unit 31, PM-03), and its five parts (### headings).
 export const SUMMARY_SECTION = 'Summary for approval';
+export const SUMMARY_PARTS = Object.freeze(['The ask', 'Why', 'What changes', 'Decisions for you', 'Not in this']);
+// What MIRAI's machinery reads in a document (unit 37, decision 5): each protected section or
+// field names its readers, so a refusal can say what would break. `lint`: the type's own lint
+// checks; the others are named for their command or step.
+export const READERS = Object.freeze(['approval', 'reader-test', 'trace', 'epic-coverage', 'graph-lint', 'gate', 'lint', 'epic-render']);
+// The sections and parts (### headings) each built-in check reads by name (unit 37, Scope 1).
+// A type whose lint_checks read one of its own sections must list it in protected_sections, so
+// no overlay can drop what a check depends on. `*required*`: every required section (the
+// business check reads each one's bullets).
+export const CHECK_READS = Object.freeze({
+  ticket: [],
+  plan: ['Code map', 'Test list', 'Declared changes'],
+  summary: [SUMMARY_SECTION, ...SUMMARY_PARTS],
+  writing: [],
+  brief: ['Success', 'Business requirements', 'Appetite and track', 'Open questions'],
+  prd: ['Functional requirements', 'Glossary', 'Assumptions', 'Decisions for you', 'Capabilities', 'Triggers and states', 'Failures', 'Unchanged behaviour', 'Terms', 'ID prefixes'],
+  epic: ['Release', 'Not in this epic', 'Tickets', 'Dependencies', 'Coverage', 'Design decisions', 'Decisions for you'],
+  interview: ['Questions', 'Restatement'],
+  business: ['Sources', '*required*'],
+  journeys: ['Journeys', 'Sources'],
+  'feature-map': ['Screens'],
+  project: ['Layout', 'Stack', 'Commands', 'Test levels', 'Instructions'],
+  conventions: ['Rules'],
+});
+// The parts (### headings, not sections) a check reads: they may be protected too.
+const CHECK_PARTS = Object.freeze([...SUMMARY_PARTS, 'Capabilities', 'Triggers and states', 'Failures', 'Unchanged behaviour', 'Terms', 'ID prefixes']);
 const SAMPLE_ID = 'PMT-12';
 // Escapes the characters that mean something in a pattern (only those: with the u flag,
 // escaping anything else is an error).
@@ -350,6 +379,29 @@ const DOCUMENT_TYPE = {
       fields: { fields: { type: 'table', map: FIELD, keyPattern: /^[a-z][a-z0-9_]*$/, keyHint: 'a frontmatter key: a–z, 0–9 and _' } },
     },
     ids: { type: 'array', items: ID_KIND, uniqueBy: 'prefix' },
+    // Unit 37 (Scope 1): what MIRAI's machinery reads, which no overlay may drop. A section (or a
+    // ### part a check reads) and a field (a frontmatter key, or a link line's label), each with
+    // its readers.
+    protected_sections: {
+      type: 'array',
+      uniqueBy: 'name',
+      items: { type: 'table', fields: { name: sectionName, read_by: { type: 'array', minItems: 1, items: { type: 'enum', values: READERS } } }, required: ['name', 'read_by'] },
+    },
+    protected_fields: {
+      type: 'array',
+      items: {
+        type: 'table',
+        fields: {
+          name: { type: 'string', pattern: /^[a-z][a-z0-9_]*$/, patternHint: 'a frontmatter key such as "track"' },
+          link: { type: 'string', pattern: /^[A-Z][A-Za-z ]{0,30}$/, patternHint: 'a link line\'s label such as "Brief"' },
+          read_by: { type: 'array', minItems: 1, items: { type: 'enum', values: READERS } },
+        },
+        required: ['read_by'],
+        check(value, path, report) {
+          if ((value.name === undefined) === (value.link === undefined)) report(path, `${path} names either a field (name) or a link line (link)`, undefined, 'invalid');
+        },
+      },
+    },
     lint_checks: {
       type: 'array',
       items: { type: 'enum', values: BUILT_IN_CHECKS },
@@ -451,6 +503,8 @@ function checkDocumentType(def, path, report) {
     if (SHARED_FIELDS.includes(key)) report(`frontmatter.fields.${key}`, `frontmatter.fields.${key} is a shared field`, `the shared fields are: ${SHARED_FIELDS.join(', ')}`, 'duplicate');
   }
 
+  checkProtected(def, report, seen, required, checks);
+
   const kinds = Array.isArray(def.ids) ? def.ids : [];
   const prefixes = new Set(kinds.map((k) => k?.prefix));
   kinds.forEach((kind, i) => {
@@ -471,6 +525,53 @@ function checkDocumentType(def, path, report) {
       if (groups !== 1) report(`ids[${i}].pattern`, `ids[${i}].pattern needs exactly one capture group: the parent ID`, 'for example "AC-(FR-[0-9]+)\\.[0-9]+"', 'pattern');
     }
   });
+}
+
+// Unit 37 (Scope 1): the protected parts name what the type has, and every section MIRAI's
+// machinery reads by name is among them: the sections and parts its lint checks read, its frozen
+// sections (the plan gate's approval hash), and the sections its IDs are defined in (trace).
+export function protectedNeeds(def) {
+  const required = Array.isArray(def.required_sections) ? def.required_sections : [];
+  const listed = new Set([...required, ...(Array.isArray(def.optional_sections) ? def.optional_sections : [])]);
+  const checks = Array.isArray(def.lint_checks) ? def.lint_checks : [];
+  const needs = new Map();
+  const need = (name, why) => {
+    if (!needs.has(name)) needs.set(name, new Set());
+    needs.get(name).add(why);
+  };
+  for (const check of checks) {
+    for (const name of CHECK_READS[check] ?? []) {
+      if (name === '*required*') required.forEach((r) => need(r, `the ${check} check`));
+      else if (listed.has(name) || CHECK_PARTS.includes(name)) need(name, `the ${check} check`);
+    }
+  }
+  for (const name of Array.isArray(def.frozen_sections) ? def.frozen_sections : []) if (listed.has(name)) need(name, 'the plan gate (frozen)');
+  for (const kind of Array.isArray(def.ids) ? def.ids : []) if (typeof kind?.section === 'string' && listed.has(kind.section)) need(kind.section, `its ${kind.prefix} IDs`);
+  return needs;
+}
+
+function checkProtected(def, report, listed, required, checks) {
+  const sections = Array.isArray(def.protected_sections) ? def.protected_sections : [];
+  const parts = new Set([...(checks.includes('summary') ? SUMMARY_PARTS : []), ...(Array.isArray(def.fixed_parts) ? def.fixed_parts : []), ...checks.flatMap((c) => (CHECK_READS[c] ?? []).filter((n) => CHECK_PARTS.includes(n)))]);
+  sections.forEach((s, i) => {
+    if (typeof s?.name === 'string' && !listed.has(s.name) && !parts.has(s.name)) report(`protected_sections[${i}].name`, `protected_sections[${i}].name is not one of the type's sections, or a part its checks read`, undefined, 'unknown-section');
+  });
+  const names = new Set(sections.map((s) => s?.name));
+  for (const [name, why] of protectedNeeds(def)) {
+    if (!names.has(name)) report('protected_sections', `"${name}" is read by ${[...why].join(' and ')}, so it must be in protected_sections`, `add [[protected_sections]] name = "${name}" with what reads it`, 'unprotected');
+  }
+  const fields = new Set([...SHARED_FIELDS, ...Object.keys(def.frontmatter?.fields ?? {})]);
+  const labels = new Set((Array.isArray(def.upstream_link) ? def.upstream_link : []).map((l) => l?.label));
+  (Array.isArray(def.protected_fields) ? def.protected_fields : []).forEach((f, i) => {
+    if (typeof f?.name === 'string' && !fields.has(f.name)) report(`protected_fields[${i}].name`, `protected_fields[${i}].name is not one of the type's frontmatter fields`, undefined, 'unknown-field');
+    if (typeof f?.link === 'string' && !labels.has(f.link)) report(`protected_fields[${i}].link`, `protected_fields[${i}].link is not one of the type's link lines (upstream_link)`, undefined, 'unknown-field');
+  });
+}
+
+// A document type's definition checked as the registry checks one (unit 37: a type with an
+// overlay applied): the problems, [{ path, reason, code }].
+export function checkDocumentTypeDef(value) {
+  return validate(value, DOCUMENT_TYPE, () => ({ source: 'overlay', line: 1, column: 1 }));
 }
 
 function checkStateMachine(states, path, report) {

@@ -5,6 +5,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { EXIT } from '../exit-codes.js';
 import { MiraiError, UsageError } from '../errors.js';
 import { loadRegistry } from '../../config/registry.js';
+import { projectOverlays } from '../../trust/overlays.js';
+import { renameHeadings } from '../../config/overlays.js';
 import { topLevel } from '../../store/git.js';
 import { plain, shown } from '../../status/text.js';
 import { parseDocument, readTicketFolder } from '../../lint/lint.js';
@@ -42,7 +44,10 @@ export function createEpicCommand({ registryDir = REGISTRY_DIR } = {}) {
         throw new UsageError(`${shown(epic.rel)} isn't a MIRAI document: its frontmatter doesn't read`, 'run: mirai lint on it to see why');
       }
       if (doc.value.type !== 'epic') throw new UsageError(`${shown(epic.rel)} is a ${shown(String(doc.value.type))}, not an epic`, 'name the epic-<slug>.md file');
-      const registry = loadRegistry(registryDir);
+      // Unit 37: with the project's approved overlays (a renamed section reads as MIRAI's).
+      const own = projectOverlays({ cwd: io.cwd, env: io.env, registry: loadRegistry(registryDir), checkout: root });
+      const { registry } = own;
+      for (const x of own.skipped) io.stderr.write(`${plain(x.line)}\n`);
       const def = registry.documentTypes.epic;
 
       // The PRD, from the "PRD:" line under the title.
@@ -60,7 +65,11 @@ export function createEpicCommand({ registryDir = REGISTRY_DIR } = {}) {
 
       const set = ticketSet(doc, { readTickets: () => readTicketFolder(dirname(epic.abs), { root }), registry });
       const sections = renderSections({ track: doc.value.track, tickets: set.tickets, items: prdItems(up) });
-      const out = renderEpic(text, sections);
+      // Unit 37: a renamed generated section is found, and kept, under the project's name.
+      const renames = def.renames ?? {};
+      const inverse = Object.fromEntries(Object.entries(renames).map(([m, p]) => [p, m]));
+      const rendered = renderEpic(renameHeadings(text, inverse), sections);
+      const out = { ...rendered, text: renameHeadings(rendered.text, renames), missing: rendered.missing.map((n) => renames[n] ?? n) };
       if (out.missing.length) throw new UsageError(`${shown(epic.rel)} has no ${out.missing.map((n) => `"## ${n}"`).join(', ')}`, 'add the heading where the template has it, then render again');
       const n = set.tickets.length;
       if (out.text === text) {

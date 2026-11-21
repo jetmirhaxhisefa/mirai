@@ -31,7 +31,8 @@ const SHAPES = {
 const OWN_NUMBERED = ['UJ', 'FR', 'NFR', 'A', 'DEP', 'PH'];
 const CONTINUED = ['NG', 'R', 'Q'];
 const VERIFIED = /^Verified by: *(.*)$/i;
-const METHODS = /\b(unit test|integration test|api test|e2e test|end-to-end test|test|measurement|measured|manual check)\b/i;
+// Singular or plural (P1's finding: "API tests that …" read as no method).
+const METHODS = /\b(unit tests?|integration tests?|api tests?|e2e tests?|end-to-end tests?|tests?|measurements?|measured|manual checks?)\b/i;
 const ITEM = /^( *)(?:[-*+]|[0-9]{1,9}[.)])[ \t]+/;
 
 export function checkPrd(doc, def, ctx, add) {

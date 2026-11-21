@@ -10,10 +10,11 @@ under the docs folder that `AGENTS.md` names. MIRAI checks each one against its 
 
 ## Before you write
 
-- Find the template for the type: `.mirai/framework/registry/templates/<type>.md` (`story`,
-  `bug`). A filled example is in `.mirai/framework/registry/examples/<type>.md`.
-- Read the type's checklist, `.mirai/framework/registry/templates/<type>-checklist.md`. It's what
-  a reviewer checks the document against.
+- Find the template for the type: the one you're given, or `mirai show template <type>` (`story`,
+  `bug`). It's the project's: a project may rename or add sections. A filled example is in
+  `.mirai/framework/registry/examples/<type>.md`.
+- Read the type's checklist, the one you're given, or `mirai show checklist <type>`. It's what a
+  reviewer checks the document against.
 
 ## Writing it
 

@@ -31,3 +31,18 @@ pattern = "Q-[0-9]+"
 defined_by = "heading"
 required = true
 section = "Questions"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Questions"
+read_by = ["lint", "gate", "trace"]
+
+[[protected_sections]]
+name = "Restatement"
+read_by = ["lint", "gate"]
+
+[[protected_fields]]
+name = "state"
+read_by = ["gate"]

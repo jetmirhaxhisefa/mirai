@@ -2,7 +2,7 @@
 
 The PRD says what the product must do, for whom, and how each requirement is checked. Its form
 (the requirement groups, IDs, the glossary and the summary) is in the template
-`.mirai/framework/registry/templates/prd.md` and its checklist `prd-checklist.md`, next to it. The
+you're given, or `mirai show template prd`, and its checklist, `mirai show checklist prd`. The
 `mirai-docs` skill explains both. This guide covers the wording.
 
 ## Rules

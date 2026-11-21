@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { lstatSync, rmSync } from 'node:fs';
+import { lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -17,6 +17,7 @@ import { approvalHash } from '../../lint/frozen.js';
 import { plain } from '../../status/text.js';
 import { atomicWrite } from '../../store/files.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
+import { trustedOverlays } from '../../trust/overlays.js';
 import { decisionSigner } from '../../sign/signer.js';
 import { branchKeys } from '../../sign/keys.js';
 import { noteAgainstTicket } from '../../agent/review-notes.js';
@@ -27,6 +28,8 @@ import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
 import { readerResultFor } from '../../store/reader-tests.js';
 import { ROUNDS, failedLabels, needsReaderTest, resultLines, summaryHash, summaryText } from '../../write/reader.js';
 import { CONTEXT_DIR, contextKindOf, isContextFile } from '../../lint/context.js';
+import { CUSTOM_DIR, RECORDS_FOLDER, overlayFilesIn, overlayRecord, overlayRecordContext, overlayState, readOverlays, recordPathOf, recordText, verifyRecords } from '../../config/overlays.js';
+import { trustedRoles } from '../../agent/scope.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -34,10 +37,19 @@ import { CONTEXT_DIR, contextKindOf, isContextFile } from '../../lint/context.js
 // in one step.
 const DECISIONS = { a: 'accepted', e: 'edited', r: 'rejected' };
 
+// Unit 37: the trust root's registry with your approved overlays applied; an overlay of one of
+// `types` that's skipped (not approved as it is now) gets its one line, so you know MIRAI's type
+// is what's checked.
+function withOverlays(trust, store, io, types) {
+  const r = trustedOverlays(trust, store);
+  for (const x of r.skipped.filter((y) => y.kind === 'document-type' && types.includes(y.name))) io.stderr.write(`${plain(x.line)}\n`);
+  return r.registry;
+}
+
 export default {
   name: 'approve',
-  summary: 'Approve a ticket, a plan, a brief, a PRD, an epic with its tickets, or a context file, signed, in a real terminal',
-  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md> | mirai approve --file .mirai/context/<file>.md',
+  summary: 'Approve a ticket, a plan, a brief, a PRD, an epic with its tickets, a context file, or an overlay, signed, in a real terminal',
+  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md> | mirai approve --file .mirai/context/<file>.md | mirai approve --file .mirai/custom/<overlay>',
   positionals: { min: 0, max: 1 },
   options: {
     file: { type: 'string', description: 'the ticket file you approve' },
@@ -59,6 +71,8 @@ export default {
     const file = readApprovedFile(store.checkout, io.cwd, args.values.file);
     // Unit 36: a file in .mirai/context/.
     if (file.path.startsWith(`${CONTEXT_DIR}/`)) return approveContext({ id: ticket, file, store, io, now, fileArg: args.values.file });
+    // Unit 37: an overlay in .mirai/custom/.
+    if (file.path.startsWith(`${CUSTOM_DIR}/`)) return approveOverlay({ id: ticket, file, store, io, now, fileArg: args.values.file });
     if (ticket === undefined) throw new UsageError(`name the ${documentTypeOf(file.bytes) ?? 'ticket'}'s key or id before --file`, `mirai approve <key-or-id> --file ${args.values.file}`);
     // Unit 31: a document (a brief; unit 32: a PRD), not a ticket.
     const docType = documentTypeOf(file.bytes);
@@ -137,7 +151,7 @@ async function approvePlan(ticket, io, now) {
   const config = trustedConfig(trust);
   // The lint is for an approval only: a plan that fails it (a newer rule, a stored plan cut short)
   // can always be rejected, so the ticket never sticks at in-progress (21a review).
-  const problems = lintPlan(text, { registry: trustedRegistry(trust), config, ticket }).filter((p) => p.severity === 'error');
+  const problems = lintPlan(text, { registry: withOverlays(trust, store, io, ['plan']), config, ticket }).filter((p) => p.severity === 'error');
   const hash = approvalHash(text);
   const unapprovable = problems.length ? `it fails the lint (${problems.length} problem(s), such as line ${problems[0].line}: ${problems[0].reason})` : hash === null ? 'it has no readable frozen block' : null;
   if (unapprovable) io.stdout.write(`note: ${ticket}'s plan can't be approved: ${plain(unapprovable)}; you can reject it\n`);
@@ -239,7 +253,8 @@ async function approveDocument({ id, type, file, store, io, now, fileArg }) {
   if (fm.value.id !== id) throw new UsageError(`${file.path} is the ${type} "${fm.value.id}", not "${id}"; nothing was written`, `run: mirai approve ${fm.value.id} --file ${fileArg}`);
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(trust);
-  const registry = trustedRegistry(trust);
+  // Unit 37: the type as the project's approved overlays make it.
+  const registry = withOverlays(trust, store, io, type === 'prd' ? ['prd', 'brief'] : type === 'brief' ? ['brief', 'interview'] : [type, 'prd', 'story', 'bug']);
   if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, config, project: projectOfConfig(config) });
   if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project: projectOfConfig(config) });
   const text = file.bytes.toString('utf8');
@@ -445,7 +460,7 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
 function readerFor({ store, config, def, value, id, path, text }) {
   if (!needsReaderTest(def, value)) return null;
   if (config.docs?.reader_test === false) return { off: true };
-  const summary = summaryText(text);
+  const summary = summaryText(text, def.renames);
   const entry = summary ? readerResultFor(store, id, summaryHash(summary)) : null;
   if (!entry) throw Object.assign(new MiraiError(`${path} has no reader-test result for its summary as it is now; nothing was written`, EXIT.BLOCKED), { code: 'no-reader-test', hint: `run: mirai reader-test ${path}, then approve again` });
   return { entry };
@@ -605,7 +620,8 @@ async function approveContext({ id, file, store, io, now, fileArg }) {
   if (id !== undefined && docId !== null && id !== docId) throw new UsageError(`${plain(file.path)} is "${plain(docId)}", not "${id}"; nothing was written`, `run: mirai approve --file ${fileArg}`);
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(trust);
-  const registry = trustedRegistry(trust);
+  // Unit 37: the type as the project's approved overlays make it.
+  const registry = withOverlays(trust, store, io, [kind.type]);
   const text = file.bytes.toString('utf8');
   // The journeys' screens are the feature map's, beside it.
   const linked = {};
@@ -666,4 +682,93 @@ export function contextApproval(store, path, bytes, events = null) {
   if (!last || last.decision === 'rejected') return { approved: false, stale: false, seq: last?.seq ?? null, ts: null };
   const same = bytes !== null && last.content_hash === contentHash(bytes);
   return { approved: same, stale: !same, seq: last.seq, ts: last.ts ?? null };
+}
+
+// ---- Overlays (unit 37, Scope 5) ----------------------------------------------------------
+
+// mirai approve --file .mirai/custom/<overlay> (decision 2): the overlay as your work tree has it,
+// checked against MIRAI's definitions in the trust root; one that doesn't validate (drops a
+// protected part, removes a check, names a tool no launch gets) is refused with every problem,
+// nothing written. Then your decision, signed: one line, kind overlay, over its main file's hash
+// and the files it binds (a type overlay's template, an agent's text); for a replacement
+// template, MIRAI's template version and hash too, so doctor can say when MIRAI's moved on.
+async function approveOverlay({ id, file, store, io, now, fileArg }) {
+  const trust = snapshot({ cwd: io.cwd, env: io.env });
+  const registry = trustedRegistry(trust);
+  let roles = registry.roles;
+  try {
+    roles = trustedRoles(trust);
+  } catch {
+    // a broken project role shows on the overlay that names it
+  }
+  const overlays = readOverlays(overlayFilesIn(join(store.checkout, CUSTOM_DIR)), registry, { roles });
+  const o = overlays.find((x) => x.path === file.path) ?? null;
+  const owner = o ? null : overlays.find((x) => x.bound.some((b) => b.path === file.path));
+  if (owner) throw new UsageError(`${plain(file.path)} is approved with its overlay ${owner.path}; nothing was written`, `mirai approve --file ${owner.path}`);
+  if (!o) throw new UsageError(`${plain(file.path)} isn't an overlay; nothing was written`, 'an overlay is .mirai/custom/document-types/<type>.toml, agents/<name>.toml or skills/<name>/overlay.toml');
+  if (o.problems.length) {
+    for (const p of o.problems.slice(0, 20)) io.stderr.write(`${o.path}: ${plain(p)}\n`);
+    const n = o.problems.length;
+    throw Object.assign(new MiraiError(`${o.path} can't be approved: ${n} problem${n === 1 ? '' : 's'}, listed above; nothing was written`, EXIT.BLOCKED), { code: 'overlay-invalid', hint: 'fix them, then approve again' });
+  }
+  const item = `overlay-${o.name}`.slice(0, 64);
+  if (id !== undefined && id !== item) throw new UsageError(`${plain(file.path)} is approved as "${item}", not "${id}"; nothing was written`, `run: mirai approve --file ${fileArg}`);
+  const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
+  const before = overlayState(o, readJournal(store).events, verifyRecords(overlayFilesIn(join(store.checkout, CUSTOM_DIR)), { keys, repoId: store.repoId }));
+  const r = o.result;
+  const what = o.kind === 'document-type' ? `the ${o.name} type, ${r.replace ? 'a replacement template' : 'a section overlay'}`
+    : o.kind === 'agent' ? `${o.name}, ${r.change === 'instructions' ? 'instructions only' : `${r.change}: ${r.why.join(', ')}`}` : `the ${o.name} skill, instructions`;
+  io.stdout.write(`overlay: ${o.path} (${what})${before.state === 'approved' ? ' (approved before, as it is now)' : before.state === 'changed' ? ' (approved before; it has changed since)' : ''}\nhash:    ${o.hash}\n`);
+  for (const b of o.bound) io.stdout.write(`with:    ${b.path}   ${b.content_hash}, signed with it\n`);
+  if (r.replace) io.stdout.write(`MIRAI's template: ${o.name} version ${r.coreTemplate.version ?? 'unknown'}, ${r.coreTemplate.hash} (doctor says when MIRAI's moves on)\n`);
+  if (o.kind === 'agent' && r.change === 'widening') io.stdout.write(`it widens ${o.name} (${r.why.join(', ')}): its launches are refused until a red-team run covers this overlay (mirai redteam run)\n`);
+  io.stdout.write(`${plain(join(store.checkout, o.path))}\nyou approve the whole file${o.bound.length ? ' and the files it binds' : ''}: read it all before you answer\n`);
+  const prompter = createPrompter(io);
+  try {
+    const asked = now().getTime();
+    const answer = (await prompter.ask('accepted as is / edited / rejected? [a/e/r] ')).toLowerCase();
+    const decision = DECISIONS[answer];
+    if (!decision) throw new UsageError(`${JSON.stringify(answer.slice(0, 10))} is not a, e or r; nothing was written`, 'run it again');
+    const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
+    let reason;
+    if (decision !== 'accepted') {
+      reason = await prompter.ask('reason (optional, one line): ');
+      if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
+      if (reason === '') reason = undefined;
+    }
+    const signer = await decisionSigner(io, store, { prompter, ticket: item, confirm: confirmByTyping });
+    // What you approved is what was shown: none of its files may have changed while you answered.
+    const again = readOverlays(overlayFilesIn(join(store.checkout, CUSTOM_DIR)), registry, { roles }).find((x) => x.path === o.path);
+    const sig = (x) => [x?.hash, ...(x?.bound ?? []).map((b) => `${b.path} ${b.content_hash}`)].join('\n');
+    if (!again || sig(again) !== sig(o)) throw new MiraiError(`${o.path} or a file it binds changed while you were answering; nothing was written`, EXIT.FAILURE);
+    const files = o.bound.map((b) => ({ path: b.path, content_hash: b.content_hash }));
+    const approval = checkEvent({
+      type: 'approval', by: 'human', item, kind: 'overlay', path: o.path, content_hash: o.hash, ...(files.length ? { files } : {}), decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter,
+      ...(r.replace ? { ...(Number.isInteger(r.coreTemplate.version) ? { template_version: r.coreTemplate.version } : {}), template_hash: r.coreTemplate.hash } : {}),
+    });
+    // Unit 37 (Jet's answer to Q3): the same decision as a signed record beside the overlays, so the
+    // approval travels with the repo (a teammate's checkout, CI). It's written first: a journal
+    // line with no record is still your approval here; a record with no line never happens.
+    const record = signObject(overlayRecord(o, { decision, templateVersion: r.replace ? r.coreTemplate.version : null, templateHash: r.replace ? r.coreTemplate.hash : null, now }), signer, { context: overlayRecordContext(store.repoId), now });
+    const recordFile = recordPathOf(o);
+    mkdirSync(join(store.checkout, CUSTOM_DIR, RECORDS_FOLDER), { recursive: true });
+    atomicWrite(join(store.checkout, recordFile), recordText(record));
+    const seq = withSeq(store, (ctx) => {
+      const n = ctx.take();
+      ctx.event(n, approval, { signer });
+      return n;
+    });
+    io.stdout.write(decision === 'rejected'
+      ? `recorded: ${o.path} rejected (signed with ${signer.keyId}, seq ${seq})\n`
+      : `approved: ${o.path}, as it is now (${decision}; signed with ${signer.keyId}, seq ${seq}); MIRAI uses it once it's on ${store.branch}, and a change to it needs a new approval\n`);
+    if (o.kind === 'document-type') io.stdout.write(`record:  ${recordFile}: commit it with the overlay\n`);
+    else {
+      // An agent or skill overlay also changes your sessions' copy, which mirai render writes.
+      const files = [o.path, ...o.bound.map((b) => b.path), recordFile];
+      io.stdout.write(`record:  ${recordFile}\nnext:\n  1. mirai render       (your sessions' copy of ${o.name}, from the approved overlay)\n  2. git add ${files.join(' ')} .claude/ .mirai/mirai.lock\n  3. git commit, then merge it into ${store.branch}: the overlay, its record and the rendered files together\n`);
+    }
+    return EXIT.OK;
+  } finally {
+    prompter.close();
+  }
 }

@@ -213,10 +213,12 @@ function registryProblems(toml) {
 
 test('T11: registry: may_be_empty and frozen_sections name listed sections; frozen ones come first', () => {
   const head = 'kind = "document-type"\nschema_version = 1\nname = "x"\ntemplate = "templates/t.md"\nchecklist = "templates/t.md"\nrequired_sections = ["A", "B", "Log"]\nstatus = "forbidden"\n';
-  assert.deepEqual(registryProblems(`${head}may_be_empty = ["Log"]\nfrozen_sections = ["A"]\nlint_checks = ["plan"]\n`), []);
+  // Unit 37: a frozen section is read by the plan gate, so it's protected.
+  assert.deepEqual(registryProblems(`${head}may_be_empty = ["Log"]\nfrozen_sections = ["A"]\nlint_checks = ["plan"]\n[[protected_sections]]\nname = "A"\nread_by = ["gate"]\n`), []);
+  assert.deepEqual(registryProblems(`${head}may_be_empty = ["Log"]\nfrozen_sections = ["A"]\nlint_checks = ["plan"]\n`), ['1 unprotected']);
   assert.deepEqual(registryProblems(`${head}may_be_empty = ["Logs"]\n`), ['8 unknown-section']);
   assert.deepEqual(registryProblems(`${head}frozen_sections = ["C"]\n`), ['8 range', '8 unknown-section']);
-  assert.deepEqual(registryProblems(`${head}frozen_sections = ["B"]\n`), ['8 range']);
+  assert.deepEqual(registryProblems(`${head}frozen_sections = ["B"]\n`), ['1 unprotected', '8 range']);
   assert.deepEqual(registryProblems(`${head}lint_checks = ["plans"]\n`), ['8 enum']);
 });
 

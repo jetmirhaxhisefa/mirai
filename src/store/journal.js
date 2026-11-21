@@ -84,7 +84,12 @@ export const EVENT_TYPES = Object.freeze({
       // may have `files` too, the interview it links, so a changed interview needs a new approval.
       // `context` (unit 36): a context file in .mirai/context/ you approved as a whole; `path` is
       // the file, `file_type` its kind (business, journeys, conventions), `item` its id.
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context'] },
+      // `overlay` (unit 37): a file in .mirai/custom/ you approved; `path` is its main file,
+      // `files` the files it binds (a type overlay's template, an agent's text), and for a
+      // replacement template `template_version` and `template_hash`, MIRAI's template then.
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay'] },
+      template_version: { type: 'integer', min: 1 },
+      template_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
       file_type: { type: 'enum', values: ['business', 'journeys', 'conventions'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo (a ticket) or in the store (a plan)' },
       content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
@@ -111,7 +116,8 @@ export const EVENT_TYPES = Object.freeze({
     check(e, report) {
       if (e.reason !== undefined && e.decision === 'accepted') report('reason', 'a reason goes with edited or rejected only');
       if (e.kind === 'epic' && e.files === undefined) report('files', 'an epic\'s approval lists its ticket files');
-      if (e.files !== undefined && !['epic', 'brief'].includes(e.kind)) report('files', 'files goes with an epic\'s or a brief\'s approval only');
+      if (e.files !== undefined && !['epic', 'brief', 'overlay'].includes(e.kind)) report('files', 'files goes with an epic\'s, a brief\'s or an overlay\'s approval only');
+      if ((e.template_version !== undefined || e.template_hash !== undefined) && e.kind !== 'overlay') report('template_hash', 'template_version and template_hash go with an overlay\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
     },

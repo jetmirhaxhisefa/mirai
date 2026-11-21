@@ -19,24 +19,30 @@ import { sha256 } from '../install/lock.js';
 // Returns { files: [{ path, bytes, from }], sharedHash }; `from` lists the registry files each
 // one was rendered from (paths relative to the registry folder), plus `config` when the project
 // config shaped it.
+// Unit 37: a registry with overlays applied (src/config/overlays.js, sessionOverlays) gives an
+// agent's prompt (`agentPrompts`) and a skill's SKILL.md (`skillTexts`) as the overlay makes them;
+// their `from` then names the overlay's files too, as "repo:<path>".
 export function buildBundle(registry, { models, renderAgent }) {
   const files = [];
+  const overlayFrom = (kind, name) => (registry.overlays ?? []).filter((o) => o.kind === kind && o.name === name).flatMap((o) => o.files.map((f) => `repo:${f}`));
   for (const skill of Object.values(registry.skills)) {
     for (const rel of skill.files) {
-      files.push({ path: `skills/${skill.name}/${rel}`, bytes: readFileSync(join(registry.dir, skill.folder, rel)), from: [`${skill.folder}/${rel}`] });
+      const text = rel === 'SKILL.md' ? registry.skillTexts?.[skill.name] : undefined;
+      files.push({ path: `skills/${skill.name}/${rel}`, bytes: typeof text === 'string' ? Buffer.from(text, 'utf8') : readFileSync(join(registry.dir, skill.folder, rel)), from: [`${skill.folder}/${rel}`, ...(typeof text === 'string' ? overlayFrom('skill', skill.name) : [])] });
     }
   }
   for (const def of Object.values(registry.agents)) {
     // The tier of its role's step (unit 21a; D-14): the file's model is a default, and every
     // launch picks its own (unit 19b's pickTier).
-    const step = registry.roles[def.role].step;
+    const step = (registry.roles[def.role] ?? registry.roles[def.overlay?.core_role]).step;
     const tier = Object.hasOwn(models.steps ?? {}, step) ? models.steps[step] : STEP_DEFAULTS[step];
     const model = models[tier];
     if (typeof model !== 'string' || !MODEL.test(model)) {
       throw new MiraiError(`[models] ${tier} (the ${step} step's tier) is not a model name MIRAI can write into ${def.name}'s file`, EXIT.CONFIG);
     }
-    const prompt = readFileSync(join(registry.dir, def.prompt));
-    files.push({ path: `agents/${def.name}.md`, bytes: renderAgent(def, prompt, model), from: [registry.agentFiles[def.name], def.prompt, 'config'] });
+    const own = registry.agentPrompts?.[def.name];
+    const prompt = typeof own === 'string' ? Buffer.from(own, 'utf8') : readFileSync(join(registry.dir, def.prompt));
+    files.push({ path: `agents/${def.name}.md`, bytes: renderAgent(def, prompt, model), from: [registry.agentFiles[def.name], def.prompt, 'config', ...(typeof own === 'string' || def.overlay ? overlayFrom('agent', def.name) : [])] });
   }
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return { files, sharedHash: sharedHash(files) };

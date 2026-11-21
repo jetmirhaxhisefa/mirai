@@ -5,8 +5,8 @@ import { join } from 'node:path';
 
 import { readBaseline } from '../baseline/store.js';
 import { readHooksRecord, hooksState } from '../hooks/install.js';
-import { checkLock } from '../install/lock.js';
-import { MODES } from '../launch/strict.js';
+import { checkLock, readLock } from '../install/lock.js';
+import { agentTemplate, canonicalSha256, MODES } from '../launch/strict.js';
 import { usageCaps, usageCheck } from '../loop/ledger.js';
 import { status as sessionStatus } from '../mcp/session.js';
 import { redTeamStatus } from '../redteam/run.js';
@@ -27,7 +27,11 @@ import { miraiHome } from '../store/mirai-home.js';
 import { readRunLog, runIds } from '../store/run-log.js';
 import { readRunState, runStateMatchesLog } from '../store/run.js';
 import { verifyBranchRecord } from '../store/branch-record.js';
-import { openTrustRoot, trustedStrict } from '../trust/snapshot.js';
+import { openTrustRoot, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
+import { agentModes, trustedOverlays } from '../trust/overlays.js';
+import { hasOverlayFiles, STATE_TEXT } from '../config/overlays.js';
+import { loadRegistry } from '../config/registry.js';
+import { overlayKeys, projectInputs, renderPlan, REGISTRY_DIR as RENDER_REGISTRY_DIR } from '../install/render.js';
 import { contextApproval } from '../cli/commands/approve.js';
 import { readApprovedFile } from '../cli/human-move.js';
 import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
@@ -198,8 +202,10 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     for (const m of MODES) trustedStrict(trust, m);
     return ok(`the strict templates for ${MODES.join(' and ')} match their hashes`);
   });
+  let redTeamNow = null;
   await check('redteam', 'Red team', async () => {
     const s = await redTeam({ cwd, env, installed: true });
+    redTeamNow = s;
     if (s.state !== 'green') return red(`the red team is ${s.state} for the Claude Code agents run${s.state === 'stale' ? ' (MIRAI or this machine changed since the last green run)' : ''}`, 'mirai redteam run --kept, in your terminal');
     const version = s.parts?.claude_code?.version;
     if (s.installed?.version && version && s.installed.version !== version) return yellow(`green for ${version}; Claude Code ${s.installed.version} is installed and not tested yet`, `agents stay on ${version} until a red-team run on ${s.installed.version} is green: mirai redteam status`);
@@ -361,6 +367,11 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (journalError) throw journalError;
     return contextCheck({ store, events, now });
   });
+  await check('overlays', 'Overlays', () => {
+    if (journalError) throw journalError;
+    if (trustError) throw trustError;
+    return overlaysCheck({ store, trust, events, redTeam: redTeamNow, env });
+  });
   return items;
 }
 
@@ -415,6 +426,92 @@ export function contextCheck({ store, events, now }) {
   }
   if (notes.length) return yellow(notes.join('; '), hint);
   return ok(`${approved.length} approved context file${approved.length === 1 ? '' : 's'}, each as it is now`);
+}
+
+// Unit 37 (Scope 6, Scope 3): each agent as launches take it ("MIRAI's", "overlay (approved)",
+// "overlay (not approved)", "widened: red team needed"), every overlay that isn't approved as it
+// is now, and a replacement template approved against an older MIRAI template version.
+// `redTeam`: the red-team status the doctor read (its result's templates say which widened
+// agents a run covered).
+export function overlaysCheck({ store, trust, events, redTeam = null, registry = null, env = null }) {
+  if (!trust) return hasOverlayFiles(store.checkout) ? yellow('no trust root for the integration branch\'s commit yet, so the overlays aren\'t checked', 'the next MIRAI step builds it (or: mirai trust snapshot)') : ok('no overlays: MIRAI\'s agents and templates as they are');
+  registry ??= trustedRegistry(trust);
+  const r = trustedOverlays(trust, store, { registry, events });
+  const notes = [];
+  let hint = null;
+  const agents = [];
+  for (const name of Object.keys(registry.agents).sort()) {
+    const o = r.overlays.find((x) => x.kind === 'agent' && x.name === name);
+    if (!o) {
+      agents.push(`${name} MIRAI's`);
+      continue;
+    }
+    if (o.state !== 'approved' || !o.result) {
+      agents.push(`${name} overlay (not approved)`);
+      hint ??= o.state === 'invalid' ? 'mirai show overlays lists its problems' : `read it, then: mirai approve --file ${o.path}`;
+      continue;
+    }
+    if (o.result.change === 'widening') {
+      const covered = agentModes(o.result.def, registry.roles).every((mode) => {
+        const t = agentTemplate(trustedStrict(trust, mode), { agent: name, tools: o.result.def.tools.allowed, overlay: o.result.def.overlay });
+        const cov = redTeam?.result?.templates?.[t.name];
+        return redTeam?.state === 'green' && cov?.tested === true && cov.bundle === canonicalSha256(t);
+      });
+      if (!covered) {
+        agents.push(`${name} widened: red team needed`);
+        hint ??= 'its launches are refused until a red-team run covers it: mirai redteam run, in your terminal';
+        continue;
+      }
+    }
+    agents.push(`${name} overlay (approved)`);
+  }
+  for (const o of r.overlays.filter((x) => x.kind !== 'agent' && x.state !== 'approved')) {
+    notes.push(`${o.path} is ${STATE_TEXT[o.state]}`);
+    hint ??= o.state === 'invalid' ? 'mirai show overlays lists its problems' : `read it, then: mirai approve --file ${o.path}`;
+  }
+  // A replacement template: MIRAI's updates don't flow in, so say when MIRAI's moved on.
+  for (const o of r.overlays.filter((x) => x.kind === 'document-type' && x.state === 'approved' && x.result?.replace)) {
+    const then = o.line?.template_version;
+    const current = registry.documentTypes[o.name]?.template_version;
+    if (Number.isInteger(then) && Number.isInteger(current) && current > then) {
+      notes.push(`MIRAI's ${o.name} template is at version ${current}; your replacement ${o.path} was approved against version ${then}`);
+      hint ??= `compare it with MIRAI's, update it, then: mirai approve --file ${o.path}`;
+    } else if (typeof o.line?.template_hash === 'string' && o.line.template_hash !== o.result.coreTemplate.hash) {
+      // Jet's answer to Q5 ("C", 2026-11-21): a text change under the same version counts too.
+      notes.push(`MIRAI's ${o.name} template text changed since your replacement ${o.path} was approved (version ${current ?? 'unknown'} both times)`);
+      hint ??= `compare it with MIRAI's, update it, then: mirai approve --file ${o.path}`;
+    }
+  }
+  // Approved but not rendered: your sessions' agent and skill files aren't what mirai render would
+  // write from the approved overlays (the coordinator's review, 2026-11-21).
+  const stale = env ? unrenderedSessionFiles(store.checkout, env) : [];
+  if (stale.length) {
+    notes.push(`your sessions' ${stale.length === 1 ? 'file' : 'files'} ${stale.slice(0, 3).join(', ')}${stale.length > 3 ? ` and ${stale.length - 3} more` : ''} ${stale.length === 1 ? 'isn\'t' : 'aren\'t'} what the approved overlays render`);
+    hint ??= 'mirai render, then commit the rendered files with the overlay and its record';
+  }
+  const agentLine = `agents: ${agents.join(', ')}`;
+  const warn = notes.length || agents.some((a) => /not approved|red team needed/.test(a));
+  return warn ? yellow([agentLine, ...notes].join('; '), hint) : ok(`${agentLine}; ${r.overlays.length} overlay${r.overlays.length === 1 ? '' : 's'}, each approved as it is now`);
+}
+
+// The agent and skill files under your sessions' folders that mirai render would write
+// differently now (from the work tree's framework copy, config and approved overlays): their
+// paths. Read-only: the render's plan, never applied. A plan that can't be made says nothing here
+// (the trust item reports a broken install).
+export function unrenderedSessionFiles(root, env) {
+  let plan;
+  try {
+    const lock = readLock(root);
+    if (!lock) return [];
+    const { configBytes, config, local } = projectInputs(root);
+    plan = renderPlan({ root, registryDir: join(root, RENDER_REGISTRY_DIR), config, configBytes, local, lock, overlays: overlayKeys(root, env) });
+  } catch {
+    return [];
+  }
+  const profile = loadRegistry(join(root, RENDER_REGISTRY_DIR)).adapters['claude-code']?.interactive;
+  if (!profile) return [];
+  const inSessions = (p) => p.startsWith(`${profile.agents}/`) || p.startsWith(`${profile.skills}/`);
+  return [...plan.files.filter((f) => f.changed && inSessions(f.path)).map((f) => f.path), ...plan.removed.filter(inSessions)].sort();
 }
 
 function loginCheck(env, now) {

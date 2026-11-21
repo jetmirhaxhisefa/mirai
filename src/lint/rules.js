@@ -33,6 +33,14 @@ const fullMatch = (pattern) => new RegExp(`^(?:${pattern})$`, 'u');
 export function checkDocument(doc, def, ctx) {
   const problems = [];
   const add = (p) => problems.push({ severity: 'error', ...p });
+  // Unit 37: a type an overlay renames reads the project's headings as MIRAI's.
+  const renames = def.renames ?? {};
+  if (Object.keys(renames).length) {
+    doc = aliased(doc, def, add);
+    const out = checkDocument(doc, { ...def, renames: undefined }, ctx).filter((p) => !(p.code === 'unknown-section' && doc.renamedLines.has(p.line)));
+    // The renamed-section problems name both names already.
+    return [...problems, ...out.map((p) => shownAs(p, renames))];
+  }
   checkFrontmatter(doc, def, add);
   checkSections(doc, def, add);
   // Unit 32: the upstream document (a PRD's brief), read once for the ID and summary checks.
@@ -44,6 +52,45 @@ export function checkDocument(doc, def, ctx) {
   if (ctx.template) checkTemplateText(doc, def, ctx.template, add);
   for (const name of def.lint_checks ?? []) CHECKS[name](doc, def, ctx, add);
   return problems;
+}
+
+// ---- Renamed sections (unit 37) -------------------------------------------------------------
+
+// The document as MIRAI's checks read it, for a type whose overlay renames sections or parts
+// (`def.renames`: MIRAI's name to the project's): each heading under the project's name carries
+// MIRAI's name. A heading under MIRAI's own name is the project's mistake: it's reported, and
+// doesn't count as the section. `renamedLines`: those headings' lines.
+export function aliased(doc, def, add = () => {}) {
+  const renames = def?.renames ?? {};
+  const toMirai = new Map(Object.entries(renames).map(([m, p]) => [p, m]));
+  const renamedLines = new Set();
+  const headings = doc.scan.headings.map((h) => {
+    if (h.level >= 2 && toMirai.has(h.text)) return { ...h, text: toMirai.get(h.text) };
+    if (h.level >= 2 && Object.hasOwn(renames, h.text)) {
+      renamedLines.add(h.line);
+      add({ code: 'renamed-section', line: h.line, column: h.column, reason: `"${h.text}" is called "${renames[h.text]}" in this project`, hint: `rename the heading to "${renames[h.text]}" (the project's overlay renames it)` });
+      return { ...h, text: `${h.text} (MIRAI's name)` };
+    }
+    return h;
+  });
+  return { ...doc, scan: { ...doc.scan, headings }, renamedLines };
+}
+
+// A problem's text with MIRAI's names as the project calls them: quoted, after "## " or "### ",
+// and in comma lists ("the order is: …").
+function shownAs(p, renames) {
+  const swap = (text) => {
+    if (typeof text !== 'string') return text;
+    let out = text;
+    for (const [m, to] of Object.entries(renames)) {
+      const e = escapeRegex(m);
+      out = out.split(`"${m}"`).join(`"${to}"`)
+        .replace(new RegExp(`(#{2,3} )${e}(?=$|["\\s,.;:)])`, 'g'), (_, a) => `${a}${to}`)
+        .replace(new RegExp(`(^|: |, )${e}(?=$|, |;)`, 'g'), (_, a) => `${a}${to}`);
+    }
+    return out;
+  };
+  return { ...p, reason: swap(p.reason), ...(p.hint !== undefined ? { hint: swap(p.hint) } : {}) };
 }
 
 // ---- The upstream document (unit 32) -------------------------------------------------------
@@ -127,8 +174,9 @@ function upstreamOf(doc, def, ctx, add) {
     add({ code: 'upstream-link', ...where, reason: `the linked ${type} is "${shownId(String(found.value.id))}", which "upstream" doesn't name`, hint: `put upstream: [${shownId(String(found.value.id))}] in the frontmatter, or link the right ${type}` });
     return { status: 'broken' };
   }
-  const ids = checkIds(found, upDef, () => {}, null);
-  return { status: 'ok', doc: found, def: upDef, ids, path: m[1] };
+  const upDoc = upDef.renames ? aliased(found, upDef) : found;
+  const ids = checkIds(upDoc, upDef, () => {}, null);
+  return { status: 'ok', doc: upDoc, def: upDef, ids, path: m[1] };
 }
 
 // ---- The frozen block (unit 08b) ----------------------------------------------------------

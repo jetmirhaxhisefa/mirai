@@ -53,7 +53,7 @@ builtin_agents = ["Explore", "Plan", "claude", "general-purpose", "statusline-se
 # listed here is red until someone reads what it does and adds it (a MIRAI change, not a local
 # one). Removed lines are reported, never red.
 [strict.binary]
-seen_on = "2.1.326"
+seen_on = "2.1.330"
 settings_keys = [
   "accessKeyIdVar",
   "allowAllUnixSockets",
@@ -162,6 +162,14 @@ permission_keys = [
   # written, no link at them followed; "it adds no working directory and allows nothing" (the binary's
   # own description). Not used by MIRAI yet; it would narrow the link-swap race at a working folder.
   "workingDirectoriesAsGiven",
+  # 2.1.330: read only from --settings (and settings the starting program sends during the session);
+  # ignored in user, project, local and managed settings, so a project can't set it. Absolute
+  # paths (a folder with all below it, or one file) that the three block*OutsideWorkingDirectories
+  # settings treat as outside every working directory; links in a listed path are not followed.
+  # "It allows nothing" and does nothing with those three off (the binary's own description); it
+  # never changes what sandboxed commands may read or write. Not used by MIRAI yet; it could keep
+  # the file tools out of e.g. the checkout's .git while blockWritesOutsideWorkingDirectories is on.
+  "workingDirectoriesExclude",
 ]
 profile_rules = [
   "(allow appleevent-send)",

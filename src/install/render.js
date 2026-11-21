@@ -5,6 +5,9 @@ import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
 import { PROJECT_CONFIG, readConfigFile, checkConfig } from '../config/load.js';
 import { loadRegistry } from '../config/registry.js';
+import { CUSTOM_DIR, sessionOverlays } from '../config/overlays.js';
+import { branchKeys } from '../sign/keys.js';
+import { repoIdentity } from '../store/home.js';
 import { topLevel } from '../store/git.js';
 import { buildBundle } from '../adapters/bundle.js';
 import { ADAPTER, commandPath, instructionBlock, interactiveDenies, interactivePath, isManaged, isMiraiName, MIRAI_COMMAND, renderAgent } from '../adapters/claude-code.js';
@@ -94,12 +97,18 @@ const sortByPath = (list) => list.sort((a, b) => (a.path < b.path ? -1 : a.path 
 // [{ path, existing }], entries, removed (lock paths), files: [{ path, changed, edited }],
 // warnings }. `registryDir` is the registry to render from (the staged copy during `init`, the
 // installed one for `mirai render`); `lock` the current lock, or null on a first install.
-export function renderPlan({ root, registryDir, config, configBytes, local, lock }) {
-  const registry = loadRegistry(registryDir);
+// `overlays` (unit 37): { keys, repoId } to render the agent and skill overlays approved by a
+// committed record (src/config/overlays.js, sessionOverlays), from the work tree's .mirai/custom;
+// one that isn't approved as it is now is left out, MIRAI's own file rendered, with its line in
+// `notes`.
+export function renderPlan({ root, registryDir, config, configBytes, local, lock, overlays = null }) {
+  const core = loadRegistry(registryDir);
+  const own = overlays ? sessionOverlays(core, { dir: join(root, CUSTOM_DIR), ...overlays }) : null;
+  const registry = own ? own.registry : core;
   const profile = registry.adapters[ADAPTER];
   if (!profile) throw new BlockError(`the framework copy's registry has no ${ADAPTER} adapter (it's older than unit 11)`, { code: 'no-adapter', hint: 'run: mirai init --refresh' });
   const inRegistry = (rel) => ({ path: `${REGISTRY_DIR}/${rel}`, sha256: sha256(readFileSync(join(registryDir, rel))) });
-  const plan = { writes: [], removes: [], entries: [], removed: [], files: [], warnings: [], bundles: {} };
+  const plan = { writes: [], removes: [], entries: [], removed: [], files: [], warnings: [], notes: (own?.skipped ?? []).map((x) => x.line), bundles: {} };
   const listed = (path) => lock?.files.get(path);
   // `same`: whether the file on disk already is what MIRAI would write.
   const add = (path, data, entry, existing, editedHash, same = existing !== null && Buffer.from(data).equals(existing.bytes)) => {
@@ -172,8 +181,11 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
 
   // The launch bundle's skills and agents, under .claude/.
   for (const dir of [profile.interactive.skills, profile.interactive.agents]) noLinks(root, dir);
+  // The lock's bundle hash is MIRAI's own bundle, the headless plugin folder the trust root checks;
+  // your sessions' files carry the approved agent and skill overlays (unit 37), each listed in the
+  // lock with its hash and the overlay files it came from.
   const bundle = buildBundle(registry, { models: config.models, renderAgent });
-  plan.bundles[ADAPTER] = bundle.sharedHash;
+  plan.bundles[ADAPTER] = own ? buildBundle(core, { models: config.models, renderAgent }).sharedHash : bundle.sharedHash;
   const paths = new Set();
   for (const f of bundle.files) {
     const path = interactivePath(profile, f.path);
@@ -181,7 +193,7 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
     noLinks(root, path);
     const existing = existsSync(join(root, path)) ? { bytes: readFileSync(join(root, path)) } : null;
     if (existing && !lstatSync(join(root, path)).isFile()) throw new BlockError(`${path} is not a file`, { code: 'not-file' });
-    const from = sortByPath(f.from.map((rel) => (rel === 'config' ? { path: CONFIG_FILE, sha256: sha256(configBytes) } : inRegistry(rel))));
+    const from = sortByPath(f.from.map((rel) => (rel === 'config' ? { path: CONFIG_FILE, sha256: sha256(configBytes) } : rel.startsWith('repo:') ? { path: rel.slice(5), sha256: sha256(readFileSync(join(root, rel.slice(5)))) } : inRegistry(rel))));
     // Hashed with CRLF read as LF, so a teammate's converted checkout isn't an edit.
     const now = existing ? renderedHash(existing.bytes) : null;
     add(path, f.bytes, { path, mark: 'rendered', sha256: renderedHash(f.bytes), from }, existing, now, now === renderedHash(f.bytes));
@@ -325,7 +337,7 @@ export function render({ cwd, env }) {
     throw new BlockError(`the framework copy isn't MIRAI's as listed (${framework.slice(0, 3).join(', ')}${framework.length > 3 ? ', …' : ''})`, { code: 'framework-changed', hint: 'restore it from git: git checkout -- .mirai' });
   }
   const { configBytes, config, local } = projectInputs(root);
-  const plan = renderPlan({ root, registryDir: join(root, REGISTRY_DIR), config, configBytes, local, lock });
+  const plan = renderPlan({ root, registryDir: join(root, REGISTRY_DIR), config, configBytes, local, lock, overlays: overlayKeys(root, env) });
   const undo = [];
   try {
     applyPlan(root, plan, undo);
@@ -337,7 +349,18 @@ export function render({ cwd, env }) {
     undoAll(undo, err);
     throw err;
   }
-  return { root, lockFile: LOCK_FILE, files: plan.files, removed: plan.removed, warnings: plan.warnings };
+  return { root, lockFile: LOCK_FILE, files: plan.files, removed: plan.removed, warnings: plan.warnings, notes: plan.notes };
+}
+
+// What renderPlan needs to read the committed approval records (unit 37): the keys on the
+// integration branch and the repo's id; null before the repo has an integration branch.
+export function overlayKeys(root, env) {
+  try {
+    const id = repoIdentity({ cwd: root, env });
+    return { keys: branchKeys(id.checkout, id.branch, { PATH: env.PATH, HOME: env.HOME }), repoId: id.repoId };
+  } catch {
+    return null;
+  }
 }
 
 // Your files that rendering reads: the config (checked) and agents-local.md (null when absent).

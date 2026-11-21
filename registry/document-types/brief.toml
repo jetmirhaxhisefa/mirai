@@ -63,3 +63,62 @@ prefix = "Q"
 pattern = "Q-[0-9]+"
 defined_by = "bullet"
 section = "Open questions"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Summary for approval"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "The ask"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Why"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "What changes"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Decisions for you"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "Not in this"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "Success"
+read_by = ["lint", "trace"]
+
+[[protected_sections]]
+name = "Business requirements"
+read_by = ["lint", "trace"]
+
+[[protected_sections]]
+name = "Appetite and track"
+read_by = ["lint", "gate"]
+
+[[protected_sections]]
+name = "No-gos"
+read_by = ["trace"]
+
+[[protected_sections]]
+name = "Rabbit holes"
+read_by = ["trace"]
+
+[[protected_sections]]
+name = "Open questions"
+read_by = ["lint", "approval", "trace"]
+
+[[protected_fields]]
+name = "track"
+read_by = ["gate", "approval", "reader-test"]
+
+[[protected_fields]]
+link = "Interview"
+read_by = ["approval", "gate"]

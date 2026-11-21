@@ -12,6 +12,7 @@ import { acquireLock, ensurePrivateDir } from '../store/files.js';
 import { openStore } from '../store/home.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { snapshot, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
+import { widenedTemplates } from '../trust/overlays.js';
 import { readBinaryFacts } from './binary.js';
 import { launchStore } from './direct.js';
 import { redTeamCases } from './cases.js';
@@ -93,8 +94,10 @@ export function unitsFor(cases, templates, only = null) {
   for (const k of cases) {
     if (only && !only.includes(k.id)) continue;
     for (const mode of k.templates) {
-      const names = [...templates.entries()].filter(([, t]) => t.mode === mode).map(([n]) => n);
-      if (!names.length) skipped.push({ id: k.id, template: mode });
+      // Unit 37: a case made for a widened tool runs only under an agent template whose overlay
+      // gives that tool beyond its mode, and is never "skipped" where none does.
+      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w)))).map(([n]) => n);
+      if (!names.length && !k.widened) skipped.push({ id: k.id, template: mode });
       for (const n of names) units.push({ id: k.id, template: n });
     }
   }
@@ -389,6 +392,9 @@ export async function runRedTeam({
     }
     const parts = await keyParts({ env: storeEnv, hostEnv: env, trust, store, claude: c, docker: { socket: join(env.HOME, '.docker', 'run', 'docker.sock'), ...docker }, dockerVersion });
     const templates = new Map(templateNames(trust).map((n) => [n, trustedStrict(trust, n)]));
+    // Unit 37: every agent your approved overlay widens runs the same cases under its own
+    // template (its tools, its mode's limits), so a launch of it can be checked against this run.
+    for (const [n, t] of widenedTemplates(trust, store, templates)) templates.set(n, t);
     const checks = binaryCheck(binaryFacts(c.real), strict.binary);
     onEvent({ type: 'static', checks });
 
@@ -571,11 +577,19 @@ export async function redTeamStatus({ cwd, env, hostEnv = env, trust = null, tem
       // a note only
     }
   }
-  if (template && status.result && status.state !== 'stale') {
-    const cov = status.result.templates?.[template.name];
-    const mine = Array.isArray(status.result.cases) ? status.result.cases.filter((x) => x.template === template.name) : null;
-    const tested = mine && mine.length ? templateTested(mine) : cov?.tested;
-    if (!tested || cov.bundle !== canonicalSha256(template) || parts.bundles[template.name] !== cov.bundle) return { ...status, state: 'none' };
-  }
+  return template ? forTemplate(status, parts, template) : status;
+}
+
+// The status for one launch's template: `none` unless a case ran under that template and passed,
+// and its canonical hash is the one the result tested. An agent's own template (unit 37) isn't
+// part of the key: its coverage is checked by its canonical hash alone, which covers its
+// overlay's hash.
+export function forTemplate(status, parts, template) {
+  if (!status.result || status.state === 'stale') return status;
+  const cov = status.result.templates?.[template.name];
+  const mine = Array.isArray(status.result.cases) ? status.result.cases.filter((x) => x.template === template.name) : null;
+  const tested = mine && mine.length ? templateTested(mine) : cov?.tested;
+  const keyed = template.overlay ? cov?.bundle : parts.bundles?.[template.name];
+  if (!tested || !cov || cov.bundle !== canonicalSha256(template) || keyed !== cov.bundle) return { ...status, state: 'none' };
   return status;
 }

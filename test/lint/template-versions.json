@@ -1,0 +1,38 @@
+{
+  "brief": {
+    "1": "sha256:8dc15a87c6c61a1414a0f418bdf0f8210d6a6981c0115490c666108432ea3cdf"
+  },
+  "bug": {
+    "1": "sha256:fcc08d101772e3d4dae9a2bf4fa2c34cb651a41179b2fed6f41147349c4cbb01"
+  },
+  "business": {
+    "1": "sha256:2009123d5ef6c255d5844e1a0428404bea1d0208437092599cf583ded07b8fc0"
+  },
+  "conventions": {
+    "1": "sha256:ce53902f86055abed6166d38540c931feb595831c9de3e2bd7b77462e97bc0e8"
+  },
+  "epic": {
+    "1": "sha256:21d71c598c17289de1b69e1990c6973a2e6143acf4c4a4b18ddb76dde0b1909d"
+  },
+  "feature-map": {
+    "1": "sha256:354cd312b2b150d7837ec0283ff39a4043ece0dbed96a30e14103c4e55bcbee4"
+  },
+  "interview": {
+    "1": "sha256:a1dda45caed8497b5ca95f535209efad82de0305fc2a794c26f2e42a4489dd3a"
+  },
+  "journeys": {
+    "1": "sha256:37b5cf6c3a67410a4a057bda8726864a34e6ec207235859b41b711f825c7304e"
+  },
+  "plan": {
+    "1": "sha256:2d8a325243fbfeff1e7295560bda912e7cb7e01b3db438c837999fa59a44e50d"
+  },
+  "prd": {
+    "1": "sha256:3c55b69f0e7bf88b21adfae0395d2a810bc2eb0b3c1157c04bb1b710dba665d5"
+  },
+  "project": {
+    "1": "sha256:c6047d77b8c488c059003d34024315a663927a03572e46468d923c7685891a42"
+  },
+  "story": {
+    "1": "sha256:bf226d89b060f21c781e8ab233dea08bd6b2ee85b95935e13707ff79e00aee2b"
+  }
+}

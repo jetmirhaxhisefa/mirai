@@ -2,7 +2,8 @@
 
 MIRAI's own definitions (D-37), shipped with it:
 - **`document-types/`:** one TOML definition per document type (unit 07b). `mirai lint` checks
-  documents against them.
+  documents against them. Each lists its protected parts (unit 37), what MIRAI's machinery reads,
+  which no project overlay may drop (`docs/overlays.md`).
 - **`templates/`:** each type's template and verifier checklist. A document template is itself
   a valid document, with its guidance in HTML comments, so it lints clean. The three report
   templates (`mr-description`, `qa-report`, `run-report`, unit 09b) are not documents: their

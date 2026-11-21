@@ -2,7 +2,7 @@
 
 The brief says what the business needs and why, before anyone designs anything. Its form (the
 sections, IDs and the summary's five parts) is in the template
-`.mirai/framework/registry/templates/brief.md` and its checklist `brief-checklist.md`, next to it.
+you're given, or `mirai show template brief`, and its checklist, `mirai show checklist brief`.
 The `mirai-docs` skill explains both. This guide covers the wording.
 
 ## Rules

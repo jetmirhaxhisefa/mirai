@@ -37,6 +37,10 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 
 `docs/mirai` is the default `[docs] root` ([config.md](config.md)).
 
+A project can change a type for its own needs: add, reorder or rename sections, or use its own
+template. Each change is an overlay you approve, and it can't drop what MIRAI reads. See
+[overlays.md](overlays.md).
+
 ## The lint: `mirai lint`
 
 `mirai lint` checks the shape of MIRAI documents: frontmatter, sections, IDs, links, and each

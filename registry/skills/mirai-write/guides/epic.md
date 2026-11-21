@@ -2,7 +2,7 @@
 
 The epic is the set of tickets for one PRD: their order, how they are released, and what needs
 the owner's call. Its form (the summary, Order, Release, the generated tables) is in the template
-`.mirai/framework/registry/templates/epic.md` and its checklist `epic-checklist.md`, next to it.
+you're given, or `mirai show template epic`, and its checklist, `mirai show checklist epic`.
 The `mirai-docs` skill explains both. This guide covers the wording.
 
 ## Rules
