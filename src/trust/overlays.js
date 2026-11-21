@@ -4,7 +4,8 @@ import { ConfigError } from '../cli/errors.js';
 import { applyOverlays, CUSTOM_DIR, hasOverlayFiles, overlayFilesFrom } from '../config/overlays.js';
 import { loadCustomRoles } from '../config/registry.js';
 import { catBlobs, lsTree } from '../store/git.js';
-import { openStore } from '../store/home.js';
+import { openStore, repoIdentity } from '../store/home.js';
+import { committedKeys } from '../sign/keys.js';
 import { readJournal } from '../store/journal.js';
 import { baseCommit, trustedFile, trustedRegistry } from './snapshot.js';
 import { agentTemplate } from '../launch/strict.js';
@@ -32,8 +33,11 @@ function rolesOf(trust, registry) {
 
 // The trust root's registry with the approved overlays applied: { registry, overlays, skipped }
 // (src/config/overlays.js, applyOverlays). `events`: the journal, when the caller has read it.
+// Approvals: the committed records in the trust root, checked against the keys on its base
+// commit, and your local journal (unit 37, Jet's answer to Q3).
 export function trustedOverlays(trust, store, { registry = trustedRegistry(trust), events = null } = {}) {
-  return applyOverlays(registry, trustOverlayFiles(trust), events ?? readJournal(store).events, { roles: rolesOf(trust, registry) });
+  const keys = committedKeys(store.checkout, trust.baseSha, store.gitEnv);
+  return applyOverlays(registry, trustOverlayFiles(trust), events ?? readJournal(store).events, { roles: rolesOf(trust, registry), keys, repoId: store.repoId });
 }
 
 // The registry a gate reads: the trust root's, with the approved overlays applied.
@@ -41,33 +45,44 @@ export const effectiveRegistry = (trust, store) => trustedOverlays(trust, store)
 
 // The overlay files on the integration branch's commit, read from git's objects (never the work
 // tree): for the commands that don't build a trust root, such as mirai lint.
-export function baseOverlayFiles(store) {
-  const base = baseCommit(store.checkout, store.branch, store.gitEnv);
-  const entries = (lsTree(store.checkout, base, CUSTOM_DIR, store.gitEnv, { recursive: true }) ?? []).filter((e) => e.type === 'blob');
+// `where`: { checkout, branch, gitEnv } (a store, or a repo identity when there's none). Returns
+// { files, base }.
+export function baseOverlayFiles(where) {
+  const base = baseCommit(where.checkout, where.branch, where.gitEnv);
+  const entries = (lsTree(where.checkout, base, CUSTOM_DIR, where.gitEnv, { recursive: true }) ?? []).filter((e) => e.type === 'blob');
   const plain = entries.filter((e) => e.mode !== '120000');
-  const blobs = catBlobs(store.checkout, plain.map((e) => e.sha), store.gitEnv, { maxBytes: 256 * 1024, maxTotal: 16 * 1024 * 1024 });
-  return overlayFilesFrom(entries.map((e) => [e.path.slice(CUSTOM_DIR.length + 1), e.mode === '120000' ? null : blobs.get(e.sha) ?? null]));
+  const blobs = catBlobs(where.checkout, plain.map((e) => e.sha), where.gitEnv, { maxBytes: 256 * 1024, maxTotal: 16 * 1024 * 1024 });
+  return { files: overlayFilesFrom(entries.map((e) => [e.path.slice(CUSTOM_DIR.length + 1), e.mode === '120000' ? null : blobs.get(e.sha) ?? null])), base };
 }
 
 // For mirai lint and mirai epic render: `registry` (MIRAI's) with the approved overlays on the
-// integration branch applied: { registry, skipped, note }. Outside a repo MIRAI is set up in, the
+// integration branch applied: { registry, skipped, note }. An overlay counts as approved by its
+// committed record (any checkout: a teammate before mirai join, CI) or, where MIRAI's store is set
+// up, your journal. Where the repo can't be read as MIRAI's (no config, no integration branch), the
 // registry as it is; a `note` says so when the work tree has overlay files.
 export function projectOverlays({ cwd, env, registry, checkout = null }) {
-  let store;
+  let where;
+  let events = [];
   try {
-    store = openStore({ cwd, env });
+    where = openStore({ cwd, env });
+    events = null;
   } catch {
-    const note = checkout && hasOverlayFiles(checkout) ? `note: the overlays in ${CUSTOM_DIR}/ aren't used: MIRAI isn't set up for this repo (mirai init or mirai join)` : null;
-    return { registry, skipped: [], note };
+    try {
+      where = { ...repoIdentity({ cwd, env }), gitEnv: Object.freeze({ PATH: env.PATH, HOME: env.HOME }) };
+    } catch (err) {
+      const note = checkout && hasOverlayFiles(checkout) ? `note: the overlays in ${CUSTOM_DIR}/ aren't used: ${String(err.message).slice(0, 200)}` : null;
+      return { registry, skipped: [], note };
+    }
   }
-  let files;
+  let read;
   try {
-    files = baseOverlayFiles(store);
+    read = baseOverlayFiles(where);
   } catch (err) {
-    return { registry, skipped: [], note: hasOverlayFiles(store.checkout) ? `note: the overlays in ${CUSTOM_DIR}/ aren't used: ${String(err.message).slice(0, 200)}` : null };
+    return { registry, skipped: [], note: hasOverlayFiles(where.checkout) ? `note: the overlays in ${CUSTOM_DIR}/ aren't used: ${String(err.message).slice(0, 200)}` : null };
   }
-  if (!files.size) return { registry, skipped: [], note: null };
-  const r = applyOverlays(registry, files, readJournal(store).events);
+  if (!read.files.size) return { registry, skipped: [], note: null };
+  const keys = committedKeys(where.checkout, read.base, where.gitEnv);
+  const r = applyOverlays(registry, read.files, events ?? readJournal(where).events, { keys, repoId: where.repoId });
   return { registry: r.registry, skipped: r.skipped, overlays: r.overlays, note: null };
 }
 

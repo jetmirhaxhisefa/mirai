@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { lstatSync, rmSync } from 'node:fs';
+import { lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -28,7 +28,7 @@ import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
 import { readerResultFor } from '../../store/reader-tests.js';
 import { ROUNDS, failedLabels, needsReaderTest, resultLines, summaryHash, summaryText } from '../../write/reader.js';
 import { CONTEXT_DIR, contextKindOf, isContextFile } from '../../lint/context.js';
-import { CUSTOM_DIR, overlayFilesIn, overlayState, readOverlays } from '../../config/overlays.js';
+import { CUSTOM_DIR, RECORDS_FOLDER, overlayFilesIn, overlayRecord, overlayRecordContext, overlayState, readOverlays, recordPathOf, recordText, verifyRecords } from '../../config/overlays.js';
 import { trustedRoles } from '../../agent/scope.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
@@ -713,7 +713,8 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
   }
   const item = `overlay-${o.name}`.slice(0, 64);
   if (id !== undefined && id !== item) throw new UsageError(`${plain(file.path)} is approved as "${item}", not "${id}"; nothing was written`, `run: mirai approve --file ${fileArg}`);
-  const before = overlayState(o, readJournal(store).events);
+  const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
+  const before = overlayState(o, readJournal(store).events, verifyRecords(overlayFilesIn(join(store.checkout, CUSTOM_DIR)), { keys, repoId: store.repoId }));
   const r = o.result;
   const what = o.kind === 'document-type' ? `the ${o.name} type, ${r.replace ? 'a replacement template' : 'a section overlay'}`
     : o.kind === 'agent' ? `${o.name}, ${r.change === 'instructions' ? 'instructions only' : `${r.change}: ${r.why.join(', ')}`}` : `the ${o.name} skill, instructions`;
@@ -745,6 +746,13 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
       type: 'approval', by: 'human', item, kind: 'overlay', path: o.path, content_hash: o.hash, ...(files.length ? { files } : {}), decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter,
       ...(r.replace ? { ...(Number.isInteger(r.coreTemplate.version) ? { template_version: r.coreTemplate.version } : {}), template_hash: r.coreTemplate.hash } : {}),
     });
+    // Unit 37 (Jet's answer to Q3): the same decision as a signed record beside the overlays, so the
+    // approval travels with the repo (a teammate's checkout, CI). It's written first: a journal
+    // line with no record is still your approval here; a record with no line never happens.
+    const record = signObject(overlayRecord(o, { decision, templateVersion: r.replace ? r.coreTemplate.version : null, templateHash: r.replace ? r.coreTemplate.hash : null, now }), signer, { context: overlayRecordContext(store.repoId), now });
+    const recordFile = recordPathOf(o);
+    mkdirSync(join(store.checkout, CUSTOM_DIR, RECORDS_FOLDER), { recursive: true });
+    atomicWrite(join(store.checkout, recordFile), recordText(record));
     const seq = withSeq(store, (ctx) => {
       const n = ctx.take();
       ctx.event(n, approval, { signer });
@@ -753,6 +761,7 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
     io.stdout.write(decision === 'rejected'
       ? `recorded: ${o.path} rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: ${o.path}, as it is now (${decision}; signed with ${signer.keyId}, seq ${seq}); MIRAI uses it once it's on ${store.branch}, and a change to it needs a new approval\n`);
+    io.stdout.write(`record:  ${recordFile}: commit it with the overlay${o.kind !== 'document-type' ? ', after mirai render (your sessions\' copy of the agent or skill)' : ''}\n`);
     return EXIT.OK;
   } finally {
     prompter.close();

@@ -10,7 +10,8 @@ import { showData, showText } from '../../run/show.js';
 import { openStore } from '../../store/home.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
 import { trustOverlayFiles, trustedOverlays } from '../../trust/overlays.js';
-import { CUSTOM_DIR, STATE_TEXT, overlayFilesIn, overlayState, readOverlays, templateTextOf } from '../../config/overlays.js';
+import { CUSTOM_DIR, STATE_TEXT, overlayFilesIn, overlayState, readOverlays, templateTextOf, verifyRecords } from '../../config/overlays.js';
+import { branchKeys } from '../../sign/keys.js';
 import { loadRegistry } from '../../config/registry.js';
 import { trustedRoles } from '../../agent/scope.js';
 import { readJournal } from '../../store/journal.js';
@@ -237,9 +238,11 @@ export function overlaysOf({ cwd, env }) {
     const bytes = base.get(path.slice(CUSTOM_DIR.length + 1));
     return bytes ? contentHash(bytes) : null;
   };
-  const rows = readOverlays(overlayFilesIn(join(store.checkout, CUSTOM_DIR)), registry, { roles }).map((o) => {
-    const st = overlayState(o, events);
-    let state = STATE_TEXT[st.state];
+  const files = overlayFilesIn(join(store.checkout, CUSTOM_DIR));
+  const records = verifyRecords(files, { keys: branchKeys(store.checkout, store.branch, store.gitEnv), repoId: store.repoId });
+  const rows = readOverlays(files, registry, { roles }).map((o) => {
+    const st = overlayState(o, events, records);
+    let state = st.reason ? `${STATE_TEXT[st.state]} (${st.reason})` : STATE_TEXT[st.state];
     if (o.kind === 'agent' && o.result) state += o.result.change === 'widening' ? `; widens it (${o.result.why.join(', ')})` : o.result.change === 'narrowing' ? `; narrows it (${o.result.why.join(', ')})` : '; instructions only';
     if (o.kind === 'document-type' && o.result) state += o.result.replace ? '; replacement template' : '';
     const on = baseHash(o.path);
