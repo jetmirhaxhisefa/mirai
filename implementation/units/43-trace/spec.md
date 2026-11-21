@@ -1,6 +1,6 @@
 ---
 unit: "43"
-name: trace
+status: approved (Jet, 2026-11-21: "approve 43"; interview Q1–Q4 "A", restatement "yes"; built only after 42 is finished, and re-checked against 37–42 as built first)
 status: draft (Jet's interview 2026-11-21: Q1 "A", Q2 "A", Q3 "A", Q4 "A", restatement "yes")
 roadmap: design/07-implementation-roadmap.md, row 43; design/01 §5a (the chain, `mirai trace`), §7 (`tdd`, `tests`), §11 (CI checks the proof); R-M10, R2-M11; D-35 (the ship-time proof), AR3-15; units 08a (ticket ACs), 15a (the broker's tool table), 25a (proofs), 33 (epic, graph lint), 42 (Tess)
 depends_on: ["08a", "15a", "25a", "33", "42"]
