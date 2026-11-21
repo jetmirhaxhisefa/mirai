@@ -1,7 +1,7 @@
 ---
 unit: "37"
 name: overlays
-status: approved (Jet, 2026-11-20: "approve 37"; decisions 1–8 from his interview answers the same day; built only after 36 is finished, and re-checked against 34–36 first)
+status: done (spec approved by Jet 2026-11-20, unit approved 2026-11-21: "approve 37"; decisions 1–8 from his interview; built after 36, re-checked against 34–36 first)
 roadmap: design/07-implementation-roadmap.md, row 37; D-37 (design/04, and its unit 21a update); R2-M12; unit 03b (the registry core); units 18 and 21a (the red team and strict launches)
 depends_on: ["03b", "07", "36"]
 ---

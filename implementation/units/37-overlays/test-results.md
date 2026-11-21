@@ -262,6 +262,7 @@ From P1's writers (2026-11-21), one line each:
 
 ## Follow-up
 
+- **A flaky 14d test, seen on PR #102's CI (Node 22, passed on the rerun):** `test/tests/test-run.test.js:481` picks "the latest" stored test run by sorting run ids, which have one-second precision and a random suffix (`testRunId`, `src/tests/run.js:53`), so two runs in the same second can pick the non-gate one ("not a gate run"). Fix: the test reads the id its own `--gate` run printed. Not unit 37's code.
 - **Unit 36's context-file approvals have the same local-only limit** the overlays had: they're
   journal lines only, so a teammate's checkout or CI can't see them. The committed signed record
   (this unit's `approvals/` pattern) would fit them too.
