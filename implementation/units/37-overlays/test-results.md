@@ -96,7 +96,7 @@
 
 | Probe | Result |
 |---|---|
-| **P1 A company-style PRD on the sample app** | not run yet |
+| **P1 A company-style PRD on the sample app** | not run yet. `test/probes/overlay-p1-probes.js --setup <dir>` builds the project (the sample app's fixture copy, MIRAI from this branch, a probe home, key and store; the PRD overlay approved through the CLI, its record committed; 31's P2 brief) and its kit (the rendered template, the checklist, mirai-write and its PRD guide); `--reader --yes` and `--epic` run on it, and `overlay-p1-reader-probes.js` / `overlay-p1-epic-probes.js` are the build runner's forms |
 | **P2 A widened agent** | not run yet. `test/probes/overlay-p2-probes.js` is ready: `--yes --phase before` (the gate refuses Rex, no model), then `mirai redteam run` through the build runner, then `--yes --phase after` (the result covers the overlay's template, by its hash; `x-bash-checkout`, `x-bash-network` and `x-bash-secrets` ran under it and passed; the gate lets Rex launch), and `--launch` for one real Rex run whose init lists Bash. Approve the overlay, run `mirai render`, and commit the overlay, the record and the rendered files on main first |
 
 ## Changed from the spec
