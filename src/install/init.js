@@ -9,7 +9,7 @@ import { BRANCH } from '../config/config-schema.js';
 import { topLevel, isShallow, refExists, remotes, symbolicBranch, ignoredPaths } from '../store/git.js';
 import { createStore, openStore } from '../store/home.js';
 import { LOCK_FILE, checkLock, frameworkDigest, lockText, newer, readLock, sha256, filesUnder } from './lock.js';
-import { LOCAL_FILE, applyPlan, renderPlan, undoAll } from './render.js';
+import { LOCAL_FILE, applyPlan, overlayKeys, renderPlan, undoAll } from './render.js';
 
 // `mirai init` (unit 10; D-02, D-03, D-37). Copies MIRAI into a project, writes the lock, renders
 // MIRAI's block in AGENTS.md, and creates the store in the MIRAI home. It refuses before
@@ -117,7 +117,8 @@ export function init({ cwd, env, branch: wanted, refresh = false, now = () => ne
 
     // 4. The rendered files (AGENTS.md, CLAUDE.md, .claude/), planned from the staged framework
     // copy, as `mirai render` does from the installed one.
-    const plan = renderPlan({ root, registryDir: join(stage, 'framework', 'registry'), config, configBytes, local, lock: oldLock });
+    // Unit 37: on a refresh, the agent and skill overlays approved by a committed record, as mirai render renders them.
+    const plan = renderPlan({ root, registryDir: join(stage, 'framework', 'registry'), config, configBytes, local, lock: oldLock, overlays: refresh ? overlayKeys(root, env) : null });
     files.push(...plan.entries);
 
     // 5. The lock, staged last.

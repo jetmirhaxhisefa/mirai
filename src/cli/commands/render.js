@@ -34,6 +34,8 @@ export default {
   run(args, io) {
     const r = render({ cwd: io.cwd, env: io.env });
     for (const w of r.warnings) io.stderr.write(`warning: ${w}\n`);
+    // Unit 37: an agent or skill overlay that isn't approved by a committed record as it is now.
+    for (const n of r.notes ?? []) io.stderr.write(`${n}\n`);
     for (const f of r.files) {
       if (f.edited) io.stderr.write(`warning: ${f.path}: MIRAI's part had been edited by hand; it is rendered again\n`);
       io.stdout.write(`${f.path}: ${f.changed ? 'rendered again' : 'unchanged'}\n`);
