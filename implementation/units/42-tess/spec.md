@@ -95,7 +95,7 @@ hand.
    Her prompt gives her steps:
    1. read the approved documents and the context files;
    2. write the epic and its tickets;
-   3. run `mirai epic render` for the generated sections (33);
+   3. call the `epic_render` broker tool (`mirai epic render`, 33) for the generated sections;
    4. run MIRAI's checks through the broker (lint with the graph lint, `verify`);
    5. fix the must-fix findings within the rounds set in `[docs]`;
    6. stop.

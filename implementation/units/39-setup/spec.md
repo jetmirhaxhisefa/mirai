@@ -27,7 +27,7 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
 
 1. **Migration is in the MVP** (Q1, "A"). Setup reads the existing AI setup and goes through it
    **item by item**: skills, agents, scripts, hooks, instruction files, commands, MCP servers.
-   For each item it proposes where it fits in MIRAI (a skill goes to `.mirai/custom/skills/`),
+   For each item it proposes where it fits in MIRAI (a skill goes to `.mirai/custom/project-skills/<name>/`, 39's own `project-skill` kind, not a 37 overlay),
    and you decide whether to keep it.
 2. **Research, then a talk** (Q2, Jet: "setup researches it and it has a chat with questions to
    the user"). For each item, setup first reads it and works out what it does and when it runs.
@@ -116,7 +116,7 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
 
    | Item | Where it goes |
    |---|---|
-   | skill | `.mirai/custom/skills/<name>/` |
+   | skill | `.mirai/custom/project-skills/<name>/` (39's `project-skill` kind) |
    | agent | `.mirai/custom/agents/<name>.toml` + `.md`, as an overlay of a MIRAI agent (`mirai-developer`, `mirai-reviewer`) whose write scope is a role in `.mirai/custom/roles/`; any other agent is dropped or made into a skill |
    | command (`.claude/commands/`) | a custom skill, or dropped when a `mirai` command does the same |
    | hook | a check in `[[checks]]`, an interactive-only hook in `.mirai/custom/hooks/`, or both |
