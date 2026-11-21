@@ -14,7 +14,7 @@ from an editor, and from unit 27 on MIRAI's own pushes too.
   committed copy of MIRAI**, never from the branch you're pushing. A branch that changes MIRAI's
   own files can't change the check that judges it.
 - `mirai status` shows `hook: ok`, `off` or `changed`. While it isn't `ok`, `mirai build`,
-  `mirai fix` and `mirai review` refuse to start (`hooks-off` or `hooks-changed`): run
+  `mirai fix`, `mirai review`, `mirai run` and `mirai resume` refuse to start (`hooks-off` or `hooks-changed`): run
   `mirai init --refresh` in a terminal.
 
 ## What is checked
@@ -28,7 +28,7 @@ On **every branch**, yours included:
   - the fixed-prefix secret shapes in `registry/secrets/core.toml`: private keys, AWS, GitHub,
     Anthropic, OpenAI, Slack and other service tokens.
 
-  It reads history, not just the result: a secret added in one commit and removed in the next is
+  It reads history, not only the result: a secret added in one commit and removed in the next is
   still pushed, so it's still refused. The value found is never printed.
 
 On a **MIRAI branch** (any of its own commits has the `Mirai-Ticket` trailer or MIRAI's

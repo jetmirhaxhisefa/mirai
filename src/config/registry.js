@@ -199,8 +199,9 @@ export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date'
 // Checks written in code that a type switches on by name, `lint_checks = ["ticket"]` (unit 08a;
 // src/lint/checks.js). Unit 37's overlays may add lint checks, never remove them.
 // Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
-// and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint).
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic']);
+// and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint). Unit 35: `interview`.
+// Unit 36: the five context files (src/lint/context.js).
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
@@ -334,8 +335,14 @@ const DOCUMENT_TYPE = {
     // H3 parts the template fixes word for word (unit 32: the PRD glossary's ID prefixes): the
     // document keeps them as they are, and they aren't leftover text or counted as words.
     fixed_parts: sectionList,
-    // Sections left out of a variant's word cap (unit 32, Jet's decision 2026-11-20).
+    // Sections left out of a variant's word cap (unit 32, Jet's decision 2026-11-20), and out of
+    // the whole document's cap (unit 36: business.md's Sources table).
     uncounted_sections: sectionList,
+    // The whole document's word cap and where it starts to warn, for a type with no variants
+    // (unit 36, Jet's decision 3: business.md fails past 1,000 words and warns past 800). A
+    // project moves them with [docs.limits] <type>_words and <type>_warn_words.
+    document_words: { type: 'integer', min: 100, max: 10000 },
+    document_warn_words: { type: 'integer', min: 100, max: 10000 },
     versioned: { type: 'boolean' },
     id_pattern: regex,
     frontmatter: {
@@ -395,6 +402,11 @@ function checkDocumentType(def, path, report) {
     report('summary_words', 'summary_words is only for a type with the summary check', undefined, 'invalid');
   }
   if (def.summary_warn_words !== undefined && !checks.includes('summary')) report('summary_warn_words', 'summary_warn_words is only for a type with the summary check', undefined, 'invalid');
+  // Unit 36: a whole-document cap is for a type with no variants (a variant has its own), and it
+  // warns before it fails.
+  if (def.document_words !== undefined && def.variants !== undefined) report('document_words', 'document_words is for a type with no variants; each variant has its own', undefined, 'invalid');
+  if (def.document_warn_words !== undefined && def.document_words === undefined) report('document_warn_words', 'document_warn_words needs document_words', undefined, 'required');
+  else if (Number.isInteger(def.document_warn_words) && Number.isInteger(def.document_words) && def.document_warn_words >= def.document_words) report('document_warn_words', 'document_warn_words must be below document_words', undefined, 'range');
   const seen = new Set();
   all.forEach((name, i) => {
     const where = i < required.length ? `required_sections[${i}]` : `optional_sections[${i - required.length}]`;
@@ -763,6 +775,26 @@ const STACK = {
           const uses = (value.command ?? []).some((a) => typeof a === 'string' && a.includes('{script}'));
           if (scripts && !uses) report(`${path}.command`, `${path}.command must name the script ({script})`, undefined, 'placeholder');
           if (pkg && uses) report(`${path}.command`, `${path}.command can't use {script} for a dependency`, undefined, 'placeholder');
+        },
+      },
+    },
+    // How a command runs one of a manifest's scripts (unit 36): `command` with {script} where the
+    // script's name goes, so the project lint can check that `field` of `file` lists it (`npm
+    // run nope` fails). `names` limits a form to those scripts (npm's own `npm test`).
+    scripts: {
+      type: 'array',
+      items: {
+        type: 'table',
+        fields: {
+          file: JSON_NAME,
+          field: JSON_KEY,
+          command: argvWith(['script']),
+          names: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9:_.-]{0,63}$/, patternHint: 'a script name such as "test"' } },
+        },
+        required: ['file', 'field', 'command'],
+        check(value, path, report) {
+          const at = (value.command ?? []).findIndex((a) => a === '{script}');
+          if (at < 1) report(`${path}.command`, `${path}.command must have {script} as a whole argument, after the runner`, 'for example ["npm", "run", "{script}"]', 'placeholder');
         },
       },
     },

@@ -1,6 +1,7 @@
 import { SUMMARY_SECTION } from '../config/registry.js';
 import { clip, summaryOf } from './summary.js';
 import { BANNED, VAGUE, ACRONYMS } from './words.js';
+import { scanMarkdown } from './markdown.js';
 
 // The writing rules (unit 31; research/13 §9c: GOV.UK, the Federal Plain Language Guidelines,
 // Spec Kit). Six rules on the summary for approval, three on the detail (2, 3 and 5):
@@ -79,51 +80,65 @@ export function checkWriting(doc, def, ctx, add) {
 
   const ids = new Set((def.ids ?? []).map((k) => k.prefix));
   const definedAcronyms = new Set();
-  const check = (lines, { summary }) => {
-    const paras = paragraphs(lines);
-    for (const p of paras) {
-      const sentences = sentencesOf(p.text);
-      // 4. Paragraph length (the summary only).
-      if (summary && sentences.length > PARAGRAPH_SENTENCES) add({ code: 'writing-paragraph', line: p.line, column: 1, reason: `a paragraph of ${sentences.length} sentences, starting "${clip(sentences[0], 50)}"`, hint: `keep a paragraph to ${PARAGRAPH_SENTENCES} sentences: split it, or make a list` });
-      for (const sentence of sentences) {
-        // 2. Sentence length.
-        const n = words(sentence).length;
-        if (n > SENTENCE_FAIL) add({ code: 'writing-sentence', line: p.line, column: 1, reason: `a sentence of ${n} words: "${clip(sentence)}"`, hint: `keep sentences to ${SENTENCE_FAIL} words or fewer: split it, or make a list` });
-        else if (n > SENTENCE_WARN) add({ code: 'writing-sentence', severity: 'warning', line: p.line, column: 1, reason: `a sentence of ${n} words: "${clip(sentence)}"`, hint: `aim for ${SENTENCE_WARN} words or fewer` });
-        // 3. Banned and vague words.
-        for (const [word, fix] of BANNED) {
-          if (word.test(sentence)) add({ code: 'writing-word', line: p.line, column: 1, reason: `"${sentence.match(word)[0]}" in "${clip(sentence, 60)}"`, hint: fix });
-        }
-        if (!/[0-9]/.test(sentence)) {
-          for (const v of VAGUE) {
-            const m = new RegExp(`\\b${v}\\b`, 'i').exec(sentence);
-            if (m) add({ code: 'writing-vague', line: p.line, column: 1, reason: `"${m[0]}" with no number in "${clip(sentence, 60)}"`, hint: `say how ${v} it must be, with a number someone can check (a time, a size, a rate)` });
-          }
-        }
-        // 5. Acronyms spelled out at their first use.
-        for (const m of sentence.matchAll(/(?<![\p{L}\p{N}-])([A-Z][A-Z0-9]{1,9})s?(?![\p{L}\p{N}]|-[0-9])/gu)) {
-          const a = m[1];
-          if (definedAcronyms.has(a) || ACRONYMS.has(a) || ids.has(a)) continue;
-          const spelled = new RegExp(`\\(${a}s?\\)|\\b${a}s? \\(`).test(sentence);
-          definedAcronyms.add(a);
-          if (!spelled) add({ code: 'writing-acronym', line: p.line, column: 1, reason: `"${a}" isn't spelled out at its first use`, hint: `write it in full the first time, then the short form in brackets: "… (${a})"` });
-        }
-      }
-    }
-    // 6. A list's lead-in (the summary only): the line before a list is a heading or ends with ":".
-    if (summary) {
-      for (let i = 0; i < lines.length; i++) {
-        const l = lines[i];
-        if (l.kind !== 'text' || !LIST_ITEM.test(l.text)) continue;
-        const prev = lines.slice(0, i).reverse().find((x) => x.kind !== 'blank' && x.kind !== 'comment');
-        if (!prev || prev.kind === 'heading' || LIST_ITEM.test(prev.text) || /:\s*$/.test(prev.text) || (prev.kind === 'text' && /^\s{2,}\S/.test(l.text))) continue;
-        add({ code: 'writing-list', line: l.line, column: 1, reason: `a list follows "${clip(prev.text, 50)}" with no lead-in`, hint: 'end the line before the list with ":", saying what the list is' });
-      }
-    }
-  };
+  const check = (lines, { summary }) => checkLines(lines, { summary, ids, definedAcronyms, add });
   // The summary first (the acronyms are spelled out where the reader meets them first), then the detail.
   if (s) check(scan.lines.filter((l) => l.line > s.h2.line && l.line < s.end), { summary: true });
   check(detailLines, { summary: false });
+}
+
+// Rules 2–6 on some lines: the summary's rules when `summary`, else the detail's (2, 3 and 5).
+function checkLines(lines, { summary, ids, definedAcronyms, add }) {
+  const paras = paragraphs(lines);
+  for (const p of paras) {
+    const sentences = sentencesOf(p.text);
+    // 4. Paragraph length (the summary only).
+    if (summary && sentences.length > PARAGRAPH_SENTENCES) add({ code: 'writing-paragraph', line: p.line, column: 1, reason: `a paragraph of ${sentences.length} sentences, starting "${clip(sentences[0], 50)}"`, hint: `keep a paragraph to ${PARAGRAPH_SENTENCES} sentences: split it, or make a list` });
+    for (const sentence of sentences) {
+      // 2. Sentence length.
+      const n = words(sentence).length;
+      if (n > SENTENCE_FAIL) add({ code: 'writing-sentence', line: p.line, column: 1, reason: `a sentence of ${n} words: "${clip(sentence)}"`, hint: `keep sentences to ${SENTENCE_FAIL} words or fewer: split it, or make a list` });
+      else if (n > SENTENCE_WARN) add({ code: 'writing-sentence', severity: 'warning', line: p.line, column: 1, reason: `a sentence of ${n} words: "${clip(sentence)}"`, hint: `aim for ${SENTENCE_WARN} words or fewer` });
+      // 3. Banned and vague words.
+      for (const [word, fix] of BANNED) {
+        if (word.test(sentence)) add({ code: 'writing-word', line: p.line, column: 1, reason: `"${sentence.match(word)[0]}" in "${clip(sentence, 60)}"`, hint: fix });
+      }
+      if (!/[0-9]/.test(sentence)) {
+        for (const v of VAGUE) {
+          const m = new RegExp(`\\b${v}\\b`, 'i').exec(sentence);
+          if (m) add({ code: 'writing-vague', line: p.line, column: 1, reason: `"${m[0]}" with no number in "${clip(sentence, 60)}"`, hint: `say how ${v} it must be, with a number someone can check (a time, a size, a rate)` });
+        }
+      }
+      // 5. Acronyms spelled out at their first use.
+      for (const m of sentence.matchAll(/(?<![\p{L}\p{N}-])([A-Z][A-Z0-9]{1,9})s?(?![\p{L}\p{N}]|-[0-9])/gu)) {
+        const a = m[1];
+        if (definedAcronyms.has(a) || ACRONYMS.has(a) || ids.has(a)) continue;
+        const spelled = new RegExp(`\\(${a}s?\\)|\\b${a}s? \\(`).test(sentence);
+        definedAcronyms.add(a);
+        if (!spelled) add({ code: 'writing-acronym', line: p.line, column: 1, reason: `"${a}" isn't spelled out at its first use`, hint: `write it in full the first time, then the short form in brackets: "… (${a})"` });
+      }
+    }
+  }
+  // 6. A list's lead-in (the summary only): the line before a list is a heading or ends with ":".
+  if (summary) {
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (l.kind !== 'text' || !LIST_ITEM.test(l.text)) continue;
+      const prev = lines.slice(0, i).reverse().find((x) => x.kind !== 'blank' && x.kind !== 'comment');
+      if (!prev || prev.kind === 'heading' || LIST_ITEM.test(prev.text) || /:\s*$/.test(prev.text) || (prev.kind === 'text' && /^\s{2,}\S/.test(l.text))) continue;
+      add({ code: 'writing-list', line: l.line, column: 1, reason: `a list follows "${clip(prev.text, 50)}" with no lead-in`, hint: 'end the line before the list with ":", saying what the list is' });
+    }
+  }
+}
+
+// A fragment of a document, linted with the writing rules alone (unit 34: the before/after
+// examples in mirai-write's guides). `part` is 'summary' (rules 2–6) or 'detail' (2, 3 and 5);
+// `ids` are the ID prefixes the type defines (they aren't acronyms). No word budget: a fragment
+// has none. Returns the problems, each { code, severity, line, reason, hint }.
+export function lintFragment(text, { part = 'summary', ids = [] } = {}) {
+  const problems = [];
+  const lines = scanMarkdown(String(text)).lines.filter((l) => l.kind !== 'heading');
+  checkLines(lines, { summary: part === 'summary', ids: new Set(ids), definedAcronyms: new Set(), add: (p) => problems.push({ severity: 'error', ...p }) });
+  return problems;
 }
 
 export { SUMMARY_SECTION };

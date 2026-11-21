@@ -26,6 +26,16 @@ package = { file = "composer.json", fields = ["require-dev", "require"], name = 
 name = "static-analysis"
 command = ["vendor/bin/phpstan", "analyse", "--no-progress"]
 
+# How a command runs a Composer script (unit 36): the project lint checks that composer.json lists it.
+[[scripts]]
+file = "composer.json"
+field = "scripts"
+command = ["composer", "run-script", "{script}"]
+
+[[scripts]]
+file = "composer.json"
+field = "scripts"
+command = ["composer", "run", "{script}"]
 
 # Where dependencies are declared (unit 21b): a plan declares a new one as composer:<name>.
 [[dependencies]]

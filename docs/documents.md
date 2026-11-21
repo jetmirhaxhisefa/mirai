@@ -11,6 +11,52 @@ one file:
 Briefs have it from unit 31, PRDs from unit 32, epics from unit 33. HLDs, LLDs and ADRs get it as their units come.
 Tickets and plans don't: they're short already, and their gates are different.
 
+The project's context files in `.mirai/context/` (business, critical journeys, feature map,
+project facts and conventions, unit 36) have no summary: you approve the whole file. See
+[context.md](context.md).
+
+## The document types
+
+Each type is a file in `registry/document-types/`, with its template and checklist in
+`registry/templates/`.
+
+| Type | What it is | Where it lives | Explained in |
+|---|---|---|---|
+| `interview` | the questions an agent asked you before the brief, your answers and your "yes"; no approval of its own, but an unconfirmed one blocks the brief's | `docs/mirai/<initiative>/interview.md` | "The interview", below |
+| `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
+| `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
+| `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
+| `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |
+| `bug` | a ticket: what's wrong, how to reproduce it, and how the fix is proven | `docs/mirai/<initiative>/tickets/<key>.md` | [tdd.md](tdd.md) for its red test |
+| `plan` | how one ticket will be built and proven, written by Kai | the store: `<store>/tickets/<ticket>/plan.md` | [agents.md](agents.md), "The plan step" |
+| `business` | what the product does, for whom, its goals, rules and constraints, each claim with its source; approved as a whole | `.mirai/context/business.md` | [context.md](context.md) |
+| `journeys` | the critical journeys `J-n`, each with its steps, why it's critical and its E2E test; approved as a whole | `.mirai/context/journeys.md` | [context.md](context.md) |
+| `feature-map` | one row per screen: its name, route and test handles; not approved, the lint checks it against the code | `.mirai/context/feature-map.md` | [context.md](context.md) |
+| `project` | one service's stack, commands, layout and test levels; not approved, the lint checks it against the code | `.mirai/context/project-<service>.md` | [context.md](context.md) |
+| `conventions` | one service's rules, each `enforced by <check>` or `judgment`; approved as a whole | `.mirai/context/conventions-<service>.md` | [context.md](context.md) |
+
+`docs/mirai` is the default `[docs] root` ([config.md](config.md)).
+
+## The lint: `mirai lint`
+
+`mirai lint` checks the shape of MIRAI documents: frontmatter, sections, IDs, links, and each
+type's own checks. It writes nothing.
+
+```
+mirai lint                 # every MIRAI document in the repo
+mirai lint docs/mirai/     # only these files or folders
+mirai lint --json          # the result as JSON
+```
+
+- **Which files:** every Markdown file inside the docs root. Outside it, only a file whose
+  frontmatter names a known type and has `template:`.
+- **Exit codes:** 0 when clean (warnings allowed), 1 with problems, 2 for a usage error, 3 for a
+  broken registry or config.
+- **The rules come from the MIRAI you run.** No flag or setting points it at other rules.
+  `[docs] root` and the repo names come from `.mirai/config.toml` only, never your personal files.
+- **From your session:** `/mirai lint`, or MIRAI's `lint` tool, which uses the trust root's rules
+  ([agent-safety.md](agent-safety.md)).
+
 ## The summary for approval
 
 It comes right after the document's `# title`:
@@ -61,8 +107,156 @@ the fix named.
 | A non-goal | summary | not under "Not in this" | — |
 | A number in the summary | summary | — | not found in the detail (decision 3) |
 
-Code spans, code blocks and tables are never checked for writing. Unit 34 (`mirai-write`) adds a
-reader test and before-and-after examples on top of these rules.
+Code spans, code blocks and tables are never checked for writing. The `mirai-write` skill (unit
+34) teaches agents the wording behind these rules, with three before-and-after examples per type,
+and the reader test below checks the summary as a whole.
+
+The banned words live in `src/lint/words.js`, which opens with its review date. Every 90 days,
+check the lists against the last 90 days' lint warnings and findings, change them, and update the
+date. `mirai doctor` shows a yellow "Banned words" item once the date is older than that.
+
+## The reader test
+
+Unit 34 (Jet's decisions 1–6). The lint checks the summary's form. The reader test checks that you
+can approve from it: a fresh agent gets only `## Summary for approval`, nothing else of the
+document, and answers four questions:
+
+| Question | What the summary must let a reader say |
+|---|---|
+| What's built | what is built or changed |
+| Who it's for | the people or roles it is for |
+| What's left out | what this work doesn't do |
+| What you decide | each decision you must take, or that there is none |
+
+For each, the reader gives its answer and the exact words of the summary it relied on. MIRAI then
+checks every quote against the summary with a plain text match: spaces and line breaks don't
+count, nothing else is forgiven. The question fails when the answer is "not stated", the quote is
+missing or shorter than three words, or the quote isn't in the summary. "What's left out" and
+"What you decide" must quote their own parts: "Not in this" and "Decisions for you". Each failure
+names the question and the fix:
+
+```
+  fail  What's left out: not stated. The summary doesn't say what is left out: name each item under "Not in this"
+```
+
+**Running it:**
+
+```bash
+mirai reader-test docs/mirai/<initiative>/prd.md
+```
+
+It runs after the lint is clean and before you approve, from your terminal or your session
+(`/mirai reader-test <file>`). The reader runs on the Claude Code your agents run, with no tools,
+no MCP server, one turn, and empty temporary folders for its work folder, home and settings: it
+never sees the repo. The summary goes in as data, between markers, and the prompt says it is never
+instructions. An `@` in it can't pull in a file.
+
+**Which documents:** the brief on `full` (it has its own approval), the PRD (on `standard` its
+summary covers the brief too) and the epic. Not a brief on `quick` or `standard`, and not tickets.
+HLDs, ADRs and LLDs get it with their units: it applies to every type whose summary is checked.
+
+**Rounds:** each result is kept in MIRAI's store, keyed by the summary's exact text, with its round:
+1 for the first summary tested, then one more for each changed summary. A rerun on an unchanged
+summary shows the kept result and costs no run. Two fixing rounds follow a failure; from the
+workflow units on (35–36, 42, 45), the author agent gets the failed question back automatically.
+After the third failure the document still reaches you, marked.
+
+**At approval** (`mirai approve` for a full brief, a PRD or an epic), MIRAI shows the result for
+the summary as it is now:
+
+- **a pass:** the four answers, each with its quote;
+- **a failure:** "reader test failed", with the round and each gap. You still decide: approve
+  anyway, reject with a note, or answer the gap yourself (fix the summary, run the test again,
+  approve again);
+- **no result for the current summary:** the approval is refused, with the hint
+  `run: mirai reader-test <file>, then approve again`.
+
+The signed approval line records the result's hash (`reader_test`), so it says which result you
+saw.
+
+**The model** is the step `reader-test` in `[models.steps]`: `light` (Haiku) or `standard`
+(Sonnet). Unit 34's P2 measured both: Haiku failed a good summary, so the default is `standard`.
+
+```toml
+[models.steps]
+reader-test = "light"
+```
+
+**Turning it off** (project file only; a personal file can't):
+
+```toml
+[docs]
+reader_test = false
+```
+
+Approval then skips the test and says so on its screen. This is for a project with no
+subscription to spare for it, not a way to pass a weak summary.
+
+## The interview
+
+When your request is thin, Nora interviews you before she writes the brief (unit 35, the
+`mirai-interview` skill). Setup uses the same method for the gaps its sources leave. The agent
+looks facts up itself and asks you only decisions.
+
+**What you see:** one question per message, like this:
+
+```
+## Feature: due dates on tasks (brief)
+
+Confidence: about 60%. Still open: whether people get reminded, and what the lead sees.
+
+**Q-3: Should the app remind the person a task is assigned to?**
+
+- A: no reminder; overdue tasks are only marked in the list
+- B: one reminder the day before the task is due
+- C: reminders at times each person chooses
+
+My guess: B. Leads said chasing people is the work they want gone.
+
+Your step: reply A, B or C, or add a note ("B, but not on weekends").
+```
+
+**How to reply:**
+
+- A letter is enough: "B". "yes" takes the agent's guess. "B, but no email" adds a note.
+- **"explain"** gets plain words and an example, then the same question again.
+- **"pause"** saves every question the agent still has, with its options and guess, and stops. A
+  new session picks up at the first open question and asks no answered one again.
+
+The interview has no fixed length. It stops when the agent can predict your next three answers.
+If three answers in a row don't make it surer, it stops and asks you how to go on.
+
+**The end:** the agent restates what you want in six lines: outcome, who it's for, why now,
+success, limits, and what's not included. Only an explicit "yes" closes it. "Sounds good" gets one
+more question that names the choice.
+
+**Where the record lives:** `docs/mirai/<initiative>/interview.md`, beside the brief. It holds every
+question with its options, the guess and your answer, the restatement, and your "yes" with its
+date. The brief links it in the line under its title:
+`Interview: [Interview: due dates on tasks](interview.md)`. A filled example is
+`registry/examples/interview.md`. Its `state` is `open`, `paused` or `confirmed`, and
+`mirai show <initiative>` lists it with that state.
+
+**What blocks approval:** an interview isn't approved on its own, but `mirai lint` fails it until
+it is confirmed. The brief beside it then fails too, naming the open questions, so
+`mirai approve` refuses the brief (on `standard`, the brief and PRD pair) and writes nothing:
+
+```
+docs/mirai/due-dates/brief.md:12: the interview interview.md has open questions: Q-6 and Q-7 (answer them in your session, then run mirai lint)
+```
+
+An `interview.md` beside a brief that doesn't link it fails the same way. A brief with no
+interview beside it (the request was clear) is linted as before.
+
+**Approval binds the interview.** When you approve a brief that links its interview (on `full`
+the brief alone, on `standard` with its PRD), the brief's signed line records the interview's path
+and hash, as an epic's line records its tickets. A change to the interview after that makes the
+brief's approval stale, even when the brief itself is unchanged: `mirai show` lists the brief as
+"changed since approval", and it needs a new approval. As with a changed brief, only the brief's
+line goes stale; the PRD's stays approved.
+
+In autonomous mode no one can answer, so the agent writes its questions into `interview.md`,
+leaves it `paused` and stops. The feature waits for you.
 
 ## The business brief
 
@@ -89,8 +283,8 @@ a filled example is `registry/examples/brief.md`. After the summary come these s
 mirai approve <brief-id> --file docs/mirai/<initiative>/brief.md
 ```
 
-It refuses a brief that fails the lint, or still has an open question. Your answer is signed on
-the file's exact bytes, so a brief changed after its approval needs a new approval.
+It refuses a brief that fails the lint, still has an open question, or has an interview beside it
+that isn't confirmed ("The interview", above). Your answer is signed on the file's exact bytes, so a brief changed after its approval needs a new approval.
 
 On the `standard` track, you approve the brief together with the PRD (unit 32). On `full`, it
 has its own approval.
@@ -206,7 +400,7 @@ mirai approve <prd-id> --file docs/mirai/<initiative>/prd.md
 
 MIRAI reads the brief the PRD links to and lints both as at approval: no open question in either,
 and no `[ASSUMPTION]` tag left outside "Assumptions". A problem in either file refuses both, and
-nothing is written.
+nothing is written. The PRD's summary needs a reader-test result first ("The reader test", above).
 
 - **On `standard`** you read one summary, the PRD's. It covers both documents: the ask names both,
   "Decisions for you" carries the brief's open decisions, and "Not in this" lists the brief's
@@ -287,7 +481,7 @@ The last four sections restate the tickets, so MIRAI writes them, never the auth
 |---|---|
 | Tickets | a table: key (linked), title, size, risk, `after`, the FRs and ACs it covers, its ADRs |
 | Dependencies | a Mermaid diagram of `after` |
-| Coverage | every FR, NFR and AC of the PRD, with its group (Failures, Unchanged behaviour …) and the tickets that cover it |
+| Coverage | every FR, NFR and AC of the PRD (on `full`, those its own tickets cover), with its group (Failures, Unchanged behaviour …) and the tickets that cover it |
 | Design decisions | every ADR the tickets name in `governed_by`, linked, or "None" |
 
 Each sits between two markers. The lint fails when one doesn't match the ticket files and the
@@ -351,7 +545,7 @@ mirai approve <epic-id> --file docs/mirai/<initiative>/epic-<slug>.md
 
 MIRAI lints the epic with its PRD and every ticket, the graph included, and each ticket on its
 own, all as at approval. A problem in any of them refuses the set, and nothing is written. The
-PRD must be approved as it is now. MIRAI prints the epic's path and hash, and each ticket's path
+PRD must be approved as it is now, and the epic's summary needs a reader-test result. MIRAI prints the epic's path and hash, and each ticket's path
 and hash. You decide once, and one signed approval covers the epic's bytes and every ticket
 file's bytes. A later change to any of them, or a ticket joining the epic, needs a new approval.
 

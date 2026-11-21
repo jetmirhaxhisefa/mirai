@@ -1,4 +1,5 @@
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { readInstall, ticketImages } from '../agent/install.js';
 import { join } from 'node:path';
 
@@ -27,6 +28,9 @@ import { readRunLog, runIds } from '../store/run-log.js';
 import { readRunState, runStateMatchesLog } from '../store/run.js';
 import { verifyBranchRecord } from '../store/branch-record.js';
 import { openTrustRoot, trustedStrict } from '../trust/snapshot.js';
+import { contextApproval } from '../cli/commands/approve.js';
+import { readApprovedFile } from '../cli/human-move.js';
+import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 
 // `mirai doctor`'s checks (unit 29c, Jet's decisions 1–2): each item ok, yellow (works, worth
 // knowing) or red (something will fail), with a fix hint for every yellow and red one. `fix`
@@ -352,7 +356,65 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (left.length) return yellow(`${left.length} image(s) of tickets that no longer need them: ${left.slice(0, 4).map((i) => i.tag).join(', ')}`, `docker image rm ${left.slice(0, 4).map((i) => i.tag).join(' ')}`);
     return ok(found.length ? `${found.length} ticket image(s), each for a ticket with installed packages` : 'no ticket has its own image');
   });
+  await check('word-list', 'Banned words', () => wordListCheck(readFileSync(WORDS_FILE, 'utf8'), now));
+  await check('context', 'Context files', () => {
+    if (journalError) throw journalError;
+    return contextCheck({ store, events, now });
+  });
   return items;
+}
+
+// Unit 34 (Scope 7): the banned-word list's review. src/lint/words.js opens with a dated line,
+// "// Reviewed: YYYY-MM-DD"; past 90 days it's yellow, with what a review is.
+export const WORDS_FILE = fileURLToPath(new URL('../lint/words.js', import.meta.url));
+export const WORDS_REVIEW_DAYS = 90;
+export function wordListCheck(text, now) {
+  const m = /^\/\/ Reviewed: ([0-9]{4}-[0-9]{2}-[0-9]{2})$/m.exec(String(text).split('\n').slice(0, 5).join('\n'));
+  const at = m ? Date.parse(`${m[1]}T00:00:00Z`) : NaN;
+  const hint = `review it: check the lists in ${WORDS_FILE} against the last ${WORDS_REVIEW_DAYS} days' lint warnings and findings, change them, then update the "// Reviewed:" date at its top`;
+  if (!Number.isFinite(at)) return yellow('the banned-word list has no review date', hint);
+  const days = Math.floor((now().getTime() - at) / DAY);
+  if (days > WORDS_REVIEW_DAYS) return yellow(`the banned-word list was last reviewed ${days} days ago (${m[1]}), more than ${WORDS_REVIEW_DAYS}`, hint);
+  return ok(`reviewed ${m[1]}, ${days} day${days === 1 ? '' : 's'} ago`);
+}
+
+// Unit 36 (Scope 5): the context files you approve. business.md's age since its last approval
+// (yellow past BUSINESS_REVIEW_DAYS: the business moves on), and any approved context file that
+// changed since its approval or was never approved. `events`: the journal, read and verified.
+export const BUSINESS_REVIEW_DAYS = 180;
+export function contextCheck({ store, events, now }) {
+  let names = [];
+  try {
+    names = readdirSync(join(store.checkout, CONTEXT_DIR)).sort();
+  } catch {
+    names = [];
+  }
+  const approved = names.map((n) => ({ name: n, kind: contextKindOf(n) })).filter((f) => f.kind?.approved);
+  if (!approved.length) return ok('no context files to approve yet (setup writes them)');
+  const notes = [];
+  let hint = null;
+  for (const f of approved) {
+    const rel = `${CONTEXT_DIR}/${f.name}`;
+    let bytes = null;
+    try {
+      bytes = readApprovedFile(store.checkout, store.checkout, rel).bytes;
+    } catch {
+      bytes = null;
+    }
+    const a = contextApproval(store, rel, bytes, events);
+    if (a.stale) notes.push(`${f.name} changed since its approval`);
+    else if (!a.approved) notes.push(`${f.name} isn't approved`);
+    if (!a.approved) hint ??= `read it, then: mirai approve --file ${rel}`;
+    if (f.kind.type === 'business' && a.ts) {
+      const days = Math.floor((now().getTime() - Date.parse(a.ts)) / DAY);
+      if (days > BUSINESS_REVIEW_DAYS) {
+        notes.push(`business.md was last approved ${days} days ago (${a.ts.slice(0, 10)}), more than ${BUSINESS_REVIEW_DAYS}`);
+        hint ??= `read it against what has changed in the business, update it, then: mirai approve --file ${rel}`;
+      }
+    }
+  }
+  if (notes.length) return yellow(notes.join('; '), hint);
+  return ok(`${approved.length} approved context file${approved.length === 1 ? '' : 's'}, each as it is now`);
 }
 
 function loginCheck(env, now) {

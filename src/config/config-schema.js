@@ -302,6 +302,10 @@ export const CONFIG_SCHEMA = {
           patternHint: 'a folder inside the repo, written like docs/mirai: no leading ./ or /, no .., no empty parts',
           check: relativePath,
         },
+        // The reader test before approval (unit 34, Scope 6): on unless the project turns it off,
+        // for a project with no subscription to spare (not a quality switch). Team policy, so the
+        // project layer only (LAYER_KEYS: personal files can't set docs.*).
+        reader_test: { type: 'boolean' },
         // Word caps and budgets (unit 32, Jet's decision 6): team policy, so the project layer
         // only (LAYER_KEYS). The registry's numbers are the defaults. Ranged, so a cap can't be
         // switched off by setting it very high.
@@ -319,6 +323,10 @@ export const CONFIG_SCHEMA = {
             epic_l_tickets: { type: 'integer', min: 0, max: 20 },
             epic_summary_words: { type: 'integer', min: 100, max: 2000 },
             epic_summary_warn_words: { type: 'integer', min: 100, max: 2000 },
+            // Unit 36 (Jet's decision 3): business.md's cap and where it warns, the Sources table not
+            // counted. About two pages by default (1,000 and 800).
+            business_words: { type: 'integer', min: 300, max: 3000 },
+            business_warn_words: { type: 'integer', min: 200, max: 3000 },
           },
         },
       },

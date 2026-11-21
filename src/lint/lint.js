@@ -7,6 +7,8 @@ import { readFrontmatter } from './frontmatter.js';
 import { scanMarkdown, headingSlugs, fixedParts } from './markdown.js';
 import { checkDocument } from './rules.js';
 import { frameworkDefaults } from '../config/defaults.js';
+import { isContextFile } from './context.js';
+import { repoReader } from './repo.js';
 
 // Linting files (unit 07b).
 // - Inside the docs root (`[docs] root`, default docs/mirai) every Markdown file is a MIRAI
@@ -52,7 +54,7 @@ export function lintPaths({ root, paths = [], files = null, registry, docsRoot, 
   for (const p of paths) {
     const { real, links } = canonical(p, realRoot);
     // A symbolic link on the way, at a place inside the docs root, is a problem in itself.
-    const inLink = links.find((l) => isInside(l, ctx));
+    const inLink = links.find((l) => isStrict(l, ctx));
     if (inLink) {
       visit(inLink, 'link');
       continue;
@@ -75,7 +77,7 @@ export function projectDefaults() {
 
 // What the checks need from a checked config.
 export function projectOf(config) {
-  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])), limits: { ...(config.docs?.limits ?? {}) } };
+  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])), limits: { ...(config.docs?.limits ?? {}) }, checks: Object.fromEntries(Object.entries(config.checks ?? {}).map(([name, c]) => [name, [...((Array.isArray(c) ? c : c?.command) ?? [])]])) };
 }
 
 const toPosix = (p) => p.split(sep).join('/');
@@ -83,19 +85,22 @@ const isInside = (rel, ctx) => {
   const lower = rel.toLowerCase();
   return lower === ctx.docsRoot || lower.startsWith(`${ctx.docsRoot}/`);
 };
+// Unit 36: the context files in .mirai/context/ are MIRAI documents too, linted as strictly as
+// the docs root's, and checked against the code.
+const isStrict = (rel, ctx) => isInside(rel, ctx) || isContextFile(rel);
 
 // A listed entry: inside the docs root, every entry counts (a link or a non-file is a
 // problem; other files such as images are assets and left alone); outside, only regular
 // Markdown files.
 function visitEntry(rel, ctx, visit) {
-  if (rel.split('/').some((part) => SKIP_FOLDERS.has(part))) return;
+  if (rel.split('/').some((part) => SKIP_FOLDERS.has(part)) && !isContextFile(rel)) return;
   let info;
   try {
     info = lstatSync(join(ctx.root, rel));
   } catch {
     return; // listed by git but deleted in the work tree
   }
-  if (isInside(rel, ctx)) {
+  if (isStrict(rel, ctx)) {
     if (info.isSymbolicLink()) return visit(rel, 'link');
     if (!info.isFile() || MARKDOWN.test(rel)) return visit(rel, 'file');
     return undefined;
@@ -118,8 +123,18 @@ function walk(dir, realRoot, ctx, result) {
     return out;
   }
   for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
-    if (SKIP_FOLDERS.has(e.name)) continue;
     const child = rel ? `${rel}/${e.name}` : e.name;
+    if (SKIP_FOLDERS.has(e.name)) {
+      // Unit 36: from .mirai/, only the context files.
+      if (child === '.mirai' && e.isDirectory()) {
+        try {
+          for (const n of readdirSync(join(dir, '.mirai', 'context')).sort()) if (isContextFile(`.mirai/context/${n}`)) out.push(`.mirai/context/${n}`);
+        } catch {
+          // no context folder
+        }
+      }
+      continue;
+    }
     if (e.isDirectory()) out.push(...walk(join(dir, e.name), realRoot, ctx, result));
     else out.push(child);
   }
@@ -164,7 +179,7 @@ function linkProblem(rel, ctx) {
 
 export function lintFile(file, ctx) {
   const abs = join(ctx.root, file);
-  const inside = isInside(file, ctx);
+  const inside = isStrict(file, ctx);
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file, line: 1, column: 1, ...p });
   // Inside the docs root, a file that can't be linted is a problem; outside, it's skipped.
@@ -224,7 +239,9 @@ export function lintFile(file, ctx) {
   const readDocument = (path) => readLinked(dirname(abs), path, ctx);
   const readTickets = () => readTicketFolder(dirname(abs), ctx);
   const template = inside ? templateOf(type, def, ctx) : null;
-  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry })) problems.push({ file, ...p });
+  // Unit 36: a context file is checked against the repo's code.
+  const repo = isContextFile(file) ? (ctx.repo ??= repoReader(ctx.root)) : null;
+  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry, repo })) problems.push({ file, ...p });
   return { linted: true, problems };
 }
 
@@ -385,7 +402,9 @@ function bodyOf(text) {
 // a PRD's brief); a link not in it can't be read, and checks that need it are skipped.
 // `tickets` (unit 33: an epic's) maps each ticket file's path, relative to the document
 // (tickets/<key>.md), to its text; without it, the checks that need the tickets are skipped.
-export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null }) {
+// `repo` (unit 36): the repo's top folder, for a context file's checks against the code (at its
+// approval); without it they're skipped.
+export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null, repo = null }) {
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
   if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
@@ -443,6 +462,7 @@ export function lintText(text, { source = '<text>', registry, project = projectD
     }
     return { status: 'ok', all };
   };
-  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving })) problems.push({ file: source, ...p });
+  const code = repo ? repoReader(repo) : null;
+  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

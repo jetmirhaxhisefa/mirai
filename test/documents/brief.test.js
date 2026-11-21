@@ -20,6 +20,8 @@ import { installed } from '../tests/run-fixture.js';
 const REGISTRY = loadRegistry(REGISTRY_DIR);
 const EXAMPLE = readFileSync(join(REGISTRY_DIR, 'examples', 'brief.md'), 'utf8');
 const TEMPLATE = readFileSync(join(REGISTRY_DIR, 'templates', 'brief.md'), 'utf8');
+// Unit 35: the example brief links the interview it came from.
+const INTERVIEW = readFileSync(join(REGISTRY_DIR, 'examples', 'interview.md'), 'utf8');
 
 const lint = (text, o = {}) => lintText(text, { source: 'docs/mirai/due-dates/brief.md', registry: REGISTRY, project: { repos: ['.'] }, ...o });
 const errors = (text, o) => lint(text, o).filter((p) => p.severity === 'error');
@@ -117,9 +119,11 @@ test('31 T5: the template: left as it is, it fails; a type with the summary chec
   }
   assert.ok(probs.some((p) => p.code === 'summary' && /needs "Summary for approval" as its first, required section/.test(p.reason)), JSON.stringify(probs));
   // Every document type you approve from its summary has the check: all but tickets and plans
-  // (decision 1), so a later type (PRD, HLD …) can't leave it out.
+  // (decision 1), so a later type (PRD, HLD …) can't leave it out. Unit 35: an interview isn't
+  // approved, so it has none. Unit 36: the context files are approved as whole files (Jet's
+  // decision 1), so they have none either.
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
-    if (['story', 'bug', 'plan'].includes(name)) continue;
+    if (['story', 'bug', 'plan', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions'].includes(name)) continue;
     assert.ok(def.lint_checks?.includes('summary') && def.lint_checks.includes('writing'), `${name} needs the summary and writing checks`);
   }
 });
@@ -148,7 +152,7 @@ async function tty(argv, { cwd, env }, answers) {
 
 test('31 T6: approving a brief: lint first, signed on its bytes, a change needs a new approval', async () => {
   assert.deepEqual(errors(READY, { approving: true }), []);
-  const f = installed({ files: { 'docs/mirai/due-dates/brief.md': EXAMPLE } });
+  const f = installed({ files: { 'docs/mirai/due-dates/brief.md': EXAMPLE, 'docs/mirai/due-dates/interview.md': INTERVIEW } });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
   f.git('add', '-A');
@@ -180,6 +184,6 @@ test('31 T6: approving a brief: lint first, signed on its bytes, a change needs 
   assert.deepEqual(documentApproval(store, 'due-dates-brief', Buffer.from(changed)), { approved: false, stale: true, seq: line.seq });
   const again = await tty(['approve', 'due-dates-brief', '--file', 'docs/mirai/due-dates/brief.md'], io, ['a', 'due-dates-brief']);
   assert.equal(again.code, EXIT.OK, again.err);
-  assert.match(again.out, /^brief: due-dates-brief \(approved before; it has changed since\)/);
+  assert.match(again.out, /^brief: due-dates-brief \(approved before; it or its interview has changed since\)/);
   assert.equal(documentApproval(store, 'due-dates-brief', Buffer.from(changed)).approved, true);
 });

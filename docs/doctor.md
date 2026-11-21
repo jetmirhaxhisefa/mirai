@@ -18,14 +18,18 @@ Each item is **ok**, **yellow** (works, but worth knowing) or **red** (something
 | Trust root | MIRAI's files here don't match `mirai.lock`, or the trust root changed | no trust root for the integration branch's commit yet |
 | Branch registry | it can't be read, or disagrees with the journal and the signed branch records | — |
 | Merge gate | — | always, until CI (unit 54): "local-only", your merge is the gate |
-| Plan and week | the week's MIRAI share would pass `usage.week_max`; your caps can't be read | no fresh usage reading |
+| Plan and week | the next ticket would pass `usage.night_max`, `usage.week_max` or `usage.reserve`; your caps can't be read | no fresh usage reading |
 | Store | a store file can't be read; a lock left by a process that's gone; the run state missing or off its log | — |
-| Hook's Node | the pre-push hook runs a Node that isn't there (every push would fail) | — |
+| Hook's Node | MIRAI's hooks aren't installed here; the pre-push hook runs a Node that isn't there (every push would fail) | — |
 | Host CLIs | `gh` or `glab` recorded at a path that isn't there | none recorded |
-| Agents' binary | the kept Claude Code is for another CPU and can't run here | it's an Intel binary on Apple Silicon (runs through Rosetta) |
+| Agents' binary | the kept Claude Code is gone, or is for another CPU and can't run here | none kept yet; it's an Intel binary on Apple Silicon (runs through Rosetta) |
+| Claude Code moves | agents haven't moved to a newer Claude Code for 7 days: new tickets don't start | a newer Claude Code is installed; agents still run the tested one |
 | Your key | no key, or it isn't on the integration branch, or it's revoked | `.mirai/keys` holds files that aren't keys |
+| Key at rest | — | your key is a plain file; it's unlocked; no machine key, or it isn't committed; MIRAI's deny rules are missing |
 | Session server | Claude Code has a `mirai` server MIRAI didn't register | not registered, or behind |
 | Baseline | — | none for the integration branch's commit (the next run records it) |
+| Ticket images | — | Docker didn't answer; images of tickets that no longer need them are left |
+| Banned words | — | the banned-word list has no review date, or its last review is over 90 days old |
 
 ## What `--fix` repairs
 
