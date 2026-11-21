@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { readBaseline } from '../baseline/store.js';
 import { readHooksRecord, hooksState } from '../hooks/install.js';
-import { checkLock } from '../install/lock.js';
+import { checkLock, readLock } from '../install/lock.js';
 import { agentTemplate, canonicalSha256, MODES } from '../launch/strict.js';
 import { usageCaps, usageCheck } from '../loop/ledger.js';
 import { status as sessionStatus } from '../mcp/session.js';
@@ -30,6 +30,8 @@ import { verifyBranchRecord } from '../store/branch-record.js';
 import { openTrustRoot, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
 import { agentModes, trustedOverlays } from '../trust/overlays.js';
 import { hasOverlayFiles, STATE_TEXT } from '../config/overlays.js';
+import { loadRegistry } from '../config/registry.js';
+import { overlayKeys, projectInputs, renderPlan, REGISTRY_DIR as RENDER_REGISTRY_DIR } from '../install/render.js';
 import { contextApproval } from '../cli/commands/approve.js';
 import { readApprovedFile } from '../cli/human-move.js';
 import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
@@ -368,7 +370,7 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
   await check('overlays', 'Overlays', () => {
     if (journalError) throw journalError;
     if (trustError) throw trustError;
-    return overlaysCheck({ store, trust, events, redTeam: redTeamNow });
+    return overlaysCheck({ store, trust, events, redTeam: redTeamNow, env });
   });
   return items;
 }
@@ -431,7 +433,7 @@ export function contextCheck({ store, events, now }) {
 // is now, and a replacement template approved against an older MIRAI template version.
 // `redTeam`: the red-team status the doctor read (its result's templates say which widened
 // agents a run covered).
-export function overlaysCheck({ store, trust, events, redTeam = null, registry = null }) {
+export function overlaysCheck({ store, trust, events, redTeam = null, registry = null, env = null }) {
   if (!trust) return hasOverlayFiles(store.checkout) ? yellow('no trust root for the integration branch\'s commit yet, so the overlays aren\'t checked', 'the next MIRAI step builds it (or: mirai trust snapshot)') : ok('no overlays: MIRAI\'s agents and templates as they are');
   registry ??= trustedRegistry(trust);
   const r = trustedOverlays(trust, store, { registry, events });
@@ -480,9 +482,36 @@ export function overlaysCheck({ store, trust, events, redTeam = null, registry =
       hint ??= `compare it with MIRAI's, update it, then: mirai approve --file ${o.path}`;
     }
   }
+  // Approved but not rendered: your sessions' agent and skill files aren't what mirai render would
+  // write from the approved overlays (the coordinator's review, 2026-11-21).
+  const stale = env ? unrenderedSessionFiles(store.checkout, env) : [];
+  if (stale.length) {
+    notes.push(`your sessions' ${stale.length === 1 ? 'file' : 'files'} ${stale.slice(0, 3).join(', ')}${stale.length > 3 ? ` and ${stale.length - 3} more` : ''} ${stale.length === 1 ? 'isn\'t' : 'aren\'t'} what the approved overlays render`);
+    hint ??= 'mirai render, then commit the rendered files with the overlay and its record';
+  }
   const agentLine = `agents: ${agents.join(', ')}`;
   const warn = notes.length || agents.some((a) => /not approved|red team needed/.test(a));
   return warn ? yellow([agentLine, ...notes].join('; '), hint) : ok(`${agentLine}; ${r.overlays.length} overlay${r.overlays.length === 1 ? '' : 's'}, each approved as it is now`);
+}
+
+// The agent and skill files under your sessions' folders that mirai render would write
+// differently now (from the work tree's framework copy, config and approved overlays): their
+// paths. Read-only: the render's plan, never applied. A plan that can't be made says nothing here
+// (the trust item reports a broken install).
+export function unrenderedSessionFiles(root, env) {
+  let plan;
+  try {
+    const lock = readLock(root);
+    if (!lock) return [];
+    const { configBytes, config, local } = projectInputs(root);
+    plan = renderPlan({ root, registryDir: join(root, RENDER_REGISTRY_DIR), config, configBytes, local, lock, overlays: overlayKeys(root, env) });
+  } catch {
+    return [];
+  }
+  const profile = loadRegistry(join(root, RENDER_REGISTRY_DIR)).adapters['claude-code']?.interactive;
+  if (!profile) return [];
+  const inSessions = (p) => p.startsWith(`${profile.agents}/`) || p.startsWith(`${profile.skills}/`);
+  return [...plan.files.filter((f) => f.changed && inSessions(f.path)).map((f) => f.path), ...plan.removed.filter(inSessions)].sort();
 }
 
 function loginCheck(env, now) {

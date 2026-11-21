@@ -74,6 +74,11 @@
       files with one line each; approved, it renders both, the lock lists the overlay files in
       `from`, and the trust root builds on the commit; a changed skill overlay renders MIRAI's
       skill again, with its line, while the agent's stays;
+    - "37 Q1/Q2" also checks the review follow-up: after `mirai approve` of a skill overlay, the
+      exact next steps (render; `git add` of the overlay, its text, the record, `.claude/` and the
+      lock; commit and merge together), and doctor's Overlays item is yellow while your sessions'
+      files aren't what the approved overlays render (naming `.claude/agents/mirai-reviewer.md` and
+      `.claude/skills/mirai-write/SKILL.md`, fix `mirai render`), and says nothing once rendered;
     - "37 Q5": doctor warns when the recorded template hash differs, same version;
     - the gaps: `mirai epic render` with "Tickets" renamed to "Work items", in an LF and a CRLF
       file, and refused (looking for "## Tickets") while the overlay isn't approved; a CRLF PRD
@@ -175,6 +180,12 @@
   agent. A case names its `widened` tools and runs only under an agent template whose
   `overlay.widened` (the tools its mode doesn't have, now part of the template and its canonical
   hash) has one of them; elsewhere it isn't run or listed as skipped.
+- **Approved but not rendered (review follow-up, 2026-11-21):** doctor's Overlays item makes
+  `mirai render`'s plan (never applied) from the work tree's framework copy, config and approved
+  overlays, and reports every agent or skill file in your sessions' folders it would write
+  differently, with `mirai render` as the fix. `mirai approve --file` of an agent or skill overlay
+  ends with the exact next steps: render, then commit the overlay, the record and the rendered files
+  together.
 - **Template text (Q5 answered):** doctor also warns when MIRAI's template text hash differs from
   the one recorded at approval under the same version. `test/lint/template-versions.json` holds
   each document type's template hash per version, kept by hand.
@@ -219,16 +230,14 @@
   P2 is the test.
 - A record and a journal line can disagree: a committed record decides, so after you approve a
   changed overlay, MIRAI uses it only once the new record is committed with it.
-- An agent or skill overlay approved, but committed without `mirai render`, leaves your sessions'
-  files on the old version (the lock check doesn't catch it, by design now); doctor's trust item
-  compares the files with the lock, not with the overlays.
 - The record's signature names the repo id, which comes from the integration branch's first
   commit and the `origin` remote. A CI clone whose remote normalizes differently would see every
   record as not verifying.
 
 ## The full suite
 
-`caffeinate -i npm test` on the Mac, after the fixing round's last edit: 743/743 passed, no failure
-and nothing skipped, in about 14 minutes. The known `/private/tmp` race in
+`caffeinate -i npm test` on the Mac, after the review follow-up's last edit (doctor's "approved
+but not rendered" check and approve's next steps): 743/743 passed, no failure and nothing skipped.
+The fixing round's run before it was 743/743 too, in about 14 minutes. The known `/private/tmp` race in
 `test/launch/strict.test.js` T5/T6 didn't show. (The first round's run, on `202096b`, was 736/736.)
 The build runner and CI run on the final commit.

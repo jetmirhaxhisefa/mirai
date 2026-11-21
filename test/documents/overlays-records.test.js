@@ -161,7 +161,12 @@ test('37 Q1/Q2: mirai render writes approved agent and skill overlays into your 
   assert.equal((await run(['approve', '--file', '.mirai/custom/agents/mirai-reviewer.toml'], f.io, ['a', 'overlay-mirai-reviewer'])).code, EXIT.OK);
   const skillOk = await run(['approve', '--file', '.mirai/custom/skills/mirai-write/overlay.toml'], f.io, ['a', 'overlay-mirai-write']);
   assert.equal(skillOk.code, EXIT.OK, skillOk.err);
-  assert.match(skillOk.out, /commit it with the overlay, after mirai render/);
+  assert.match(skillOk.out, /^next:\n {2}1\. mirai render {7}\(your sessions' copy of mirai-write, from the approved overlay\)\n {2}2\. git add \.mirai\/custom\/skills\/mirai-write\/overlay\.toml \.mirai\/custom\/skills\/mirai-write\/overlay\.md \.mirai\/custom\/approvals\/skill-mirai-write\.json \.claude\/ \.mirai\/mirai\.lock\n {2}3\. git commit, then merge it into main/m);
+  // Approved but not rendered yet: doctor's Overlays item names the files and mirai render.
+  const notRendered = overlaysCheck({ store: openStore(f.io), trust: snapshot(f.io), events: readJournal(openStore(f.io)).events, env: f.env });
+  assert.equal(notRendered.state, 'yellow');
+  assert.match(notRendered.detail, /your sessions' files \.claude\/agents\/mirai-reviewer\.md, \.claude\/skills\/mirai-write\/SKILL\.md aren't what the approved overlays render/);
+  assert.match(notRendered.hint, /^mirai render, then commit/);
   const after = await run(['render'], f.io);
   assert.equal(after.code, EXIT.OK, after.err);
   assert.equal(after.err, '');
@@ -174,6 +179,7 @@ test('37 Q1/Q2: mirai render writes approved agent and skill overlays into your 
   // folder), and your sessions' files are listed one by one.
   f.commit('overlays rendered');
   const trust = snapshot(f.io);
+  assert.doesNotMatch(overlaysCheck({ store: openStore(f.io), trust, events: readJournal(openStore(f.io)).events, env: f.env }).detail, /aren't what/, 'rendered: nothing to say');
   assert.equal(trust.manifest.bundles['claude-code'], lock.bundles['claude-code']);
 
   // Changed after approval: MIRAI's own skill again, with its line.

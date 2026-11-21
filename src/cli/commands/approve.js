@@ -761,7 +761,12 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
     io.stdout.write(decision === 'rejected'
       ? `recorded: ${o.path} rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: ${o.path}, as it is now (${decision}; signed with ${signer.keyId}, seq ${seq}); MIRAI uses it once it's on ${store.branch}, and a change to it needs a new approval\n`);
-    io.stdout.write(`record:  ${recordFile}: commit it with the overlay${o.kind !== 'document-type' ? ', after mirai render (your sessions\' copy of the agent or skill)' : ''}\n`);
+    if (o.kind === 'document-type') io.stdout.write(`record:  ${recordFile}: commit it with the overlay\n`);
+    else {
+      // An agent or skill overlay also changes your sessions' copy, which mirai render writes.
+      const files = [o.path, ...o.bound.map((b) => b.path), recordFile];
+      io.stdout.write(`record:  ${recordFile}\nnext:\n  1. mirai render       (your sessions' copy of ${o.name}, from the approved overlay)\n  2. git add ${files.join(' ')} .claude/ .mirai/mirai.lock\n  3. git commit, then merge it into ${store.branch}: the overlay, its record and the rendered files together\n`);
+    }
     return EXIT.OK;
   } finally {
     prompter.close();
