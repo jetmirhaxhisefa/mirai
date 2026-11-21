@@ -71,6 +71,12 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
      approved, but you're still shown them and asked "anything wrong or missing?". Your
      correction is written in before the stage commit.
    A second run (decision 8) does the same for each file it rewrites, and says which lines changed.
+10. **No one-off scripts in your sessions** (Jet, 2026-11-21, "A"). MIRAI's own agents have no
+   shell, but Claude in your session can write a quick script. The rule block in `CLAUDE.md` and
+   `AGENTS.md` gains a second sentence: "To read or change tickets, documents or merge requests,
+   use MIRAI's commands; don't write one-off scripts or call the tools' APIs directly. A missing
+   command is a MIRAI change, or a script added once with `mirai custom add`." The wider rules
+   for scripts and languages are post-MVP P43 (PM-47).
 
 ## Scope
 
@@ -185,7 +191,7 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
   made. A second full run on a finished fixture does nothing and says so. A new skill added
   later is the only thing it offers.
 - **T6 The three layers:** the framework block in `CLAUDE.md` and `AGENTS.md` has the rule
-  sentence. The `pre-commit` hook refuses a commit adding `.claude/skills/x/SKILL.md` and prints
+  sentence, and decision 10's sentence on scripts. The `pre-commit` hook refuses a commit adding `.claude/skills/x/SKILL.md` and prints
   `mirai custom add .claude/skills/x`. A rendered file passes. `doctor` lists an unrendered item
   committed with `--no-verify`.
 - **T7 The checklist:** every line has its command, what you should see, and its default;
