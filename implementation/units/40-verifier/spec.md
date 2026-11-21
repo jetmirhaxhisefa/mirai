@@ -168,3 +168,16 @@ the document reaches you.
 - **38:** her file paths go through the store's `pathOf`.
 - **41, 42, 44, 45:** the authors and workflows call `mirai verify` and its function. Row 41's
   document links are 38's.
+
+**Re-checked against 37 as built (2026-11-21):**
+
+- **The checklist Vera gets** (decision 3, Scope 3, the 37 line above): her checklist is named as
+  `registry/templates/<type>-checklist.md`, but the project's real checklist is
+  `checklistTextOf` (`src/config/overlays.js`): MIRAI's lines with the renames applied, then an
+  overlay's `[[add]] checklist` lines as `- line`, with no `[vera]` mark. Added: Vera gets the
+  checklist as `mirai show checklist <type>` prints it, and lines an overlay adds are rendered
+  with `[vera]`.
+- **A Vera overlay** (T1): an overlay of `mirai-verifier` applies only when the launch passes
+  `store` (`src/agent/run.js`, `agentFor`). Added: an unapproved Vera overlay refuses her launch
+  (`overlay-not-approved`), and a widening one needs a red-team result for
+  `agent-mirai-verifier-read-only`.

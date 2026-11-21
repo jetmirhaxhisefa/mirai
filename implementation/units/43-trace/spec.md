@@ -1,7 +1,7 @@
 ---
 unit: "43"
+name: trace
 status: approved (Jet, 2026-11-21: "approve 43"; interview Q1–Q4 "A", restatement "yes"; built only after 42 is finished, and re-checked against 37–42 as built first)
-status: draft (Jet's interview 2026-11-21: Q1 "A", Q2 "A", Q3 "A", Q4 "A", restatement "yes")
 roadmap: design/07-implementation-roadmap.md, row 43; design/01 §5a (the chain, `mirai trace`), §7 (`tdd`, `tests`), §11 (CI checks the proof); R-M10, R2-M11; D-35 (the ship-time proof), AR3-15; units 08a (ticket ACs), 15a (the broker's tool table), 25a (proofs), 33 (epic, graph lint), 42 (Tess)
 depends_on: ["08a", "15a", "25a", "33", "42"]
 ---
@@ -152,3 +152,14 @@ the proof field waiting for it.
 - **50:** switches the QA check on.
 - **54:** CI checks the proof's trace result; it never re-runs trace.
 - **62–65:** the ADR Confirmation check becomes real.
+
+**Re-checked against 37 as built (2026-11-21):**
+
+- **The plan's test list** (Scope 3): trace reads the plan's "Test list", but its `read_by` is
+  `["lint", "gate"]` (`registry/document-types/plan.toml`). Added: `trace` joins its readers.
+- **`e2e`, `tests` and `tdd`** (Scope 3): trace reads them, but the story and bug
+  `protected_fields` don't include them (`registry/document-types/story.toml`, `bug.toml`).
+  Added: story and bug protect `e2e`, `tests` and `tdd`, read by `trace`.
+- **The ID-stability lint** (Scope 8): it gets a `CHECK_READS` entry for the ID sections it reads.
+- **The frontmatter:** it had two `status:` lines (approved and draft). The draft one is removed,
+  and `name: trace` is added, as the other specs have.

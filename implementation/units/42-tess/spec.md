@@ -82,9 +82,11 @@ hand.
 
 **In**
 
-1. **The agent: `registry/agents/mirai-ticket-planner.toml` + `.md`** (Tess), role `author`.
+1. **The agent: `registry/agents/mirai-ticket-planner.toml` + `.md`** (Tess), under a role of
+   her own (`registry/roles/ticket-planner.toml`, read-write, step `tickets`).
    - **Writes** only the initiative's epic and its `tickets/` folder (the store's `pathOf`, 38),
-     or the one ticket's file for a ticket asked by hand.
+     or the one ticket's file for a ticket asked by hand: after the run, her changes are checked
+     against those paths.
    - **Reads** the approved brief, PRD and design documents, the context files (36), and the
      interview.
    - **Tools:** `Read`, `Glob`, `Grep`, `Write` and `Edit`, within that write scope.
@@ -167,9 +169,9 @@ hand.
 
 ## Tests
 
-- **T1 The agent:** Tess's definition validates under `author` (37's validation), with her write
-  scope limited to the initiative's epic and tickets. A write outside it is refused (fake
-  launcher). She has the `mirai-write` skill.
+- **T1 The agent:** Tess's definition validates under her own role (read-write, step
+  `tickets`; 37's validation). After the run, a write outside the initiative's epic and tickets
+  is refused (fake launcher). She has the `mirai-write` skill.
 - **T2 Starting:** `start_agent` for Tess on an initiative whose PRD isn't approved, or was
   changed after approval, is refused with the reason. On `full` with no design approved yet
   (before 62–65), she starts from the PRD.
@@ -243,3 +245,38 @@ hand.
 - **44:** chains Tess after the PRD behind `/mirai-new`.
 - **55:** the night run starts from Tess's approved set, in the run's pick order.
 - **42b (new):** running an `investigation` ticket.
+
+**Re-checked against 37 as built (2026-11-21):**
+
+- **Her role** (Scope 1, T1): as for Nora (41), only a role's `may_write` is applied, and
+  `author` allows `["**"]` with step `build`. Changed to: Tess runs under a role of her own,
+  read-write, step `tickets`; after the run her changes are checked against the initiative's
+  epic and `tickets/` paths.
+- **The `investigation` type** (Scope 6): it declares `protected_sections` and
+  `protected_fields`, each with `read_by` (37's T1, `test/documents/overlays.test.js`), and its
+  template's hash goes in `test/lint/template-versions.json`.
+- **Story and bug change** (Scope 5, Scope 6): their templates change, so each gets
+  `template_version` 2 with new hashes. `priority`, `order` and `ticket_type` are
+  `[[protected_fields]]` read by a new reader, `run-pick`, added to `READERS`
+  (`src/config/registry.js`).
+- **A ticket type's own template** (Scope 6, T10): 37 keys an overlay to an existing type name,
+  so it refuses `tech-debt` (`src/config/overlays.js`, `applyType`), and it has no replacement
+  checklist. Added: a ticket type's template is `.mirai/custom/ticket-types/<name>.toml` + `.md`
+  with `base = "story" | "bug"`, checked by 37's replacement rules and approved as
+  `overlay-<name>`.
+- **The testability lint** (Scope 3): it reads "Acceptance criteria" by name, but
+  `CHECK_READS.ticket` is empty (`src/config/registry.js`). Added: `CHECK_READS.ticket` gains
+  "Acceptance criteria".
+- **Skills and commands in her run** (Scope 1): 41's findings apply. `mirai-write` must say an
+  agent runs MIRAI's checks through its broker tools, and her prompt carries `mirai-write` and
+  the templates as the approved overlays render them, since a strict launch loads no skills.
+  `mirai epic render` reaches her as a broker tool, `epic_render`: Tess has no shell.
+- **37's "For later" items for 33/42** (37's test-results). Each is to sort at 42's re-check
+  before its build (scope or out):
+  - the `files_likely` overlap warning fires many times with no guidance;
+  - NFRs with no AC-NFR IDs leave `covers_ac` empty;
+  - an NFR verified by an end-to-end test when there's no critical journey;
+  - near-identical high-risk items in "Decisions for you";
+  - where the ticket key prefix comes from;
+  - the story template's `epic:` line is only in a comment;
+  - how added PRD sections (Data privacy, Security sign-off) flow into tickets.

@@ -33,8 +33,8 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
    the user"). For each item, setup first reads it and works out what it does and when it runs.
    Then it tells you, recommends a place, and asks until the place is clear.
 3. **Nothing kept may break MIRAI** (Q2, Q5 "C"). Every kept item gets the static checks: no name
-   clash with MIRAI's, no write to a protected path, permissions within MIRAI's modes, and no hook
-   that runs outside the sandbox. An agent kept with more permissions than its MIRAI role needs
+   clash with MIRAI's, no write to a protected path (for an agent, checked on the custom role its
+   overlay names), permissions within MIRAI's modes, and no hook that runs outside the sandbox. An agent kept with more permissions than its MIRAI role needs
    the red team first (37's rule). Plain skills and text don't.
 4. **Hooks: you choose per hook** (Q2, "C"). A kept hook becomes a MIRAI check (`[[checks]]`, run
    in the sandbox at its step), an interactive-only hook (your sessions only, never MIRAI's runs),
@@ -110,12 +110,14 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
      and what would fit (for example, the same agent with fewer tools);
    - **move:** `mirai custom add` does it (Scope 6). For a hook, your choice from decision 4;
    - **commit** at the end of the stage: the moves, the deletions and the ledger's decisions,
-     after you approve the list. Custom items still need their own approval (37) before use.
+     after you approve the list, with each item's approval record
+     (`.mirai/custom/approvals/<kind>-<name>.json`), the rendered `.claude/` and the lock. Custom
+     items still need their own approval (37) before use.
 
    | Item | Where it goes |
    |---|---|
    | skill | `.mirai/custom/skills/<name>/` |
-   | agent | `.mirai/custom/agents/<name>.toml` + `.md`, as an overlay of the closest MIRAI role, or a new agent under a role |
+   | agent | `.mirai/custom/agents/<name>.toml` + `.md`, as an overlay of a MIRAI agent (`mirai-developer`, `mirai-reviewer`) whose write scope is a role in `.mirai/custom/roles/`; any other agent is dropped or made into a skill |
    | command (`.claude/commands/`) | a custom skill, or dropped when a `mirai` command does the same |
    | hook | a check in `[[checks]]`, an interactive-only hook in `.mirai/custom/hooks/`, or both |
    | script | `.mirai/custom/scripts/`, called by a check or a skill |
@@ -131,9 +133,11 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
    each file in turn, `(open)` lines first. You approve `business.md`, `journeys.md` and each
    conventions file.
 6. **`mirai custom add <path>`** (also used after setup; also `/mirai custom add`): it detects
-   the item's kind, copies it to its place under `.mirai/custom/`, deletes the original, renders
-   `.claude/` again, and ends with the approval command and the item's full path. It refuses an
-   item that fails the static checks, naming the check.
+   the item's kind, moves it to its place under `.mirai/custom/` (the original is deleted), and
+   ends with the next steps and the item's full path: `mirai approve --file <path>`, then
+   `mirai render`. 37 renders only an item whose committed approval record verifies, so
+   `.claude/` changes after the approval, not at the move. It refuses an item that fails the
+   static checks, naming the check.
 7. **Interactive-only hooks:** `.mirai/custom/hooks/` is rendered into `.claude/settings.json` for
    your sessions only. The trust root never reads it for a MIRAI run. The red team gains a case:
    a custom interactive hook doesn't fire in a MIRAI run.
@@ -179,13 +183,14 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
   BMAD folder, an `.mcp.json` and a `CLAUDE.md` with an import lists each one with its kind and its
   flagged commands. Nothing in it is loaded by a launch (fake launcher).
 - **T2 `mirai custom add`:** a skill, an agent, a script and a hook each land in their place,
-  with the original deleted and `.claude/` rendered again. A skill named `mirai-write` (clash),
-  an agent writing to a protected path, and a hook with no sandbox-safe form are each refused,
-  naming the check.
+  with the original deleted, and after `mirai approve --file` and `mirai render` the item is in
+  `.claude/`. A skill named `mirai-write` (clash), an agent whose overlay names a custom role that
+  writes to a protected path, and a hook with no sandbox-safe form are each refused, naming the
+  check.
 - **T3 Hooks:** a hook kept as a check runs in the sandbox at its step (fake test run). A hook
   kept as interactive-only is in your session's settings and absent from a MIRAI launch's.
-- **T4 Widened agent:** a kept agent with `Bash` beyond its role is moved but refused at launch
-  until a red-team result covers it (37's path).
+- **T4 Widened agent:** a kept agent, as an overlay of a MIRAI agent, with `Bash` beyond its
+  role is moved but refused at launch until a red-team result covers it (37's path).
 - **T5 Stages:** after stage 2 ends, `setup.json` says "migrate done" with its commit, and a new
   `/mirai setup` starts stage 3. Stopping inside a stage resumes it with the decisions already
   made. A second full run on a finished fixture does nothing and says so. A new skill added
@@ -232,8 +237,35 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
   for what no source says, refused at approval: setup asks each one (decision 9). No change to 36.
 - **37:** custom items, their approval and widening are 37's. 39 adds the interactive-only hooks
   folder and the `mirai custom add` command on top. 37's spec doesn't name `.mirai/custom/hooks/`
-  or `scripts/`, so 39 adds them to the overlay schema.
+  or `scripts/`, so 39 adds `hooks`, `scripts` and `mcp` kinds to `OVERLAY_FOLDERS` and
+  `OVERLAY_KINDS`, each with its own schema and approval record.
 - **38:** stage 4 sets the store. No change to 38.
 - **44:** its `pre-commit` hook (the human-only status check) goes into the same script this unit
   creates.
 - **34b:** `docs/setup.md`, the new commands and any new key must pass the docs check.
+
+**Re-checked against 37 as built (2026-11-21):**
+
+- **A project's own skill** (decision 1, the table): 37 reads every file under
+  `.mirai/custom/skills/` as a skill overlay, and only `skills/<mirai-skill>/overlay.toml` + `.md`
+  for a skill MIRAI has. Any other file there is listed as "it isn't an overlay file"
+  (`src/config/overlays.js`, `readOverlays`). Decision (Jet): 39 adds its own `project-skill`
+  kind, with its own folder, schema, approval record and render. A project skill isn't a 37
+  overlay.
+- **An agent** (the table, T4): 37 refuses an overlay for an agent MIRAI doesn't have ("a new
+  agent comes with its own unit"), and an overlay's name must be `mirai-*`. Changed to: an overlay
+  of a MIRAI agent (`mirai-developer`, `mirai-reviewer`) whose write scope is a role in
+  `.mirai/custom/roles/`. Any other agent is dropped or made into a skill. T4 uses a MIRAI agent's
+  overlay.
+- **Protected paths** (decision 3, T2): 37 refuses `may_write` in an agent overlay; only a role's
+  `may_write` is applied. Changed to: the protected-path check runs on the custom role the overlay
+  names.
+- **`custom add` and approval** (Scope 4's commit, Scope 6): 37 renders only overlays with a
+  committed record that verifies. After approval the order is: render, then commit the overlay,
+  `.mirai/custom/approvals/<kind>-<name>.json`, `.claude/` and the lock together (37's
+  test-results). Changed to: `custom add` moves the item, then `mirai approve --file`, then
+  `mirai render`, and the stage commit includes the approval records and the lock.
+- **Hooks and scripts** (the 37 line above): 37 reads only `document-types`, `templates`,
+  `agents`, `skills` and `approvals`; hooks are not overlays (`overlays.js`, `OVERLAY_FOLDERS` and
+  `overlayFilesIn`). Changed to: 39 adds `hooks`, `scripts` and `mcp` kinds to `OVERLAY_FOLDERS` /
+  `OVERLAY_KINDS`, each with its own schema and approval record.
