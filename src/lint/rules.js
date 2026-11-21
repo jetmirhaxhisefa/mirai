@@ -85,8 +85,8 @@ function shownAs(p, renames) {
     for (const [m, to] of Object.entries(renames)) {
       const e = escapeRegex(m);
       out = out.split(`"${m}"`).join(`"${to}"`)
-        .replace(new RegExp(`(#{2,3} )${e}(?=$|["\\s,.;:)])`, 'g'), `$1${to}`)
-        .replace(new RegExp(`(^|: |, )${e}(?=$|, |;)`, 'g'), `$1${to}`);
+        .replace(new RegExp(`(#{2,3} )${e}(?=$|["\\s,.;:)])`, 'g'), (_, a) => `${a}${to}`)
+        .replace(new RegExp(`(^|: |, )${e}(?=$|, |;)`, 'g'), (_, a) => `${a}${to}`);
     }
     return out;
   };
