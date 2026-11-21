@@ -53,7 +53,7 @@
 | Probe | Result |
 |---|---|
 | **P1 Your read** | pass (Jet, 2026-11-21: "Generally ok but not much details. I assume in a proper app will have much more details for every context"): the sample app is small; P2 judges a real app's depth |
-| **P2 Thudos** | running: first lint 8 problems, 3 of them MIRAI's (host names checked as paths, fixed); the agent cited a source for things it doesn't say, which led to decision 8 |
+| **P2 Thudos** | pass (Jet, 2026-11-21: "36 P2 pass"). A fresh agent wrote the seven files from Thudos's sources; first lint 8 problems, 3 of them MIRAI's (host names checked as paths, fixed in `96ed959`). One fixing round: 0 problems, 10 `(open)` lines (decision 8). Jet answered them (S-6, "you said"), dropped J-2 and settled two contradictions in the template's feature list; final lint 0 problems, 0 warnings. The Thudos files aren't committed (decision 6) |
 
 ## Changed from the spec
 
