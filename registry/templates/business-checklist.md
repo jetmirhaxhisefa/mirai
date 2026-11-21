@@ -8,6 +8,8 @@ and the file is at most 1,000 words. These need judgement.
 ## The claims
 
 - Does each bullet say what its source says, and no more? Open two or three sources and compare.
+- Is a guess written as a claim, with a source that doesn't say it? It should end with (open)
+  and be asked.
 - Is each claim about the product, its people or its rules, not about how the code is built?
 - Would an agent writing a PRD know from this file who it's for and what success means?
 - Are the numbers real numbers (a goal with a date, a rule with its limit), not "many" or "soon"?

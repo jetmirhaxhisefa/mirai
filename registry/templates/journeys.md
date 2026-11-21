@@ -14,6 +14,7 @@ any line or the id left word for word from this template.
 - Steps: a numbered list, one action per step. Name each screen in bold, as the feature map names
   it (the lint warns on a screen it doesn't know).
 - Why critical: who is stopped, or what money is lost, when it breaks, with its source (S-1).
+  No source says it? End the line with (open) and ask the person; it can't be approved open.
 - E2E test: the test file in backticks, from the repo's top folder, or "none yet".
 - You approve the whole file (mirai approve --file .mirai/context/journeys.md).
 -->

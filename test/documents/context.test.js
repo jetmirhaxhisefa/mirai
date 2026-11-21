@@ -90,6 +90,14 @@ test('36 T2: business: a claim with no source, an unknown source, an unused one,
   one(errors(swap(B, '| you said | 2026-11-20 |', '| you said | |'), 'business'), 'business-sources', /^S-2 has no date for when you said it \| write the day you said it/);
   one(errors(swap(B, '| you said | 2026-11-20 |', '| the owner | 2026-11-20 |'), 'business'), 'business-sources', /^S-2 has no link, file or "you said"/);
   one(errors(swap(B, '`backend/app/Policies/TaskPolicy.php`', '`backend/app/Policies/Gone.php`'), 'business'), 'business-sources', /S-5's file backend\/app\/Policies\/Gone\.php doesn't exist/);
+  // Decision 8 (P2 on Thudos): a claim no source says yet ends with (open), not with a source that
+  // doesn't say it. While writing, a warning that names it as a question; at approval, a failure.
+  const open = swap(B, '- English only, for now (S-2).', '- Languages: not known yet (open).');
+  assert.deepEqual(codes(errors(open, 'business')), []);
+  one(warnings(open, 'business'), 'business-open', /^no source says this yet: "Languages: not known yet \(open\)\." \| ask the person, and write their answer with a "you said" source/);
+  one(errors(open, 'business', { lint: { approving: true } }), 'business-open', /^an open line can't be approved: .* \| answer it/);
+  // (open) in the middle of a claim isn't a marker: the bullet still needs its source.
+  one(errors(swap(B, '- English only, for now (S-2).', '- English only (open) for now.'), 'business'), 'business-source', /if no source says it, end it with \(open\)/);
   // 850 words warns, 1,050 fails; the Sources table isn't counted.
   const base = wordsOf(B);
   const at850 = padded(B, 850 - base);
@@ -121,6 +129,11 @@ test('36 T3: journeys: no J-n, a gap, no "Why critical:", an E2E file that isn\'
   one(errors(swap(J, '### J-2:', '### J-1:'), 'journeys'), 'journeys-id', /^J-1 is used twice/);
   one(errors(swap(J, 'Why critical: when it breaks, nobody can use the app, and every team stops at once (S-1).\n\n', ''), 'journeys'), 'journeys-why', /^J-1 has no "Why critical:" line/);
   one(errors(swap(J, 'every team stops at once (S-1).', 'every team stops at once.'), 'journeys'), 'journeys-source', /^J-1's "Why critical:" line has no source/);
+  // Decision 8: a "Why critical:" line no source says yet ends with (open).
+  const jOpen = swap(J, 'every team stops at once (S-1).', 'every team stops at once (open).');
+  assert.deepEqual(codes(errors(jOpen, 'journeys')), []);
+  one(warnings(jOpen, 'journeys'), 'journeys-open', /^no source says this yet: "J-1: /);
+  one(errors(jOpen, 'journeys', { lint: { approving: true } }), 'journeys-open', /^an open line can't be approved/);
   one(errors(swap(J, '1. On **Tasks**, type a title in "New task", then choose "Add".\n2. The task shows at the top of the list, not done.\n3. Tick its box. It shows as done once the API confirms.\n', ''), 'journeys'), 'journeys-steps', /^J-2 has no steps/);
   const gone = swap(J, 'E2E test: `e2e/tests/smoke.spec.ts`', 'E2E test: `e2e/tests/login.spec.ts`');
   one(errors(gone, 'journeys'), 'journeys-e2e', /^J-1's E2E test e2e\/tests\/login\.spec\.ts doesn't exist \| correct the path.*or write "none yet"/);

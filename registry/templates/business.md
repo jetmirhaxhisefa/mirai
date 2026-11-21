@@ -15,6 +15,8 @@ for word from this template.
 - Every claim is a bullet that ends with its source ID: (S-1), or (S-1, S-3). Each ID is one row
   of the Sources table: what it is, where it is (a link, a file path in backticks from the repo's
   top folder, or "you said"), and the date it was read or said.
+- No source says it? Don't cite one that doesn't: end the bullet with (open), and ask the person.
+  Their answer becomes a "you said" row with the date. A file with an open line can't be approved.
 - Plain sentences of 20 words or fewer; the answer first; real names, not "the system". Spell out
   an acronym the first time.
 - You approve the whole file (mirai approve --file .mirai/context/business.md). A change to it

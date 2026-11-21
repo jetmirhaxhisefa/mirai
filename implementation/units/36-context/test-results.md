@@ -52,8 +52,8 @@
 
 | Probe | Result |
 |---|---|
-| **P1 Your read** | not run yet |
-| **P2 Thudos** | not run yet |
+| **P1 Your read** | pass (Jet, 2026-11-21: "Generally ok but not much details. I assume in a proper app will have much more details for every context"): the sample app is small; P2 judges a real app's depth |
+| **P2 Thudos** | running: first lint 8 problems, 3 of them MIRAI's (host names checked as paths, fixed); the agent cited a source for things it doesn't say, which led to decision 8 |
 
 ## Changed from the spec
 
@@ -200,3 +200,13 @@ launch left its scratch folder"); the file alone passed 14/14.
 The review's note c) showed a plain substring search: `data-testid="e"` passed on any file with an "e". Now a test id must start right after a quote and, when it has no `<part>`, end at one; a role's name must be a whole string or an element's whole text (after a quote or `>`, before a quote or `<`). T4 gains three cases (`data-testid="e"`, `data-testid="login"` against `login-form`, `button "A"`), and the examples still pass against the sample app's fixture.
 
 Left as a follow-up (not a bug): the project lint doesn't check stack versions against the manifests.
+
+### Decision 8: `(open)` for what no source says (2026-11-21, from P2)
+
+On Thudos, the agent cited the README for who pays and how the product makes money, which the
+README doesn't say: the template gave no way to write "not known yet". Jet: "If any context is
+missing from the data should be a question to the user to fill." A bullet in `business.md`, or a
+journey's "Why critical:" line, may now end with `(open)` instead of a source ID: a warning
+(`business-open`, `journeys-open`) that names the question, and a failure at approval. `(open)`
+in the middle of a line isn't a marker. The templates, the business checklist and
+`docs/context.md` say so. T2 and T3 gain the cases; `test/documents/context.test.js` passes 7/7.

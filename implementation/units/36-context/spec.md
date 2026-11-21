@@ -52,6 +52,12 @@ well" means.
    are researched in depth in its own unit). The research covers what good business context,
    critical-journey lists, screen maps and service conventions hold, from the best sources, and
    ends with what this unit takes.
+8. **What no source says is a question to you** (Jet, 2026-11-21, after P2 on Thudos: "If any
+   context is missing from the data should be a question to the user to fill"). A claim no
+   source says yet ends with `(open)` in place of its source ID, such as `- Who pays: not known
+   yet (open)`, in `business.md` and on a journey's "Why critical:" line. The lint warns and
+   names it as the question to ask you; your answer becomes a `you said` source with its date.
+   `mirai approve` refuses a file with an open line. Setup (39) asks you each one.
 
 ## Scope
 

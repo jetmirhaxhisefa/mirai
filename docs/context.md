@@ -24,6 +24,9 @@ and config. Each problem names the line and the fix.
 **`business.md`:**
 
 - every bullet ends with its source, `(S-1)` or `(S-1, S-3)`; a claim that isn't a bullet fails;
+- a claim no source says yet ends with `(open)` instead, such as `- Who pays: not known yet
+  (open)`. The lint warns and names it as a question for you; your answer becomes a `you said`
+  source with its date. `mirai approve` refuses a file with an open line;
 - every `S-n` is a row of the `## Sources` table: what it is, where it is (a link, a file path in
   backticks, or `you said`) and a date; a file that doesn't exist fails; a row nothing cites is a
   warning;
@@ -32,7 +35,8 @@ and config. Each problem names the line and the fix.
 **`journeys.md`:**
 
 - each journey is `### J-n: <what the person gets done>`, numbered with no gap or repeat;
-- each has `Steps:` with a numbered list, a `Why critical:` line ending with its source, and an
+- each has `Steps:` with a numbered list, a `Why critical:` line ending with its source (or
+  `(open)`, as in `business.md`), and an
   `E2E test:` line: a test file that exists, or `none yet`;
 - a screen named in bold in a step that the feature map doesn't have is a warning.
 

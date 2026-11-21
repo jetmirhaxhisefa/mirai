@@ -6,7 +6,9 @@ import { repoPath } from './repo.js';
 // that every agent run loads:
 // - business.md: every bullet ends with its source, (S-n); a Sources table defines each S-n once,
 //   with a link, a file or "you said", and a date; about two pages (warn past 800 words, fail
-//   past 1,000, the Sources table not counted);
+//   past 1,000, the Sources table not counted); a claim no source says yet ends with (open)
+//   instead: a warning that names it as a question for you, and a failure at approval (Jet's
+//   decision 8, from P2 on Thudos);
 // - journeys.md: the critical journeys, ### J-n: <name>, numbered with no gap, each with steps,
 //   a "Why critical:" line with its source and an "E2E test:" line (a file, or "none yet");
 // - feature-map.md: one row per screen, with its route and stable handles, found in the code;
@@ -65,6 +67,8 @@ const clip = (x, n = 60) => {
 const LIST_ITEM = /^( *)(?:[-*+]|[0-9]{1,9}[.)])(?:[ \t]+|$)/;
 const NOT_APPLICABLE = /^Not applicable — \S/;
 const SOURCE_IDS = /\((S-[0-9]+(?:,[ \t]*S-[0-9]+)*)\)\.?[ \t]*$/;
+// A claim no source says yet (decision 8): it ends with (open) in place of its source ID.
+const OPEN = /\(open\)\.?[ \t]*$/;
 const S_ID = /(?<![\p{L}\p{N}_-])S-[0-9]+(?![\p{L}\p{N}_]|[.-][\p{L}\p{N}])/gu;
 const textOf = (l) => (l.visible ?? l.text ?? '');
 
@@ -187,6 +191,13 @@ function citeSources(doc, ids, add, kind) {
   }
 }
 
+// An open line (decision 8): while writing, a warning that names the question to ask you; at
+// approval, a failure, so a file with a gap can't be approved.
+function openLine(kind, line, text, ctx, add) {
+  if (ctx.approving) add({ code: `${kind}-open`, line, column: 1, reason: `an open line can't be approved: "${clip(text)}"`, hint: 'answer it: write the answer with its source (a "you said" row with the date), or remove the line' });
+  else add({ code: `${kind}-open`, severity: 'warning', line, column: 1, reason: `no source says this yet: "${clip(text)}"`, hint: 'ask the person, and write their answer with a "you said" source and its date' });
+}
+
 // A context file in .mirai/context/ has its kind's name (project-<service>.md for a service).
 function checkName(doc, def, ctx, add) {
   const file = String(ctx.file ?? '');
@@ -217,7 +228,8 @@ export function checkBusiness(doc, def, ctx, add) {
       add({ code: 'business-claim', line: b.line, column: 1, reason: `a claim that isn't a bullet: "${clip(b.text)}"`, hint: 'write each claim as a bullet that ends with its source, such as (S-1)' });
       continue;
     }
-    if (!SOURCE_IDS.test(b.text)) add({ code: 'business-source', line: b.line, column: 1, reason: `this bullet has no source: "${clip(b.text)}"`, hint: 'end it with the ID of its source in the Sources table, such as (S-1), or (S-1, S-3)' });
+    if (OPEN.test(b.text)) openLine('business', b.line, b.text, ctx, add);
+    else if (!SOURCE_IDS.test(b.text)) add({ code: 'business-source', line: b.line, column: 1, reason: `this bullet has no source: "${clip(b.text)}"`, hint: 'end it with the ID of its source in the Sources table, such as (S-1), or (S-1, S-3); if no source says it, end it with (open) and ask the person' });
   }
   citeSources(doc, ids, add, 'business');
   // About two pages (decision 3): the Sources table isn't counted.
@@ -294,7 +306,8 @@ function checkJourney(id, h, end, { scan, screens, ctx, add }) {
   const why = label(/^Why critical:/);
   const whyText = why ? textOf(why).trim().replace(/^Why critical:\s*/, '') : '';
   if (!why || whyText === '') add({ code: 'journeys-why', ...(why ? { line: why.line, column: 1 } : at), reason: `${id} has no "Why critical:" line`, hint: 'say who is stopped, or what money is lost, when it breaks, and end with its source, such as (S-1)' });
-  else if (!SOURCE_IDS.test(whyText)) add({ code: 'journeys-source', line: why.line, column: 1, reason: `${id}'s "Why critical:" line has no source`, hint: 'end it with the ID of its source in the Sources table, such as (S-1)' });
+  else if (OPEN.test(whyText)) openLine('journeys', why.line, `${id}: ${whyText}`, ctx, add);
+  else if (!SOURCE_IDS.test(whyText)) add({ code: 'journeys-source', line: why.line, column: 1, reason: `${id}'s "Why critical:" line has no source`, hint: 'end it with the ID of its source in the Sources table, such as (S-1); if no source says it, end it with (open) and ask the person' });
   const e2e = label(/^E2E test:/);
   if (!e2e) {
     add({ code: 'journeys-e2e', ...at, reason: `${id} has no "E2E test:" line`, hint: 'name its end-to-end test file from the repo\'s top folder, in backticks, or write "E2E test: none yet"' });
