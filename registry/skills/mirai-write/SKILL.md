@@ -8,6 +8,10 @@ description: "How to word the MIRAI documents the owner reads and approves (brie
 The `mirai-docs` skill holds each document's form: its template, checklist and IDs. This skill
 holds how to word it. Use both.
 
+A project may rename or add sections. The template you're given (`mirai show template <type>`) is
+the source of the section names; a renamed section keeps its MIRAI meaning, so a rule here about
+"Summary for approval" holds for the project's name for it.
+
 **Use it when** you write or change a brief, a PRD, an epic or a ticket. HLD, ADR and LLD guides
 come with their own units; until then, follow the rules on this page for them.
 

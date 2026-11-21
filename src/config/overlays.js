@@ -65,7 +65,18 @@ const TYPE_OVERLAY = {
     add: {
       type: 'array',
       uniqueBy: 'name',
-      items: { type: 'table', fields: { name: heading, after: heading, required: { type: 'boolean' } }, required: ['name'] },
+      // `variants`: the variants that require it (a PRD's lite and full), every one by default;
+      // `checklist`: the verifier's questions for it, added to the type's checklist (P1's
+      // findings, 2026-11-21).
+      items: {
+        type: 'table',
+        fields: {
+          name: heading, after: heading, required: { type: 'boolean' },
+          variants: { type: 'array', minItems: 1, items: { type: 'string', pattern: NAME, patternHint: 'a variant such as "full"' } },
+          checklist: { type: 'array', minItems: 1, items: { type: 'string', pattern: /^\S[^\n]{0,400}$/, patternHint: 'one line, a yes / no question' } },
+        },
+        required: ['name'],
+      },
     },
     order: { type: 'array', minItems: 1, items: heading },
     // MIRAI's name to the project's ("Summary for approval" to "Executive summary"). A list of
@@ -288,6 +299,8 @@ function applyType(o, registry) {
   let order = [...(core.section_order ?? listed)];
   let template;
   const added = new Map();
+  const onlyIn = new Map();
+  const checklistAdds = [];
   if (v.replace === true) {
     if (v.add !== undefined || v.order !== undefined) problems.push('a replacement template sets its own sections and order: add and order are for a section overlay');
     if (o.text === null) return problems.push(`replace = true needs the template: ${CUSTOM_DIR}/templates/${v.name}.md`);
@@ -331,10 +344,26 @@ function applyType(o, registry) {
         }
         at = i + 1;
       }
+      const names = Object.keys(core.variants ?? {});
+      if (a.variants !== undefined && !names.length) {
+        problems.push(`add "${a.name}": variants is for a type with variants; the ${core.name} type has none`);
+        continue;
+      }
+      const unknown = (a.variants ?? []).filter((x) => !names.includes(x));
+      if (unknown.length) {
+        problems.push(`add "${a.name}": variants names ${unknown.map((x) => `"${x}"`).join(', ')}, which the ${core.name} type doesn't have (${names.join(', ')})`);
+        continue;
+      }
       order.splice(at, 0, a.name);
       added.set(a.name, a.required !== false);
-      if (a.required !== false) required.push(a.name);
-      else optional.push(a.name);
+      // Required in some variants only: optional for the type, required by those variants.
+      const some = a.variants !== undefined && names.some((x) => !a.variants.includes(x));
+      if (a.required === false) optional.push(a.name);
+      else if (some) {
+        optional.push(a.name);
+        for (const x of a.variants) onlyIn.set(x, [...(onlyIn.get(x) ?? []), a.name]);
+      } else required.push(a.name);
+      if (a.checklist) checklistAdds.push({ name: a.name, lines: a.checklist });
     }
     if (v.order !== undefined) {
       const wanted = v.order.map(inverse);
@@ -360,12 +389,20 @@ function applyType(o, registry) {
         else fragments.set(b.name, b.text);
       }
     }
+    // Each added section carries its own guidance, as MIRAI's do: a "done when:" comment.
+    for (const name of added.keys()) {
+      if (!fragments.has(name)) problems.push(`add "${name}": ${CUSTOM_DIR}/templates/${v.name}.md has no "## ${name}" block; each added section needs one, with a <!-- done when: … --> comment saying when it's filled`);
+      else if (!/<!--[^]*?\bdone when:/i.test(fragments.get(name))) problems.push(`add "${name}": its block in ${CUSTOM_DIR}/templates/${v.name}.md has no <!-- done when: … --> comment; say when the section is filled, as MIRAI's sections do`);
+    }
     template = renderTemplate(coreTemplate, { order, rename, fragments, added });
   }
   // Whatever the overlay does, every protected section stays.
   for (const p of prot) if (!p.part && !order.includes(p.name)) problems.push(`${protectedName(p)} isn't in the type with the overlay applied: it can't be dropped`);
   const keep = (list) => (list ?? []).filter((n) => order.includes(n));
-  const variants = core.variants ? Object.fromEntries(Object.entries(core.variants).map(([k, x]) => [k, { ...x, ...(x.required_sections ? { required_sections: keep(x.required_sections) } : {}) }])) : undefined;
+  const variants = core.variants ? Object.fromEntries(Object.entries(core.variants).map(([k, x]) => {
+    const req = [...keep(x.required_sections), ...(onlyIn.get(k) ?? [])];
+    return [k, { ...x, ...(req.length || x.required_sections ? { required_sections: req } : {}) }];
+  })) : undefined;
   const plain = JSON.parse(JSON.stringify(core));
   const def = {
     ...plain,
@@ -381,7 +418,17 @@ function applyType(o, registry) {
     for (const p of checkDocumentTypeDef(def)) problems.push(`with the overlay applied, ${p.path ? `${p.path}: ` : ''}${p.reason}`);
   }
   if (problems.length) return undefined;
-  o.result = { def: { ...def, renames: { ...rename }, template_text: template, overlay: { path: o.path, hash: o.hash, replace: v.replace === true } }, template, replace: v.replace === true, coreTemplate: { version: core.template_version ?? null, hash: sha256(Buffer.from(coreTemplate, 'utf8')) } };
+  // The checklist: MIRAI's, with the renames applied to its text, then the added sections' lines.
+  let checklist = null;
+  try {
+    checklist = renameGuidance(readFileSync(join(registry.dir, core.checklist), 'utf8'), rename);
+  } catch {
+    checklist = null;
+  }
+  if (checklist !== null && checklistAdds.length) {
+    checklist = `${checklist.replace(/\n+$/, '')}\n\n${checklistAdds.map((c) => `## ${c.name}\n\n${c.lines.map((l) => `- ${l}`).join('\n')}`).join('\n\n')}\n`;
+  }
+  o.result = { def: { ...def, renames: { ...rename }, template_text: template, ...(checklist !== null ? { checklist_text: checklist } : {}), overlay: { path: o.path, hash: o.hash, replace: v.replace === true } }, template, replace: v.replace === true, coreTemplate: { version: core.template_version ?? null, hash: sha256(Buffer.from(coreTemplate, 'utf8')) } };
   return undefined;
 }
 
@@ -452,7 +499,19 @@ export function renderTemplate(coreText, { order, rename = {}, fragments = new M
   }
   for (const b of list) if (!order.includes(b.name)) out.push(trim(b.text));
   const text = `${head}${trim(pre)}\n\n${out.join('\n\n')}\n`;
-  return renameHeadings(text, rename);
+  return renameGuidance(renameHeadings(text, rename), rename);
+}
+
+// MIRAI's guidance under the project's names (P1's findings): every quoted mention of a renamed
+// section or part, in the HTML comments, the "done when:" lines and the checklist, as "the
+// project's name". Only quoted names change: a section's name in running prose ("the summary")
+// stays as it is.
+export function renameGuidance(text, rename) {
+  let out = text;
+  for (const [from, to] of Object.entries(rename)) {
+    out = out.split(`"${from}"`).join(`"${to}"`).split(`“${from}”`).join(`“${to}”`);
+  }
+  return out;
 }
 
 // Every "## " and "### " heading (outside fences) whose text MIRAI's map renames, under the
@@ -704,6 +763,13 @@ export function sessionOverlays(registry, { dir, keys, repoId }) {
 export function templateTextOf(registry, def) {
   if (typeof def.template_text === 'string') return def.template_text;
   return readFileSync(join(registry.dir, def.template), 'utf8');
+}
+
+// A type's checklist as the project uses it: the overlay's (MIRAI's lines under the project's
+// names, then the added sections' lines) when one applies, else MIRAI's file.
+export function checklistTextOf(registry, def) {
+  if (typeof def.checklist_text === 'string') return def.checklist_text;
+  return readFileSync(join(registry.dir, def.checklist), 'utf8');
 }
 
 // The overlay files a work tree has under .mirai/custom, for a note when they can't be read from

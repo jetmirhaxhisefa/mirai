@@ -10,7 +10,7 @@ import { showData, showText } from '../../run/show.js';
 import { openStore } from '../../store/home.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
 import { trustOverlayFiles, trustedOverlays } from '../../trust/overlays.js';
-import { CUSTOM_DIR, STATE_TEXT, overlayFilesIn, overlayState, readOverlays, templateTextOf, verifyRecords } from '../../config/overlays.js';
+import { CUSTOM_DIR, STATE_TEXT, checklistTextOf, overlayFilesIn, overlayState, readOverlays, templateTextOf, verifyRecords } from '../../config/overlays.js';
 import { branchKeys } from '../../sign/keys.js';
 import { loadRegistry } from '../../config/registry.js';
 import { trustedRoles } from '../../agent/scope.js';
@@ -32,7 +32,7 @@ import { ticketsOf } from '../../lint/graph.js';
 export default {
   name: 'show',
   summary: 'Print one ticket\'s page (plan, build, reviews, MR, rounds, usage, parking), or one initiative\'s documents',
-  usage: 'mirai show <ticket> [--full | --json] | mirai show <initiative> [--docs] | mirai show context | mirai show overlays | mirai show template <type>',
+  usage: 'mirai show <ticket> [--full | --json] | mirai show <initiative> [--docs] | mirai show context | mirai show overlays | mirai show template <type> | mirai show checklist <type>',
   positionals: { min: 1, max: 2 },
   options: {
     full: { type: 'boolean', description: 'every finding\'s text, the plan, and the parking note whole' },
@@ -44,8 +44,8 @@ export default {
     checkTicketArg(name);
     const plainView = !args.values.full && !args.values.json && !args.values.docs;
     // Unit 37: the project's overlays, and a type's template as the approved overlays render it.
-    if (name === 'template' && second !== undefined && plainView) return showTemplate({ io, type: second });
-    if (second !== undefined) throw new UsageError('mirai show takes one name', 'mirai show <ticket>, or mirai show template <type>');
+    if ((name === 'template' || name === 'checklist') && second !== undefined && plainView) return showTemplate({ io, type: second, checklist: name === 'checklist' });
+    if (second !== undefined) throw new UsageError('mirai show takes one name', 'mirai show <ticket>, or mirai show template <type>, or mirai show checklist <type>');
     if (name === 'overlays' && plainView) {
       io.stdout.write(overlaysText(overlaysOf({ cwd: io.cwd, env: io.env })));
       return EXIT.OK;
@@ -266,13 +266,15 @@ function overlaysText({ dir, rows }) {
 
 // mirai show template <type>: the type's template as this project uses it, from the trust root
 // with the overlays you approved applied: what an agent writing that document starts from.
-function showTemplate({ io, type }) {
+// mirai show checklist <type>: the type's checklist the same way (MIRAI's lines under the project's
+// names, then the questions for its added sections).
+function showTemplate({ io, type, checklist = false }) {
   const store = openStore({ cwd: io.cwd, env: io.env });
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const r = trustedOverlays(trust, store);
   if (!/^[a-z][a-z0-9-]{0,63}$/.test(type) || !Object.hasOwn(r.registry.documentTypes, type)) throw Object.assign(new UsageError(`there's no document type ${JSON.stringify(type.slice(0, 40))}`, `types: ${Object.keys(r.registry.documentTypes).sort().join(', ')}`), { code: 'unknown-type' });
   for (const x of r.skipped.filter((y) => y.kind === 'document-type' && y.name === type)) io.stderr.write(`${plain(x.line)}\n`);
   const def = r.registry.documentTypes[type];
-  io.stdout.write(templateTextOf(r.registry, def));
+  io.stdout.write(checklist ? checklistTextOf(r.registry, def) : templateTextOf(r.registry, def));
   return EXIT.OK;
 }

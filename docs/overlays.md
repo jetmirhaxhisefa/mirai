@@ -34,13 +34,17 @@ schema_version = 1
 name = "prd"
 
 # A section of your own, placed after one of MIRAI's. Required unless required = false.
+# `variants`: the variants that require it (a PRD's "lite" and "full"); every one by default.
+# `checklist`: the verifier's questions for it, added to the type's checklist.
 [[add]]
 name = "Data privacy"
 after = "User journeys"
+checklist = ["Does every kind of personal data name who may see it and how long it's kept?"]
 
 [[add]]
 name = "Security sign-off"
 after = "Glossary"
+variants = ["full"]
 
 # MIRAI's name, then your project's. The lint, the summary check, approval and the reader test
 # read your name as MIRAI's.
@@ -56,20 +60,31 @@ to = "Executive summary"
 ```
 
 `.mirai/custom/templates/prd.md` holds one block per added section. MIRAI puts each one into the
-template where it goes:
+template where it goes. Each block needs a `<!-- done when: … -->` comment, as MIRAI's sections
+have: it tells the writer when the section is filled. An overlay without one is refused, naming
+the section.
 
 ```markdown
 ## Data privacy
 
+<!-- done when: each kind of personal data the feature reads, stores or sends is named, with who may see it and how long it's kept -->
 What personal data the feature reads or keeps, and who may see it.
 
 ## Security sign-off
 
+<!-- done when: the reviewer's role, the date and the state (pending or signed) are named -->
 Who signed off the security review, and when.
 ```
 
 A document under MIRAI's own name for a renamed section fails the lint: it says what your project
-calls it.
+calls it. The rename reaches MIRAI's guidance too: every quoted name in the template's comments,
+its "done when:" lines and the checklist shows your project's name.
+
+**The word caps count your sections.** An added section's words count toward the document's cap
+like any other. Raise a cap in `.mirai/config.toml`, under `[docs.limits]`: `prd_lite_words`
+and `prd_full_words` for a PRD (3,000 and 5,000 by default), `prd_summary_words` and
+`prd_full_summary_words` for its summary, `brief_summary_words` and `epic_summary_words` for the
+others ([config.md](config.md)).
 
 ### 2. A replacement template
 
@@ -102,7 +117,9 @@ mirai show template prd
 ```
 
 It prints the type's template with the approved overlays applied. An agent writing a PRD starts
-from it. From your session: `/mirai show template prd`.
+from it. `mirai show checklist prd` prints its checklist the same way: MIRAI's questions under
+your names, then your sections' questions. From your session: `/mirai show template prd` and
+`/mirai show checklist prd`.
 
 ## What no overlay may drop
 

@@ -87,7 +87,15 @@
       record is committed;
   - `test/lint/template-versions.test.js`: every document type's template hash is the one
     `test/lint/template-versions.json` records for its `template_version`.
-- **Changed tests from earlier units:** `test/lint/plan.test.js` T11 (a frozen section must be
+- **P1's findings:** `test/documents/overlays-p1.test.js`: the rename in the template's guidance
+  and the checklist; an added section refused with no block or no "done when:" comment, and its
+  checklist lines after MIRAI's; a full-only added section (optional, required by full, a lite PRD
+  clean without it), both variants by default, an unknown variant and variants on the brief
+  refused; "Verified by:" with eight plural forms, and still failing with no method. The earlier
+  overlay tests' fragments gained their "done when:" comments.
+- **Changed tests from earlier units:** `test/documents/write.test.js` 34 T1 (each guide points at
+  `mirai show template <type>` and `mirai show checklist <type>`, not the framework copy's files);
+  `test/lint/plan.test.js` T11 (a frozen section must be
   protected: one case gains `[[protected_sections]]`, one expects `unprotected`);
   `test/doctor/doctor.test.js` 29c (a 20th item, `overlays`).
 - **The full suite:** see the last section.
@@ -96,7 +104,7 @@
 
 | Probe | Result |
 |---|---|
-| **P1 A company-style PRD on the sample app** | not run yet. `test/probes/overlay-p1-probes.js --setup <dir>` builds the project (the sample app's fixture copy, MIRAI from this branch, a probe home, key and store; the PRD overlay approved through the CLI, its record committed; 31's P2 brief) and its kit (the rendered template, the checklist, mirai-write and its PRD guide); `--reader --yes` and `--epic` run on it, and `overlay-p1-reader-probes.js` / `overlay-p1-epic-probes.js` are the build runner's forms |
+| **P1 A company-style PRD on the sample app** | **pass** (2026-11-21). The project from `test/probes/overlay-p1-probes.js --setup` (scratchpad `u37-p1`: the sample app's fixture copy, the PRD overlay adding "Data privacy" and "Security sign-off" and renaming the summary "Executive summary", approved through the CLI, its record committed; 31's P2 brief). **The PRD:** a fresh agent wrote a lite PRD with the overlay; the first lint had 17 problems, the second 0; both company sections filled; 29 FRs, 6 NFRs, 31 ACs, 2,949 of 3,000 words (`u37-p1/repo/docs/mirai/task-comments/prd.md`). **The reader test** (runner job `u37-p1-reader`): pass on round 1 with Sonnet, reading from "## Executive summary", $0.019. **The epic:** a fresh agent cut it into SAMPLE-60 with 13 tickets (S×8, M×4, L×1); the first lint had 1 error (the summary at 409 of 400 words), the second 0; every FR, NFR and AC covered. Runner job `u37-p1-epic`: pass, the coverage table printed, lint exit 0. The writers' four findings that are 37's or a small lint bug are fixed below ("P1's findings"); the rest are under "For later units" |
 | **P2 A widened agent** | not run yet. `test/probes/overlay-p2-probes.js` is ready: `--yes --phase before` (the gate refuses Rex, no model), then `mirai redteam run` through the build runner, then `--yes --phase after` (the result covers the overlay's template, by its hash; `x-bash-checkout`, `x-bash-network` and `x-bash-secrets` ran under it and passed; the gate lets Rex launch), and `--launch` for one real Rex run whose init lists Bash. Approve the overlay, run `mirai render`, and commit the overlay, the record and the rendered files on main first |
 
 ## Changed from the spec
@@ -186,6 +194,26 @@
   differently, with `mirai render` as the fix. `mirai approve --file` of an agent or skill overlay
   ends with the exact next steps: render, then commit the overlay, the record and the rendered files
   together.
+- **P1's findings (2026-11-21), fixed before P2:**
+  - **The rename reaches the guidance:** a section overlay's rendered template, and the type's
+    checklist, show every quoted mention of a renamed section or part under the project's name
+    (the HTML comments and "done when:" lines included). Only quoted names change. `mirai-write`
+    says near its top that a project may rename or add sections, that the template you're given
+    is the source of the names, and that a renamed section keeps its MIRAI meaning; its guides
+    and `mirai-docs` point at the template you're given, or `mirai show template <type>` and
+    `mirai show checklist <type>`, instead of `.mirai/framework/registry/templates/`.
+  - **An added section brings its guidance:** its block in the overlay's template is required and
+    must carry a `<!-- done when: … -->` comment; the overlay is refused without one, naming the
+    section. `[[add]] checklist = ["…"]` adds the verifier's questions for it, under
+    `## <section>` after MIRAI's lines. **Added: `mirai show checklist <type>`** (and
+    `/mirai show checklist`), the type's checklist with the approved overlays applied.
+  - **Variants:** `[[add]] variants = ["lite", "full"]`, every variant by default. A section some
+    variants require is optional for the type and required by those variants, so the lint follows
+    it (a lite PRD may leave out a full-only section). A variant the type doesn't have, or variants
+    on a type without any, is refused. docs/overlays.md says added sections count toward the word
+    caps and names the `[docs.limits]` keys.
+  - **32's lint bug:** "Verified by:" takes the plural of each method and level ("API tests that …",
+    "measurements", "manual checks").
 - **Template text (Q5 answered):** doctor also warns when MIRAI's template text hash differs from
   the one recorded at approval under the same version. `test/lint/template-versions.json` holds
   each document type's template hash per version, kept by hand.
@@ -216,6 +244,22 @@
    the same version, and MIRAI's own suite fails when a template's text changes without a version
    bump.
 
+## For later units
+
+From P1's writers (2026-11-21), one line each:
+
+- **32/PRD:** the lint forces every open question into "Decisions for you".
+- **32/PRD:** the lite PRD has no Dependencies section.
+- **32/PRD:** the acronym rule fires on quoted sample text and on standards such as WCAG.
+- **33/42 (epic, Tess):** the `files_likely` overlap warning fired 40 times with no guidance.
+- **33/42:** NFRs with no AC-NFR IDs leave `covers_ac` empty.
+- **33/42:** an NFR verified by an end-to-end test when there's no critical journey.
+- **33/42:** five near-identical high-risk items in "Decisions for you".
+- **33/42:** where the ticket key prefix comes from.
+- **33/42:** the story template's `epic:` line is only in a comment.
+- **33/42:** how added PRD sections (Data privacy, Security sign-off) flow into tickets.
+- **41:** the skill's "you don't run mirai" must allow MIRAI's broker tools.
+
 ## Follow-up
 
 - **Unit 36's context-file approvals have the same local-only limit** the overlays had: they're
@@ -236,8 +280,8 @@
 
 ## The full suite
 
-`caffeinate -i npm test` on the Mac, after the review follow-up's last edit (doctor's "approved
-but not rendered" check and approve's next steps): 743/743 passed, no failure and nothing skipped.
-The fixing round's run before it was 743/743 too, in about 14 minutes. The known `/private/tmp` race in
-`test/launch/strict.test.js` T5/T6 didn't show. (The first round's run, on `202096b`, was 736/736.)
-The build runner and CI run on the final commit.
+`caffeinate -i npm test` on the Mac, after P1's findings were fixed (the last edit): 747/747 passed,
+no failure and nothing skipped. The run before it, 746/747, failed only 34 T1 on the guides' new
+pointer (`mirai show template <type>`); that test was changed, then the suite run again. The known
+`/private/tmp` race in `test/launch/strict.test.js` T5/T6 didn't show. The build runner and CI run
+on the final commit.

@@ -57,6 +57,7 @@ export const COMMANDS = Object.freeze({
   // Unit 37: a type's template as the project's approved overlays render it (read-only). The
   // overlay list is `show` with ticket "overlays", as `show context` is.
   'show template': { quick: true, needs: ['type'], argv: (a) => ['show', 'template', a.type] },
+  'show checklist': { quick: true, needs: ['type'], argv: (a) => ['show', 'checklist', a.type] },
   ship: { needs: ['ticket'], argv: (a) => ['ship', a.ticket] },
   // Read-only, or a draft for you to review (unit 28, the standing rule).
   // Unit 29c (decision 3): doctor and its safe repairs, from your session too.
@@ -166,7 +167,7 @@ export const miraiCommand = Object.freeze({
       command: { type: 'string', enum: [...Object.keys(COMMANDS), ...Object.keys(GATES)] },
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
-      type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template (unit 37)' },
+      type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template and show checklist (unit 37)' },
       file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },

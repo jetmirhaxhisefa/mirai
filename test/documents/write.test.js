@@ -80,10 +80,11 @@ test('34 T1: the skill\'s files: SKILL.md names every guide (the session guide t
       assert.notEqual(e.before, e.after);
     }
     // A pointer to the type's template and checklist (mirai-docs holds the form); the session
-    // guide points to mirai-interview for questions instead.
+    // guide points to mirai-interview for questions instead. Unit 37 (P1's findings): the
+    // project's, with its overlays: the one you're given, or mirai show template / checklist.
     if (GUIDES[g]) {
-      assert.match(text, new RegExp(`templates/${GUIDES[g]}\\.md`));
-      assert.match(text, new RegExp(`${GUIDES[g]}-checklist\\.md`));
+      assert.match(text, new RegExp(`\`mirai show template ${GUIDES[g]}\``));
+      assert.match(text, new RegExp(`\`mirai show checklist ${GUIDES[g]}\``));
     } else assert.match(text, /`mirai-interview` skill \(unit 35/);
     total += examples.length;
   }

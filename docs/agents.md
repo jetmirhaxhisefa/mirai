@@ -174,6 +174,7 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai reader-test docs/mirai/due-dates/prd.md
 /mirai show overlays          # the project's overlays (docs/overlays.md)
 /mirai show template prd      # a type's template, with the approved overlays
+/mirai show checklist prd     # its checklist, the same way
 
 # Tests and the red team
 /mirai test unit              # a test level or check by name

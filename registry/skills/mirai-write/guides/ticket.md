@@ -2,8 +2,8 @@
 
 A ticket (a story or a bug) is one slice an agent plans and builds without asking. It has no
 summary: its reader is the agent, and the epic's summary covers the set for the owner. Its form
-is in the templates `.mirai/framework/registry/templates/story.md` and `bug.md`, with their
-checklists `story-checklist.md` and `bug-checklist.md`, next to them. The `mirai-docs` skill
+is in the templates you're given, or `mirai show template story` and `mirai show template bug`, with
+their checklists, `mirai show checklist story` and `mirai show checklist bug`. The `mirai-docs` skill
 explains both. This guide covers the wording.
 
 ## Rules

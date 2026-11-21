@@ -43,10 +43,10 @@ const problemsOf = (fs, registry = REGISTRY) => readOverlays(fs, registry).flatM
 // summary "Executive summary" and its "Not in this" part "Out of scope", and gains two sections.
 const HEAD = (type) => `kind = "document-type-overlay"\nschema_version = 1\nname = "${type}"\n`;
 const BRIEF_OVERLAY = `${HEAD('brief')}\n[[add]]\nname = "Data privacy"\nafter = "Problem"\n`;
-const BRIEF_FRAGMENT = '## Data privacy\n\nWhat personal data the feature reads or keeps, and who may see it.\n';
+const BRIEF_FRAGMENT = '## Data privacy\n\n<!-- done when: each kind of personal data is named, with who may see it -->\nWhat personal data the feature reads or keeps, and who may see it.\n';
 const PRIVACY = '## Data privacy\n\nDue dates hold no personal data. Reminder emails go to the task owner only, from the address the app already has.\n\n';
 const PRD_OVERLAY = `${HEAD('prd')}\n[[rename]]\nfrom = "Summary for approval"\nto = "Executive summary"\n\n[[rename]]\nfrom = "Not in this"\nto = "Out of scope"\n\n[[add]]\nname = "Data privacy"\nafter = "User journeys"\n\n[[add]]\nname = "Security sign-off"\nafter = "Glossary"\n`;
-const PRD_FRAGMENT = '## Data privacy\n\nWhat personal data the feature reads or keeps.\n\n## Security sign-off\n\nWho signed off the security review, and when.\n';
+const PRD_FRAGMENT = '## Data privacy\n\n<!-- done when: each kind of personal data is named, with who may see it -->\nWhat personal data the feature reads or keeps.\n\n## Security sign-off\n\n<!-- done when: the reviewer and the date are named -->\nWho signed off the security review, and when.\n';
 const renamed = (text) => swap(swap(text, '## Summary for approval', '## Executive summary'), '### Not in this', '### Out of scope');
 const SIGN_OFF = '\n\n## Security sign-off\n\nThe security lead signed off the reminder emails on 2026-11-20.\n';
 const COMPANY_PRD = (text) => `${swap(renamed(text), '## Functional requirements', `${PRIVACY}## Functional requirements`).replace(/\n+$/, '')}${SIGN_OFF}`;
@@ -99,7 +99,7 @@ test('37 T2: a section overlay: added, reordered and renamed sections reach the 
   assert.deepEqual(b.skipped, []);
   const t = b.registry.documentTypes.brief.template_text;
   assert.ok(t.indexOf('## Problem') < t.indexOf('## Data privacy') && t.indexOf('## Data privacy') < t.indexOf('## Who it is for'), t);
-  assert.match(t, /## Data privacy\n\nWhat personal data the feature reads or keeps/);
+  assert.match(t, /## Data privacy\n\n<!-- done when: each kind of personal data is named, with who may see it -->\nWhat personal data the feature reads or keeps/);
   assert.deepEqual(lintWith(REGISTRY, BRIEF, 'docs/mirai/due-dates/brief.md'), []);
   const missing = lintWith(b.registry, BRIEF, 'docs/mirai/due-dates/brief.md');
   assert.deepEqual(missing.map((p) => p.code), ['missing-section'], JSON.stringify(missing));

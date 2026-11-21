@@ -61,14 +61,14 @@ to = "Executive summary"
 `;
 const FRAGMENTS = `## Data privacy
 
-<!-- Which personal data the feature reads, stores or sends, why, who can see it, and how long it is
+<!-- done when: it names which personal data the feature reads, stores or sends, why, who can see it, and how long it is
 kept. Name each kind of data and the requirement (FR, NFR) that touches it. If the feature touches
 no personal data, write: Not applicable — <why>. -->
 The personal data this feature reads, stores or sends, who can see it, and how long it is kept.
 
 ## Security sign-off
 
-<!-- Who must sign off the security review before release, what they check, and its state: the
+<!-- done when: it names who must sign off the security review before release, what they check, and its state: the
 reviewer's role, the date, and "pending" or "signed". -->
 The reviewer who signs off the feature's security, what they check, and the state of the review.
 `;
@@ -159,7 +159,9 @@ async function setup(dir, log) {
   if (shown.code !== 0 || shown.err) throw new Error(`mirai show template prd: ${shown.err}`);
   writeFileSync(join(dir, 'kit', 'prd-template.md'), shown.out);
   const fw = join(repo, '.mirai', 'framework', 'registry');
-  cpSync(join(fw, 'templates', 'prd-checklist.md'), join(dir, 'kit', 'prd-checklist.md'));
+  const checklist = await mirai(['show', 'checklist', 'prd'], dir);
+  if (checklist.code !== 0 || checklist.err) throw new Error(`mirai show checklist prd: ${checklist.err}`);
+  writeFileSync(join(dir, 'kit', 'prd-checklist.md'), checklist.out);
   cpSync(join(fw, 'skills', 'mirai-write', 'SKILL.md'), join(dir, 'kit', 'mirai-write-SKILL.md'));
   cpSync(join(fw, 'skills', 'mirai-write', 'guides', 'prd.md'), join(dir, 'kit', 'mirai-write-prd-guide.md'));
   for (const want of ['## Executive summary', '## Data privacy', '## Security sign-off']) {

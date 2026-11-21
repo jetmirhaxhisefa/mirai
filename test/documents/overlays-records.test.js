@@ -36,7 +36,7 @@ const PRD = read('examples/prd.md');
 const TICKETS = Object.fromEntries(readdirSync(join(REGISTRY_DIR, 'examples', 'tickets')).sort().map((f) => [`tickets/${f}`, read(`examples/tickets/${f}`)]));
 const HEAD = (type) => `kind = "document-type-overlay"\nschema_version = 1\nname = "${type}"\n`;
 const BRIEF_OVERLAY = `${HEAD('brief')}\n[[add]]\nname = "Data privacy"\nafter = "Problem"\n`;
-const BRIEF_FRAGMENT = '## Data privacy\n\nWhat personal data the feature reads or keeps, and who may see it.\n';
+const BRIEF_FRAGMENT = '## Data privacy\n\n<!-- done when: each kind of personal data is named, with who may see it -->\nWhat personal data the feature reads or keeps, and who may see it.\n';
 const D = 'docs/mirai/due-dates';
 const BRIEF_PATH = `${D}/brief.md`;
 const swap = (text, from, to) => {
