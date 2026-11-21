@@ -94,8 +94,10 @@ export function unitsFor(cases, templates, only = null) {
   for (const k of cases) {
     if (only && !only.includes(k.id)) continue;
     for (const mode of k.templates) {
-      const names = [...templates.entries()].filter(([, t]) => t.mode === mode).map(([n]) => n);
-      if (!names.length) skipped.push({ id: k.id, template: mode });
+      // Unit 37: a case made for a widened tool runs only under an agent template whose overlay
+      // gives that tool beyond its mode, and is never "skipped" where none does.
+      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w)))).map(([n]) => n);
+      if (!names.length && !k.widened) skipped.push({ id: k.id, template: mode });
       for (const n of names) units.push({ id: k.id, template: n });
     }
   }

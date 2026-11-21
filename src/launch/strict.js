@@ -129,9 +129,12 @@ export const templateText = (t) => `${JSON.stringify(t, null, 2)}\n`;
 // covers exactly that overlay (the canonical hash includes them). Everything else (the deny lists,
 // the write-denied paths, the sandbox) is the mode's.
 export const agentTemplateName = (agent, mode) => `agent-${agent}-${mode}`;
+// `overlay.widened`: the tools its mode doesn't have, which pick the red team's widened cases
+// (src/redteam/cases-widened.js).
 export function agentTemplate(base, { agent, tools, overlay }) {
   const deny = new Set(base.deny_tools);
-  return { ...base, name: agentTemplateName(agent, base.mode), tools: [...new Set(tools.filter((t) => !deny.has(t)))].sort(), overlay: { path: overlay.path, hash: overlay.hash } };
+  const own = [...new Set(tools.filter((t) => !deny.has(t)))].sort();
+  return { ...base, name: agentTemplateName(agent, base.mode), tools: own, overlay: { path: overlay.path, hash: overlay.hash, widened: own.filter((t) => !base.tools.includes(t)) } };
 }
 
 // The templates a trust root holds: one per access mode.

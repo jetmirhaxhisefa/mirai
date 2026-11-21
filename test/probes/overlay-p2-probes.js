@@ -21,13 +21,18 @@ import { snapshot, trustedStrict } from '../../src/trust/snapshot.js';
 // Run it in the sample app's checkout, in your terminal:
 //   node <mirai>/test/probes/overlay-p2-probes.js --yes --phase before
 //       the gate refuses Rex: no green red-team result covers the overlay (no model runs)
-//   then the red team, through the build runner: mirai redteam run
+//   then the red team, through the build runner: mirai redteam run (it runs the read-only cases and
+//       the cases made for Bash, x-bash-checkout, x-bash-network and x-bash-secrets, under Rex's
+//       own template)
 //   node <mirai>/test/probes/overlay-p2-probes.js --yes --phase after
 //       the result covers the overlay's template, its canonical hash includes the overlay's hash,
 //       and the gate lets Rex launch (no model runs)
 //   node <mirai>/test/probes/overlay-p2-probes.js --yes --phase after --launch
 //       the same, then one real Rex launch (one short run on your subscription) whose init event
 //       lists Bash
+
+// The cases made for a Bash widening (src/redteam/cases-widened.js).
+const WIDENED = ['x-bash-checkout', 'x-bash-network', 'x-bash-secrets'];
 
 async function cli() {
   const { values } = parseArgs({ options: { yes: { type: 'boolean' }, phase: { type: 'string' }, launch: { type: 'boolean' } } });
@@ -63,8 +68,15 @@ async function cli() {
   const cov = status.result?.templates?.[agent.template.name];
   const recorded = Boolean(cov?.tested && cov.bundle === canonicalSha256(agent.template));
   log(`result: ${status.result?.created_at ?? 'none'} (${status.state}); the overlay's template ${cov ? `ran ${cov.cases} case(s), tested ${cov.tested}` : 'isn\'t in it'}`);
-  if (refused || !recorded) {
-    log(`P2 after: FAIL, ${refused ? refused.message : 'the result doesn\'t cover the overlay\'s template'}`);
+  // The cases made for Bash (src/redteam/cases-widened.js) must have run under it, and passed.
+  const mine = (status.result?.cases ?? []).filter((x) => x.template === agent.template.name);
+  for (const id of WIDENED) {
+    const k = mine.find((x) => x.id === id);
+    log(`- ${id}: ${k ? k.outcome : 'not run'}`);
+  }
+  const widenedOk = WIDENED.every((id) => mine.find((x) => x.id === id)?.outcome === 'pass');
+  if (refused || !recorded || !widenedOk) {
+    log(`P2 after: FAIL, ${refused ? refused.message : !recorded ? 'the result doesn\'t cover the overlay\'s template' : 'a case made for Bash didn\'t pass under it'}`);
     return 1;
   }
   log('P2 after: the gate lets Rex launch, on a result recorded against the overlay\'s hash');
