@@ -60,9 +60,11 @@ hand.
      Tess proposes it (an urgent bug as `high`), and you set it at approval;
    - **`order`:** within an epic, Tess numbers the tickets: the tracer bullet first, then the one
      she's least sure of;
-   - **the run's pick:** among the ready tickets (their `after` tickets done), the highest
-     priority first, then the epic's order, then the earliest approval. An urgent bug you ask for
-     by hand goes before a feature's ready tickets.
+   - **the run's pick** (Jet, after his second read: "mainly what is blocking each other"):
+     among the ready tickets (their `after` tickets done), first the one that blocks the most
+     other tickets (counted through the whole `after` chain), then the highest priority, then the
+     epic's order, then the earliest approval. So a ticket three others wait for goes first; an
+     urgent bug that blocks nothing goes before every other ticket that blocks nothing.
 6. **Ticket types are the project's** (Q5, "a mix of A and B"; Jet: "Each ticket type should
    have the name and a description how it is used and for what. Imagine in Jira ticket types
    might have different names"):
@@ -119,8 +121,10 @@ hand.
    changed), a new run continues from the documents as they are.
 5. **Priority and order** (decision 5): `priority` (`high`, `normal`, `low`; default `normal`)
    and `order` (a whole number, within the epic) on the story and bug types; the epic's ticket
-   table shows both; `high` is listed under "Decisions for you". The run's pick (the build
-   loop's "next ready ticket") orders by priority, then `order`, then approval time. `mirai show`
+   table shows both, and how many tickets each one blocks; `high` is listed under "Decisions for
+   you". The run's pick (the build loop's "next ready ticket") orders by the number of tickets it
+   blocks (all the tickets whose `after` chain reaches it, not yet done), then priority, then
+   `order`, then approval time. `mirai show`
    lists ready tickets in that order.
 6. **Ticket types** (decisions 6 and 7):
    - **config:** `[[tickets.types]]` (project layer), each with `name`, `description`,
@@ -186,9 +190,10 @@ hand.
 - **T7 Template gap and run record:** a fake output with one gap writes one `template_gap` event;
   the run record holds tier, model, rounds, gaps and outcome.
 - **T8 The docs check** (34b) passes, with `[[tickets.types]]` in `docs/config.md`.
-- **T9 Priority and order:** with three ready tickets (a `normal` epic ticket with `order` 1, a
-  `normal` one with `order` 2, and a `high` lone bug), the run picks the bug, then order 1, then
-  order 2. A `high` ticket missing from "Decisions for you" fails the epic lint.
+- **T9 The run's pick:** with four ready tickets: A (`normal`, `order` 2, blocks two tickets
+  through a chain), B (`normal`, `order` 1, blocks none), C (`normal`, `order` 3, blocks none),
+  and D (a `high` lone bug, blocks none), the run picks A, then D, then B, then C. A done
+  ticket in the chain no longer counts as blocked. A `high` ticket missing from "Decisions for you" fails the epic lint.
 - **T10 Ticket types:** a project with Task (`change`), Bug (`bug`), Spike (`investigation`) and
   Tech Debt (`change`, own template): a Tech Debt ticket lints with its own template and 33's
   story checks; a type with no description, an unknown `runs_as`, and a template missing a
