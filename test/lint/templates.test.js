@@ -40,8 +40,8 @@ function lintDocs(files, repos = ['.', 'api']) {
 }
 const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: text }, repos).map((p) => `${p.line}:${p.column} ${p.code}`);
 
-test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug and plan, templates that match their types, and known checks', () => {
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'epic', 'plan', 'prd', 'story']);
+test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and the five context files, templates that match their types, and known checks', () => {
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'business', 'conventions', 'epic', 'feature-map', 'interview', 'journeys', 'plan', 'prd', 'project', 'story']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);
@@ -53,9 +53,9 @@ test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug and plan, templates th
     assert.deepEqual(h2, def.section_order ?? [...def.required_sections, ...def.optional_sections], name);
     // A template is a valid document of its type where it lives, outside the docs root.
     // A PRD's template links the brief's (unit 32), which sits beside it; an epic's links the
-    // PRD's (unit 33). An epic's template has no tickets, so only the parts that need them fail:
+    // PRD's (unit 33), and a brief's links the interview's (unit 35). An epic's template has no tickets, so only the parts that need them fail:
     // the graph lint, the generated sections and those sections being empty.
-    const beside = { '/registry/templates/brief.md': read('templates/brief.md'), '/registry/templates/prd.md': read('templates/prd.md') };
+    const beside = { '/registry/templates/brief.md': read('templates/brief.md'), '/registry/templates/prd.md': read('templates/prd.md'), '/registry/templates/interview.md': read('templates/interview.md') };
     const problems = lintDocs({ [`/registry/templates/${name}.md`]: template, ...beside }).filter((p) => p.file === `registry/templates/${name}.md`);
     if (name === 'epic') assert.ok(problems.length > 0 && problems.every((p) => /^graph-|^epic-generated$|^empty-section$/.test(p.code)), JSON.stringify(problems.filter((p) => !/^graph-|^epic-generated$|^empty-section$/.test(p.code))));
     else assert.deepEqual(problems, [], `${name} template`);

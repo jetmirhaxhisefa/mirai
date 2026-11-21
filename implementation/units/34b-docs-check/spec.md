@@ -1,7 +1,7 @@
 ---
 unit: "34b"
 name: docs-check
-status: approved (Jet, 2026-11-20: "approve 34b, and add the read"; Jet's interview the same day; built after 34 is merged, before 35 is rebased and built)
+status: done (spec and unit approved by Jet, 2026-11-20: "approve 34b, and add the read" / "approve 34b"; Jet's interview the same day; built after 34 is merged, before 35 is rebased and built)
 roadmap: new, from unit 38's interview (Jet, 2026-11-20: "how will you be sure in the end that all these configs and commands are documented?"; placement "A")
 depends_on: ["34"]
 ---

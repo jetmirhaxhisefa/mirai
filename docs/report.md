@@ -51,6 +51,6 @@ mirai feedback SAMPLE-4 "Kai's first plan missed the 404 case"
 
 Your words on how the work with an agent went, one line, up to 2,000 characters. It goes in the ticket's journal and shows in `mirai show` (`Feedback`) and in the report. It's kept as structured data (the retention rule's "kept" class) for the evaluation after the MVP.
 
-- From your terminal it's signed with your key (it needs a real terminal, like `approve`).
+- From your terminal it's MIRAI's line, unsigned since unit 29b: it isn't a decision. It needs a real terminal, like `approve`.
 - From your session, `/mirai feedback SAMPLE-4 "…"` writes it through MIRAI's `log_event` tool, marked as your session's; the report says "from your session".
 - Agents can never write it.

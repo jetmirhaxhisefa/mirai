@@ -9,7 +9,8 @@ import { openStore } from '../../store/home.js';
 import { snapshot, trustedConfig } from '../../trust/snapshot.js';
 import { readFrontmatter } from '../../lint/frontmatter.js';
 import { plain } from '../../status/text.js';
-import { documentApproval, epicApproval } from './approve.js';
+import { briefFiles, contextApproval, documentApproval, epicApproval } from './approve.js';
+import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js';
 import { readTicketFolder } from '../../lint/lint.js';
 import { ticketsOf } from '../../lint/graph.js';
 
@@ -18,11 +19,12 @@ import { ticketsOf } from '../../lint/graph.js';
 // it's parked. Read-only, so it's safe from your session too (/mirai show).
 // mirai show <initiative> (unit 32, Scope 8; Jet's decision 8): the documents in
 // <docs_root>/<initiative>/, each with its type, id, approval state and full path, so you can
-// open it with one click. Also read-only: no store write.
+// open it with one click (unit 35: an interview with its own state instead). Also read-only: no
+// store write.
 export default {
   name: 'show',
   summary: 'Print one ticket\'s page (plan, build, reviews, MR, rounds, usage, parking), or one initiative\'s documents',
-  usage: 'mirai show <ticket> [--full | --json] | mirai show <initiative> [--docs]',
+  usage: 'mirai show <ticket> [--full | --json] | mirai show <initiative> [--docs] | mirai show context',
   positionals: { min: 1, max: 1 },
   options: {
     full: { type: 'boolean', description: 'every finding\'s text, the plan, and the parking note whole' },
@@ -32,6 +34,11 @@ export default {
   async run(args, io) {
     const [name] = args.positionals;
     checkTicketArg(name);
+    // Unit 36: the context files in .mirai/context/, each with its state and full path.
+    if (name === 'context' && !args.values.full && !args.values.json && !args.values.docs) {
+      io.stdout.write(contextText(contextOf({ cwd: io.cwd, env: io.env })));
+      return EXIT.OK;
+    }
     if (args.values.full && args.values.json) throw new UsageError('--full and --json don\'t go together', 'pick one');
     const initiative = initiativeOf({ cwd: io.cwd, env: io.env, name });
     if (args.values.docs) {
@@ -106,10 +113,12 @@ function initiativeOf({ cwd, env, name }) {
           }
         }
       }
-      const a = !id || !bytes ? { approved: false, stale: false } : tickets ? epicApproval(store, id, bytes, tickets) : documentApproval(store, id, bytes);
+      const a = !id || !bytes ? { approved: false, stale: false } : tickets ? epicApproval(store, id, bytes, tickets) : documentApproval(store, id, bytes, value.type === 'brief' ? briefFiles(store.checkout, rel, bytes) : undefined);
+      // Unit 35: an interview isn't approved; its state (open, paused, confirmed) is its own.
+      const interview = value.type === 'interview';
       docs.push({
         file, type: typeof value.type === 'string' ? value.type : null, id, track: typeof value.track === 'string' ? value.track : null,
-        state: bytes === null ? 'unreadable' : a.approved ? 'approved' : a.stale ? 'changed since approval' : 'not approved',
+        state: bytes === null ? 'unreadable' : interview ? (typeof value.state === 'string' ? value.state : 'no state') : a.approved ? 'approved' : a.stale ? 'changed since approval' : 'not approved',
         path: join(dir, file),
         ...(tickets ? { tickets: tickets.length } : {}),
       });
@@ -130,5 +139,58 @@ function initiativeText({ name, docs, shown }) {
   for (const d of rows) {
     out.push(`  ${plain(d.file).padEnd(w('file'))}   ${plain(d.type ?? '—').padEnd(w('type'))}   ${plain(d.id ?? '—').padEnd(w('id'))}   ${d.state.padEnd(22)}   ${plain(d.path)}`);
   }
+  return `${out.join('\n')}\n`;
+}
+
+// ---- The context files (unit 36, Scope 4) --------------------------------------------------
+
+// The five kinds of context file, as they are in .mirai/context/: [{ file, type, id, state, path }].
+// business.md, journeys.md and each conventions file are approved (approved, changed since
+// approval, not approved); the feature map and each project file are "checked, not approved"
+// (the lint checks them against the code). A kind with no file shows as missing.
+export function contextOf({ cwd, env }) {
+  const store = openStore({ cwd, env });
+  const dir = join(store.checkout, CONTEXT_DIR);
+  let names = [];
+  try {
+    if (lstatSync(dir).isDirectory()) names = readdirSync(dir).sort();
+  } catch {
+    names = [];
+  }
+  const files = names.map((n) => ({ name: n, kind: contextKindOf(n) })).filter((f) => f.kind);
+  const rows = [];
+  for (const k of CONTEXT_KINDS) {
+    const mine = files.filter((f) => f.kind.type === k.type);
+    if (!mine.length) {
+      rows.push({ file: k.file, type: k.type, id: null, state: 'missing', path: join(dir, k.file) });
+      continue;
+    }
+    for (const f of mine) {
+      const rel = `${CONTEXT_DIR}/${f.name}`;
+      let bytes = null;
+      let value = {};
+      try {
+        bytes = readApprovedFile(store.checkout, store.checkout, rel).bytes;
+        value = readFrontmatter(bytes)?.value ?? {};
+      } catch {
+        value = {};
+      }
+      let state;
+      if (bytes === null) state = 'unreadable';
+      else if (!k.approved) state = 'checked, not approved';
+      else {
+        const a = contextApproval(store, rel, bytes);
+        state = a.approved ? 'approved' : a.stale ? 'changed since approval' : 'not approved';
+      }
+      rows.push({ file: f.name, type: k.type, id: typeof value.id === 'string' ? value.id : null, state, path: join(dir, f.name) });
+    }
+  }
+  return { dir, rows };
+}
+
+function contextText({ dir, rows }) {
+  const out = [`context   ${plain(dir)}`];
+  const w = (k) => Math.max(...rows.map((r) => plain(String(r[k] ?? '—')).length));
+  for (const r of rows) out.push(`  ${plain(r.file).padEnd(w('file'))}   ${plain(r.type).padEnd(w('type'))}   ${plain(r.id ?? '—').padEnd(w('id'))}   ${r.state.padEnd(22)}   ${plain(r.path)}`);
   return `${out.join('\n')}\n`;
 }

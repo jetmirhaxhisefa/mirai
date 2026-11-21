@@ -19,7 +19,7 @@ The next step is read from the ticket every time, never remembered. So running `
 | `in-progress`, plan approved, no build yet | records the baseline if `main` moved, then builds (with red rows: red, MIRAI's red check, then green; see [tdd.md](tdd.md)) |
 | `in-progress` after failing checks or review changes | fix rounds |
 | `in-review`, no passed review of this code | Rex reviews |
-| `in-review`, review passed | signs the proofs (your terminal), or stops (your session) |
+| `in-review`, review passed | signs the proofs, or stops (your session, with no machine key) |
 | `in-review`, proofs valid at the head | ships: pushes and opens the MR |
 | `built` (an MR with valid proofs at its head) | nothing: prints the MR |
 | `blocked` | stops with the parking note and `mirai unpark <ticket> --retry` |
@@ -38,7 +38,7 @@ approval, before the build: one MIRAI commit with the manifest and lock, and the
 
 Each stop ends with one line saying what to do next, ending in the exact command:
 
-- **A gate:** the plan approval; or, from your session, the proofs.
+- **A gate:** the plan approval; or, from your session with no machine key, the proofs.
 - **A park** (the loop guard, a bad plan): the reason, then `mirai unpark <ticket> --retry` (a disputed finding: `--accept <finding-id>`).
 - **Needs you:** a protected path, a step MIRAI couldn't judge, a failing gate.
 - **The baseline:** a new known failure on the integration branch (`baseline-grew`) or an incomplete baseline. A test that was flaky before and passed first time is carried over, not new.
@@ -74,7 +74,7 @@ Your Mac doesn't sleep during a run: MIRAI runs `caffeinate`, which ends with th
 
 ## From your session
 
-`/mirai run SAMPLE-1`, `/mirai resume` and `/mirai show SAMPLE-1` work in your Claude Code session too. From the session, the run stops before the proofs: your key signs them in your terminal only, until row 29b. The stop says:
+`/mirai run SAMPLE-1`, `/mirai resume` and `/mirai show SAMPLE-1` work in your Claude Code session too. From the session, the run stops before the proofs, unless the machine key is set up (`mirai key new --machine`, unit 29b). Without it, your key signs them in your terminal only. The stop says:
 
 ```
 in your terminal: mirai gate record SAMPLE-1; then /mirai run SAMPLE-1
@@ -102,9 +102,10 @@ Plan       round 1, approved by you 2026-11-12 10:41 (k-eea7…)
 Build      handed-over 2026-11-12 10:58 · tests: unit pass, feature pass
 Review 1   PASS · 1 follow-up
 MR         open https://…/pull/7
-Rounds     0 of 2 used · re-plans 0 of 1
+Rounds     0 of 2 used · re-plans 0 of 1 · no parks
 Usage      41 turns · 1.2 M tokens · 19 min
 Parked     —
+Feedback   —
 QA         not yet (unit 51)
 ```
 

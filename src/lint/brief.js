@@ -1,5 +1,7 @@
 import { tableIn } from './checks.js';
 import { clip } from './summary.js';
+import { checkDocument, linkLinesOf } from './rules.js';
+import { listed, openQuestions } from './interview.js';
 
 // The business brief's own lint (unit 31; research/13 §9b, Jet's decision 2): Lenny's 1-pager
 // plus Shape Up's appetite, no-gos and rabbit holes. What the generic rules can't say:
@@ -9,7 +11,10 @@ import { clip } from './summary.js';
 // - a business requirement is an outcome: one naming a screen, button, field, endpoint or API is
 //   a solution, so it warns;
 // - "Appetite and track" names the frontmatter's track;
-// - at approval, no open question is left (ctx.approving).
+// - at approval, no open question is left (ctx.approving);
+// - unit 35: an interview.md beside the brief is linked in the "Interview:" line, and a linked
+//   interview lints clean (it is confirmed), so a brief can't be approved while its interview
+//   has an open question.
 export const TRACKS = Object.freeze(['quick', 'standard', 'full']);
 const SOLUTION_WORDS = /\b(screens?|buttons?|fields?|endpoints?|APIs?|modals?|dropdowns?|checkbox(?:es)?|database tables?)\b/i;
 const NUMBERED = ['BR', 'SM', 'NG', 'R', 'Q'];
@@ -80,4 +85,38 @@ export function checkBrief(doc, def, ctx, add) {
     const q = open?.lines.find((l) => l.kind === 'text' && /^ *[-*+] (?:\*\*)?Q-[0-9]+/.test(l.text));
     if (q) add({ code: 'brief-open-question', line: q.line, column: 1, reason: 'a brief with an open question can\'t be approved', hint: 'answer it in the detail (or decide it under "Decisions for you"), then remove it' });
   }
+
+  checkInterviewLink(doc, def, ctx, add);
+}
+
+// The interview the brief came from (unit 35, Scope 4). Linted alone (no file around it), an
+// unlinked interview.md can't be seen and a linked one can't be read: then nothing is checked.
+function checkInterviewLink(doc, def, ctx, add) {
+  if (!ctx.readDocument) return;
+  const title = doc.scan.headings.find((h) => h.level === 1);
+  const own = linkLinesOf(doc.scan, def).find((l) => l.link.label === 'Interview');
+  const at = { line: own?.line ?? title?.line ?? doc.bodyLine, column: 1 };
+  if (!own) {
+    const beside = ctx.readDocument('interview.md');
+    if (['missing', 'unavailable', 'outside'].includes(beside.problem)) return;
+    add({ code: 'brief-interview', ...at, reason: 'interview.md beside the brief isn\'t linked', hint: 'add "Interview: [<its title>](interview.md)" right under the # title: the brief cites the interview it came from' });
+    return;
+  }
+  const target = own.targets[0].split('#')[0];
+  const found = ctx.readDocument(target);
+  if (found.problem === 'unreadable') add({ code: 'brief-interview', ...at, reason: `the linked interview ${target} can't be read`, hint: 'check that it is a MIRAI interview with frontmatter' });
+  if (found.problem) return; // missing or outside: the link rules say so
+  const idef = ctx.registry?.documentTypes?.interview;
+  if (found.value.type !== 'interview' || !idef) {
+    add({ code: 'brief-interview', ...at, reason: `${target} is not an interview`, hint: 'link the interview.md the brief came from, or remove the "Interview:" line' });
+    return;
+  }
+  const errors = checkDocument(found, idef, { registry: ctx.registry, project: ctx.project, linkTarget: () => ({ slugs: null }), readDocument: () => ({ problem: 'unavailable' }) }).filter((p) => p.severity === 'error');
+  if (!errors.length) return;
+  const open = openQuestions(found);
+  add({
+    code: 'brief-interview', ...at,
+    reason: open.length ? `the interview ${target} has open questions: ${listed(open)}` : `the interview ${target} isn't confirmed: ${errors[0].reason}`,
+    hint: open.length ? 'answer them in your session, then run mirai lint' : `run mirai lint on ${target} and fix what it reports`,
+  });
 }

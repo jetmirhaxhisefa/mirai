@@ -3,6 +3,8 @@ import { checkWriting } from './writing.js';
 import { checkBrief } from './brief.js';
 import { checkPrd } from './prd.js';
 import { checkEpic } from './epic.js';
+import { checkInterview } from './interview.js';
+import { checkBusiness, checkConventions, checkFeatureMap, checkJourneys, checkProject } from './context.js';
 import { DEPENDENCY_KINDS, installData, parseDependency } from '../agent/dependency-rows.js';
 
 // Built-in checks a document type switches on by name (`lint_checks = ["ticket"]`, unit 08a).
@@ -147,6 +149,14 @@ export const CHECKS = Object.freeze({
   prd: (...a) => checkPrd(...a),
   // Unit 33: the epic, with the ticket graph lint.
   epic: (...a) => checkEpic(...a),
+  // Unit 35: the interview, the record beside the brief.
+  interview: (...a) => checkInterview(...a),
+  // Unit 36: the five context files in .mirai/context/.
+  business: (...a) => checkBusiness(...a),
+  journeys: (...a) => checkJourneys(...a),
+  'feature-map': (...a) => checkFeatureMap(...a),
+  project: (...a) => checkProject(...a),
+  conventions: (...a) => checkConventions(...a),
   // A ticket (story or bug): its repo is one of the config's repos (D-42); it doesn't wait
   // for itself or name a prerequisite twice; under a tickets/ folder its file is <id>.md
   // (design/03, the repo layout).

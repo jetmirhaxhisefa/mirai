@@ -88,7 +88,7 @@ branch. Neither the branch the agent works on nor your own Claude settings can l
 The sandbox covers every command an agent runs. Claude Code's own file tools (Read, Edit,
 Write, Grep, Glob) run outside it, and Claude Code's rules for them match file **names**. So
 MIRAI adds a second check, a **hook**: a small MIRAI program Claude Code runs before every file
-tool call. It looks at the file on disk, not just the name it's given, and refuses:
+tool call. It looks at the file on disk, not only the name it's given, and refuses:
 - **any path that isn't a plain absolute path** (one starting with `~`, a space, or using `..`),
   rather than guessing how Claude Code reads it;
 - **anything outside the project,** after following symlinks and ignoring letter case (as
@@ -161,6 +161,28 @@ It prints:
 may write is MIRAI's trust-root snapshot, if there isn't one yet: the same cached copy every
 launch builds, kept outside the project.
 
+### Protected paths: `mirai protected`
+
+Some files can change MIRAI's rules, hide code from review, or run by themselves. A change that
+touches one is forced to high risk (unit 12):
+- **`protected`:** high risk. The ticket parks for you only when its plan didn't declare the path.
+- **`auto-run`:** runs by itself when you open or install the branch (`.vscode/`, `.husky/`, install
+  scripts). High risk, and it always parks, in both presets.
+
+**Where the rules come from:** `registry/protected-paths/`. The core is always on. Ecosystem packs
+(`node`, `php`, `python` and others) are on when `[gate] packs` lists them. `[gate] protected` adds
+the project's own, and `[testing] e2e_paths` adds the E2E tests. A project can't remove a core rule.
+All of them are read from the trust root, so a branch can't loosen them.
+
+```
+mirai protected                     # your work tree, against the integration branch's commit
+mirai protected main..my-branch     # a branch, from where it left main (.. and ... mean the same)
+```
+
+It prints each protected path the change touches, with its class and rule, then `risk: high`.
+Ignored files under protected paths are listed apart: they aren't part of any branch. It changes
+nothing, apart from the trust-root snapshot every launch builds.
+
 ## Your own Claude Code sessions in a MIRAI project
 
 Your interactive sessions don't run in the strict bundle: you're there, approving what they
@@ -182,7 +204,7 @@ git).
 
 ### MIRAI's tools in your sessions (unit 15b)
 
-Your sessions can use the same MCP server agents use, with four tools: `lint` (MIRAI's document
+Your sessions can use the same MCP server agents use. Its tools for checks and notes: `lint` (MIRAI's document
 checks), `log_event` (a note or a template gap in the journal), and `run_tests` and `run_check`
 (the project's tests and checks in their containers). Workflow skills call these, so a skill works
 the same in your session and in an agent run. Since unit 19c this server is also how a skill starts an agent, so the skill never handles the launch token.
@@ -191,13 +213,14 @@ the same in your session and in an agent run. Since unit 19c this server is also
 server with Claude Code's own CLI at **local scope**: in your Claude Code config, for this project
 folder only, never in the repo. MIRAI never edits Claude Code's files itself, and never replaces
 or removes a server named `mirai` that it didn't register.
-- **The allow rules** for the four tools go into your `.claude/settings.local.json` (yours, and
+- **The allow rules** for its tools (all but `start_agent` and `mirai_command`, which ask you each time) go into your `.claude/settings.local.json` (yours, and
   only if git ignores it, so they're never shared). Not into the committed settings: there they'd
   also let a look-alike `mirai` server from a branch's `.mcp.json` run its tools without asking,
   for a teammate who never registered.
 - **Keeping it current:** `mirai render`, run in your terminal, registers it again only when it's
   behind the integration branch. It never registers a project that hasn't been, so `remove` lasts.
   `mirai session-server status` says where it stands.
+- **Taking it out:** `mirai session-server remove` removes the registration and the rules install added.
 - **A moved project folder** loses the entry (it's keyed by the folder's path): run install again.
 - **A failed or impossible install** (no `claude` on your PATH) leaves the registration that's
   running alone: each policy file is named by its own hash, and its trust root is kept.
@@ -206,7 +229,7 @@ or removes a server named `mirai` that it didn't register.
 - **The rules come from the integration branch.** The server runs from the trust root it was
   registered with, hashed again on every call; `lint` uses that trust root's document rules and
   config, never the work tree's, so a branch can't loosen them.
-- **Its environment is empty** (`/usr/bin/env -i`), as for agent runs.
+- **Its environment is empty** but for `HOME` and `PATH=/usr/bin:/bin` (`/usr/bin/env -i`), as for agent runs.
 - **A committed `.mcp.json` can't take its place.** A local-scope server wins over a project one
   of the same name, even with `enableAllProjectMcpServers` (probed). `.mcp.json` and `.claude/` are
   also auto-run paths: agents can't write them, and a branch that changes them is high risk.
@@ -242,7 +265,7 @@ With `mirai session-server install`, your session's MIRAI server also offers:
 
 **Session run ids:** a start and an end line in the run log, not a run like `mirai run`'s. One session is open per repo at a time, across your windows and your terminal: a second `session_start` closes the first, and says so to the second. Your notes keep their registration id, not the session's run id; reports match them by time (units 29, 56).
 
-**The one-time launch token (D-12's recursion guard).** Every launch needs one, from your terminal (after its terminal check), from MIRAI's server (one per `start_agent`, sent to its worker down a pipe, only its hash kept, used once by the worker), or from the orchestrator later. Every way to launch spends one, `launchInRun` included.
+**The one-time launch token (D-12's recursion guard).** Every launch needs one, from your terminal (after its terminal check), from MIRAI's server (one per `start_agent`, sent to its worker down a pipe, only its hash kept, used once by the worker), or from the orchestrator (`mirai run`, unit 28). Every way to launch spends one, `launchInRun` included.
 - **What it stops:** a sandboxed agent, which has no `start_agent` and can't reach the store, and any MIRAI code that would launch without going through one of those three.
 - **What it doesn't:** anything running as you without a sandbox. That's your own session, which could read the store or drive `mirai agent run` through `script`, and a branch's hook or look-alike `mirai` server (18e), which could write a request and start the worker itself. If you haven't registered MIRAI's server, a look-alike could also answer a skill's `start_agent` and `agent_status` with made-up results, so skills check the registration first (unit 21).
 
@@ -269,9 +292,8 @@ taken away it gets through.
   secret shapes, your token and terminal or bidi text, and stops at exactly 200 lines a day across two sessions; a
   trust root tampered with mid-session, or a policy edited under its old hash, is refused.
 - A local registration beats a branch's look-alike `mirai` server. Deny rules in your git-ignored
-  `settings.local.json`, or your user-level settings, survive a branch that removes the committed ones. **MIRAI
-  doesn't put them there for you yet.** Until it does, you can add the two `~/.config/mirai` and store denies to
-  your user-level Claude Code settings by hand.
+  `settings.local.json`, or your user-level settings, survive a branch that removes the committed ones. Since unit 29b, `mirai key new`, `key protect`
+  and `token set` add the `~/.config/mirai` and MIRAI-home denies to your user-level Claude Code settings.
 
 **Known limits: these got through.**
 - **A session can read your signing key and login token.** `sh -c`, `bash -c`, `cat $(echo …)` and `perl` read a
@@ -481,7 +503,7 @@ A headless agent run gets **MIRAI's MCP server** with two tools for tests:
 
 Each one runs the steps above and returns the result in its reply. The server's only other tool
 is `log_event` (see "How agents talk to MIRAI" below), and it gives no shell or Docker access. Claude Code starts the server itself, outside the
-sandbox, with an empty environment, as with the hook (so `NODE_OPTIONS` and the like never reach
+sandbox, with an empty environment but for `HOME` and a fixed `PATH`, as with the hook (so `NODE_OPTIONS` and the like never reach
 it). The server's code comes from the trust root, so a branch can't change it.
 
 **What the agent can pass:**
@@ -635,6 +657,8 @@ checks, and later units add tools to the table rather than new ways in.
   list, so an agent can't write them.
 - **The line says it's the agent's:** `by: "agent"` and the launch it came from. Your own
   `mirai log` lines say `by: "unverified"`, and your signed lines `by: "human"`.
+  From your terminal: `mirai log note --message <text>` and
+  `mirai log template_gap --message <text> --template <t> --section <s>`.
 - **The agent doesn't choose the ticket.** The line is filed under the launch's own item, which
   MIRAI sets; an `item` argument is refused.
 - **Plain text only:** no control characters but newlines and tabs, no bidi overrides, nothing
@@ -649,7 +673,7 @@ checks, and later units add tools to the table rather than new ways in.
   journal is busy, the call waits two seconds at most (the server answers nothing while it
   waits) and then says `journal-busy`.
 - **Which tools a server may offer** is in the table too: each tool names the kinds of server it
-  may be in, and every tool so far is for agent runs only. A policy that offers a tool outside
+  may be in: an agent run's, your session's, or both. A policy that offers a tool outside
   its kind stops the server at start (D-53: an agent run never gets `start_agent`, unit 19).
 
 **The input folder:** what an agent is given to read for one run (its plan, the findings of
@@ -680,15 +704,13 @@ home. That's by design: those paths are denied anyway. Error messages still show
 `<store>`, `<trust root>` and `<mirai home>`, which keeps replies short and free of your user
 name.
 
-**What isn't here yet:**
-- **launching agents and session runs** (`start_agent`, `agent_status`, `session_start` and
-  `session_end`): unit 19, with `mirai agent run`;
-- **`trace`:** unit 43.
+**What isn't here yet:** `trace` (unit 43). Launching agents and session runs (`start_agent`,
+`agent_status`, `session_start` and `session_end`) came with unit 19c, on your session's server only.
 
 ## MIRAI's own git
 
 MIRAI runs git on your Mac for almost every command: `status`, `lint`, `trust`, `protected`,
-and later the commits. Those calls run outside every sandbox, with your user's rights. A repo's
+and the commits. Those calls run outside every sandbox, with your user's rights. A repo's
 own config can make git run programs: a filter on every file it reads, a diff driver, a hook.
 So whatever is in `.git/config` would run under MIRAI too. Since unit 14b, three things stop that.
 
@@ -697,7 +719,7 @@ So whatever is in `.git/config` would run under MIRAI too. Since unit 14b, three
   it. MIRAI finds the project's top folder itself, without asking git;
 - without your global `~/.gitconfig` and without the system one;
 - with an empty `HOME` (`/var/empty`, which macOS keeps empty and only root can write; where
-  it doesn't exist, as on some Linux systems, git simply has no home folder to read);
+  it doesn't exist, as on some Linux systems, git has no home folder to read);
 - with hooks off (`core.hooksPath=/dev/null`);
 - with ssh, credential helpers, askpass, proxies, pagers, editors and signing programs switched
   off;
@@ -729,8 +751,8 @@ only how MIRAI calls it.
   A credential inside a key (a token in a `url.<base>.insteadOf` URL) is shown as `<redacted>`.
   Your own git runs that key too. If you didn't add it, remove it with the `git config --unset-all`
   command the message names.
-- **Any other key is refused until you allow it.** This covers a `difftool`, an IDE's own
-  section and so on. If you trust the key, allow it on your machine in
+- **Any other key is refused until you allow it.** This covers a `difftool` or an IDE's own
+  section, for example. If you trust the key, allow it on your machine in
   `~/.config/mirai/config.toml`:
   ```toml
   [git]
@@ -770,14 +792,14 @@ launch ends. A change stops the run and names what changed (`config`, `hooks`, `
   branches (your editor's background fetch) change nothing in the hash.
 - **A commit or branch switch of yours in that checkout does count:** during a run, the
   checkout is MIRAI's.
-- **Not live yet:** the launch code holds the fingerprint (`prepareLaunch` / `finishLaunch`), but
-  MIRAI's launcher, which calls them, comes with units 15 and 19. Until then the checks in 1 and
-  2 run on every command, and the fingerprint is tested but not yet in use.
+- **Live since unit 19:** every agent launch takes the fingerprint and checks it at the end
+  (`prepareLaunch` / `finishLaunch`). The checks in 1 and 2 run on every command.
 
 **Your global excludes file still applies.** MIRAI reads the path of your global excludes
 (`core.excludesFile`, or `~/.config/git/ignore`) and passes it in, so files only it ignores
 (`.DS_Store`, IDE folders) stay ignored. An excludes file inside the project isn't used.
-`mirai trust check` shows which git MIRAI uses and which excludes file it honours.
+`mirai trust check` shows which git MIRAI uses and which excludes file it honours. `mirai trust snapshot`
+builds the trust root for the integration branch's commit (MIRAI does this itself before every step).
 
 **How it was tested.** `test/probes/git-probes.js --mirai` runs every git call MIRAI makes
 against 38 hostile repos from unit 14a, each with one key planted whose program only writes a
@@ -931,8 +953,8 @@ bypass nobody is approving, so that's all that stands there. Unit 18e tried the 
 - **What your session can start:** the commands that aren't gates (`status`, `plan`, `build`, `fix`, `baseline`, `redteam run` and the like), through MIRAI's server (`mirai_command`), never by calling `mirai` itself (R3-C3).
   - **Claude Code asks you before each one.** The tool has no allow rule, `session-server install` adds an `ask` rule for it and for `start_agent` in your git-ignored `.claude/settings.local.json` (ask beats allow, so a "don't ask again" can't silence them; when it can't write that file, it says so), and the `/mirai` command file pre-approves only reading a status. The model can't start `/mirai` by itself (`disable-model-invocation`).
   - **The red team** first answers with its rough cost and a one-time code, tied to `--kept` or not, and runs only when that code comes back. The protection is Claude Code's prompt on that second call; the code only makes sure the cost was given out first.
-- **How a command runs:** the server makes a request in MIRAI's store, and a detached worker from the trust root runs `mirai <command>` with that request named. `plan`, `build`, `fix` and `redteam run` accept the request in place of a terminal only when the store confirms it: the worker's own record, written before the command starts, says it's their parent and names that very command, and the request is still running. **This stops agents, not programs running as you.** Agents can't write the store or run `mirai`. Your own session's Bash, or any program running as you, could write such a record, as it could already drive a terminal with `script` (18e).
-- **The gates never run through `/mirai`.** Approvals, `discard`, `unpark`, accepting a blocker, your key and your token need your key and your typed confirmation in a terminal, so the model in your session can't approve its own plan through `/mirai`, even if a file it read told it to. Until row 29b, a session's Bash still could, as 18e found.
+- **How a command runs:** the server makes a request in MIRAI's store, and a detached worker from the trust root runs `mirai <command>` with that request named. `plan`, `build`, `fix`, `review`, `run`, `resume` and `redteam run` accept the request in place of a terminal only when the store confirms it: the worker's own record, written before the command starts, says it's their parent and names that very command, and the request is still running. **This stops agents, not programs running as you.** Agents can't write the store or run `mirai`. Your own session's Bash, or any program running as you, could write such a record, as it could already drive a terminal with `script` (18e).
+- **The gates never run through `/mirai`.** Approvals, `drop`, `discard`, `unpark`, `gate record`, `merge`, accepting a blocker, your key, your token and `session-server` need your key and your typed confirmation in a terminal, so the model in your session can't approve its own plan through `/mirai`, even if a file it read told it to. Until row 29b, a session's Bash still could, as 18e found.
 - **What comes back:** MIRAI's output and its lines as it prints them: 21e's filtered progress lines, and MIRAI's own report, which can quote an agent's handover. The login token is taken out of both. The command file tells your session to treat all of it as data, never instructions.
 - **A branch can change `/mirai`.** `.claude/commands/mirai.md` is in your work tree, so a branch can edit it, and your session loads it when it's checked out. `mirai status` warns when it isn't the file MIRAI renders; `mirai render` puts it back.
 
@@ -954,20 +976,20 @@ program running as you, could swap the copy between MIRAI's hash check and the l
 mirai agent run --role <role> --prompt-file <file> [--step <step>] [--risk high] [--size L] [--tier <tier>] [--verifies <launch id>] [--item <id>] [--max-turns <n>]
 ```
 
-In your terminal, in this checkout, using your subscription. Skills will reach it through MIRAI's server later (unit 19c). Which model runs, and what each role may change, is in `docs/model-tiers.md` (unit 19b): a change outside the role refuses the run.
+In your terminal, in this checkout, using your subscription. Skills reach it through MIRAI's server (`start_agent`, unit 19c). Which model runs, and what each role may change, is in `docs/model-tiers.md` (unit 19b): a change outside the role refuses the run.
 
 **It refuses to start unless:**
 - the red team is **green** for that template, on exactly what's installed now. Any change to what it covers (Claude Code, MIRAI's cage, Docker, your project's rule files and test setup) makes the result stale, and you run it again (MIRAI outside the cage doesn't: unit 18f);
-- a **blocker** ever seen on this Claude Code and macOS has your decision: a later green doesn't clear one by itself. Read it (`mirai redteam show <key>`), and if you accept it, `mirai redteam accept-blocker <key> --note <why>`, signed;
+- a **blocker** ever seen on this Claude Code and macOS has your decision: a later green doesn't clear one by itself. Read it (`mirai redteam show <id>`), and if you accept it, `mirai redteam accept-blocker <id> --note <why>`, signed;
 - your **tree is clean**, so what the agent changes in tracked and new files shows in `git status` (ignored files don't);
 - no other MIRAI run is going, in any project; and the trust root still hashes as it should.
 
-A green result is only as good as your signing key: your own session could read the key and forge one ("What holds in your sessions"). So watch each run until roadmap row 29b is done.
+A green result is only as good as your signing key: while it's unlocked, your own session could read it and forge one ("What holds in your sessions", unit 29b).
 
 **While it runs:**
 - It starts the exact binary the red team tested, with auto-update off, so a night's update can't change it.
 - The token goes down a pipe at fd 3, and is closed. Bash can't read it there (probed).
-- Every init event is checked against what MIRAI launched, the model included, and any difference ends the run. So does silence for two minutes.
+- Every init event is checked against what MIRAI launched, the model included, and any difference ends the run. So does no init event within two minutes.
 - The agent is told to send long output to a file in `$TMPDIR` and page it with Bash. Long output is otherwise cut to a preview, and the hook refuses a Read of the saved copy. An agent found the true last line of a 60,000-line output this way (probed).
 
 **When it ends,** by itself, by its time limit or by your Ctrl-C (a second Ctrl-C skips the wait for cleanup):
@@ -975,7 +997,7 @@ A green result is only as good as your signing key: your own session could read 
 - **A new orphan working in your checkout is named and left alone,** and the run isn't ok: it may be the agent's, or something of yours started in the project during the run, such as a dev server or a git daemon. Any other new orphan is only listed, since it may be yours, leaving out programs under system folders, `/Library` and `/Applications`.
 - A process of the agent's that outlives this, or a `ps` that fails, means the run isn't ok.
 - `.git` is compared with before; a change fails the run.
-- One line goes in the run log: model, turns, tokens, minutes, the outcome, what outlived it, the launch's hashes and the token's fingerprint. Usage share is "unknown" until unit 20. The whole stream, with the token removed, stays in the store (`agent-runs/`, last 50).
+- One line goes in the run log: model, turns, tokens, minutes, the outcome, what outlived it, the launch's hashes and the token's fingerprint. Its usage share is measured from Claude Code's usage readings (unit 20), or "unknown" without them. The whole stream, with the token removed, stays in the store (`agent-runs/`, last 50).
 - **A run is ok only with a checked start and a real success result.** No init event, a different one, any action before it, no result, or an error result is not ok. A verdict file an agent wrote means nothing. Unit 19a doesn't read verdicts at all: structured verdicts come with the reviewers.
 - An ok run ends `finished`; any other ends `stopped`.
 
@@ -1004,7 +1026,3 @@ The one place MIRAI gives Docker network for a ticket's packages, and what it ca
   install line turns scripts off. Test runs then use it with no network, as always.
 - **From a session**, npm reaches no registry (red-team case `install-npm`), and the manifest and
   lock are protected paths Kai can't change unnoticed.
-
-## Coming next
-
-- **Units 19b and 19c:** write scope, depth guard, tiers and the verifier ladder; then the broker's way in, and sessions.
