@@ -19,3 +19,38 @@ document_words = 1000
 document_warn_words = 800
 uncounted_sections = ["Sources"]
 lint_checks = ["writing", "business"]
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "What the product does"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Who it's for"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Business model and goals"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "What this repo is responsible for"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Business rules"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Glossary"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Constraints"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Sources"
+read_by = ["lint"]

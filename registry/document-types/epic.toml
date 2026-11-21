@@ -69,3 +69,70 @@ pattern = "AC-(NFR-[0-9]+)\\.[0-9]+"
 defined_by = "bullet"
 parent = "NFR"
 upstream = "cite"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Summary for approval"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "The ask"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Why"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "What changes"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Decisions for you"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "Not in this"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "Release"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Not in this epic"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Tickets"
+read_by = ["lint", "epic-render", "approval"]
+
+[[protected_sections]]
+name = "Dependencies"
+read_by = ["lint", "epic-render", "graph-lint"]
+
+[[protected_sections]]
+name = "Coverage"
+read_by = ["lint", "epic-render", "epic-coverage"]
+
+[[protected_sections]]
+name = "Design decisions"
+read_by = ["lint", "epic-render"]
+
+[[protected_fields]]
+name = "track"
+read_by = ["gate", "approval", "reader-test"]
+
+[[protected_fields]]
+name = "release"
+read_by = ["lint"]
+
+[[protected_fields]]
+link = "PRD"
+read_by = ["approval", "lint", "epic-coverage", "epic-render"]
+
+[[protected_fields]]
+link = "Design"
+read_by = ["lint"]

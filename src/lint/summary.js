@@ -1,4 +1,4 @@
-import { SUMMARY_SECTION } from '../config/registry.js';
+import { SUMMARY_PARTS, SUMMARY_SECTION } from '../config/registry.js';
 import { linkLinesOf } from './rules.js';
 
 // The summary for approval (unit 31; PM-03, research/13 §9a): the same five parts at the top of
@@ -10,7 +10,7 @@ import { linkLinesOf } from './rules.js';
 // doesn't define is the generic ID rule's `unknown-id` (rules.js). Numbers only warn (Jet's
 // decision 3, 2026-11-19), until they've been seen on real documents.
 
-export const SUMMARY_PARTS = Object.freeze(['The ask', 'Why', 'What changes', 'Decisions for you', 'Not in this']);
+export { SUMMARY_PARTS };
 export const ASK_WORDS = 30;
 const ASK_START = /^(Approve|Decide|Note)\b/;
 const ID_TOKEN = /\b[A-Z][A-Z0-9]{0,15}-[0-9][0-9A-Za-z.-]*\b/g;

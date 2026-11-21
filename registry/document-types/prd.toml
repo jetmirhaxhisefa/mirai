@@ -138,3 +138,106 @@ prefix = "A"
 pattern = "A-[0-9]+"
 defined_by = "bullet"
 section = "Assumptions"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Summary for approval"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "The ask"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Why"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "What changes"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Decisions for you"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "Not in this"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "User journeys"
+read_by = ["trace"]
+
+[[protected_sections]]
+name = "Functional requirements"
+read_by = ["lint", "trace", "epic-coverage", "graph-lint"]
+
+[[protected_sections]]
+name = "Capabilities"
+read_by = ["lint", "graph-lint"]
+
+[[protected_sections]]
+name = "Triggers and states"
+read_by = ["lint", "graph-lint"]
+
+[[protected_sections]]
+name = "Failures"
+read_by = ["lint", "graph-lint"]
+
+[[protected_sections]]
+name = "Unchanged behaviour"
+read_by = ["lint", "graph-lint"]
+
+[[protected_sections]]
+name = "Non-functional requirements"
+read_by = ["trace", "epic-coverage", "graph-lint"]
+
+[[protected_sections]]
+name = "Non-goals"
+read_by = ["trace"]
+
+[[protected_sections]]
+name = "Risks"
+read_by = ["trace"]
+
+[[protected_sections]]
+name = "Dependencies"
+read_by = ["trace"]
+
+[[protected_sections]]
+name = "Rollout"
+read_by = ["trace"]
+
+[[protected_sections]]
+name = "Assumptions"
+read_by = ["lint", "trace"]
+
+[[protected_sections]]
+name = "Open questions"
+read_by = ["approval", "trace"]
+
+[[protected_sections]]
+name = "Glossary"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Terms"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "ID prefixes"
+read_by = ["lint"]
+
+[[protected_fields]]
+name = "track"
+read_by = ["gate", "approval", "reader-test"]
+
+[[protected_fields]]
+name = "variant"
+read_by = ["lint"]
+
+[[protected_fields]]
+link = "Brief"
+read_by = ["approval", "lint", "trace"]

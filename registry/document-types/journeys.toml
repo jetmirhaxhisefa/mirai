@@ -12,3 +12,14 @@ status = "forbidden"
 required_sections = ["Journeys", "Sources"]
 section_order = ["Journeys", "Sources"]
 lint_checks = ["writing", "journeys"]
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Journeys"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Sources"
+read_by = ["lint"]

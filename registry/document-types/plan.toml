@@ -50,3 +50,58 @@ required = true
 [frontmatter.fields.ticket_type]
 type = "enum"
 values = ["story", "bug"]
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Intent"
+read_by = ["gate", "approval"]
+
+[[protected_sections]]
+name = "Boundaries"
+read_by = ["gate", "approval"]
+
+[[protected_sections]]
+name = "Edge cases"
+read_by = ["gate", "approval"]
+
+[[protected_sections]]
+name = "Code map"
+read_by = ["lint", "gate"]
+
+[[protected_sections]]
+name = "Test list"
+read_by = ["lint", "gate"]
+
+[[protected_sections]]
+name = "Declared changes"
+read_by = ["lint", "gate", "approval"]
+
+[[protected_fields]]
+name = "ticket"
+read_by = ["lint", "gate"]
+
+[[protected_fields]]
+name = "acs"
+read_by = ["lint", "gate"]
+
+[[protected_fields]]
+name = "risk"
+read_by = ["gate"]
+
+[[protected_fields]]
+name = "tdd"
+read_by = ["gate"]
+
+[[protected_fields]]
+name = "tests"
+read_by = ["gate"]
+
+[[protected_fields]]
+name = "round"
+read_by = ["gate"]
+
+[[protected_fields]]
+name = "ticket_type"
+read_by = ["gate"]

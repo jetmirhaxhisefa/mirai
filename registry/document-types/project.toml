@@ -24,3 +24,34 @@ required = true
 [frontmatter.fields.root]
 type = "string"
 required = true
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map). Each names what reads it.
+
+[[protected_sections]]
+name = "Stack"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Commands"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Layout"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Test levels"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Instructions"
+read_by = ["lint"]
+
+[[protected_fields]]
+name = "service"
+read_by = ["lint"]
+
+[[protected_fields]]
+name = "root"
+read_by = ["lint"]
