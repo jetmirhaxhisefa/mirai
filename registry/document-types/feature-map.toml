@@ -1,0 +1,19 @@
+# The feature map: one row per screen, with its route and the stable handles a test finds it by
+# (unit 36; design/01 setup step 6). It lives at .mirai/context/feature-map.md. It isn't
+# approved: the lint checks each handle against the code under the folders `code` lists, and
+# agents update it with their tickets (Jet's decision 4).
+kind = "document-type"
+schema_version = 1
+name = "feature-map"
+template = "templates/feature-map.md"
+template_version = 1
+checklist = "templates/feature-map-checklist.md"
+status = "forbidden"
+required_sections = ["Screens"]
+optional_sections = []
+lint_checks = ["feature-map"]
+
+# The folders that hold the screens' code, from the repo's top folder.
+[frontmatter.fields.code]
+type = "list"
+required = true

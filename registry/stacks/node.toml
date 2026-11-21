@@ -15,6 +15,33 @@ field = "scripts"
 names = ["lint", "typecheck", "type-check", "types", "format:check", "build"]
 command = ["npm", "run", "{script}"]
 
+# How a command runs a package script (unit 36): the project lint checks that the script is in
+# package.json, so `npm run nope` fails. npm's own shorthands only for the scripts it runs that way.
+[[scripts]]
+file = "package.json"
+field = "scripts"
+command = ["npm", "run", "{script}"]
+
+[[scripts]]
+file = "package.json"
+field = "scripts"
+command = ["npm", "run-script", "{script}"]
+
+[[scripts]]
+file = "package.json"
+field = "scripts"
+command = ["npm", "{script}"]
+names = ["test", "start", "stop", "restart"]
+
+[[scripts]]
+file = "package.json"
+field = "scripts"
+command = ["pnpm", "run", "{script}"]
+
+[[scripts]]
+file = "package.json"
+field = "scripts"
+command = ["yarn", "run", "{script}"]
 
 # Where dependencies are declared (unit 21b): a plan declares a new one as npm:<name>.
 [[dependencies]]

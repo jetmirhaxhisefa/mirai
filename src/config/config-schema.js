@@ -323,6 +323,10 @@ export const CONFIG_SCHEMA = {
             epic_l_tickets: { type: 'integer', min: 0, max: 20 },
             epic_summary_words: { type: 'integer', min: 100, max: 2000 },
             epic_summary_warn_words: { type: 'integer', min: 100, max: 2000 },
+            // Unit 36 (Jet's decision 3): business.md's cap and where it warns, the Sources table not
+            // counted. About two pages by default (1,000 and 800).
+            business_words: { type: 'integer', min: 300, max: 3000 },
+            business_warn_words: { type: 'integer', min: 200, max: 3000 },
           },
         },
       },

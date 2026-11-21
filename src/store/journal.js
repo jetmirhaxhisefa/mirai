@@ -82,7 +82,10 @@ export const EVENT_TYPES = Object.freeze({
       // lists each of its ticket files with its hash, so one signed line covers every byte you
       // approved, and a later change to any of them needs a new approval. Unit 35: a `brief` line
       // may have `files` too, the interview it links, so a changed interview needs a new approval.
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic'] },
+      // `context` (unit 36): a context file in .mirai/context/ you approved as a whole; `path` is
+      // the file, `file_type` its kind (business, journeys, conventions), `item` its id.
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context'] },
+      file_type: { type: 'enum', values: ['business', 'journeys', 'conventions'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo (a ticket) or in the store (a plan)' },
       content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
       decision: { type: 'enum', values: ['accepted', 'edited', 'rejected'] },
@@ -110,6 +113,7 @@ export const EVENT_TYPES = Object.freeze({
       if (e.kind === 'epic' && e.files === undefined) report('files', 'an epic\'s approval lists its ticket files');
       if (e.files !== undefined && !['epic', 'brief'].includes(e.kind)) report('files', 'files goes with an epic\'s or a brief\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
+      if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
     },
   },
   // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.

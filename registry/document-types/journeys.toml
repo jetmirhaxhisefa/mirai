@@ -1,0 +1,14 @@
+# The critical journeys: the flows that lose users or money when they break, J-1, J-2 …, each
+# with its steps, why it's critical, its source and its end-to-end test (unit 36; D-44, D-35).
+# It lives at .mirai/context/journeys.md beside the feature map, whose screen names the steps
+# use. You approve the whole file (Jet's decisions 1 and 4); Tess (42) writes the tests.
+kind = "document-type"
+schema_version = 1
+name = "journeys"
+template = "templates/journeys.md"
+template_version = 1
+checklist = "templates/journeys-checklist.md"
+status = "forbidden"
+required_sections = ["Journeys", "Sources"]
+section_order = ["Journeys", "Sources"]
+lint_checks = ["writing", "journeys"]

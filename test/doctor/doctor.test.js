@@ -47,7 +47,7 @@ launchTest('29c: the checks on a healthy store; the yellows that are always ther
   const store = openStore(f.io);
   installHooks({ store, env: f.env, node: process.execPath, launcher: LAUNCHER });
   const items = await runChecks({ cwd: f.root, env: f.env, ...stubs });
-  assert.deepEqual(items.map((i) => i.id), ['login', 'strict', 'redteam', 'trust', 'registry', 'merge-gate', 'usage', 'store', 'hook', 'host-cli', 'cpu', 'claude-move', 'key', 'key-rest', 'session', 'baseline', 'ticket-images', 'word-list']);
+  assert.deepEqual(items.map((i) => i.id), ['login', 'strict', 'redteam', 'trust', 'registry', 'merge-gate', 'usage', 'store', 'hook', 'host-cli', 'cpu', 'claude-move', 'key', 'key-rest', 'session', 'baseline', 'ticket-images', 'word-list', 'context']);
   for (const id of ['login', 'redteam', 'registry', 'store', 'hook', 'key', 'session']) assert.equal(item(items, id).state, 'ok', `${id}: ${item(items, id).detail}`);
   assert.equal(item(items, 'merge-gate').state, 'yellow');
   assert.match(item(items, 'merge-gate').detail, /local-only/);
@@ -59,7 +59,7 @@ launchTest('29c: the checks on a healthy store; the yellows that are always ther
   assert.match(r.out, /^to do:$/m);
   assert.match(r.out, /^doctor: \d+ ok, \d+ yellow, 0 red$/m);
   const j = JSON.parse((await run(f, { json: true })).out);
-  assert.equal(j.items.length, 18);
+  assert.equal(j.items.length, 19);
   // On the session list, with its flags (decision 3).
   assert.deepEqual(COMMANDS.doctor.argv({ fix: true, json: true }), ['doctor', '--fix', '--json']);
   assert.equal(COMMANDS.doctor.quick, true);

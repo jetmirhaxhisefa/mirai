@@ -11,6 +11,10 @@ one file:
 Briefs have it from unit 31, PRDs from unit 32, epics from unit 33. HLDs, LLDs and ADRs get it as their units come.
 Tickets and plans don't: they're short already, and their gates are different.
 
+The project's context files in `.mirai/context/` (business, critical journeys, feature map,
+project facts and conventions, unit 36) have no summary: you approve the whole file. See
+[context.md](context.md).
+
 ## The document types
 
 Each type is a file in `registry/document-types/`, with its template and checklist in
@@ -25,6 +29,11 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |
 | `bug` | a ticket: what's wrong, how to reproduce it, and how the fix is proven | `docs/mirai/<initiative>/tickets/<key>.md` | [tdd.md](tdd.md) for its red test |
 | `plan` | how one ticket will be built and proven, written by Kai | the store: `<store>/tickets/<ticket>/plan.md` | [agents.md](agents.md), "The plan step" |
+| `business` | what the product does, for whom, its goals, rules and constraints, each claim with its source; approved as a whole | `.mirai/context/business.md` | [context.md](context.md) |
+| `journeys` | the critical journeys `J-n`, each with its steps, why it's critical and its E2E test; approved as a whole | `.mirai/context/journeys.md` | [context.md](context.md) |
+| `feature-map` | one row per screen: its name, route and test handles; not approved, the lint checks it against the code | `.mirai/context/feature-map.md` | [context.md](context.md) |
+| `project` | one service's stack, commands, layout and test levels; not approved, the lint checks it against the code | `.mirai/context/project-<service>.md` | [context.md](context.md) |
+| `conventions` | one service's rules, each `enforced by <check>` or `judgment`; approved as a whole | `.mirai/context/conventions-<service>.md` | [context.md](context.md) |
 
 `docs/mirai` is the default `[docs] root` ([config.md](config.md)).
 
