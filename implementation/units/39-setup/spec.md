@@ -57,6 +57,20 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
    migrated docs (BMAD's PRDs, architecture notes) can be sources for `business.md`.
 8. **Running it again** (restate, "yes"). A second `/mirai setup` does only what's missing or
    changed: new items, context files whose sources changed, checklist lines still open.
+9. **You're told about every context file it writes, and asked to review it** (Jet, 2026-11-21:
+   "Make sure that when these context files are generated the user is informed and sees the
+   links and is asked to review them"). When stage 3 writes or rewrites a context file, setup
+   stops and shows you a list with each file, what it is, its state, and its full path and link
+   (38). It then asks you to review each file, one at a time:
+   - **`business.md`, `journeys.md` and each conventions file:** first the `(open)` lines (36,
+     decision 8), each asked as a question with options and a guess, and your answer written in
+     as a "you said" source. Then the approval command. The stage isn't done until each one is
+     approved, or you choose to come back to it later; then it stays on the checklist and
+     `/mirai setup status` names it.
+   - **`feature-map.md` and each `project-<service>.md`:** they're checked against the code, not
+     approved, but you're still shown them and asked "anything wrong or missing?". Your
+     correction is written in before the stage commit.
+   A second run (decision 8) does the same for each file it rewrites, and says which lines changed.
 
 ## Scope
 
@@ -105,8 +119,11 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
 
 5. **Stage 3, context:** the five files from 36, written by the skill from your sources
    (links, files, pasted text) and the migrated documents. It asks only what those don't answer.
-   Each claim carries its source ID (36). You approve `business.md`, `journeys.md` and each
-   conventions file. The first critical-journeys list is proposed here (row 39, Q6).
+   Each claim carries its source ID (36). What no source says is written `(open)` and asked
+   (36, decision 8). The first critical-journeys list is proposed here (row 39, Q6). At the end
+   of the stage, the review of decision 9: the list of files with their paths and links, then
+   each file in turn, `(open)` lines first. You approve `business.md`, `journeys.md` and each
+   conventions file.
 6. **`mirai custom add <path>`** (also used after setup; also `/mirai custom add`): it detects
    the item's kind, copies it to its place under `.mirai/custom/`, deletes the original, renders
    `.claude/` again, and ends with the approval command and the item's full path. It refuses an
@@ -174,6 +191,10 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
 - **T7 The checklist:** every line has its command, what you should see, and its default;
   `doctor`'s state fills each line's state.
 - **T8 Session list:** `/mirai setup`, `/mirai setup status` and `/mirai custom add` exist.
+- **T9 The review** (decision 9): after a fake stage 3 writes the files, setup's output lists all
+  of them with their state, full path and link, before any approval command. A file with an
+  `(open)` line asks it before showing its approval command. Stage 3 isn't marked done while an
+  approved-kind file is unapproved and not deferred; a deferred one is a checklist line.
 
 ## Probes (real)
 
@@ -182,6 +203,8 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
   - every council and BMAD item gets a ledger row, a researched summary and your decision;
   - the kept ones work from `.mirai/custom/` and nothing is left in the old places;
   - `business.md`, `journeys.md` and the conventions are sourced and you approve them;
+  - after stage 3 you were shown every context file with its path and link, asked each `(open)`
+    line, and asked to review each file, including the feature map and project files;
   - `doctor` is green;
   - you stop once mid-stage and it resumes where you left it.
 - **P2 Pasted text only** (row 39's done-when): a fresh project with no links, only a pasted
@@ -193,13 +216,14 @@ from "MIRAI installed" to "`mirai doctor` all green", in stages you can stop and
 
 ## Done when
 
-- T1–T8 pass, and the full suite passes through the build runner and CI (34b's docs check
+- T1–T9 pass, and the full suite passes through the build runner and CI (34b's docs check
   included).
 - P1–P3 pass.
 
 ## Checked against the queued units
 
-- **36:** stage 3 writes 36's files with 36's lint. No change to 36.
+- **36:** stage 3 writes 36's files with 36's lint. 36's decision 8 (2026-11-21) added `(open)`
+  for what no source says, refused at approval: setup asks each one (decision 9). No change to 36.
 - **37:** custom items, their approval and widening are 37's. 39 adds the interactive-only hooks
   folder and the `mirai custom add` command on top. 37's spec doesn't name `.mirai/custom/hooks/`
   or `scripts/`, so 39 adds them to the overlay schema.
