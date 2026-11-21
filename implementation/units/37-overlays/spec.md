@@ -151,3 +151,19 @@ registry. Overlays settle what "the template" means in a project before they're 
 - The roadmap row's done-when holds: a custom overlay adds a section and survives a template
   version bump; an overlay that drops a protected section is refused; every agent manifest
   validates.
+
+## Checked against the queued units
+
+- **36** (re-checked after it was built, 2026-11-21): the sections 36's lints read must be in
+  each context type's `protected_sections`:
+  - `business`: `Sources`, and the required sections it checks;
+  - `journeys`: `Journeys` and `Sources`;
+  - `feature-map`: `Screens`;
+  - `project`: `Layout`, `Stack`, `Commands`, `Test levels` and `Instructions`;
+  - `conventions`: `Rules`.
+  
+  An overlay can add a section to a context type, but not rename or drop one of these. 36's
+  `(open)` marker is a line format, not a section, so nothing changes for it.
+- **39:** adds `.mirai/custom/hooks/` and `scripts/` to the overlay folders (39's spec, "Checked
+  against the queued units").
+
