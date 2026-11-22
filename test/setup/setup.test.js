@@ -588,6 +588,38 @@ test('39 F7 (P1): the session server records its Claude Code config; the steps i
   assert.ok(!/Claude Code config:/.test(plainStatus.out));
 });
 
+test('39 F11 (P3): a skill drafted outside the agent folders is added with custom add, moved into .mirai/custom/project-skills/; the next lines carry the session\'s config; the root and .claude/ aren\'t drafts', async () => {
+  const f = project();
+  f.put('drafts/list-open-mrs/SKILL.md', '---\nname: list-open-mrs\ndescription: "Lists the open merge requests. Use when asked what is open."\n---\n\nCall /mirai status.\n');
+  f.put('drafts/list-open-mrs/notes.md', 'Read-only.\n');
+  const cfg = tempDir('cfg');
+  let r = await cli(['custom', 'add', 'drafts/list-open-mrs'], { ...f.io, env: { ...f.env, CLAUDE_CONFIG_DIR: cfg } });
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.match(r.out, /moved: drafts\/list-open-mrs -> .*project-skills\/list-open-mrs\/SKILL\.md/);
+  assert.ok(existsSync(join(f.root, '.mirai/custom/project-skills/list-open-mrs/SKILL.md')));
+  assert.ok(existsSync(join(f.root, '.mirai/custom/project-skills/list-open-mrs/notes.md')));
+  assert.ok(!existsSync(join(f.root, 'drafts/list-open-mrs')), 'the draft is gone');
+  assert.match(r.out, new RegExp(`1\\. read it, then in your terminal: CLAUDE_CONFIG_DIR=\\S+ mirai approve --file \\.mirai/custom/project-skills/list-open-mrs/SKILL\\.md`));
+  assert.match(r.out, /2\. CLAUDE_CONFIG_DIR=\S+ mirai render/);
+  // The same static checks: a draft named like MIRAI's skill is refused.
+  f.put('drafts/mirai-write/SKILL.md', '---\nname: mirai-write\ndescription: "x"\n---\n\nx\n');
+  r = await cli(['custom', 'add', 'drafts/mirai-write'], f.io);
+  assert.notEqual(r.code, EXIT.OK);
+  assert.ok(existsSync(join(f.root, 'drafts/mirai-write/SKILL.md')), 'nothing moved');
+  // Not a draft: a SKILL.md at the repo's root, or a folder under .claude/ other than skills/.
+  f.put('SKILL.md', '---\nname: root\ndescription: "x"\n---\n\nx\n');
+  r = await cli(['custom', 'add', 'SKILL.md'], f.io);
+  assert.notEqual(r.code, EXIT.OK);
+  f.put('.claude/drafts/x/SKILL.md', '---\nname: x\ndescription: "x"\n---\n\nx\n');
+  r = await cli(['custom', 'add', '.claude/drafts/x'], f.io);
+  assert.notEqual(r.code, EXIT.OK);
+  // Through the session: a draft path is one /mirai custom add takes.
+  assert.deepEqual(COMMANDS['custom add'].argv(checkCommand({ command: 'custom add', path: 'drafts/list-open-mrs' }).args), ['custom', 'add', 'drafts/list-open-mrs']);
+  // The rule in the block says where to draft and how to add it.
+  const agents = readFileSync(join(f.root, 'AGENTS.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(agents, /Draft a new skill outside the agent folders .* with MIRAI's `mirai_command` tool \(`custom add`, `path` set to the folder\), not Bash\./);
+});
+
 test('39 F2 (P1): mirai init\'s summary names both of MIRAI\'s hooks', async () => {
   const root = join(tempDir('f2'), 'r');
   mkdirSync(root);

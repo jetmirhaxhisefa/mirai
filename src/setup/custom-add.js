@@ -51,6 +51,10 @@ function planMove(root, spec, opts) {
   // A skill folder (or its SKILL.md).
   const skillDir = isDir && existsSync(join(abs, 'SKILL.md')) ? file : base === 'SKILL.md' ? dirname(file) : null;
   if (skillDir && /(^|\/)\.(claude|agents|cursor|codex)\/skills\/[^/]+$/.test(skillDir)) return skillFrom(root, skillDir);
+  // Unit 39, P1's F11: a new skill drafted outside the agent folders (the rule: never directly in
+  // .claude/), as a folder holding its SKILL.md; the same checks and the same move. Not the repo's
+  // root folder, nor anything under .mirai/ or an agent folder.
+  if (skillDir && isDraftDir(skillDir)) return skillFrom(root, skillDir);
   if (/(^|\/)\.claude\/agents\/[^/]+\.md$/.test(file)) return agentFrom(root, file, opts);
   if (/(^|\/)\.claude\/commands\/.+\.md$/.test(file) || /^\.codex\/prompts\/.+\.md$/.test(file)) return commandFrom(root, file);
   const ext = base.includes('.') ? base.slice(base.lastIndexOf('.') + 1) : '';
@@ -58,7 +62,13 @@ function planMove(root, spec, opts) {
   if (['CLAUDE.md', 'AGENTS.md', 'CLAUDE.local.md', 'GEMINI.md', '.cursorrules', '.windsurfrules'].includes(base) || /(^|\/)\.cursor\/rules\//.test(file)) {
     throw new CustomError(`${file} is instruction text, which isn't a custom item`, { hint: 'setup puts its rules in conventions-<service>.md, its facts in project-<service>.md and the rest in .mirai/context/agents-local.md (stage 3)' });
   }
-  throw new CustomError(`${file} isn't an item mirai custom add moves`, { hint: `it moves a skill folder, an agent or a command (.claude/…), a script (.${SCRIPT_EXT.join(', .')}), a hook (--hook <event>, or .claude/settings.json#hooks.<Event>.<n>) and an MCP server (.mcp.json#<name>)` });
+  throw new CustomError(`${file} isn't an item mirai custom add moves`, { hint: `it moves a skill folder (under .claude/skills/, or a draft folder with its SKILL.md anywhere outside the agent folders), an agent or a command (.claude/…), a script (.${SCRIPT_EXT.join(', .')}), a hook (--hook <event>, or .claude/settings.json#hooks.<Event>.<n>) and an MCP server (.mcp.json#<name>)` });
+}
+
+const AGENT_DIRS = /(^|\/)\.(claude|agents|cursor|codex|windsurf)(\/|$)/;
+function isDraftDir(dir) {
+  const d = dir.replace(/^\.\/+/, '').replace(/\/+$/, '');
+  return d !== '' && d !== '.' && !d.startsWith('.mirai/') && d !== '.mirai' && !AGENT_DIRS.test(d) && !d.split('/').some((x) => x === 'node_modules' || x === '..');
 }
 
 function readText(root, file) {

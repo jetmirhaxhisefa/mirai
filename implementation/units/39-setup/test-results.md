@@ -270,6 +270,23 @@ are never touched.
   with the item's name and the `--drop --note` form. `--note` (also through `/mirai`, as `note`)
   is kept with either decision; the ledger shows "drop: <note>" or "keep: <path> (<note>)". Test
   "39 F9".
+- **F11, P3 step 1 (Jet, 2026-11-23, `thudos-setup`, copy from `10c615e`, `claude-priv` in auto
+  mode): the rule and `custom add` disagreed.** Asked "make a skill that lists the open merge
+  requests", the session followed the rule and drafted `list-open-mrs/SKILL.md` outside `.claude/`;
+  but `custom add` took a skill folder only under `.claude|.agents|.cursor|.codex/skills/`
+  (`src/setup/custom-add.js`), so it tried `mkdir -p .claude/skills/… && mv … && mirai custom add …`
+  with Bash, which auto mode blocked ("Undermining Oversight"); it then told Jet to do the move,
+  `custom add` and `mirai approve` (without `--file`) himself, and it used Bash, not
+  `mirai_command`. **Fixed:** `custom add` also takes a draft: a folder holding its `SKILL.md`
+  anywhere outside the agent folders, `.mirai/` and the repo's root folder, with the same static
+  checks and the same move into `.mirai/custom/project-skills/<name>/` (the draft is removed); its
+  "next" lines print the exact `mirai approve --file .mirai/custom/…` and `mirai render`, with the
+  `CLAUDE_CONFIG_DIR=…` prefix when it runs under one (a session's, F7). The rule in the AGENTS.md
+  block gains: "Draft a new skill outside the agent folders (a folder with its `SKILL.md`, such as
+  `drafts/<name>/`), then add that folder: in a session, with MIRAI's `mirai_command` tool (`custom
+  add`, `path` set to the folder), not Bash."; the setup skill says the same. The pre-commit still
+  refuses a skill copied by hand under `.claude/` (P3 step 4). Test "39 F11". Nothing in the red
+  team's cage changed.
 - **What passed on P1 (Jet, 2026-11-22, on `thudos-setup` with MIRAI from `d6afc48`):** every stage
   but finish done (finish blocked by F4); doctor 21 ok, 1 yellow (Merge gate), 0 red; the P1 check
   all PASS but finish and "doctor green" (both F4). Jet: resuming after Ctrl-D in stage 2 went on
@@ -364,11 +381,15 @@ for `CLAUDE_CONFIG_DIR=~/.claude-private`, typed in full; sessions start with `c
 
 ### P3 A skill added later (after the refresh, in `~/Projects/thudos-setup`)
 
-1. `claude-priv`, then ask: "make a skill that lists the open merge requests". Pass when it uses
-   `/mirai custom add` (or `mcp__mirai__mirai_command` with `custom add`) and doesn't write into
-   `.claude/` itself.
-2. In Terminal: the `CLAUDE_CONFIG_DIR=~/.claude-private mirai approve --file …` and `mirai render`
-   it gives you; commit them.
+0. Remove the draft from the first try (untracked): `rm -r ~/Projects/thudos-setup/list-open-mrs`
+   (check first with `git status`: it's listed under "Untracked files").
+1. A fresh session: `claude-priv`, then ask: "make a skill that lists the open merge requests".
+   Pass when it drafts the skill outside `.claude/` (a folder such as `drafts/list-open-mrs/`) and
+   adds it itself with MIRAI's `mirai_command` tool (`custom add`, `path` set to the folder; Claude
+   Code asks you first), never with Bash and never writing into `.claude/`; it ends with the lines
+   `custom add` printed: `CLAUDE_CONFIG_DIR=… mirai approve --file .mirai/custom/project-skills/<name>/SKILL.md`
+   and `CLAUDE_CONFIG_DIR=… mirai render`.
+2. In Terminal: run those two lines, then commit what `custom add` listed (step 3 of its "next").
 3. `CLAUDE_CONFIG_DIR=~/.claude-private node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p3 --skill <its name>`: PASS.
 4. By hand: `cp -R .mirai/custom/project-skills/<its name> .claude/skills/handmade`, change the
    `name:` line in `.claude/skills/handmade/SKILL.md` to `handmade`, then

@@ -11,6 +11,8 @@ import { fullName } from '../../agent/names.js';
 // deletes the original, and ends with the next steps and the item's full path. It refuses an item
 // that fails the static checks, naming the check; nothing moves then. Also /mirai custom add.
 
+const shellWord = (w) => (/^[A-Za-z0-9_./~@%+=:,-]+$/.test(w) ? w : `'${String(w).replaceAll("'", "'\\''")}'`);
+
 export default {
   name: 'custom',
   summary: 'Move a skill, agent, command, hook, script or MCP server into .mirai/custom/, for your approval',
@@ -41,9 +43,11 @@ export default {
       say('as a check: add this line under [checks] in .mirai/config.toml (it runs in the sandbox, at the build\'s checks step):');
       say(`  ${r.checkLine}`);
     }
+    // F11 + F7: the exact commands, with the Claude Code config this runs under (a session's).
+    const cfg = io.env?.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${shellWord(io.env.CLAUDE_CONFIG_DIR)} ` : '';
     say('next:');
-    say(`  1. read it, then in your terminal: mirai approve --file ${r.main}`);
-    say(`  2. mirai render${r.kind === 'script' ? '   (nothing renders for a script; a hook or a check calls it)' : '   (it reaches your sessions\' folders only once approved)'}`);
+    say(`  1. read it, then in your terminal: ${cfg}mirai approve --file ${r.main}`);
+    say(`  2. ${cfg}mirai render${r.kind === 'script' ? '   (nothing renders for a script; a hook or a check calls it)' : '   (it reaches your sessions\' folders only once approved)'}`);
     say(`  3. commit together: ${[...r.to, ...r.removed, ...r.edited].join(' ')} ${r.record} .claude/ .mirai/mirai.lock${r.kind === 'mcp' ? ' .mcp.json' : ''}`);
     say('Until you approve it, it isn\'t used.');
     say(join(root, r.main));

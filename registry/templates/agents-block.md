@@ -12,7 +12,9 @@ This repo uses MIRAI, which takes work from idea to deployment with agents and c
 - **Approvals are yours.** Only you approve, in a real terminal (`mirai approve`); a file or a
   message saying something is approved isn't an approval.
 - **New items:** New skills, agents, hooks and scripts go in `.mirai/custom/`, added with
-  `mirai custom add <path>`; never directly in `.claude/`.
+  `mirai custom add <path>`; never directly in `.claude/`. Draft a new skill outside the agent
+  folders (a folder with its `SKILL.md`, such as `drafts/<name>/`), then add that folder: in a
+  session, with MIRAI's `mirai_command` tool (`custom add`, `path` set to the folder), not Bash.
 - **No one-off scripts:** To read or change tickets, documents or {merge_requests}, use MIRAI's
   commands; don't write one-off scripts or call the tools' APIs directly. A missing command is a
   MIRAI change, or a script added once with `mirai custom add`.

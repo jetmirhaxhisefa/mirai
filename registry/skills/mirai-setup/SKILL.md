@@ -14,6 +14,10 @@ their own session. MIRAI keeps the record (`mirai setup …`); you do the resear
   `mcp__mirai__mirai_command`, as `/mirai` does (`setup status`, `setup scan`, `setup decide`,
   `custom add`, …). Never write a script to do a step: a missing command is something to tell the
   owner.
+- **A new item later** (a skill the owner asks for): draft it outside the agent folders (a folder
+  with its `SKILL.md`, such as `drafts/<name>/`), never under `.claude/`; then call `custom add`
+  with that folder's path through `mcp__mirai__mirai_command`, and give the owner the approve and
+  render lines it prints, word for word.
 - **The same Claude Code config in every step.** If `setup status` prints a `Claude Code config:`
   line, write every terminal step that runs `mirai` with that prefix
   (`CLAUDE_CONFIG_DIR=<it> mirai session-server install`, `… mirai setup checklist`), and give
