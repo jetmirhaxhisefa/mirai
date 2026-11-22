@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { EXIT } from '../exit-codes.js';
 import { StatusError, StoreError, UsageError } from '../errors.js';
 import { deriveTicketState } from '../../status/derive.js';
+import { wordsFor } from '../../ship/words.js';
+import { remotes } from '../../store/git.js';
 import { escapeInvisible, plain, shown } from '../../status/text.js';
 import { TICKET_ID } from '../../status/ticket-file.js';
 import { openStore } from '../../store/home.js';
@@ -35,6 +37,8 @@ export default {
     }
     const store = openStore({ cwd: io.cwd, env: io.env });
     const { events, torn } = readJournal(store);
+    // The host's word (unit 38b) from the remote alone: status stays fast and never needs the trust root.
+    const words = wordsFor({ remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null });
     const known = [...new Set([...ticketsInStore(store), ...ticketsInJournal(events)])].sort();
     if (only !== undefined && !known.includes(only)) {
       throw new UsageError(`no ticket ${shown(only)} in this repo's store`, 'see all tickets: mirai status');
@@ -61,7 +65,7 @@ export default {
       if (mismatch) return { ...base, state: null, source: null, why: null, error: mismatch };
       try {
         const fact = facts.get(ticket) ?? { mr: 'none' };
-        const { state, source, why } = deriveTicketState(status, fact);
+        const { state, source, why } = deriveTicketState(status, fact, words);
         // Unit 27a: the MR's address, as `mirai ship` recorded it.
         return { ...base, state, source, why: status === null && source === 'written' ? 'no status file yet' : why, mr_url: fact.url ?? null, error: null };
       } catch (err) {

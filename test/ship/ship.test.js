@@ -13,6 +13,7 @@ import { readJournal, ticketFacts } from '../../src/store/journal.js';
 import { passed, tty } from '../proofs/fixture.js';
 import { tempDir } from '../tests/run-fixture.js';
 import { needsTest } from '../helpers/needs.js';
+import { shortRef } from '../../src/ship/words.js';
 
 // Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
 const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
@@ -124,6 +125,8 @@ launchTest('27a: ship opens one MR, a second run changes nothing, an edited desc
   const r = await f.ship();
   assert.equal(r.outcome, 'opened');
   assert.equal(r.mr.url, 'https://github.com/acme/app/pull/1');
+  // 38b T7: ship's line says GitHub's word: "PR #1: <url>".
+  assert.equal(shortRef(r.words, r.mr.number), 'PR #1');
   const head = f.git('rev-parse', 'HEAD');
   const branch = f.git('rev-parse', '--abbrev-ref', 'HEAD');
   assert.equal(f.bareGit('rev-parse', `refs/heads/${branch}`), head);

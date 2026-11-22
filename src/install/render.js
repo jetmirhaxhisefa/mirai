@@ -8,7 +8,8 @@ import { loadRegistry } from '../config/registry.js';
 import { CUSTOM_DIR, sessionOverlays } from '../config/overlays.js';
 import { branchKeys } from '../sign/keys.js';
 import { repoIdentity } from '../store/home.js';
-import { topLevel } from '../store/git.js';
+import { remotes, topLevel } from '../store/git.js';
+import { hostWords, wordsFor } from '../ship/words.js';
 import { buildBundle } from '../adapters/bundle.js';
 import { ADAPTER, commandPath, instructionBlock, interactiveDenies, interactivePath, isManaged, isMiraiName, MIRAI_COMMAND, renderAgent } from '../adapters/claude-code.js';
 import { LOCK_FILE, checkLock, entriesHash, filesUnder, hookEntry, mcpEntry, readLock, renderedHash, settingsHash, updateLock, replaceFile, noLinks, sha256 } from './lock.js';
@@ -71,11 +72,13 @@ function writable(root, rel) {
 // AGENTS.md with MIRAI's block rendered: { text, entry, warning? }. `template` and `local` are
 // the inputs' bytes (`local` null when there is no agents-local.md); `config` the checked
 // config, with its file's bytes as `configBytes`.
-export function renderAgents({ template, local, config, configBytes, existing }) {
+export function renderAgents({ template, local, config, configBytes, existing, words = hostWords(null) }) {
   const docsRoot = config.docs.root;
   // The docs root is shown in a code span; a backtick in it would end the span early.
   if (docsRoot.includes('`')) throw new BlockError('the docs root has a backtick in it, which the AGENTS.md block can\'t show', { code: 'docs-root-backtick', hint: 'rename the folder in [docs] root' });
-  const frame = template.toString('utf8').replaceAll('{docs_root}', () => docsRoot);
+  // Unit 38b/39: the host's word ("pull requests" on GitHub, "merge requests" on GitLab or when
+  // the host can't be told).
+  const frame = template.toString('utf8').replaceAll('{docs_root}', () => docsRoot).replaceAll('{merge_requests}', () => `${words.long}s`);
   const body = renderBlock(frame, local === null ? '' : localInstructions(local.toString('utf8')));
   const text = withBlock(existing === null ? null : existing.text, body);
   const from = sortByPath([
@@ -89,6 +92,15 @@ export function renderAgents({ template, local, config, configBytes, existing })
     entry: { path: AGENTS_FILE, mark: 'rendered', block: 'mirai', sha256: sha256(blockOf(text)), from },
     warning: size > AGENTS_WARN_BYTES ? `${AGENTS_FILE} is ${size} bytes; some tools read only the first ${AGENTS_WARN_BYTES} (Codex), so keep it shorter` : undefined,
   };
+}
+
+// The project's host words from its config and origin remote (read from .git/config only).
+function repoWords(root, config) {
+  try {
+    return wordsFor({ config, remoteUrl: remotes(root, { PATH: '/usr/bin:/bin', HOME: process.env.HOME ?? '/' }).get('origin') ?? null });
+  } catch {
+    return hostWords(null);
+  }
 }
 
 const sortByPath = (list) => list.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
@@ -123,7 +135,7 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
 
   // AGENTS.md.
   const agentsNow = readAgents(root);
-  const agents = renderAgents({ template: readFileSync(join(registryDir, 'templates', 'agents-block.md')), local, config, configBytes, existing: agentsNow });
+  const agents = renderAgents({ template: readFileSync(join(registryDir, 'templates', 'agents-block.md')), local, config, configBytes, existing: agentsNow, words: repoWords(root, config) });
   add(AGENTS_FILE, agents.text, agents.entry, agentsNow, agentsNow && blockOf(agentsNow.text) !== null ? sha256(blockOf(agentsNow.text)) : null);
   if (agents.warning) plan.warnings.push(agents.warning);
 

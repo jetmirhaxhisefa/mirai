@@ -33,7 +33,7 @@ export const startAgent = Object.freeze({
   schema: () => ({
     type: 'object',
     properties: {
-      role: { type: 'string', pattern: NAME.source, description: 'author, reviewer, verifier, qa, planner, or the project\'s own' },
+      role: { type: 'string', pattern: NAME.source, description: 'developer, reviewer, verifier, qa, planner, or the project\'s own' },
       prompt: { type: 'string', minLength: 1, maxLength: PROMPT_MAX, description: 'what the agent is asked' },
       item: { type: 'string', pattern: ITEM.source, description: 'the ticket or document it is for' },
       step: { type: 'string', enum: [...STEPS] },

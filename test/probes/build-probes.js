@@ -10,6 +10,7 @@ import { HANDOVER_SCHEMA, runBuild } from '../../src/agent/build.js';
 import { planPath } from '../../src/agent/plan.js';
 import { mintLaunchToken } from '../../src/agent/requests.js';
 import { runAgent } from '../../src/agent/run.js';
+import { progressLine } from '../../src/agent/progress.js';
 import { recordBaseline } from '../../src/baseline/record.js';
 import { main } from '../../src/cli/main.js';
 import { init } from '../../src/install/init.js';
@@ -23,7 +24,7 @@ import { snapshot, trustedConfig } from '../../src/trust/snapshot.js';
 // Unit 21b's probes, on a sample-app clone with a probe home (your token copied in; your own
 // ~/.claude is never touched: each launch has its own CLAUDE_CONFIG_DIR). The red-team gate is
 // stubbed green, as in 19a's R6. Docker Desktop must be running.
-// - R1 (Haiku, through --step commit-message): Kai as author, with the handover schema, calls
+// - R1 (Haiku, through --step commit-message): Kai as developer, with the handover schema, calls
 //   run_tests and run_check through MIRAI's server, then hands over. Does the stream carry it?
 // - R2 (Sonnet, the build step's tier): `mirai build` end to end on SAMPLE-1, from 21a's R2 plan
 //   (~/.mirai-21a-r2-plan.md), approved here; the baseline is recorded first (Docker only).
@@ -74,7 +75,10 @@ async function r1({ root, env, claude, log }) {
     ...(check ? [`Then call mcp__mirai__run_check once with name "${check}".`] : []),
     'Change no file. Then hand over with your structured output: status done, summary "probe", tests_run and checks_run each listing what you ran with its outcome.',
   ].join(' ');
-  const r = await runAgent({ launchToken: mintLaunchToken(), cwd: root, env, claude, status: green, agent: 'mirai-developer', role: 'author', step: 'commit-message', maxTurns: 8, item: 'SAMPLE-1', prompt, jsonSchema: HANDOVER_SCHEMA });
+  const progress = [];
+  const r = await runAgent({ launchToken: mintLaunchToken(), cwd: root, env, claude, status: green, agent: 'mirai-developer', role: 'developer', step: 'commit-message', maxTurns: 8, item: 'SAMPLE-1', prompt, jsonSchema: HANDOVER_SCHEMA, onProgress: (p) => progress.push(progressLine(p)) });
+  // Unit 38b's P1: the run log's role and the progress line's name.
+  log(`r1-naming: role ${r.line.role}; first progress line: ${progress.find((l) => !l.includes('preparing')) ?? progress[0] ?? 'none'}`);
   log(`r1-handover: ${r.outcome}${r.why ? ` (${r.why})` : ''}; structured ${JSON.stringify(r.structured)?.slice(0, 400)}; ${r.line.turns} turns, ${r.line.minutes} min; model ${r.line.model_used}`);
 }
 

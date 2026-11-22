@@ -286,7 +286,7 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
       rec = null;
     }
     const named = Object.entries(rec ?? {}).filter(([k, v]) => k !== 'schema_version' && typeof v === 'string');
-    if (!named.length) return yellow('no gh or glab recorded, so mirai ship can\'t open an MR', 'install gh (or glab), then mirai init --refresh');
+    if (!named.length) return yellow('no gh or glab recorded, so mirai ship can\'t reach the host', 'install gh (or glab), then mirai init --refresh');
     const gone = named.filter(([, p]) => !runnable(p));
     if (gone.length) return red(`${gone.map(([k, p]) => `${k}: ${p}`).join(', ')} isn't there: mirai ship refuses`, 'mirai init --refresh (it records the ones on your PATH)');
     return ok(named.map(([k, p]) => `${k}: ${p}`).join(', '));

@@ -2,6 +2,7 @@ import { plain } from '../status/text.js';
 import { move } from '../status/move.js';
 import { TICKET } from '../status/machines.js';
 import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
+import { fullName } from '../agent/names.js';
 
 // Parking notes (unit 20; D-18): a fixed note per reason, naming the evidence by path, written by
 // the script. Rewording one on the light tier is unit 28's. A ticket parks through unit 04's state
@@ -16,9 +17,9 @@ const SAYS = Object.freeze({
   scope: 'A run changed files its role may not; they were left as they are.',
   'bad-plan': 'The same problem came back: the plan needs another look.',
   'rebase-conflict': 'Its branch no longer rebases cleanly.',
-  disputed: 'Kai disputes a review finding: yours to settle (mirai unpark <ticket> --retry: the finding stands; --accept <finding-id>: it\'s dropped).',
+  disputed: `${fullName('mirai-developer')} disputes a review finding: yours to settle (mirai unpark <ticket> --retry: the finding stands; --accept <finding-id>: it's dropped).`,
   'high-risk-review': 'The review passed, but the change touches a protected path (instruction files, hooks, auto-run config), which always waits for you.',
-  'bad-verdict': 'Rex\'s verdict didn\'t come back as valid structured output.',
+  'bad-verdict': `${fullName('mirai-reviewer')}'s verdict didn't come back as valid structured output.`,
   'deps-review': 'Installing its approved packages needs you: an existing version would change, a package comes from outside the registry, or too many are added. Nothing was committed.',
   'sign-proofs': 'It passed its review and is ready for its proofs, which are signed from your terminal only: mirai gate record <ticket>.',
 });

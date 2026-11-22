@@ -183,7 +183,7 @@ with the states (never doctor's details), in `.mirai/setup/checklist.md`.
 
 1. **The rule** in MIRAI's block in `CLAUDE.md` and `AGENTS.md`: "New skills, agents, hooks and
    scripts go in `.mirai/custom/`, added with `mirai custom add <path>`; never directly in
-   `.claude/`." With it: "To read or change tickets, documents or merge requests, use MIRAI's
+   `.claude/`." With it: "To read or change tickets, documents or merge requests (pull requests on GitHub), use MIRAI's
    commands; don't write one-off scripts or call the tools' APIs directly. A missing command is a
    MIRAI change, or a script added once with `mirai custom add`."
 2. **`mirai custom add <path>`**, above.

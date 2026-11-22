@@ -321,9 +321,13 @@ The new case `c-custom-hook` runs in `redteam-full` on the sample app (runner jo
 
 ## For later units
 
-- 38b (naming): 39 adds no role name in its code (roles are read from the registry). The launch
-  test in `test/setup/setup.test.js` launches Kai under the role `author`, and the rule sentence
-  of decision 10 says "merge requests" as the spec words it; 38b's rename covers both.
+- 38b (naming), done at the merge of main (219946d): the launch test runs Kai under `developer`;
+  the rule sentence of decision 10 says the host's word (`{merge_requests}` in
+  `registry/templates/agents-block.md`, filled by `renderAgents` from `wordsFor`: "pull requests"
+  on GitHub, "merge requests" on GitLab or an unknown host, such as a local mirror); `mirai custom
+  add`'s widening line names the agent in full ("it widens Rex (mirai-reviewer) …"); the
+  overlay check keeps 38b's renamed-role refusal and 39's protected-path check (the merge's one
+  conflict, `src/config/overlays.js`). 38b's T8 source check passes with 39's code.
 
 - 44: its human-only status check goes into `mirai hook pre-commit` (`src/cli/commands/hook.js`,
   `preCommit`).

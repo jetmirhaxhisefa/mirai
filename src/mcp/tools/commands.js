@@ -232,7 +232,7 @@ export const miraiCommand = Object.freeze({
       full: { type: 'boolean', description: 'with show: every finding\'s text, the plan, the parking note whole' },
       json: { type: 'boolean', description: 'with show or report: as JSON' },
       docs: { type: 'boolean', description: 'with show: the initiative\'s documents (docs/mirai/<name>/), when the name is also a ticket (unit 32)' },
-      m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every merged or closed MR' },
+      m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every ticket merged or closed on the host' },
       diff: { type: 'boolean', description: 'with review-mr: the whole diff of the code' },
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
       path: { type: 'string', pattern: ITEM.source, description: 'an item\'s path in the repo, for custom add, setup decide and setup defer (unit 39)' },

@@ -10,6 +10,7 @@ import { decisionSigner } from '../../sign/signer.js';
 import { branchKeys } from '../../sign/keys.js';
 import { acceptDispute, openDisputes, readDisputes, upholdDisputes } from '../../agent/review.js';
 import { readPending, writeAccepted } from '../../agent/install.js';
+import { agentNamer } from '../../agent/names.js';
 
 // mirai unpark <ticket> --retry | --accept <finding-id>[,<finding-id>…] (a minimal one, 2026-11-04;
 // unit 46 brings the inbox and the other choices, re-plan and drop): a parked ticket back to work,
@@ -55,7 +56,8 @@ export default {
       if (unknown.length) throw new MiraiError(`${unknown.join(', ')} ${unknown.length === 1 ? 'isn\'t an open disputed finding' : 'aren\'t open disputed findings'} of ${ticket} (open: ${open.map((x) => x.id).join(', ') || 'none'})`, EXIT.BLOCKED);
     }
     io.stdout.write(`ticket: ${ticket} (parked: ${plain(current.status?.park_reason ?? '?')})\nwhy:    ${plain(current.status?.note ?? '')}\n`);
-    for (const x of open) io.stdout.write(`  disputed ${plain(x.id)}: ${plain(x.finding?.claim ?? '')} (${plain(x.finding?.file ?? '?')}:${x.finding?.line ?? '?'})\n    Kai: ${plain(x.reason ?? '')}\n`);
+    const who = agentNamer();
+    for (const x of open) io.stdout.write(`  disputed ${plain(x.id)}: ${plain(x.finding?.claim ?? '')} (${plain(x.finding?.file ?? '?')}:${x.finding?.line ?? '?'})\n    ${who('mirai-developer')}: ${plain(x.reason ?? '')}\n`);
     const stand = acceptIds ? open.filter((x) => !acceptIds.includes(x.id)) : open;
     // Unit 30c (F23): a plan that failed the lint twice goes back for a re-plan, with your note as
     // a review note Kai reads; in-progress would be a dead end (`mirai plan` starts from
@@ -63,10 +65,10 @@ export default {
     const badPlan = current.status?.park_reason === 'bad-plan';
     const to = badPlan ? 'ready-for-dev' : acceptIds && stand.length === 0 ? 'in-review' : 'in-progress';
     if (badPlan) io.stdout.write(`then: ready-for-dev, for a re-plan that reads your note (mirai plan ${ticket})\n`);
-    if (disputed) io.stdout.write(`${acceptIds ? `dropped: ${acceptIds.join(', ')}\n` : ''}${stand.length ? `stand (Kai fixes them next): ${stand.map((x) => x.id).join(', ')}\n` : ''}then: ${to === 'in-review' ? `in-review, for Rex's next round (mirai review ${ticket})` : `in-progress, for Kai (mirai fix ${ticket})`}\n`);
+    if (disputed) io.stdout.write(`${acceptIds ? `dropped: ${acceptIds.join(', ')}\n` : ''}${stand.length ? `stand (${who('mirai-developer')} fixes them next): ${stand.map((x) => x.id).join(', ')}\n` : ''}then: ${to === 'in-review' ? `in-review, for ${who('mirai-reviewer')}'s next round (mirai review ${ticket})` : `in-progress, for ${who('mirai-developer')} (mirai fix ${ticket})`}\n`);
     const prompter = createPrompter(io);
     try {
-      const note = await prompter.ask(`note (one line, required: why it can go on${badPlan ? '; Kai reads it' : ''}): `);
+      const note = await prompter.ask(`note (one line, required: why it can go on${badPlan ? `; ${who('mirai-developer')} reads it` : ''}): `);
       if (!/\S/.test(note)) throw new UsageError('a note is required: your signed reason why the ticket can go on; nothing was written', 'run it again and write one line');
       if (note.length > 500) throw new UsageError('the note is one line of at most 500 characters; nothing was written');
       const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });

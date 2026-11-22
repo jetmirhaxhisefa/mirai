@@ -6,6 +6,8 @@ import { plain } from '../../status/text.js';
 import { driveTicket } from '../../run/drive.js';
 import { requireHooks } from '../../hooks/install.js';
 import { openStore } from '../../store/home.js';
+import { agentNamer } from '../../agent/names.js';
+import { hostWords, projectWords } from '../../ship/words.js';
 
 // mirai run <ticket> (unit 28; design/01 §14). One ticket from wherever it is to its merge request,
 // stopping only where you're needed: the plan gate, a park, a step that needs you, a usage limit it
@@ -16,14 +18,14 @@ import { openStore } from '../../store/home.js';
 export const STOP_EXIT = Object.freeze({ 'gate-plan': EXIT.NEEDS_HUMAN, 'gate-proofs': EXIT.NEEDS_HUMAN, 'needs-you': EXIT.NEEDS_HUMAN, limit: EXIT.NEEDS_HUMAN, baseline: EXIT.NEEDS_HUMAN, breaker: EXIT.NEEDS_HUMAN, fault: EXIT.NEEDS_HUMAN, parked: EXIT.BLOCKED, refused: EXIT.BLOCKED, interrupted: EXIT.INTERRUPTED });
 
 // The run's text, shared with `mirai resume`.
-export function runSummary(r, ticket) {
+export function runSummary(r, ticket, words = hostWords(null)) {
   const out = [];
   for (const n of r.notes ?? []) out.push(`note: ${plain(n)}`);
   out.push('');
   for (const s of r.steps) out.push(`  ${s.step}: ${s.outcome}${s.why ? `: ${plain(s.why).slice(0, 300)}` : ''}`);
   if (r.outcome === 'finished') {
-    out.push('', `${ticket}: built${r.mr ? `, MR ${plain(r.mr)}` : ''}`);
-    out.push(`  next: review and merge the MR on the host; your merge is the gate (mirai show ${ticket})`);
+    out.push('', `${ticket}: built${r.mr ? `, ${words.short} ${plain(r.mr)}` : ''}`);
+    out.push(`  next: review and merge the ${words.long} on the host; your merge is the gate (mirai show ${ticket})`);
   } else {
     out.push('', `${ticket}: stopped: ${plain(r.stop?.why ?? 'unknown')}`);
     if (r.here) out.push(`  you're on ${plain(r.here)}`);
@@ -64,7 +66,7 @@ export function withSignals(fn) {
 
 export default {
   name: 'run',
-  summary: 'Take one ticket to its merge request, stopping only where you\'re needed',
+  summary: `Take one ticket to its ${hostWords(null).long}, stopping only where you're needed`,
   usage: 'mirai run <ticket>',
   positionals: { min: 1, max: 1 },
   options: {},
@@ -73,13 +75,14 @@ export default {
     checkTicketArg(ticket);
     const via = viaOf(io, 'mirai run', 'run');
     // MIRAI's pre-push hook must be on before agents start (unit 26a).
-    requireHooks({ store: openStore({ cwd: io.cwd, env: io.env }), env: io.env });
+    const store = openStore({ cwd: io.cwd, env: io.env });
+    requireHooks({ store, env: io.env });
     return await withSignals(async (abort, hard) => {
       const progress = progressPrinter(io, io.progressTiming ?? {});
       try {
-        const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}), ...(io.hostOf ? { hostOf: io.hostOf } : {}) };
+        const launchOptions = { who: agentNamer(), signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}), ...(io.hostOf ? { hostOf: io.hostOf } : {}) };
         const r = await driveTicket({ cwd: io.cwd, env: io.env, ticket, via, launchOptions, onEvent: eventPrinter(io), ...(io.runSteps ? { steps: io.runSteps } : {}), ...(io.caffeinate ? { caffeinate: io.caffeinate } : {}), ...(io.sleep ? { sleep: io.sleep } : {}), ...(io.now ? { now: io.now } : {}) });
-        io.stdout.write(runSummary(r, ticket));
+        io.stdout.write(runSummary(r, ticket, projectWords({ cwd: io.cwd, env: io.env, store })));
         return exitOf(r);
       } finally {
         progress.stop();

@@ -6,6 +6,7 @@ import { plain } from '../../status/text.js';
 import { OUTCOME_EXIT } from '../../agent/run.js';
 import { runPlan } from '../../agent/plan.js';
 import { mintLaunchToken } from '../../agent/requests.js';
+import { agentNamer, fullName } from '../../agent/names.js';
 
 // mirai plan <ticket> (unit 21a; design/01 §6). Kai writes the ticket's plan from its inputs on the
 // integration branch; MIRAI stores it, lints it, gives it one fix launch, and stops at your gate.
@@ -17,7 +18,7 @@ const PLAN_EXIT = Object.freeze({ waiting: EXIT.OK, parked: EXIT.BLOCKED, 'bad-p
 
 export default {
   name: 'plan',
-  summary: 'Have Kai write a ticket\'s plan, then stop at your gate',
+  summary: `Have ${fullName('mirai-developer')} write a ticket's plan, then stop at your gate`,
   usage: 'mirai plan <ticket>',
   positionals: { min: 1, max: 1 },
   options: {},
@@ -34,7 +35,7 @@ export default {
     try {
       // What's happening as it happens (unit 21e), on stderr.
       progress = progressPrinter(io, io.progressTiming ?? {});
-      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
+      const launchOptions = { who: agentNamer(), signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
       // Your terminal mints them (D-14): the launch and its one fix launch.
       const r = await runPlan({ cwd: io.cwd, env: io.env, ticket, launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions, ...(io.planVia ? { via: io.planVia } : {}) });
       if (r.warn) io.stdout.write(`note: ${plain(r.warn)}\n`);

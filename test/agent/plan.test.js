@@ -110,7 +110,7 @@ test('T2: the agent definition comes from the trust root, with the launch templa
   f.git('commit', '-qam', 'planted');
   const again = agentFor(snapshot({ cwd: f.root, env: f.env }), AGENT, { name: 'planner', mode: 'read-only' }, readOnly);
   assert.match(JSON.parse(again.json)[AGENT].prompt, /^# Kai/);
-  // An author agent may run as author or under a read-only role, never as a wider other role.
+  // An agent may run under its own role or a read-only role, never as a wider other role.
   assert.throws(() => agentFor(trust, AGENT, { name: 'janitor', mode: 'read-write' }, readOnly), (e) => e.code === 'agent-role');
   assert.throws(() => agentFor(trust, 'mirai-nobody', { name: 'planner', mode: 'read-only' }, readOnly), (e) => e.code === 'unknown-agent');
 });
@@ -323,7 +323,7 @@ launchTest('review: the ticket must be the one you approved; a launch on a moved
   // launchOptions only watch the launch: a role passed there is ignored.
   const g = await repo();
   const c2 = claudeAnswering([{ plan: PLAN }]);
-  const r = await runPlan({ cwd: g.root, env: g.env, ticket: 'PMT-31', launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions: { claude: c2.path, status: green, check: () => [], role: 'author', agent: 'mirai-x' } });
+  const r = await runPlan({ cwd: g.root, env: g.env, ticket: 'PMT-31', launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions: { claude: c2.path, status: green, check: () => [], role: 'developer', agent: 'mirai-x' } });
   assert.equal(r.launches[0].line.role, 'planner');
   // A caller's expected commit that isn't the trust root's: refused before anything runs.
   const { launchInRun, withRun } = await import('../../src/agent/run.js');
@@ -331,8 +331,8 @@ launchTest('review: the ticket must be the one you approved; a launch on a moved
 });
 
 launchTest('review: a read-only agent never runs a read-write role; an agent definition of another shape is refused', async () => {
-  const ro = { name: 'mirai-checker', role: 'author', read_only: true };
-  assert.throws(() => checkAgentRole(ro, { name: 'author', mode: 'read-write' }), (e) => e.code === 'agent-read-only');
+  const ro = { name: 'mirai-checker', role: 'developer', read_only: true };
+  assert.throws(() => checkAgentRole(ro, { name: 'developer', mode: 'read-write' }), (e) => e.code === 'agent-read-only');
   assert.doesNotThrow(() => checkAgentRole(ro, { name: 'reviewer', mode: 'read-only' }));
   const f = await repo();
   const trust = snapshot({ cwd: f.root, env: f.env });
@@ -346,7 +346,7 @@ launchTest('review: a read-only agent never runs a read-write role; an agent def
   // The one shape, for a read-write launch, with and without StructuredOutput: taken.
   const { finishLaunch } = await import('../../src/launch/strict.js');
   for (const structured of [false, true]) {
-    const json = agentFor(trust, AGENT, { name: 'author', mode: 'read-write' }, rw, { structured }).json;
+    const json = agentFor(trust, AGENT, { name: 'developer', mode: 'read-write' }, rw, { structured }).json;
     const launched = prepareLaunch({ trust, template: rw, checkout: f.root, env: f.env, agentsJson: json, agent: AGENT });
     assert.equal(launched.args[launched.args.indexOf('--agent') + 1], AGENT);
     finishLaunch(launched);

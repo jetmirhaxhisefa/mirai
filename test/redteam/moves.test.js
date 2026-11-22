@@ -64,7 +64,7 @@ launchTest('18h T1: a ticket\'s first launch pins the kept Claude Code; after a 
     seen.push(o.claude);
     return green();
   };
-  const launch = (item) => runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', prompt: 'do it', item, status, check: noInitProblems });
+  const launch = (item) => runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'developer', prompt: 'do it', item, status, check: noInitProblems });
   assert.equal((await launch('T-1')).outcome, 'ok');
   assert.equal(readPin(store, 'T-1').sha256, a.sha256, 'pinned at its first launch');
   const b = await keep(f, store, '2.1.331');
@@ -87,7 +87,7 @@ launchTest('18h T2: a pinned copy outlives two later moves; a pin that doesn\'t 
   const store = openStore({ cwd: f.root, env: f.env });
   const a = await keep(f, store, '2.1.330');
   ticket(f, store, 'T-1');
-  const launch = () => runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', prompt: 'do it', item: 'T-1', status: green, check: noInitProblems });
+  const launch = () => runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'developer', prompt: 'do it', item: 'T-1', status: green, check: noInitProblems });
   await launch();
   await keep(f, store, '2.1.331');
   await keep(f, store, '2.1.332');
@@ -103,14 +103,14 @@ launchTest('18h T2: a pinned copy outlives two later moves; a pin that doesn\'t 
   assert.equal(existsSync(a.path), false, 'pruned once released');
   // A pin that doesn't verify refuses; so does a changed pinned copy.
   ticket(f, store, 'T-3');
-  await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', prompt: 'do it', item: 'T-3', status: green, check: noInitProblems });
+  await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'developer', prompt: 'do it', item: 'T-3', status: green, check: noInitProblems });
   const pin = readPin(store, 'T-3');
   chmodSync(join(testedRoot(f.env), pin.sha256), 0o700);
   chmodSync(pin.path, 0o700);
   appendFileSync(pin.path, '# changed\n');
-  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', prompt: 'do it', item: 'T-3', status: green, check: noInitProblems }), (e) => e.code === 'ticket-claude-changed');
+  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'developer', prompt: 'do it', item: 'T-3', status: green, check: noInitProblems }), (e) => e.code === 'ticket-claude-changed');
   write(join(store.dir, 'tickets', 'T-3', 'claude-code.json'), '{"ticket":"T-3"}\n');
-  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', prompt: 'do it', item: 'T-3', status: green, check: noInitProblems }), (e) => e.code === 'ticket-claude-invalid');
+  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'developer', prompt: 'do it', item: 'T-3', status: green, check: noInitProblems }), (e) => e.code === 'ticket-claude-invalid');
 });
 
 const readTicketStatusSeq = (store, id) => readTicketStatus(store, id)?.status?.seq ?? null;
@@ -198,7 +198,7 @@ launchTest('18h T4: the gap warns from its first day; on day 8 a ticket with no 
   assert.throws(() => checkGap(m.store, 'T-1', { now: day(GAP_DAYS) }), (e) => e.code === 'claude-gap' && /doesn't start/.test(e.message));
   // A pinned ticket finishes.
   ticket(m.f, m.store, 'T-2');
-  await runAgent({ launchToken: mintLaunchToken(), cwd: m.f.root, env: m.env, role: 'author', prompt: 'do it', item: 'T-2', status: green, check: noInitProblems });
+  await runAgent({ launchToken: mintLaunchToken(), cwd: m.f.root, env: m.env, role: 'developer', prompt: 'do it', item: 'T-2', status: green, check: noInitProblems });
   assert.ok(readPin(m.store, 'T-2'));
   assert.doesNotThrow(() => checkGap(m.store, 'T-2', { now: day(GAP_DAYS + 3) }));
 });

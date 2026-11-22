@@ -16,6 +16,7 @@ import { protectionRules } from '../trust/protected.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { describeTicket } from './describe.js';
 import { cleanTitle, hostFor } from './host.js';
+import { projectWords, wordsFor, wordsOfHost } from './words.js';
 
 // `mirai ship <ticket>` (unit 27a; design/01 §11; Jet's decisions 1–5): MIRAI, never an agent,
 // pushes a reviewed ticket's branch and opens or updates its one MR against the integration
@@ -38,15 +39,15 @@ import { cleanTitle, hostFor } from './host.js';
 const fail = (message, code, hint, exitCode = EXIT.BLOCKED) => Object.assign(new MiraiError(message, exitCode), { code, ...(hint ? { hint } : {}) });
 
 // A merged or closed MR: recorded once in the journal (merged derives `done`), then refused.
-function endedMr(store, ticket, mr, known) {
+function endedMr(store, ticket, mr, known, w) {
   if (mr?.state === 'merged') {
     const sha = (x) => (typeof x === 'string' && /^[0-9a-f]{40}$/.test(x) ? x : undefined);
     if (known !== 'merged') appendEvent(store, { type: 'mr_merged', by: 'script', ticket, target: 'integration', ...(sha(mr.head) ? { head: mr.head } : {}), ...(sha(mr.mergeSha) ? { merge_sha: mr.mergeSha } : {}) });
-    throw fail(`${ticket}'s MR ${mr.url} is merged`, 'mr-merged', 'nothing to ship: it\'s done');
+    throw fail(`${ticket}'s ${w.short} ${mr.url} is merged`, 'mr-merged', 'nothing to ship: it\'s done');
   }
   if (mr?.state === 'closed') {
     if (known !== 'closed') appendEvent(store, { type: 'mr_closed', by: 'script', ticket });
-    throw fail(`${ticket}'s MR ${mr.url} is closed`, 'mr-closed', `closing it was your decision, and MIRAI never reopens it: drop the ticket (mirai drop ${ticket}), or reopen the MR yourself and run it again`);
+    throw fail(`${ticket}'s ${w.short} ${mr.url} is closed`, 'mr-closed', `closing it was your decision, and MIRAI never reopens it: drop the ticket (mirai drop ${ticket}), or reopen the ${w.long} yourself and run it again`);
   }
 }
 
@@ -69,12 +70,12 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   // integration branch holds the code, so the gate check finds nothing to prove and would hide the
   // merge; and you are on main by then, not on the ticket's branch.
   const known = ticketFacts(readJournal(store, { keys: branchKeys(store.checkout, store.branch, store.gitEnv) }).events, ticket);
-  if (known.mr === 'merged') throw fail(`${ticket}'s MR is merged`, 'mr-merged', 'nothing to ship: it\'s done');
+  if (known.mr === 'merged') throw fail(`${ticket}'s ${projectWords({ cwd, env, store, now }).long} is merged`, 'mr-merged', 'nothing to ship: it\'s done');
   if (known.mr === 'open') {
     const config = trustedConfig(snapshot({ cwd, env, now }));
     const host = hostOf({ config, remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null, store, env, root: store.checkout });
     host.checkAuth();
-    endedMr(store, ticket, host.findMr(branch), 'open');
+    endedMr(store, ticket, host.findMr(branch), 'open', wordsOfHost(host));
   }
   let gate;
   try {
@@ -100,11 +101,13 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   const from = mergeBase(store.checkout, trust.baseSha, head, store.gitEnv);
   const docs = from ? changedNames(store.checkout, from, head, store.gitEnv).filter((n) => n === docsRoot || n.startsWith(`${docsRoot}/`)) : [];
   const carried = docs.filter((n) => n !== ownFile);
-  if (carried.length) throw fail(`${branch} changes ${carried.length} document${carried.length === 1 ? '' : 's'} under ${docsRoot}/ (${carried.slice(0, 10).join(', ')}): a ticket's code MR doesn't carry documents`, 'docs-in-code-mr', `take them off ${branch}; an initiative's documents reach ${config.git.integration_branch} through its docs merge request (mirai docs publish <initiative>)${ownFile ? '' : '; only a lone ticket\'s own file rides with its code'}`);
+  const remoteUrl = remotes(store.checkout, store.gitEnv).get('origin') ?? null;
+  const pw = wordsFor({ config, remoteUrl });
+  if (carried.length) throw fail(`${branch} changes ${carried.length} document${carried.length === 1 ? '' : 's'} under ${docsRoot}/ (${carried.slice(0, 10).join(', ')}): a ticket's code ${pw.long} doesn't carry documents`, 'docs-in-code-mr', `take them off ${branch}; an initiative's documents reach ${config.git.integration_branch} through its docs ${pw.long} (mirai docs publish <initiative>)${ownFile ? '' : '; only a lone ticket\'s own file rides with its code'}`);
 
   // 3. The host.
-  const remoteUrl = remotes(store.checkout, store.gitEnv).get('origin') ?? null;
   const host = hostOf({ config, remoteUrl, store, env, root: store.checkout });
+  const w = wordsOfHost(host);
   host.checkAuth();
   const remoteSha = host.branchTip(branch);
 
@@ -120,15 +123,15 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   const tip = host.branchTip(integration);
   if (!tip) throw fail(`the host has no ${integration} branch`, 'base-not-pushed', `push ${integration} first`);
   if (!commitOf(store.checkout, tip, store.gitEnv)) throw fail(`the host's ${integration} has commits this clone doesn't`, 'fetch-first', `git fetch origin ${integration}, then run it again`);
-  if (!base || !isAncestor(store.checkout, base, tip, store.gitEnv)) throw fail(`${branch} starts from ${base ? base.slice(0, 12) : 'nothing'}, which isn't on the host's ${integration}: the MR would carry those commits`, 'base-not-pushed', `push ${integration} first: git push origin ${integration}`);
+  if (!base || !isAncestor(store.checkout, base, tip, store.gitEnv)) throw fail(`${branch} starts from ${base ? base.slice(0, 12) : 'nothing'}, which isn't on the host's ${integration}: the ${w.long} would carry those commits`, 'base-not-pushed', `push ${integration} first: git push origin ${integration}`);
 
   // 6. The MR and the host's branch.
   const { events } = readJournal(store, { keys });
   const facts = ticketFacts(events, ticket);
   const lastPushed = [...events].reverse().find((e) => e.type === 'pushed' && e.ticket === ticket && e.branch === branch)?.sha ?? null;
   const mr = host.findMr(branch);
-  endedMr(store, ticket, mr, facts.mr);
-  if (mr?.state === 'locked') throw fail(`${ticket}'s MR ${mr.url} is locked: GitLab is merging it`, 'mr-locked', 'run it again in a minute');
+  endedMr(store, ticket, mr, facts.mr, w);
+  if (mr?.state === 'locked') throw fail(`${ticket}'s ${w.short} ${mr.url} is locked: GitLab is merging it`, 'mr-locked', 'run it again in a minute');
   let lease = null;
   if (remoteSha && remoteSha !== head) {
     const forward = commitOf(store.checkout, remoteSha, store.gitEnv) && isAncestor(store.checkout, remoteSha, head, store.gitEnv);
@@ -152,13 +155,13 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   if (!mr) {
     const made = host.openMr({ base: integration, head: branch, title, body });
     appendEvent(store, { type: 'mr_opened', by: 'script', ticket, head, target: integration, number: made.number, url: made.url });
-    return { ticket, outcome: 'opened', mr: made, head, pushed, branch };
+    return { ticket, outcome: 'opened', mr: made, head, pushed, branch, words: w };
   }
   const same = (a, b) => String(a ?? '').replace(/\r\n/g, '\n').trim() === String(b ?? '').replace(/\r\n/g, '\n').trim();
   const edited = !same(mr.body, body) || !same(mr.title, title);
   if (edited) host.updateMr(mr.number, { title, body });
   if (facts.mr !== 'open' || facts.url !== mr.url) appendEvent(store, { type: 'mr_opened', by: 'script', ticket, head, target: integration, number: mr.number, url: mr.url });
-  return { ticket, outcome: pushed || edited ? 'updated' : 'unchanged', mr: { number: mr.number, url: mr.url }, head, pushed, branch };
+  return { ticket, outcome: pushed || edited ? 'updated' : 'unchanged', mr: { number: mr.number, url: mr.url }, head, pushed, branch, words: w };
 }
 
 // A lone ticket's own file (unit 38, decision 6): the path you approved the ticket at, when it is

@@ -5,6 +5,7 @@ import { UsageError } from '../errors.js';
 import { plain, shown } from '../../status/text.js';
 import { topLevel } from '../../store/git.js';
 import { customAdd } from '../../setup/custom-add.js';
+import { fullName } from '../../agent/names.js';
 
 // mirai custom add <path> (unit 39, Scope 6; decision 6): moves one AI item into .mirai/custom/,
 // deletes the original, and ends with the next steps and the item's full path. It refuses an item
@@ -35,7 +36,7 @@ export default {
     for (const p of r.removed) say(`deleted: ${p}`);
     for (const p of r.edited) say(`changed: ${p} (the item taken out of it)`);
     for (const f of (r.item.flags ?? []).slice(0, 10)) say(`flagged: line ${f.line}: ${f.pattern} (${f.text})`);
-    if (r.widening) say(`it widens ${r.name} (${r.widening.join(', ')}): once approved, its launches are refused until a red-team run covers it (mirai redteam run)`);
+    if (r.widening) say(`it widens ${fullName(r.name) ?? r.name} (${r.widening.join(', ')}): once approved, its launches are refused until a red-team run covers it (mirai redteam run)`);
     if (r.checkLine) {
       say('as a check: add this line under [checks] in .mirai/config.toml (it runs in the sandbox, at the build\'s checks step):');
       say(`  ${r.checkLine}`);

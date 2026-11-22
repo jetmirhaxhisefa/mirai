@@ -23,6 +23,7 @@ import { readRunLog, runIds } from '../store/run-log.js';
 import { newRunId, readRunState, startRun, writeHeartbeat, writeRunState } from '../store/run.js';
 import { snapshot, trustedConfig, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
 import { agentsJson as renderAgentsJson } from '../adapters/claude-code.js';
+import { fullNameIn } from './persona.js';
 import { trustFingerprint, verifyTrustRoot } from '../trust/verify.js';
 import { cwdsUnder, processTable, runInGroup } from './process.js';
 import { checkLaunchToken, spendLaunchToken } from './requests.js';
@@ -171,10 +172,11 @@ export function checkAgentRole(def, role) {
 // is never the review step's launch, which always names Rex.
 export const REVIEW_AGENT = 'mirai-reviewer';
 export const REVIEW_STEPS = Object.freeze(['review', 'review-high-risk']);
-export function checkReviewAgent({ agent, role, step }) {
+export function checkReviewAgent({ agent, role, step, registry = null }) {
   if (agent === null) return;
-  if (REVIEW_STEPS.includes(step) && agent !== REVIEW_AGENT) throw refuse(`only ${REVIEW_AGENT} (Rex) reviews; ${agent} can't run the ${step} step`, 'not-the-reviewer');
-  if (agent === 'mirai-developer' && role.name === 'reviewer') throw refuse('mirai-developer (Kai) never runs under the reviewer role: the author never reviews', 'author-reviews');
+  const fullName = (id) => fullNameIn(registry, id);
+  if (REVIEW_STEPS.includes(step) && agent !== REVIEW_AGENT) throw refuse(`only ${fullName(REVIEW_AGENT)} reviews; ${fullName(agent)} can't run the ${step} step`, 'not-the-reviewer');
+  if (agent === 'mirai-developer' && role.name === 'reviewer') throw refuse(`${fullName('mirai-developer')} never runs under the reviewer role: who writes a change never reviews it`, 'author-reviews');
 }
 
 // An agent's definition for this launch (unit 21a), from the trust root only: a branch's copy counts
@@ -298,7 +300,7 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   const tested = chosen.claude;
   const c = tested ? { path: tested.path, real: tested.real, version: tested.version } : resolveClaude(env, claude ?? fallbackClaude);
   const picked = pickTier({ config, step: step ?? role.step, risk, size, asked: tier });
-  checkReviewAgent({ agent, role, step: picked.step });
+  checkReviewAgent({ agent, role, step: picked.step, registry: trustedRegistry(trust) });
   let model = config.models?.[picked.tier];
   let rung = null;
   if (verifies) {
@@ -356,7 +358,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     if (createHash('sha256').update(readFileSync(join(launched.launchDir, 'input', 'settings.json'))).digest('hex') !== launched.settingsSha256) throw refuse('the launch\'s settings changed before it started', 'settings-changed');
     // Progress (unit 21e): from the stream, filtered (src/agent/progress.js); to the caller, and as
     // the heartbeat's last line for `mirai status`, at most every few seconds. Never the run's cost.
-    const tracker = progressTracker({ root: launched.cwd, agent: progressLabel ?? agentDef?.name ?? role.name, model, tools: launched.expectedInit.tools, levels });
+    const tracker = progressTracker({ root: launched.cwd, agent: progressLabel ?? (agentDef ? fullNameIn(trustedRegistry(trust), agentDef.name) : role.name), model, tools: launched.expectedInit.tools, levels });
     toolCalls = tracker.toolCalls;
     let lastLine;
     let lastBeat = 0;

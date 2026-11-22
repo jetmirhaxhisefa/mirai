@@ -21,6 +21,8 @@ import { forTemplate } from '../../src/redteam/run.js';
 import { readSetup, writeSetup } from '../../src/setup/state.js';
 import { CHECKLIST, checklistState, toFix } from '../../src/setup/checklist.js';
 import { runChecks } from '../../src/doctor/checks.js';
+import { renderAgents } from '../../src/install/render.js';
+import { hostWords } from '../../src/ship/words.js';
 import { committedNotRendered } from '../../src/setup/pre-commit.js';
 import { customCheck } from '../../src/doctor/checks.js';
 import { readOverlays } from '../../src/config/overlays.js';
@@ -171,7 +173,7 @@ launchTest('39 T1/T3/T4: nothing in the ledger reaches a launch; an interactive-
   writeFileSync(join(f.root, '.claude/agents/security.md'), AGENT.replace('tools: Read, Grep, Glob', 'tools: Read, Grep, Glob, Bash'));
   r = await cli(['custom', 'add', '.claude/agents/security.md', '--as', 'mirai-reviewer'], f.io);
   assert.equal(r.code, EXIT.OK, r.err);
-  assert.match(r.out, /it widens mirai-reviewer \(adds Bash/);
+  assert.match(r.out, /it widens Rex \(mirai-reviewer\) \(adds Bash/);
   assert.equal((await approve(f, '.mirai/custom/agents/mirai-reviewer.toml', 'overlay-mirai-reviewer')).code, EXIT.OK);
   r = await cli(['render'], f.io);
   assert.equal(r.code, EXIT.OK, r.err);
@@ -190,7 +192,7 @@ launchTest('39 T1/T3/T4: nothing in the ledger reaches a launch; an interactive-
   // T4: the widened reviewer is refused until a red-team result covers it (37's path).
   await assert.rejects(launch('mirai-reviewer', 'reviewer', noCover), (e) => e.code === 'overlay-widened' && /mirai redteam run/.test(e.hint ?? e.message));
   // T1/T3: Kai's launch reads none of the project's items: no skill, agent, command, hook or server.
-  await launch('mirai-developer', 'author');
+  await launch('mirai-developer', 'developer');
   const args = readFileSync(argsFile, 'utf8').split('\0');
   const settingsFile = args[args.indexOf('--settings') + 1];
   const launched = `${args.join('\n')}\n${existsSync(settingsFile) ? readFileSync(settingsFile, 'utf8') : ''}\n${existsSync(`${argsFile}.files`) ? readFileSync(`${argsFile}.files`, 'utf8') : ''}`;
@@ -503,6 +505,16 @@ test('39 F5 (P1; Jet, option 1): an item under .claude/ can\'t be kept in place;
   assert.match(ledger(), /\| `\.claude\/settings\.local\.json\.example` \| [^|]+ \| [^|]* \| [^|]* \| drop \|/);
   r = await cli(['setup', 'status'], f.io);
   assert.ok(!/stale decision/.test(r.out), r.out);
+});
+
+test('39 + 38b: the rule sentence on scripts uses the host\'s word: pull requests on GitHub, merge requests on GitLab or an unknown host', () => {
+  const template = readFileSync(fileURLToPath(new URL('../../registry/templates/agents-block.md', import.meta.url)));
+  const config = { docs: { root: 'docs/mirai' } };
+  const text = (words) => renderAgents({ template, local: null, config, configBytes: Buffer.from(''), existing: null, ...(words ? { words } : {}) }).text.replace(/\n\s*/g, ' ');
+  assert.match(text(hostWords('github')), /tickets, documents or pull requests, use MIRAI's commands/);
+  assert.match(text(hostWords('gitlab')), /tickets, documents or merge requests, use MIRAI's commands/);
+  assert.match(text(null), /tickets, documents or merge requests, use MIRAI's commands/);
+  assert.ok(!text(hostWords('github')).includes('{merge_requests}'));
 });
 
 test('39 F2 (P1): mirai init\'s summary names both of MIRAI\'s hooks', async () => {

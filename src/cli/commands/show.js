@@ -22,6 +22,7 @@ import { docsStoreFor } from '../../store/connectors/index.js';
 import { documentRows } from '../../store/connectors/state.js';
 import { documentLine } from '../../store/connectors/links.js';
 import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js';
+import { hostWords, projectWords } from '../../ship/words.js';
 
 // mirai show <ticket> (unit 28, decision 7; design/03 "mirai show"): the ticket's page from the
 // store: its plan, build, review rounds with every blocking finding, the MR, rounds, usage and why
@@ -32,7 +33,7 @@ import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js
 // store write.
 export default {
   name: 'show',
-  summary: 'Print one ticket\'s page (plan, build, reviews, MR, rounds, usage, parking), or one initiative\'s documents',
+  summary: `Print one ticket's page (plan, build, reviews, ${hostWords(null).long}, rounds, usage, parking), or one initiative's documents`,
   usage: 'mirai show <ticket> [--full | --json] | mirai show <initiative> [--docs] | mirai show context | mirai show overlays | mirai show template <type> | mirai show checklist <type>',
   positionals: { min: 1, max: 2 },
   options: {
@@ -79,7 +80,7 @@ export default {
     if (args.values.json) {
       const { plan, ...rest } = d;
       io.stdout.write(`${JSON.stringify({ ...rest, plan: plan ? { ...plan, text: undefined } : null }, null, 2)}\n`);
-    } else io.stdout.write(showText(d, { full: Boolean(args.values.full) }));
+    } else io.stdout.write(showText(d, { full: Boolean(args.values.full), words: projectWords({ cwd: io.cwd, env: io.env, store: openStore({ cwd: io.cwd, env: io.env }) }) }));
     return EXIT.OK;
   },
 };

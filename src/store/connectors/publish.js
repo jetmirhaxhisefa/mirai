@@ -10,6 +10,7 @@ import { docsPushScan } from '../../hooks/pre-push.js';
 import { loadRegistry } from '../../config/registry.js';
 import { lintPaths, projectOf } from '../../lint/lint.js';
 import { cleanTitle, hostFor } from '../../ship/host.js';
+import { hostWords, wordsOfHost } from '../../ship/words.js';
 import { contentHash } from '../../sign/sign.js';
 import { plain } from '../../status/text.js';
 import { projectOverlays } from '../../trust/overlays.js';
@@ -108,8 +109,9 @@ function describe({ store, conn, initiative, files }) {
 // 'local', branch, head, mr: { number, url }, files: [{ path, state }], pushed }.
 export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now = () => new Date() }) {
   const s = setup({ cwd, env, initiative, hostOf, now });
-  if (s.local) return { outcome: 'local', initiative, message: `the local store keeps ${initiative}'s documents on this Mac only: publish does nothing (no branch, no merge request), and teammates can't see them` };
+  if (s.local) return { outcome: 'local', initiative, message: `the local store keeps ${initiative}'s documents on this Mac only: publish does nothing (no branch, no ${hostWords(null).long}), and teammates can't see them` };
   const { store, config, conn, host, folder, branch, integration } = s;
+  const w = wordsOfHost(host);
   const files = folderFiles(conn, initiative);
   if (!files.some((f) => /\.md$/i.test(f.path))) throw fail(`${folder}/ has no documents to publish`, 'nothing-to-publish', 'write the initiative\'s documents first (mirai-write)');
   host.checkAuth();
@@ -137,7 +139,7 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
   const names = base ? changedNames(store.checkout, base, head, store.gitEnv) : [];
   const outside = outsideFolder(names, folder);
   if (!base || outside.length) {
-    throw Object.assign(fail(`a docs merge request carries documents only, and ${branch} changes ${outside.length ? `${outside.length} path${outside.length === 1 ? '' : 's'} outside ${folder}/: ${outside.slice(0, 20).join(', ')}` : `no history shared with ${integration}`}; nothing was pushed`, 'not-docs-only', `take those changes off ${branch} (they belong on a code branch), then publish again`), { paths: outside });
+    throw Object.assign(fail(`a docs ${w.long} carries documents only, and ${branch} changes ${outside.length ? `${outside.length} path${outside.length === 1 ? '' : 's'} outside ${folder}/: ${outside.slice(0, 20).join(', ')}` : `no history shared with ${integration}`}; nothing was pushed`, 'not-docs-only', `take those changes off ${branch} (they belong on a code branch), then publish again`), { paths: outside });
   }
   // 26a's push check: the same secret scan a code push gets, over what this push adds. A hit names
   // the pattern and the file, never the secret; nothing is pushed and the docs branch doesn't move.
@@ -159,8 +161,8 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
   const title = cleanTitle(`Docs: ${initiative}`);
   const body = describe({ store, conn, initiative, files });
   const mr = host.findMr(branch);
-  if (mr?.state === 'closed') throw fail(`the docs merge request for ${initiative} (${mr.url}) is closed`, 'mr-closed', 'closing it was your decision, and MIRAI never reopens it: reopen it on the host, then publish again');
-  if (mr?.state === 'locked') throw fail(`the docs merge request ${mr.url} is locked: GitLab is merging it`, 'mr-locked', 'run it again in a minute');
+  if (mr?.state === 'closed') throw fail(`the docs ${w.long} for ${initiative} (${mr.url}) is closed`, 'mr-closed', 'closing it was your decision, and MIRAI never reopens it: reopen it on the host, then publish again');
+  if (mr?.state === 'locked') throw fail(`the docs ${w.long} ${mr.url} is locked: GitLab is merging it`, 'mr-locked', 'run it again in a minute');
   let outcome;
   let number;
   let url;
@@ -178,7 +180,7 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
   const fileHashes = files.map((f) => ({ path: f.path, content_hash: contentHash(f.bytes) }));
   appendEvent(store, { type: 'docs_published', by: 'script', item: initiative, branch, head, number, ...(url ? { url } : {}), files: fileHashes });
   const rows = new Map(documentRows({ store, conn, initiative }).map((r) => [r.rel, r.state]));
-  return { outcome, branch, head, pushed, mr: { number, url }, files: files.map((f) => ({ path: f.path, abs: join(conn.base, f.path), state: rows.get(f.path) ?? (f.path.includes('/tickets/') ? 'with its epic' : '—') })), folder: conn.dir(initiative), config, store, remoteUrl: s.remoteUrl };
+  return { outcome, branch, head, pushed, mr: { number, url }, files: files.map((f) => ({ path: f.path, abs: join(conn.base, f.path), state: rows.get(f.path) ?? (f.path.includes('/tickets/') ? 'with its epic' : '—') })), folder: conn.dir(initiative), config, store, remoteUrl: s.remoteUrl, words: w };
 }
 
 // The initiative's files at a commit: [{ rel, bytes }].
@@ -212,11 +214,12 @@ function lintAt({ cwd, env, store, config, conn, files }) {
 // 'local', … }; every refusal throws, naming the gap, with nothing merged.
 export async function docsMerge({ cwd, env, initiative, hostOf = hostFor, now = () => new Date(), log = () => {} }) {
   const s = setup({ cwd, env, initiative, hostOf, now });
-  if (s.local) return { outcome: 'local', message: `the local store keeps ${initiative}'s documents on this Mac only: there is no docs merge request to merge` };
+  if (s.local) return { outcome: 'local', message: `the local store keeps ${initiative}'s documents on this Mac only: there is no docs ${hostWords(null).long} to merge` };
   const { store, config, conn, host, folder, branch, integration } = s;
+  const w = wordsOfHost(host);
   const { events } = readJournal(store);
   const published = events.filter((e) => e.type === 'docs_published' && e.item === initiative).at(-1);
-  if (!published) throw fail(`${initiative} has no docs merge request yet`, 'not-published', `run: mirai docs publish ${initiative}`);
+  if (!published) throw fail(`${initiative} has no docs ${w.long} yet`, 'not-published', `run: mirai docs publish ${initiative}`);
   host.checkAuth();
   const live = host.mrState(published.number);
   if (live.state === 'merged') {
@@ -225,41 +228,41 @@ export async function docsMerge({ cwd, env, initiative, hostOf = hostFor, now = 
       const mr = host.findMr(branch);
       if (sha(mr?.mergeSha)) appendEvent(store, { type: 'docs_merged', by: 'script', item: initiative, number: published.number, head: live.head, merge_sha: mr.mergeSha });
     }
-    return { outcome: 'already-merged', mr: { number: published.number, url: published.url }, store, config, conn, remoteUrl: s.remoteUrl, files: [] };
+    return { outcome: 'already-merged', mr: { number: published.number, url: published.url }, store, config, conn, remoteUrl: s.remoteUrl, files: [], words: w };
   }
-  if (live.state !== 'open') throw fail(`the docs merge request ${published.url ?? `#${published.number}`} is ${live.state}`, 'mr-closed', 'closing it was your decision: reopen it on the host, then run it again');
+  if (live.state !== 'open') throw fail(`the docs ${w.long} ${published.url ?? w.ref(published.number)} is ${live.state}`, 'mr-closed', 'closing it was your decision: reopen it on the host, then run it again');
   // The head MIRAI checks is the one it published; anything else moved after MIRAI's check.
-  if (live.head !== published.head) throw fail(`the docs merge request's head moved since MIRAI published it (${published.head.slice(0, 12)} → ${live.head.slice(0, 12)}); nothing was merged`, 'mr-head-moved', `someone pushed to ${branch}: look at it on the host; to publish the documents as they are here again: mirai docs publish ${initiative}`);
-  if (!commitOf(store.checkout, live.head, store.gitEnv)) throw fail(`this clone doesn't have the docs merge request's head ${live.head.slice(0, 12)}`, 'fetch-first', `mirai docs publish ${initiative}`);
+  if (live.head !== published.head) throw fail(`the docs ${w.long}'s head moved since MIRAI published it (${published.head.slice(0, 12)} → ${live.head.slice(0, 12)}); nothing was merged`, 'mr-head-moved', `someone pushed to ${branch}: look at it on the host; to publish the documents as they are here again: mirai docs publish ${initiative}`);
+  if (!commitOf(store.checkout, live.head, store.gitEnv)) throw fail(`this clone doesn't have the docs ${w.long}'s head ${live.head.slice(0, 12)}`, 'fetch-first', `mirai docs publish ${initiative}`);
 
   // Documents only, again, at the head.
   const tip = host.branchTip(integration);
   const base = tip && commitOf(store.checkout, tip, store.gitEnv) ? mergeBase(store.checkout, tip, live.head, store.gitEnv) : mergeBase(store.checkout, store.branch, live.head, store.gitEnv);
   const outside = base ? outsideFolder(changedNames(store.checkout, base, live.head, store.gitEnv), folder) : ['(no shared history)'];
-  if (outside.length) throw fail(`the docs merge request changes ${outside.length} path${outside.length === 1 ? '' : 's'} outside ${folder}/: ${outside.slice(0, 20).join(', ')}; nothing was merged`, 'not-docs-only', 'a docs merge request carries documents only');
+  if (outside.length) throw fail(`the docs ${w.long} changes ${outside.length} path${outside.length === 1 ? '' : 's'} outside ${folder}/: ${outside.slice(0, 20).join(', ')}; nothing was merged`, 'not-docs-only', `a docs ${w.long} carries documents only`);
 
   // Your signed approvals against the files at the head, and the lint.
   const files = filesAt(store, live.head, folder);
-  const gaps = approvalGaps({ store, docs: files, events });
+  const gaps = approvalGaps({ store, docs: files, events, words: w });
   const lint = lintAt({ cwd, env, store, config, conn, files });
   for (const line of lint.skipped) log(line);
   for (const p of lint.errors.slice(0, 20)) gaps.push({ path: `${p.file}:${p.line}`, gap: `a lint error: ${p.reason}`, hint: 'fix it, run mirai lint, approve again if it changed an approved file, then publish again' });
   if (gaps.length) {
-    throw Object.assign(fail(`the docs merge request for ${initiative} can't be merged yet: ${gaps.length} gap${gaps.length === 1 ? '' : 's'}; nothing was merged`, 'docs-gaps', 'each gap is listed above, with what closes it; then run mirai docs merge again'), { gaps });
+    throw Object.assign(fail(`the docs ${w.long} for ${initiative} can't be merged yet: ${gaps.length} gap${gaps.length === 1 ? '' : 's'}; nothing was merged`, 'docs-gaps', 'each gap is listed above, with what closes it; then run mirai docs merge again'), { gaps });
   }
 
   // The host: checks failed refuses; still running, or a rule the host holds it by, waits.
-  if (live.ci?.state === 'failed') throw fail(`the docs merge request's checks failed (${live.ci.checks.filter((c) => c.state === 'failed').map((c) => c.name).slice(0, 5).join(', ')}); nothing was merged`, 'ci-failed', 'see the merge request on the host');
+  if (live.ci?.state === 'failed') throw fail(`the docs ${w.long}'s checks failed (${live.ci.checks.filter((c) => c.state === 'failed').map((c) => c.name).slice(0, 5).join(', ')}); nothing was merged`, 'ci-failed', `see the ${w.long} on the host`);
   const waitingFor = live.ci?.state === 'pending' ? `its checks are still running (${live.ci.checks.filter((c) => c.state === 'pending').map((c) => c.name).slice(0, 5).join(', ')})` : live.mergeable === null ? 'the host is still working out whether it can merge it' : live.mergeable !== true ? (live.why ?? 'the host can\'t merge it yet') : null;
-  if (waitingFor) return { outcome: 'waiting', waitingFor, mr: { number: published.number, url: published.url }, head: live.head };
+  if (waitingFor) return { outcome: 'waiting', waitingFor, mr: { number: published.number, url: published.url }, head: live.head, words: w };
 
   let merged;
   try {
     merged = host.mergeMr(published.number, { head: live.head });
   } catch (err) {
-    if (err.code === 'mr-head-moved') throw fail(`the docs merge request's head moved while MIRAI was merging it; nothing was merged`, 'mr-head-moved', `look at ${branch} on the host; then mirai docs publish ${initiative} and merge again`);
+    if (err.code === 'mr-head-moved') throw fail(`the docs ${w.long}'s head moved while MIRAI was merging it; nothing was merged`, 'mr-head-moved', `look at ${branch} on the host; then mirai docs publish ${initiative} and merge again`);
     throw err;
   }
   appendEvent(store, { type: 'docs_merged', by: 'script', item: initiative, number: published.number, head: live.head, merge_sha: merged.mergeSha });
-  return { outcome: 'merged', mr: { number: published.number, url: published.url }, head: live.head, mergeSha: merged.mergeSha, files: files.map((f) => ({ path: f.rel, abs: join(conn.base, f.rel), bytes: f.bytes })), folder: conn.dir(initiative), store, config, conn, remoteUrl: s.remoteUrl, integration };
+  return { outcome: 'merged', mr: { number: published.number, url: published.url }, head: live.head, mergeSha: merged.mergeSha, files: files.map((f) => ({ path: f.rel, abs: join(conn.base, f.rel), bytes: f.bytes })), folder: conn.dir(initiative), store, config, conn, remoteUrl: s.remoteUrl, integration, words: w };
 }

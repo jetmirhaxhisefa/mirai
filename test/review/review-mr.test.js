@@ -138,7 +138,7 @@ launchTest('29d: the packet: files against the Code map, tests, the review\'s de
   assert.ok(d.files.length >= 1);
   assert.ok(d.review && d.review.outcome === 'pass');
   const text = packetText(d);
-  assert.match(text, /^PMT-31 · MR #1 open · proofs valid at its head [0-9a-f]{7} · CI: none \(local-only\)$/m);
+  assert.match(text, /^PMT-31 · PR #1 open · proofs valid at its head [0-9a-f]{7} · CI: none \(local-only\)$/m);
   assert.match(text, /^Merge {6}the host can merge it · M1 if you merge now: as is$/m);
   // A file the plan doesn't name is flagged.
   assert.ok(d.files.some((x) => x.flag === 'not in the plan\'s Code map') || d.files.every((x) => !x.flag));
@@ -195,7 +195,7 @@ launchTest('29d: merge from the review: signed, pinned to the head, a merge comm
   const r = await term(reviewMrCmd, f, ['PMT-31'], ['m', 'PMT-31']);
   assert.equal(r.code, EXIT.OK, `${r.out}\n${r.err?.message ?? ''}`);
   assert.match(r.out, /Decide: \[m\]erge {2}\[s\]end back {2}\[l\]ater/);
-  assert.match(r.out, /merged: PMT-31's MR .* as [0-9a-f]{7} \(your merge, signed\); PMT-31 is done\n/);
+  assert.match(r.out, /merged: PMT-31's pull request .* as [0-9a-f]{7} \(your merge, signed\); PMT-31 is done\n/);
   const pr = f.gh.read().prs[0];
   assert.equal(pr.state, 'MERGED');
   const mergeSha = pr.mergeCommit.oid;

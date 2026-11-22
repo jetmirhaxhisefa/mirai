@@ -10,6 +10,7 @@ import { openStore } from '../../store/home.js';
 import { readJournal } from '../../store/journal.js';
 import { plain } from '../../status/text.js';
 import { snapshot, trustedConfig } from '../../trust/snapshot.js';
+import { hostWords, wordsFor } from '../../ship/words.js';
 
 // mirai report [<run-id>] [--json] [--m1] (unit 29a, Jet's decision 4; PM2-17): a run's report, the
 // last one by default: its tickets with their whole paths, usage and limit share, the red team.
@@ -31,7 +32,7 @@ export default {
     const [runId] = args.positionals;
     if (runId !== undefined && !RUN_ID.test(runId)) throw new UsageError(`${plain(runId).slice(0, 40)} isn't a run id`, 'run ids look like r-20261114-124456-5474; mirai status names the last one');
     if (args.values.m1) {
-      if (runId !== undefined) throw new UsageError('--m1 covers every MR, not one run', 'mirai report --m1');
+      if (runId !== undefined) throw new UsageError(`--m1 covers every ${hostWords(null).long}, not one run`, 'mirai report --m1');
       return m1Command(args, io);
     }
     const store = openStore({ cwd: io.cwd, env: io.env });
@@ -51,6 +52,8 @@ async function m1Command(args, io) {
   const store = openStore({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(snapshot({ cwd: io.cwd, env: io.env }));
   let host = null;
+  const remoteUrl = remotes(store.checkout, store.gitEnv).get('origin') ?? null;
+  const words = wordsFor({ config, remoteUrl });
   try {
     const h = hostFor({ config, remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null, store, env: io.env, root: store.checkout });
     host = { name: h.name, pushUrl: h.pushUrl, helper: h.helper ?? null, ca: h.ca ?? null };
@@ -58,15 +61,15 @@ async function m1Command(args, io) {
     io.stderr.write(`note: the host can't be read (${plain(err.message)}); a final head not on record stays unknown\n`);
   }
   const events = readJournal(store, { keys: branchKeys(store.checkout, store.branch, store.gitEnv) }).events;
-  const r = m1({ root: store.checkout, env: store.gitEnv, events, codePaths: config.gate?.code_paths ?? ['**'], integration: config.git?.integration_branch ?? store.branch, host });
+  const r = m1({ root: store.checkout, env: store.gitEnv, events, codePaths: config.gate?.code_paths ?? ['**'], integration: config.git?.integration_branch ?? store.branch, host, words });
   if (args.values.json) {
     io.stdout.write(`${JSON.stringify(r, null, 2)}\n`);
     return EXIT.OK;
   }
   const text = { 'as-is': 'merged as is', edited: 'edited before the merge', closed: 'closed without merge', unknown: 'unknown' };
-  const lines = [m1Line(r.rate), ''];
+  const lines = [m1Line(r.rate, words), ''];
   for (const row of r.rows) lines.push(`${row.ticket.padEnd(12)} ${text[row.class].padEnd(24)}${row.mr?.url ? ` ${plain(row.mr.url)}` : ''}${row.why ? `  (${plain(row.why)})` : ''}`);
-  if (!r.rows.length) lines.push('no MR MIRAI opened has been merged or closed yet');
+  if (!r.rows.length) lines.push(`no ${words.long} MIRAI opened has been merged or closed yet`);
   io.stdout.write(`${lines.join('\n')}\n`);
   return EXIT.OK;
 }

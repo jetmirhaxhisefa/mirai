@@ -12,6 +12,8 @@ import { openStore } from '../../store/home.js';
 import { readHeartbeat, readRunState, resumeRun, writeRunState } from '../../store/run.js';
 import { readTicketStatus } from '../../store/tickets.js';
 import { eventPrinter, exitOf, runSummary, withSignals } from './run.js';
+import { agentNamer } from '../../agent/names.js';
+import { projectWords } from '../../ship/words.js';
 
 // mirai resume [--abandon] (unit 28, decision 6; design/01 §14): your last run, continued. It says
 // what was in progress, what's parked and what waits for you; a crashed run is taken over; then
@@ -77,10 +79,10 @@ export default {
     return await withSignals(async (abort, hard) => {
       const progress = progressPrinter(io, io.progressTiming ?? {});
       try {
-        const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}), ...(io.hostOf ? { hostOf: io.hostOf } : {}) };
+        const launchOptions = { who: agentNamer(), signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}), ...(io.hostOf ? { hostOf: io.hostOf } : {}) };
         const move = (st) => resumeRun(st, { runId: s.run_id, via, request, signer });
         const r = await driveTicket({ cwd: io.cwd, env: io.env, ticket, via, resume: { runId: s.run_id, move }, launchOptions, onEvent: eventPrinter(io), ...(io.runSteps ? { steps: io.runSteps } : {}), ...(io.caffeinate ? { caffeinate: io.caffeinate } : {}), ...(io.sleep ? { sleep: io.sleep } : {}), ...(io.now ? { now: io.now } : {}) });
-        io.stdout.write(runSummary(r, ticket));
+        io.stdout.write(runSummary(r, ticket, projectWords({ cwd: io.cwd, env: io.env, store })));
         return exitOf(r);
       } finally {
         progress.stop();

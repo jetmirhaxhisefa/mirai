@@ -46,7 +46,7 @@ test('24a: Rex is in the registry: the reviewer role, read-only, the read-only t
   assert.deepEqual([...rex.tools.allowed].sort(), ['Glob', 'Grep', 'Read']);
   // The role is read-only, so the agent may run under it (21a's rule), and never under a writing one.
   assert.doesNotThrow(() => checkAgentRole(rex, r.roles.reviewer));
-  assert.throws(() => checkAgentRole(rex, r.roles.author), (e) => e.code === 'agent-role' || e.code === 'agent-read-only');
+  assert.throws(() => checkAgentRole(rex, r.roles.developer), (e) => e.code === 'agent-role' || e.code === 'agent-read-only');
 });
 
 test('24a: only Rex reviews: any other agent is refused for the review step, and Kai under the reviewer role', () => {

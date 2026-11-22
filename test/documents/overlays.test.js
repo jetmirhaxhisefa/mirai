@@ -323,7 +323,7 @@ test('37 T6: approval and the trust root: unapproved and changed overlays are sk
 test('37 T7: every agent definition and role validates with and without overlays; doctor and mirai show overlays list each state', async () => {
   // Without overlays: MIRAI's registry loads (Kai, Rex and every role pass the schema).
   assert.deepEqual(Object.keys(REGISTRY.agents).sort(), ['mirai-developer', 'mirai-reviewer']);
-  assert.deepEqual(Object.keys(REGISTRY.roles).sort(), ['author', 'planner', 'qa', 'reviewer', 'verifier']);
+  assert.deepEqual(Object.keys(REGISTRY.roles).sort(), ['developer', 'planner', 'qa', 'reviewer', 'verifier']);
   // With: an instruction-only, a narrowing and a widening overlay on each agent validate.
   const agent = (name, extra = '') => `kind = "agent-overlay"\nschema_version = 1\nname = "${name}"\n${extra}`;
   for (const name of Object.keys(REGISTRY.agents)) {

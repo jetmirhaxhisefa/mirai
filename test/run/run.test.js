@@ -34,6 +34,8 @@ import { LOG_TYPES, SESSION_LOG_TYPES } from '../../src/store/journal.js';
 import { createMachineKey, protectKey, writePublicKeyFile } from '../../src/sign/keys.js';
 import { approvalPath, planApproval } from '../../src/agent/plan.js';
 import { needsTest } from '../helpers/needs.js';
+import { agentNamer } from '../../src/agent/names.js';
+import { progressLine } from '../../src/agent/progress.js';
 
 // Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
 const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
@@ -342,6 +344,31 @@ launchTest('28: a build killed before its record: the run names mirai discard; d
   assert.equal(r.stop.kind, 'needs-you');
 });
 
+launchTest('38b T6: one mirai run introduces Kai and Rex once each, "persona (id)", then by the persona', async () => {
+  const f = await approvedTicket();
+  const lines1 = [];
+  const r1 = await drive(f, { launchOptions: { ...watch(claudeWith([{ plan: PLAN_TEXT }])), who: agentNamer(), onProgress: (p) => lines1.push(progressLine(p)) } });
+  assert.equal(r1.stop.kind, 'gate-plan');
+  assert.equal(lines1.filter((l) => l.startsWith('Kai (mirai-developer)')).length, 1, lines1.join('\n'));
+  assert.equal((await tty(['approve', 'PMT-31', '--plan'], f.io, ['a', 'PMT-31'])).code, EXIT.OK);
+  baselineFor(f);
+  const lines = [];
+  const claude = claudeWith([done, { verdict: 'pass', findings: [] }], ['printf "// renamed\\n" >> app/Team.php']);
+  const r2 = await drive(f, { launchOptions: { ...watch(claude), who: agentNamer(), onProgress: (p) => lines.push(progressLine(p)) } });
+  assert.equal(r2.outcome, 'finished', JSON.stringify(r2.stop));
+  const kai = lines.filter((l) => /^Kai\b/.test(l));
+  const rex = lines.filter((l) => /^Rex\b/.test(l));
+  assert.equal(kai[0], 'Kai (mirai-developer): preparing the launch (MIRAI\'s checks and the red team\'s gate)', lines.join('\n'));
+  assert.equal(kai.filter((l) => l.includes('mirai-developer')).length, 1, 'introduced once');
+  assert.ok(kai.length > 1 && kai.slice(1).every((l) => /^Kai \(Sonnet\)|^Kai:/.test(l)), kai.join('\n'));
+  assert.equal(rex[0], 'Rex (mirai-reviewer): preparing the launch (MIRAI\'s checks and the red team\'s gate)', lines.join('\n'));
+  assert.equal(rex.filter((l) => l.includes('mirai-reviewer')).length, 1, 'introduced once');
+  assert.ok(rex.length > 1, rex.join('\n'));
+  // The run log names the build's role as developer.
+  const log = readRunLog(openStore(f.io), r2.runId).lines.filter((l) => l.event === 'agent_run');
+  assert.deepEqual(log.map((l) => [l.agent, l.role, l.step]), [['mirai-developer', 'developer', 'build'], ['mirai-reviewer', 'reviewer', 'review']]);
+});
+
 launchTest('29a: each run saves its report: the ticket\'s whole path (an earlier run\'s steps marked), usage, the MR, the red team; mirai report prints it; feedback from you and your session', async () => {
   const f = await approvedTicket();
   const r1 = await drive(f, { launchOptions: watch(claudeWith([{ plan: PLAN_TEXT }])) });
@@ -361,7 +388,7 @@ launchTest('29a: each run saves its report: the ticket\'s whole path (an earlier
   const k = d.tickets[0];
   assert.deepEqual(k.steps.map((x) => [x.kind, x.text, x.earlier]), [
     ['approval', 'ticket approved by you, signed', true], ['launch', "Kai's plan", true], ['approval', 'plan approved by you, signed', true],
-    ['launch', "Kai's build", false], ['launch', "Rex's review", false], ['push', `proofs checked, pushed ${k.steps[5].text.slice(-7)}`, false], ['mr', 'MR #7 opened', false],
+    ['launch', "Kai's build", false], ['launch', "Rex's review", false], ['push', `proofs checked, pushed ${k.steps[5].text.slice(-7)}`, false], ['mr', 'MR !7 opened', false],
   ]);
   assert.ok(k.steps.filter((x) => x.kind === 'launch').every((x) => x.model && Number.isInteger(x.turns) && x.round === 1));
   assert.deepEqual([k.rounds.of, k.rounds.replans_of, k.mr.state, k.mr.url], [2, 1, 'open', MR_URL]);
@@ -371,7 +398,10 @@ launchTest('29a: each run saves its report: the ticket\'s whole path (an earlier
   assert.ok(existsSync(join(store.dir, 'reports', `${r2.runId}.md`)));
   const md = readFileSync(join(store.dir, 'reports', `${r2.runId}.md`), 'utf8');
   assert.match(md, /^## Tickets$/m);
-  assert.match(md, /Kai's plan: .*\(earlier run\)$/m);
+  // Unit 38b: the report names Kai in full the first time, the id in backticks; then "Kai".
+  assert.match(md, /Kai \(`mirai-developer`\)'s plan: .*\(earlier run\)$/m);
+  assert.match(md, /^- .*Kai's build: /m);
+  assert.match(md, /^- .*Rex \(`mirai-reviewer`\)'s review: /m);
   assert.match(md, /^green \(2026-11-14T10:23:12\.723Z\) for the Claude Code agents run, 2\.1\.319\.$/m);
 
   // mirai report: the last run, as text; --json; an unknown run id.

@@ -3,6 +3,8 @@ import { accessSync, constants, existsSync, mkdtempSync, readFileSync, rmSync, s
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
+import { hostWords } from './words.js';
+
 // The GitLab host behind `mirai ship` (unit 27b; Jet's decisions 2026-11-11): gitlab.com, or a
 // self-hosted server on its own address, through `glab`. Everything goes through GitLab's API
 // (`glab api`): structured JSON back, the body as a JSON file, never an argument, never glab's
@@ -155,6 +157,7 @@ export function gitlabHost({ hostUrl, repo, cli, env, cliHome = env.HOME }, deps
   const self = {
     name: 'gitlab',
     renderAs: 'gitlab',
+    words: hostWords('gitlab'),
     hostUrl,
     repo,
     pushUrl: `${hostUrl}/${repo}.git`,

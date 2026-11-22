@@ -1,6 +1,7 @@
 import { codeHash } from '../proofs/hash.js';
 import { commitOf, fetchObjects, firstParentsWithParents, mergeBase, remoteRef } from '../store/git.js';
 import { allTicketFacts } from '../store/journal.js';
+import { hostWords } from '../ship/words.js';
 
 // M1, the acceptance rate (unit 29a, Jet's decision 2; D-38): of the MRs MIRAI opened, how many you
 // merged as they were. It compares the code, not the commits: the MR's final head and MIRAI's last
@@ -20,7 +21,8 @@ export const mrHeadRef = (hostName, number) => (hostName === 'gitlab' ? `refs/me
 
 // One ticket's class: { ticket, class, why?, mr? }. `facts`: allTicketFacts's for the ticket.
 // `host` (optional): { name, pushUrl, helper, ca } to read a head the journal doesn't have.
-export function classifyTicket({ root, env, ticket, facts, codePaths, integration, host = null }) {
+export function classifyTicket({ root, env, ticket, facts, codePaths, integration, host = null, words = hostWords(host?.name ?? null) }) {
+  const term = words.long;
   const mr = facts.url ? { number: facts.number ?? null, url: facts.url } : facts.number ? { number: facts.number, url: null } : null;
   const out = (cls, why) => ({ ticket, class: cls, ...(why ? { why } : {}), ...(mr ? { mr } : {}) });
   if (facts.mr === 'closed') return out('closed');
@@ -36,7 +38,7 @@ export function classifyTicket({ root, env, ticket, facts, codePaths, integratio
       head = null;
     }
   }
-  if (!head) return out('unknown', host ? 'the host doesn\'t name the MR\'s final head' : 'the MR\'s final head isn\'t on record; mirai report --m1 reads it from the host');
+  if (!head) return out('unknown', host ? `the host doesn't name the ${term}'s final head` : `the ${term}'s final head isn't on record; mirai report --m1 reads it from the host`);
   // The quick answer: the MR merged exactly what MIRAI pushed.
   if (head === pushed) return out('as-is');
   if (!commitOf(root, head, env) && host && facts.number) {
@@ -46,7 +48,7 @@ export function classifyTicket({ root, env, ticket, facts, codePaths, integratio
       // stays missing; said below
     }
   }
-  if (!commitOf(root, head, env)) return out('unknown', `the MR's head ${head.slice(0, 7)} isn't in this clone${host ? '' : '; mirai report --m1 fetches it'}`);
+  if (!commitOf(root, head, env)) return out('unknown', `the ${term}'s head ${head.slice(0, 7)} isn't in this clone${host ? '' : '; mirai report --m1 fetches it'}`);
   if (!commitOf(root, pushed, env)) return out('unknown', `MIRAI's push ${pushed.slice(0, 7)} isn't in this clone`);
   // The merge commit: the host's, or the integration branch's merge whose parents include the head.
   let merged = facts.mergeSha && commitOf(root, facts.mergeSha, env) ? facts.mergeSha : null;
@@ -68,12 +70,12 @@ export function classifyTicket({ root, env, ticket, facts, codePaths, integratio
 }
 
 // Every ticket with a merged or closed MR, classified, and the rate.
-export function m1({ root, env, events, codePaths, integration, host = null, tickets = null }) {
+export function m1({ root, env, events, codePaths, integration, host = null, tickets = null, words = hostWords(host?.name ?? null) }) {
   const facts = allTicketFacts(events);
   const rows = [];
   for (const [ticket, f] of facts) {
     if (tickets && !tickets.includes(ticket)) continue;
-    const r = classifyTicket({ root, env, ticket, facts: f, codePaths, integration, host });
+    const r = classifyTicket({ root, env, ticket, facts: f, codePaths, integration, host, words });
     if (r) rows.push(r);
   }
   rows.sort((x, y) => (x.ticket < y.ticket ? -1 : x.ticket > y.ticket ? 1 : 0));
@@ -89,8 +91,8 @@ export function m1Rate(rows) {
   return { merged, asIs, edited, closed: n('closed'), unknown: n('unknown'), rate: merged ? asIs / merged : null };
 }
 
-export function m1Line(rate) {
-  if (rate.merged === 0 && rate.closed === 0) return `M1: no merged or closed MR yet${rate.unknown ? ` (${rate.unknown} unknown)` : ''}`;
+export function m1Line(rate, words = hostWords(null)) {
+  if (rate.merged === 0 && rate.closed === 0) return `M1: no merged or closed ${words.short} yet${rate.unknown ? ` (${rate.unknown} unknown)` : ''}`;
   const pct = rate.rate === null ? '' : ` (${Math.round(rate.rate * 100)}%)`;
   return `M1: ${rate.asIs} of ${rate.merged} merged as is${pct} · ${rate.edited} edited · ${rate.closed} closed${rate.unknown ? ` · ${rate.unknown} unknown` : ''}`;
 }
