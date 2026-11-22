@@ -101,6 +101,19 @@ remote and the first commits. A second clone of Thudos from GitHub gets the pilo
 remote, so its own store; nothing is pushed to GitHub, and `~/Projects/thudos` and `mirai/pilot`
 are never touched.
 
+### Findings on the probes
+
+- **P1, step 4 (2026-11-22): `mirai init` in the mirror's clone was refused** ("this checkout has
+  a MIRAI store under another id (platform-2a0b292426c1, now thudos-setup-ccf02c7bf60a)"). Cause:
+  `sameRepoAt` (`src/store/home.js`) checked the old checkout (`~/Projects/thudos`, live, on
+  `mirai/pilot`) for the new checkout's integration branch (`mirai/setup`), found no such branch,
+  and took the live pilot checkout for a gone one. Fixed: it checks the old store's own
+  integration branch (`meta.integration_branch`), in both places it's used (the related-store and
+  the second-checkout checks). Test: `test/store/store.test.js` "39 P1 finding": a clone on
+  another integration branch with the original live gets its own store; with the original
+  deleted, it's refused (`identity-changed`); store 43/43, and the setup, launch, install and
+  doctor files pass. The scratch scan before P1 used a temp HOME, so it never met the pilot's store.
+
 ### Before P1 and P2 (once, in Terminal)
 
 1. `git -C ~/Projects/mirai fetch origin unit/39-build`

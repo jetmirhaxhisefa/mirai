@@ -161,12 +161,14 @@ function readMeta(file) {
 }
 
 // Whether `path` is still a checkout of this repo: a git work tree at that path whose
-// integration branch shares a root commit. An unrelated folder now at the old path is not.
-function sameRepoAt(path, id, env) {
+// integration branch (the old store's own, `branch`) shares a root commit. An unrelated folder now
+// at the old path is not. Unit 39 (P1): the old store's branch, not the new checkout's: a second
+// clone on another integration branch, with the original still checked out, is its own repo.
+function sameRepoAt(path, branch, id, env) {
   try {
     const top = topLevel(path, env);
     if (top === null || realpathSync(top) !== path) return false;
-    const roots = rootCommits(path, `refs/heads/${id.branch}`, env) ?? [];
+    const roots = rootCommits(path, `refs/heads/${branch}`, env) ?? [];
     return roots.some((r) => id.roots.includes(r));
   } catch {
     return false;
@@ -194,7 +196,7 @@ function findRelatedStore(home, id, env) {
       continue; // not a store, or one doctor must repair; it isn't this repo's evidence
     }
     if (meta.checkout === id.checkout) return meta;
-    if (meta.roots.some((r) => id.roots.includes(r)) && !sameRepoAt(meta.checkout, id, env)) return meta;
+    if (meta.roots.some((r) => id.roots.includes(r)) && !sameRepoAt(meta.checkout, meta.integration_branch ?? id.branch, id, env)) return meta;
   }
   return null;
 }
@@ -269,7 +271,7 @@ export function openStore({ cwd, env, optional = false, identity }) {
 
   const meta = readMeta(p.metaFile);
   if (meta.repo_id !== id.repoId) throw new StoreError(`${p.metaFile}: belongs to ${meta.repo_id}, not ${id.repoId}`, { path: p.metaFile, code: 'corrupt', hint: 'run: mirai doctor' });
-  if (meta.checkout !== id.checkout && sameRepoAt(meta.checkout, id, env)) {
+  if (meta.checkout !== id.checkout && sameRepoAt(meta.checkout, meta.integration_branch ?? id.branch, id, env)) {
     throw new StoreError(`this repo is also checked out at ${meta.checkout}; MIRAI uses one checkout per repo`, {
       code: 'second-checkout',
       exitCode: EXIT.BLOCKED,

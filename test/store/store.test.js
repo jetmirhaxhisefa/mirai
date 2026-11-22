@@ -123,6 +123,28 @@ test('T1b: a store under another id for this checkout is refused, never replaced
   assert.notEqual(createStore({ cwd: fork, env }).repoId, store.repoId);
 });
 
+test('39 P1 finding: a second clone on another integration branch, the original still checked out, gets its own store; with the original gone, it is refused', () => {
+  const { env, repo, home } = setup({ remote: 'https://github.com/acme/app' });
+  const store = createStore({ cwd: repo, env });
+  // The clone's remote is a local mirror, its integration branch another one (P1 on Thudos).
+  const clone = join(tmp('clone'), 'app');
+  git(dirname(clone), ['clone', '-q', repo, clone], home);
+  git(clone, ['checkout', '-q', '-b', 'setup'], home);
+  const configFile = join(clone, '.mirai', 'config.toml');
+  writeFileSync(configFile, readFileSync(configFile, 'utf8').replace('"main"', '"setup"'));
+  const other = createStore({ cwd: clone, env });
+  assert.notEqual(other.repoId, store.repoId);
+  // The same, with the original checkout gone: the id changed, so it's refused.
+  const clone2 = join(tmp('clone2'), 'app');
+  git(dirname(clone2), ['clone', '-q', repo, clone2], home);
+  git(clone2, ['checkout', '-q', '-b', 'setup2'], home);
+  git(clone2, ['remote', 'set-url', 'origin', 'https://github.com/acme/app-mirror'], home);
+  const config2 = join(clone2, '.mirai', 'config.toml');
+  writeFileSync(config2, readFileSync(config2, 'utf8').replace('"main"', '"setup2"'));
+  rmSync(repo, { recursive: true, force: true });
+  refused(() => createStore({ cwd: clone2, env }), 'identity-changed');
+});
+
 test('T2: the store lives outside the work tree; a HOME inside the checkout is refused before anything is created', () => {
   const { env, repo } = setup();
   const store = unchanged(repo, () => createStore({ cwd: repo, env }));
