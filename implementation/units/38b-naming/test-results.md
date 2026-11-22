@@ -88,3 +88,10 @@ approval.
   clean. Found while preparing it: MIRAI reads its trust root only when main is level with
   origin/main, so the clone's origin/main is set to its own refreshed main; the docs branch still
   starts from the host's real main (`refs/probe/host-main`, fetched again at the publish).
+  Jet's first publish (2026-11-22) failed in the probe, before anything reached GitHub: the fetch
+  just before it (`+refs/heads/main:refs/probe/host-main`) also moved origin/main back to GitHub's
+  main (git's opportunistic remote-tracking update), so MIRAI refused (`main here … and origin/main
+  … differ`). Fixed: the fetch passes `--refmap=` and origin/main is set back to the clone's main
+  after every fetch. The dry run now reproduces it: its stand-in host gets a new commit on main (as
+  the runner pushes) and the fetch goes to it through `url.<bare>.insteadOf`; started from a folder
+  misaligned like Jet's, it passes, and the docs branch's parent is that newest main.

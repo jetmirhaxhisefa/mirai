@@ -35,7 +35,15 @@ const REAL_HOME = process.env.HOME;
 
 const HOST_MAIN = 'refs/probe/host-main';
 // The host's main into HOST_MAIN (objects and that ref only), with your own git and SSH agent.
-const fetchHostMain = (root) => execFileSync('/usr/bin/git', ['fetch', '--quiet', 'origin', `+refs/heads/main:${HOST_MAIN}`], { cwd: root, env: process.env });
+// A fetch with an explicit refspec still moves origin/main as well (git's opportunistic update of
+// the remote-tracking branch, which --refmap= turns off), and MIRAI reads its trust root only
+// while main and origin/main agree: so no refmap, and origin/main is set back to the clone's main
+// after every fetch. `config`: git -c pairs (the dry run points origin at its stand-in host).
+function fetchHostMain(root, config = []) {
+  execFileSync('/usr/bin/git', [...config.flatMap((c) => ['-c', c]), 'fetch', '--quiet', '--refmap=', 'origin', `+refs/heads/main:${HOST_MAIN}`], { cwd: root, env: process.env });
+  alignOrigin(root);
+}
+const alignOrigin = (root) => execFileSync('/usr/bin/git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: root, env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME } });
 const gitIn = (root, env) => (...a) => execFileSync('/usr/bin/git', a, { cwd: root, env, encoding: 'utf8' }).trim();
 const probeEnv = (dir) => {
   const gh = findCli('gh', process.env, null);
@@ -95,13 +103,21 @@ async function publish() {
   const env = probeEnv(dir);
   if (!existsSync(join(root, 'docs', 'mirai', INITIATIVE))) throw new Error(`no ${INITIATIVE} in ${root}: run --setup first`);
   let hostOf;
+  let dryHost = null;
   if (o.dry) {
     const { fakeGh } = await import('../helpers/fake-hosts.js');
     const bare = join(dir, 'host.git');
+    const G = (...a) => execFileSync('/usr/bin/git', ['--git-dir', bare, '-c', 'user.name=Runner', '-c', 'user.email=r@example.invalid', ...a], { encoding: 'utf8' }).trim();
     if (!existsSync(bare)) {
       execFileSync('/usr/bin/git', ['init', '-q', '--bare', '-b', 'main', bare]);
-      execFileSync('/usr/bin/git', ['--git-dir', bare, 'fetch', '-q', root, `${HOST_MAIN}:refs/heads/main`]);
+      G('fetch', '-q', root, `${HOST_MAIN}:refs/heads/main`);
     }
+    // As the build runner does between the setup and the publish: a new commit on the host's main.
+    const pushed = G('commit-tree', '-p', 'refs/heads/main', '-m', 'MIRAI refresh (a stand-in for the runner)', G('rev-parse', 'refs/heads/main^{tree}'));
+    G('update-ref', 'refs/heads/main', pushed);
+    const origin = execFileSync('/usr/bin/git', ['remote', 'get-url', 'origin'], { cwd: root, encoding: 'utf8' }).trim();
+    fetchHostMain(root, [`url.${bare}.insteadOf=${origin}`]);
+    dryHost = { G, pushed };
     const gh = fakeGh(bare);
     const store = openStore({ cwd: root, env });
     writeFileSync(join(store.dir, 'host-tools.json'), JSON.stringify({ schema_version: 1, github: gh.path }));
@@ -125,7 +141,15 @@ async function publish() {
   const pass = code === 0 && line && !/merge request|\bMR\b/.test(out);
   console.log(`${pass ? 'PASS' : 'FAIL'}${o.dry ? ' (dry: a stand-in gh)' : ''}: ${line ? `pull request #${line[1]} ${line[2]}` : `no "pull request #N" line (exit ${code})`}`);
   if (pass && !o.dry) console.log(`cleanup: gh pr close ${line[1]} --repo ${new URL(line[2]).pathname.split('/').slice(1, 3).join('/')} --delete-branch, then chmod -R u+w ${dir} && rm -rf ${dir}`);
-  process.exitCode = pass ? 0 : 1;
+  if (dryHost) {
+    // The docs branch starts from the host's newest main (the runner's push), and holds the brief only.
+    const parent = dryHost.G('rev-parse', 'refs/heads/docs/naming-38b^');
+    const changed = dryHost.G('diff', '--name-only', 'refs/heads/main', 'refs/heads/docs/naming-38b');
+    console.log(`dry: the docs branch starts from the host's newest main: ${parent === dryHost.pushed ? 'yes' : `NO (${parent})`}; it changes: ${changed}`);
+    if (parent !== dryHost.pushed || changed !== `docs/mirai/${INITIATIVE}/brief.md`) process.exitCode = 1;
+  }
+  process.exitCode ??= pass ? 0 : 1;
+  if (!pass) process.exitCode = 1;
 }
 
 if (o.setup) setup();
