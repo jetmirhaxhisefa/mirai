@@ -4,6 +4,7 @@ import baseline from './baseline.js';
 import branchCmd from './branch.js';
 import build from './build.js';
 import config from './config.js';
+import custom from './custom.js';
 import detect from './detect.js';
 import discard from './discard.js';
 import drop from './drop.js';
@@ -24,6 +25,7 @@ import review from './review.js';
 import run from './run.js';
 import sandbox from './sandbox.js';
 import session from './session.js';
+import setup from './setup.js';
 import show from './show.js';
 import doctor from './doctor.js';
 import docs from './docs.js';
@@ -44,4 +46,4 @@ import version from './version.js';
 // The real command list, fixed in code: a file dropped into this folder does nothing.
 // Later units add their commands here, by name. `help` is added by main.js, because it
 // needs the router itself.
-export const COMMANDS = [agent, approve, baseline, branchCmd, build, config, detect, discard, docs, doctor, drop, epic, feedback, fix, gate, hook, init, key, lint, log, merge, plan, protectedCmd, readerTest, redteam, render, report, resume, review, reviewMr, run, sandbox, session, sessionServer, ship, show, status, test, token, trust, unpark, version];
+export const COMMANDS = [agent, approve, baseline, branchCmd, build, config, custom, detect, discard, docs, doctor, drop, epic, feedback, fix, gate, hook, init, key, lint, log, merge, plan, protectedCmd, readerTest, redteam, render, report, resume, review, reviewMr, run, sandbox, session, sessionServer, setup, ship, show, status, test, token, trust, unpark, version];

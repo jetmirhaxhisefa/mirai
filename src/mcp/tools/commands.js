@@ -22,6 +22,15 @@ const INITIATIVE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 // A Markdown file's path in the repo, relative to its top: no leading / or -, no .., no spaces
 // or control characters (the worker passes it to `mirai` as one argument).
 const FILE = /^(?![-/.])(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}\.md$/;
+// Unit 39: an item's path in the repo (relative, no ".."), with an optional "#part" (a hook in a
+// settings file, a server in .mcp.json), as the ledger names it.
+const ITEM = /^(?![-/])(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}(?:#[A-Za-z0-9._-]{1,100})?$/;
+// One line of your words (a summary, where an item goes): no line breaks or control characters.
+const LINE = /^[^\u0000-\u001f\u007f]{1,300}$/;
+const WORD = /^[A-Za-z0-9][A-Za-z0-9._|*()-]{0,99}$/;
+const STAGE = /^(scan|migrate|context|connect|finish)$/;
+// The arguments a command may take besides those it needs (unit 39's optional ones).
+const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'n', 'drop']);
 // What the red team costs, as the terminal says it before its y/N.
 export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Opus), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
 // One-time codes for a red-team run, kept in this server only, for ten minutes.
@@ -81,6 +90,21 @@ export const COMMANDS = Object.freeze({
   // as they are, and merge needs your signed approvals, not a typed key.
   'docs publish': { needs: ['initiative'], argv: (a) => ['docs', 'publish', a.initiative] },
   'docs merge': { needs: ['initiative'], argv: (a) => ['docs', 'merge', a.initiative] },
+  // Unit 39: the guided setup's record (/mirai setup alone loads the mirai-setup skill, which calls
+  // these), and mirai custom add. None is a gate: stage commits and approvals stay yours.
+  setup: { quick: true, argv: () => ['setup', 'status'] },
+  'setup status': { quick: true, argv: () => ['setup', 'status'] },
+  'setup scan': { quick: true, argv: () => ['setup', 'scan'] },
+  'setup decide': { quick: true, needs: ['path'], opts: ['place', 'drop', 'summary'], argv: (a) => ['setup', 'decide', a.path, ...(a.place ? ['--keep', a.place] : []), ...(a.drop ? ['--drop'] : []), ...(a.summary ? ['--summary', a.summary] : [])] },
+  'setup review': { quick: true, argv: () => ['setup', 'review'] },
+  'setup defer': { quick: true, needs: ['path'], argv: (a) => ['setup', 'defer', a.path] },
+  'setup checklist': { opts: ['n'], argv: (a) => ['setup', 'checklist', ...(a.n ? ['--done', String(a.n)] : [])] },
+  'setup start': { quick: true, needs: ['stage'], argv: (a) => ['setup', 'start', a.stage] },
+  'setup done': { quick: true, needs: ['stage'], argv: (a) => ['setup', 'done', a.stage] },
+  'custom add': {
+    quick: true, needs: ['path'], opts: ['as', 'role', 'event', 'matcher', 'server', 'service'],
+    argv: (a) => ['custom', 'add', a.path, ...['as', 'role', 'server', 'service', 'matcher'].flatMap((k) => (a[k] ? [`--${k}`, a[k]] : [])), ...(a.event ? ['--hook', a.event] : [])],
+  },
 });
 
 // Jet's standing rule (2026-11-12): every command also runs from your session, unless it's a gate
@@ -125,7 +149,28 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'file', 'type', 'initiative', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff'].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'file', 'type', 'initiative', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'path', 'stage', ...OPTIONAL].includes(k)) return { refused: `${k} isn't an argument here` };
+  }
+  // Unit 39's arguments.
+  if (args.path !== undefined) {
+    if (typeof args.path !== 'string' || !ITEM.test(args.path)) return { refused: 'path must be an item\'s path in the repo, relative to its top, such as .claude/skills/deploy or .claude/settings.json#hooks.PostToolUse.0' };
+    out.path = args.path;
+  }
+  if (args.stage !== undefined) {
+    if (typeof args.stage !== 'string' || !STAGE.test(args.stage)) return { refused: 'stage is one of scan, migrate, context, connect, finish' };
+    out.stage = args.stage;
+  }
+  for (const k of OPTIONAL) {
+    if (args[k] === undefined) continue;
+    if (!(spec.opts ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
+    if (k === 'drop') {
+      if (typeof args.drop !== 'boolean') return { refused: 'drop is true or false' };
+      if (args.drop) out.drop = true;
+    } else if (k === 'n') {
+      if (!Number.isInteger(args.n) || args.n < 1 || args.n > 50) return { refused: 'n is a checklist line\'s number' };
+      out.n = args.n;
+    } else if (typeof args[k] !== 'string' || !((k === 'place' || k === 'summary') ? LINE : WORD).test(args[k])) return { refused: `${k} isn't a value MIRAI takes here` };
+    else out[k] = args[k];
   }
   // Unit 33: a document's path in the repo (`epic render`), relative, a Markdown file.
   if (args.file !== undefined) {
@@ -160,7 +205,7 @@ export function checkCommand(args) {
   }
   if (!Object.hasOwn(GATES, command)) {
     for (const need of spec.needs ?? []) if (out[need] === undefined) return { refused: `${command} needs ${need}` };
-    for (const k of ['ticket', 'level', 'file', 'type', 'initiative']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
+    for (const k of ['ticket', 'level', 'file', 'type', 'initiative', 'path', 'stage']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
   }
   return { args: out };
 }
@@ -190,6 +235,18 @@ export const miraiCommand = Object.freeze({
       m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every merged or closed MR' },
       diff: { type: 'boolean', description: 'with review-mr: the whole diff of the code' },
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
+      path: { type: 'string', pattern: ITEM.source, description: 'an item\'s path in the repo, for custom add, setup decide and setup defer (unit 39)' },
+      stage: { type: 'string', enum: ['scan', 'migrate', 'context', 'connect', 'finish'], description: 'a setup stage, for setup start and setup done' },
+      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer) or skill; a hook\'s form: interactive, check or both' },
+      role: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent overlay\'s role' },
+      event: { type: 'string', pattern: WORD.source, description: 'with custom add: a hook\'s event, such as PostToolUse' },
+      matcher: { type: 'string', pattern: WORD.source, description: 'with custom add: the tools a hook matches, such as Edit|Write' },
+      server: { type: 'string', pattern: WORD.source, description: 'with custom add of .mcp.json: the server' },
+      service: { type: 'string', pattern: WORD.source, description: 'with custom add of a hook kept as a check: its compose service' },
+      place: { type: 'string', description: 'with setup decide: where a kept item goes (one line)' },
+      drop: { type: 'boolean', description: 'with setup decide: the item is dropped' },
+      summary: { type: 'string', description: 'with setup decide: what the item does, from the research (one line)' },
+      n: { type: 'integer', description: 'with setup checklist: a line you mark done' },
     },
     required: ['command'],
     additionalProperties: false,

@@ -34,6 +34,7 @@ import { loadRegistry } from '../config/registry.js';
 import { overlayKeys, projectInputs, renderPlan, REGISTRY_DIR as RENDER_REGISTRY_DIR } from '../install/render.js';
 import { contextApproval } from '../cli/commands/approve.js';
 import { readApprovedFile } from '../cli/human-move.js';
+import { committedNotRendered, itemRoot } from '../setup/pre-commit.js';
 import { docsStoreFor } from '../store/connectors/index.js';
 import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 
@@ -270,7 +271,9 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (!runnable(record.node)) return red(`the pre-push hook runs ${record.node}, which isn't there: every push fails`, 'mirai init --refresh (it records the Node you run now)');
     const s = hooksState({ store, env });
     if (s.state !== 'ok') return red(s.why, 'mirai init --refresh');
-    return ok(`the pre-push hook runs ${record.node}`);
+    // Unit 39: a folder written before the pre-commit hook was added.
+    if (!record.pre_commit) return yellow(`the pre-push hook runs ${record.node}; MIRAI's pre-commit (unit 39) isn't installed yet`, 'mirai init --refresh');
+    return ok(`the pre-push and pre-commit hooks run ${record.node}`);
   });
   await check('host-cli', 'Host CLIs', () => {
     let rec = null;
@@ -381,6 +384,8 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (trustError) throw trustError;
     return overlaysCheck({ store, trust, events, redTeam: redTeamNow, env });
   });
+  // Unit 39 (Scope 9): what got past the pre-commit hook (git commit --no-verify).
+  await check('custom', 'Not rendered by MIRAI', () => customCheck({ store }));
   return items;
 }
 
@@ -501,6 +506,15 @@ export function overlaysCheck({ store, trust, events, redTeam = null, registry =
   const agentLine = `agents: ${agents.join(', ')}`;
   const warn = notes.length || agents.some((a) => /not approved|red team needed/.test(a));
   return warn ? yellow([agentLine, ...notes].join('; '), hint) : ok(`${agentLine}; ${r.overlays.length} overlay${r.overlays.length === 1 ? '' : 's'}, each approved as it is now`);
+}
+
+// Unit 39 (Scope 9, decision 6): files committed under .claude/, .cursor/ or .codex/ that the lock
+// doesn't mark rendered: an item added by hand (or before setup), which nothing checked.
+export function customCheck({ store }) {
+  const left = committedNotRendered({ root: store.checkout, env: store.gitEnv });
+  if (!left.length) return ok('everything under .claude/, .cursor/ and .codex/ is rendered by MIRAI');
+  const roots = [...new Set(left.map(itemRoot))];
+  return yellow(`not rendered by MIRAI: ${left.slice(0, 5).join(', ')}${left.length > 5 ? ` and ${left.length - 5} more` : ''}`, `mirai custom add ${roots[0]}${roots.length > 1 ? ` (and the ${roots.length - 1} other${roots.length === 2 ? '' : 's'}; /mirai setup goes through them all)` : ''}`);
 }
 
 // The agent and skill files under your sessions' folders that mirai render would write
