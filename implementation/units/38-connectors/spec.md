@@ -1,7 +1,7 @@
 ---
 unit: "38"
 name: connectors
-status: approved (Jet, 2026-11-20: "approve 38"; decisions 1–8 from his interview the same day; built only after 37 is finished, and re-checked against 34–37 first)
+status: done (spec approved by Jet 2026-11-20, unit approved 2026-11-22: "approve 38"; decisions 1–8 from his interview; built after 37, re-checked against 34–37 first)
 roadmap: design/07-implementation-roadmap.md, row 38; D-36 (updated here); D-06; R-M15, R-M16, R2-M5, R2-M13, D5, Q3, R3-M12, V3; units 27a/27b (the git hosts), 29d (`mirai merge`), 32 (the docs root, `mirai show <initiative>`), 33 (the epic's approval over its ticket set)
 depends_on: ["04", "05", "06", "27a", "27b", "29d", "32", "33", "37"]
 ---
