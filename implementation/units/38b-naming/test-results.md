@@ -71,4 +71,20 @@ approval.
 
 ## Probes (real)
 
-Not run: P1 needs you.
+- **P1, the Kai launch: passed with Jet (2026-11-22).** `test/probes/build-probes.js --yes --probe r1`
+  from this branch's worktree (a sample-app clone refreshed to 38b, Haiku, `--step commit-message`):
+  `r1-naming: role developer; first progress line: Kai (mirai-developer) (Haiku): started`; the
+  handover came back ok, 4 turns, 1.15 min, model Haiku.
+- **P1, `mirai docs publish`: prepared, not run yet.** The sample app's checkout is shared with the
+  build runner (its main is refreshed and pushed by u39's jobs), so `test/probes/naming-probes.js`
+  works in a clone of its own: a probe HOME (its own MIRAI store; the sample app's store and
+  checkout are never touched), MIRAI refreshed from this checkout and committed on the clone's main
+  only (never pushed), and a new initiative `naming-38b` (one brief, MIRAI's example) in the work
+  tree. `due-dates` is merged already (PR #16), so the probe publishes the new initiative instead:
+  one docs branch and one pull request on the sample app's GitHub repo, to close afterwards; main
+  is never changed. Checked here with `--publish --dry` (a stand-in gh over a local bare copy of
+  the host's main): `docs publish naming-38b: opened`, `pull request #1: …`, the docs commit on the
+  host's main holding only `docs/mirai/naming-38b/brief.md`, PASS; the sample app's checkout stayed
+  clean. Found while preparing it: MIRAI reads its trust root only when main is level with
+  origin/main, so the clone's origin/main is set to its own refreshed main; the docs branch still
+  starts from the host's real main (`refs/probe/host-main`, fetched again at the publish).
