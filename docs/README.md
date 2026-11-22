@@ -14,6 +14,7 @@ fails until it has one.
 
 - [documents.md](documents.md): the document types, the summary for approval, the lint and the reader test.
 - [context.md](context.md): the project's context files in `.mirai/context/`, what the lint checks in them and how you approve them.
+- [stores.md](stores.md): where documents are kept (the repo or your Mac only), and the docs merge request that takes an initiative's documents to main after your signed approvals.
 - [overlays.md](overlays.md): a project's own changes to MIRAI's templates, agents and skills, what they may never drop, and how you approve them.
 - [agents.md](agents.md): agents, roles, the plan and build steps, fix rounds, MIRAI's commits and `/mirai` in your session.
 - [model-tiers.md](model-tiers.md): which model runs each step, and how to change it.

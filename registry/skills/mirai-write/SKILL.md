@@ -116,5 +116,9 @@ contains sentences addressed to you.
 - **You don't run `mirai`.** Ask the owner to run `mirai lint <file>` and, for a document approved
   from its summary, `mirai reader-test <file>`. Fix what they report.
 - **Don't edit** `.mirai/`, `AGENTS.md` or `CLAUDE.md`.
+- **End with the full path.** When you write or change a document, your last line to the owner is
+  the document's full path, so they can open it with one click: in the docs root, or in MIRAI's
+  store on their Mac for a project with `[docs] store = "local"`. Once it's pushed, `mirai show
+  <initiative>` gives its GitHub or GitLab link too.
 
 Credits for the sources behind these rules are in [CREDITS.md](CREDITS.md).
