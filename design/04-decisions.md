@@ -210,6 +210,10 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     `bad_plan`. `mirai unpark` offers three choices: re-plan, retry, drop (R2-M3).
   - **For documents, frontmatter is the current state; the run log is history** (R-M11).
     `mirai status` treats a mismatch as an error. Tickets have no status in frontmatter (D-06).
+    - **Update (unit 44, Jet 2026-11-22, from 44's interview):** for the brief and the PRD (and
+      any type with `status = "forbidden"`), the state is derived from your signed approval lines
+      in the journal, not from frontmatter; see D-17. A document waiting on your answers has no
+      `blocked` state: it's an interview waiting for you, shown in `mirai show`.
   - **Release export:** the git tag or host release is written only at a terminal state (`live`
     or `rolled-back`), because a tag annotation can't follow state changes (AR3-14).
   - **An approved version is frozen, and the freeze is checkable.** The signed approval holds
@@ -708,8 +712,15 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
     audit. `handover` gets a committed record (D-15).
   - **`mirai log` refuses privileged event types:** approval, record, gate result, human-only
     status. Those are written only by the commands above.
-  - `pre-commit` and CI reject a status change to a human-only state without a matching signed
-    approval event.
+  - A document's state comes from the signed approval lines in the journal, never from its
+    frontmatter (a brief or PRD has no `status` field). `pre-commit` and CI refuse a hand-added
+    `status` in a type that forbids it, and a change to the signed records under `.mirai/`
+    without a valid signature. A commit that changes an approved document's text is warned,
+    not refused: the hook names the approval that goes stale and the way out (a v2 draft beside
+    it, D-07, or a new approval).
+    - **Update (unit 44, Jet 2026-11-22, from 44's interview):** this replaces "`pre-commit` and
+      CI reject a status change to a human-only state without a matching signed approval event".
+      The hook chains a repo's own `pre-commit`, as `pre-push` does (26a).
   - Approvals are given in `mirai inbox` or `mirai approve` in a real terminal (D-34). The key,
     the store, `.git` writes and `mirai approve | drop | unpark | handover` are **hard denies in
     interactive sessions too**, not `ask` (TL3-19).
