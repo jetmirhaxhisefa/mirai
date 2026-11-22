@@ -187,6 +187,14 @@ In the sample app's checkout, in your terminal:
 - P07/P08: an external connector is a TOML file plus a module with the interface the fake store
   shows; its text goes through `agentText` (fenced) and its status through `statusView`.
 
+## Follow-up
+
+- **Host word:** on GitHub the output says "merge request" (P2's finding a): fixed by 38b (naming), not in 38.
+- **An approval and a second remote** (P1's finding b): in the GitLab copy the approved Rex overlay's record doesn't verify (a different remote gives a different repo id). An approval should probably survive a mirror; 37's follow-up.
+- **Kai looked outside the project** on SAMPLE-60's plan launches (finding e): refused, but find out why.
+- **CI timing test:** `test/store/store.test.js:186` (05a, "the writers didn't overlap") failed PR #106's Node 22 job once on a busy runner; give it a looser bound or a longer window.
+- **Jet's three questions** (lone ticket's file, images in an initiative's folder, tickets in the local store): the built defaults stand (A, A, A) until Jet says otherwise.
+
 ## What I'm unsure about
 
 - The local store's hints (`mirai approve … --file docs/due-dates/prd.md`) print the path relative
