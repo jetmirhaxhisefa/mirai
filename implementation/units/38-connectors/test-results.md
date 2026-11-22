@@ -66,23 +66,68 @@
   Changed pins: the command list (`docs`), the journal's event types (`docs_published`,
   `docs_merged`), doctor's items (`docs-store`, 21 items).
 
+- **The flaky 14d test (37's follow-up):** it failed on both Ubuntu jobs of PR #106, so it is fixed here: `test/tests/test-run.test.js` now reads the stored run whose result carries a gate (exactly one) instead of the last name in sort order (run ids have one-second precision).
+
 ## Probes (real)
 
-Not run yet. `test/probes/connector-probes.js` holds the checks; the steps with your key and the
-pushes are yours. In the sample app's checkout, in your terminal:
+P1 and P2 passed with Jet (2026-11-22): GitLab MR 5 merged as 0dc820f, GitHub PR #16 merged as
+00c4d0f; the sample app's main is level at 00c4d0f. P3 passed with Jet (2026-11-22): SAMPLE-60 (a
+lone bug ticket) planned, built test-first, reviewed by Rex (who used his approved Bash overlay),
+proofs recorded, PR #17 opened; its diff held the fix and MIRAI's records and no document (the
+ticket file was on main already, D-54); `mirai merge` took it in as 5805b2d, SAMPLE-60 done. P4 passed
+with Jet (2026-11-22) in ~/Projects/mirai-p4-local: brief and PRD in MIRAI's store, approved,
+`git status` clean, `mirai show` paths in the store, doctor's "teammates can't see these documents".
+`git-probes.js --yes --mirai` passed (every probe, the two new docs calls inside each). Found on P3/P4:
+(d) P4's written steps ran `mirai key new` before committing `.mirai/framework`, so the launcher's
+seal refused it (correctly); commit first, then `key new`, then commit the public key; (e) both of
+Kai's plan launches on SAMPLE-60 began with a Read/Glob "outside the project" (refused by the cage;
+the run went on): worth a look at why the sample app gives Kai a reason to look outside. `test/probes/connector-probes.js` holds the setup and the checks; the
+steps with your key and the pushes are yours.
 
+Found on P1/P2 (to fix):
+- On GitHub, `mirai docs publish` says "merge request 16"; GitHub's word is "pull request".
+- In the GitLab checkout (another remote, so another repo id and store), the approved Rex overlay's
+  record shows "doesn't verify: the signature does not match". An approval record should survive a
+  second remote or a mirror: a 37 follow-up.
+- P1's step 7 needed a fresh `mirai reader-test` on the changed PRD before approving it again: the
+  steps given to Jet left it out.
+
+In the sample app's checkout, in your terminal:
+
+- **The setup** (added after the approval): `node <mirai>/test/probes/connector-probes.js --setup
+  github|gitlab --initiative due-dates` writes 33's example initiative into the checkout's
+  `docs/mirai/due-dates/` from MIRAI's `registry/examples/` (the brief's Q-1 answered in the brief
+  and the PRD), not committed: publish takes the folder from the work tree. The ids you approve:
+  `due-dates-prd` (with `due-dates-brief`) and `SAMPLE-50`. Proven on a throwaway clone of the
+  sample app (a temp HOME, no remote): the setup wrote 11 files, `mirai lint docs/mirai/due-dates`
+  gave 0 problems, `mirai show due-dates` listed the four documents (epic with 7 tickets), and the
+  lint as at approval was clean for the brief, the PRD, the epic and every ticket, before and after
+  the probe's PRD edit (`the evening reminder` → `the nightly reminder`, outside the summary).
+- **The GitLab copy:** `jettmir.h/mirai-sample-app` on your personal gitlab.com
+  (`GLAB_CONFIG_DIR=~/.config/glab-personal glab repo list`). Its main is at afdbc23 (2026-11-11,
+  "Refresh MIRAI: mirai ship (unit 27a)"), an ancestor of the sample app's main (8454cbd, MIRAI at
+  38): a fast-forward push brings it up to date.
 - **P1 (GitLab, personal gitlab.com only):** every command with
   `GLAB_CONFIG_DIR=~/.config/glab-personal` (the checks refuse a GitLab project without it):
   1. `mirai docs publish due-dates`, then
      `node <mirai>/test/probes/connector-probes.js --check published --initiative due-dates`
   2. `mirai approve due-dates-prd --file docs/mirai/due-dates/prd.md`, then `--check refused`
-  3. `mirai approve SAMPLE-50 --file docs/mirai/due-dates/epic-due-dates.md`; edit one word of the
-     PRD; `mirai docs publish due-dates`; then `--check stale`
+  3. `mirai approve SAMPLE-50 --file docs/mirai/due-dates/epic-due-dates.md`; the PRD edit above; `mirai docs publish due-dates`; then `--check stale`
   4. `mirai approve due-dates-prd --file docs/mirai/due-dates/prd.md`; `mirai docs publish
      due-dates`; `mirai docs merge due-dates` (again if it says "waiting for"); then `--check merged`
 - **P2 (GitHub, the sample app from 27a):** the same steps, without `GLAB_CONFIG_DIR`.
-- **P3:** a bug ticket with no initiative, approved, planned, built and shipped (`mirai ship`), then
-  `--check lone --ticket <key>`; `mirai merge <key>`; `--check lone-merged --ticket <key>`.
+- **P3:** `--setup bug --ticket SAMPLE-60` writes a small real bug in the sample app ("Pressing Add
+  twice quickly adds the task twice", `frontend/src/components/AddTaskForm.tsx`), approved and
+  committed on main (D-54), then `mirai run` to its MR, `--check lone --ticket SAMPLE-60`,
+  `mirai merge SAMPLE-60`, `--check lone-merged --ticket SAMPLE-60`. Proven on a throwaway clone at
+  00c4d0f: the file is written, `mirai lint` and the lint as at approval are clean. `--check lone`
+  now expects no document in the MR but the ticket's own file, which under D-54 is already on main.
+- **P4:** `--setup local --initiative due-dates` writes the brief, interview and PRD through the
+  local store; `--check local` also checks the brief and PRD show as approved. Proven on a throwaway
+  project (temp HOME): init, `store = "local"` committed, the setup, `mirai lint` (3 files, 0
+  problems), `mirai show due-dates`, and `--check local` passed every line but the approval (no key
+  there). Found on the way: the first setup wrote the folders 0755 (its own mkdir, not the store's
+  write), and doctor's store item went red, as it should; the setup now writes through the store.
 - **The new git calls:** `docsCommit` (the docs commit on a private index: `read-tree`,
   `rm --cached --force`, `hash-object -w --stdin`, `update-index --index-info`, `write-tree`,
   `rev-parse`, `commit-tree`) and `setDocsBranch` (`update-ref`) are in `MIRAI_STEPS`, so they run
