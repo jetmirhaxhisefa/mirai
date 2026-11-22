@@ -114,7 +114,15 @@ are never touched.
   `.claude/` that MIRAI didn't render; doctor green (nothing to fix; expected: the Merge gate
   until unit 54). What the check can't see, Jet judged: the resume after Ctrl-D, stage 3's review,
   the summaries ("generally ok"). The red team there: green on a quiet Mac (F6).
-- **P2, P3:** not run yet.
+- **P2 Pasted text only: PASSED (Jet, 2026-11-23)** in `~/Projects/u39-p2` (a fresh repo, no
+  remote), on MIRAI's copy from `10c615e` (F7–F10 don't touch what P2 checks). The only source was
+  a pasted description of a made-up product ("Tablebook", 7 sentences). `setup-probes.js --check
+  p2`: "PASS business.md lints clean: mirai lint: 0 problems" and "PASS every source is "you said"
+  or the pasted text: 7 sources". Stage 3's review listed `business.md` and `journeys.md` with
+  their state and path; `business.md` was put off (its Measures line `(open)`: 36's decision 8 at
+  work), the conventions put off (no code yet), and the project files and feature map left for the
+  first ticket.
+- **P3:** not run yet (next, in `thudos-setup`, on the same copy).
 
 ### Findings on the probes
 
