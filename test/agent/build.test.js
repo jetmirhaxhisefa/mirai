@@ -280,7 +280,7 @@ launchTest('T6 + T7: the usage check and the loop guard first; a build session i
   assert.equal(loop.launches, 2, 'the plan launch and the build');
   const { lines } = readRunLog(f.store, runIds(f.store).at(-1));
   const run = lines.find((l) => l.event === 'agent_run');
-  assert.deepEqual([run.agent, run.role, run.step, run.tier], ['mirai-developer', 'author', 'build', 'standard']);
+  assert.deepEqual([run.agent, run.role, run.step, run.tier], ['mirai-developer', 'developer', 'build', 'standard']);
   const checks = lines.find((l) => l.event === 'checks');
   assert.deepEqual(checks.named, [{ name: 'unit', result: 'pass' }, { name: 'feature', result: 'pass' }]);
   assert.equal(checks.tdd, 'auto');

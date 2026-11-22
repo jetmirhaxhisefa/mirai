@@ -251,7 +251,7 @@ hand.
 **Re-checked against 37 as built (2026-11-21):**
 
 - **Her role** (Scope 1, T1): as for Nora (41), only a role's `may_write` is applied, and
-  `author` allows `["**"]` with step `build`. Changed to: Tess runs under a role of her own,
+  `developer` (named `author` before 38b) allows `["**"]` with step `build`. Changed to: Tess runs under a role of her own,
   read-write, step `tickets`; after the run her changes are checked against the initiative's
   epic and `tickets/` paths.
 - **The `investigation` type** (Scope 6): it declares `protected_sections` and

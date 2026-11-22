@@ -3,6 +3,8 @@
 One line per page. A new page gets its line here; the docs check (`test/docs/coverage.test.js`)
 fails until it has one.
 
+These pages say "merge request" for both hosts. On GitHub this is a pull request; MIRAI's output uses your host's word ("pull request #16" on GitHub, "merge request !16" on GitLab).
+
 ## Start here
 
 - [install.md](install.md): install MIRAI, set up a repo with `mirai init`, see the version and the help.

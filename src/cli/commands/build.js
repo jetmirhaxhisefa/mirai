@@ -8,6 +8,7 @@ import { runBuild } from '../../agent/build.js';
 import { mintLaunchToken } from '../../agent/requests.js';
 import { requireHooks } from '../../hooks/install.js';
 import { openStore } from '../../store/home.js';
+import { agentNamer, fullName } from '../../agent/names.js';
 
 // mirai build <ticket> (unit 21b; design/01 §7). Kai builds the ticket from the plan you approved,
 // on the ticket's own branch, and hands over; MIRAI then checks protected paths, new dependencies
@@ -17,7 +18,7 @@ const BUILD_EXIT = Object.freeze({ 'handed-over': EXIT.OK, 'checks-failed': EXIT
 
 export default {
   name: 'build',
-  summary: 'Have Kai build a ticket from its approved plan',
+  summary: `Have ${fullName('mirai-developer')} build a ticket from its approved plan`,
   usage: 'mirai build <ticket> [--recheck]',
   positionals: { min: 1, max: 1 },
   options: {
@@ -38,7 +39,7 @@ export default {
     try {
       // What's happening as it happens (unit 21e), on stderr.
       progress = progressPrinter(io, io.progressTiming ?? {});
-      const launchOptions = { signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
+      const launchOptions = { who: agentNamer(), signal: abort.signal, hardSignal: hard.signal, onProgress: progress.onProgress, onCheck: progress.onCheck, ...(io.claude ? { claude: io.claude } : {}), ...(io.redTeamStatus ? { status: io.redTeamStatus } : {}) };
       const recheck = Boolean(args.values.recheck);
       // Your terminal mints it (D-14); a recheck launches nothing.
       const r = await runBuild({ cwd: io.cwd, env: io.env, ticket, recheck, launchToken: recheck ? null : mintLaunchToken(), nextToken: mintLaunchToken, launchOptions, ...(io.testRun ? { testRun: io.testRun } : {}) });
@@ -46,7 +47,7 @@ export default {
       if (r.tookOver) io.stdout.write(`note: ${plain(r.tookOver)}\n`);
       io.stdout.write(`branch: ${r.branch}\n`);
       if (r.launch) io.stdout.write(`launch ${r.launch.id}: ${r.launch.outcome}${r.launch.why ? `: ${plain(r.launch.why)}` : ''}; ${r.launch.line?.turns ?? 0} turns, ${r.launch.line?.minutes ?? 0} min, ${plain(r.launch.line?.model_used ?? r.launch.line?.model ?? '')}\n`);
-      if (r.handover) io.stdout.write(`Kai's handover (${r.handover.status}): ${plain(r.handover.summary).slice(0, 2000)}\n`);
+      if (r.handover) io.stdout.write(`${launchOptions.who('mirai-developer')}'s handover (${r.handover.status}): ${plain(r.handover.summary).slice(0, 2000)}\n`);
       const p = r.protectedPaths;
       if (p?.instructionFiles?.length) io.stdout.write(`  instruction files it changed (they reach an agent's context): ${p.instructionFiles.map(plain).join(', ')}\n`);
       if (r.dependencies?.lockOnly?.length) io.stdout.write(`  lock files it changed with no manifest change beside them: ${r.dependencies.lockOnly.map(plain).join(', ')}\n`);

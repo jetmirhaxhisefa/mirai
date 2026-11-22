@@ -191,9 +191,9 @@ approved PRD.
 - **"You don't run `mirai`"** (Scope 1): `mirai-write` says "You don't run `mirai`"
   (`registry/skills/mirai-write/SKILL.md`; 37's "For later" note). Added: the skill says an agent
   runs MIRAI's checks through its broker tools.
-- **Her write scope** (Scope 1, T1): the spec gave Nora her own write scope under role `author`.
-  Only a role's `may_write` is applied (`src/config/overlays.js`, `src/agent/scope.js`), and
-  `author` allows `["**"]` with step `build`. Changed to: Nora runs under a role of her own
+- **Her write scope** (Scope 1, T1): the spec gave Nora her own write scope under role `developer`
+  (named `author` before 38b). Only a role's `may_write` is applied (`src/config/overlays.js`,
+  `src/agent/scope.js`), and `developer` allows `["**"]` with step `build`. Changed to: Nora runs under a role of her own
   (`registry/roles/product-manager.toml`, read-write, step `prd`); after the run her changes are
   checked against the initiative's `pathOf` folder.
 - **Skills in a strict launch** (Scope 1, "Gets"): a strict launch loads no skills

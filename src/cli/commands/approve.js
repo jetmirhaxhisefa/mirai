@@ -32,6 +32,7 @@ import { CUSTOM_DIR, RECORDS_FOLDER, overlayFilesIn, overlayRecord, overlayRecor
 import { trustedRoles } from '../../agent/scope.js';
 import { baseForArg, docsStoreFor } from '../../store/connectors/index.js';
 import { documentLine } from '../../store/connectors/links.js';
+import { fullName } from '../../agent/names.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -191,7 +192,7 @@ async function approvePlan(ticket, io, now) {
       // Unit 30c (F21): a note can't overrule the approved ticket; Kai follows the ticket.
       if (reason) {
         const against = noteAgainstTicketFile(store, keys, ticket, reason);
-        if (against) io.stdout.write(`note: your reason names ${against.note.join(', ')}, which ${ticket}'s approved ticket doesn't (it names ${against.ticket.join(', ')}). Kai follows the ticket where they disagree: if the ticket is wrong, edit it and approve it again (mirai approve ${ticket} --file <path>) before the re-plan.\n`);
+        if (against) io.stdout.write(`note: your reason names ${against.note.join(', ')}, which ${ticket}'s approved ticket doesn't (it names ${against.ticket.join(', ')}). ${fullName('mirai-developer')} follows the ticket where they disagree: if the ticket is wrong, edit it and approve it again (mirai approve ${ticket} --file <path>) before the re-plan.\n`);
       }
     }
     const signer = await decisionSigner(io, store, { prompter, ticket, confirm: confirmByTyping });

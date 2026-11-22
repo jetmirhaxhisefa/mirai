@@ -17,7 +17,8 @@ import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
 import { ignoredFingerprint, protectionRules } from '../trust/protected.js';
 import { afterLaunch, BUILD_MAX_TURNS, BUILD_ROLE, BUILD_TIMEOUT_MS, buildRecordPath, checkBeat, checkJudgeable, HANDOVER_SCHEMA, keepBuild, preflight, testsAfter } from './build.js';
 import { addCheckpoint } from './checkpoints.js';
-import { AGENT, AGENT_LABEL, LAUNCH_OPTIONS } from './plan.js';
+import { AGENT, LAUNCH_OPTIONS, namerOf } from './plan.js';
+import { fullName } from './names.js';
 import { checkLaunchToken } from './requests.js';
 import { reviewRef, reviewStart, writeDisputes } from './review.js';
 import { inRun, launchInRun } from './run.js';
@@ -120,9 +121,10 @@ export function fixFrom(store, ticket, last) {
 export async function runFix({ cwd, env, ticket, nextToken, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, now = () => new Date() }) {
   if (typeof nextToken !== 'function') checkLaunchToken(null);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
+  const who = namerOf(watch);
   // The first sign of life (unit 21e), before MIRAI's own checks.
   try {
-    watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
+    watch.onProgress?.({ kind: 'preparing', agent: who(AGENT), model: null, turns: 0, minutes: 0 });
   } catch {
     // a display only
   }
@@ -190,7 +192,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
         let r;
         try {
           r = await launch({
-            ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: nextToken(), agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
+            ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: nextToken(), agent: AGENT, progressLabel: who(AGENT), role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
             prompt: fromReview ? fixFindingsPrompt({ ticket, round, upheld: Boolean(from.upheld) }) : fixPrompt({ ticket, round }), item: ticket, round, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs, jsonSchema: fromReview ? FIX_REVIEW_SCHEMA : HANDOVER_SCHEMA, now,
             session: { keep: true, resumeFrom },
           });
@@ -255,7 +257,7 @@ export async function runFix({ cwd, env, ticket, nextToken, unattended = false, 
           // alike, so `mirai unpark --retry` or `--accept <finding-id>` has a ticket to settle.
           if (disputes.length) {
             writeDisputes(store, ticket, { review: from.review, commit: after.commit ?? commitOf(store.checkout, 'HEAD', store.gitEnv), at: now().toISOString(), disputes, ruled: {} });
-            const why = `Kai disputes ${disputes.map((x) => `${x.id} ("${String(x.reason).slice(0, 120)}")`).join(', ')}`;
+            const why = `${fullName(AGENT)} disputes ${disputes.map((x) => `${x.id} ("${String(x.reason).slice(0, 120)}")`).join(', ')}`;
             parkTicket(store, ticket, { reason: 'disputed', why, evidence: [reviewRef(ticket, from.review), `tickets/${ticket}/disputes.json`] });
             return { ...result, outcome: 'parked', why, disputes: disputes.map(({ id, reason }) => ({ id, reason })) };
           }

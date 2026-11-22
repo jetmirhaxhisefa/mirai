@@ -1,6 +1,7 @@
 import { contentHash } from '../../sign/sign.js';
 import { readJournal } from '../journal.js';
 import { readUnder } from './common.js';
+import { hostWords } from '../../ship/words.js';
 import { docsStoreFor, openDocsStore } from './index.js';
 import { docsPublish } from './publish.js';
 import { documentRows, publishedState, storeStateOf } from './state.js';
@@ -17,7 +18,7 @@ export function withVerbs(conn, store) {
       query,
       status: (initiative) => ({ synced_at: new Date().toISOString(), documents: query(initiative).map((d) => ({ path: d.rel, state: storeStateOf(d.state) })) }),
       // Nothing leaves this Mac: publish does nothing, and says so.
-      publish: async (initiative) => ({ outcome: 'local', initiative, message: `the local store keeps ${initiative}'s documents on this Mac only: publish does nothing (no branch, no merge request), and teammates can't see them` }),
+      publish: async (initiative) => ({ outcome: 'local', initiative, message: `the local store keeps ${initiative}'s documents on this Mac only: publish does nothing (no branch, no ${hostWords(null).long}), and teammates can't see them` }),
     };
   }
   if (conn.kind === 'repo') {

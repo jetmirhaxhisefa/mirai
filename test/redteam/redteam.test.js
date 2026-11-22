@@ -517,7 +517,7 @@ test('18f T1: the cage is computed: the roots and everything their code imports;
   assert.ok(files.length > 200 && cage.size > 100, `${files.length} files, ${cage.size} in the cage`);
   // The roots, and what the reviews found them importing: the policy parser, the lock helpers, the
   // journal an agent writes through, the lint tool's path check, the red-team command.
-  for (const p of ['bin/hook.js', 'src/launch/strict.js', 'src/mcp/server.js', 'src/agent/run.js', 'src/store/git.js', 'package.json', 'registry/adapters/claude-code.toml', 'registry/roles/author.toml',
+  for (const p of ['bin/hook.js', 'src/launch/strict.js', 'src/mcp/server.js', 'src/agent/run.js', 'src/store/git.js', 'package.json', 'registry/adapters/claude-code.toml', 'registry/roles/developer.toml',
     'src/findings/schema.js', 'src/install/lock.js', 'src/store/journal.js', 'src/lint/lint.js', 'src/cli/commands/redteam.js', 'src/cli/errors.js', 'src/status/text.js']) assert.ok(cage.has(p), p);
   for (const p of ['src/agent/build.js', 'src/agent/plan.js', 'src/agent/commit.js', 'src/cli/commands/build.js', 'src/loop/guard.js', 'registry/agents/mirai-developer.md', 'bin/mirai.js']) assert.ok(!cage.has(p), p);
   // Closed under imports: every relative import from a cage file is in the cage, but the allowed edges.

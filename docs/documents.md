@@ -162,7 +162,7 @@ HLDs, ADRs and LLDs get it with their units: it applies to every type whose summ
 **Rounds:** each result is kept in MIRAI's store, keyed by the summary's exact text, with its round:
 1 for the first summary tested, then one more for each changed summary. A rerun on an unchanged
 summary shows the kept result and costs no run. Two fixing rounds follow a failure; from the
-workflow units on (35–36, 42, 45), the author agent gets the failed question back automatically.
+workflow units on (35–36, 42, 45), the agent that writes the document gets the failed question back automatically.
 After the third failure the document still reaches you, marked.
 
 **At approval** (`mirai approve` for a full brief, a PRD or an epic), MIRAI shows the result for

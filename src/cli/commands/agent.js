@@ -20,7 +20,7 @@ export default {
   usage: 'mirai agent run --role <role> --prompt-file <file> [--step <step>] [--risk high] [--size L] [--tier <tier>] [--verifies <launch id>] [--item <id>] [--max-turns <n>]',
   positionals: { min: 1, max: 1 },
   options: {
-    role: { type: 'string', description: 'what the run may change: author, reviewer, verifier, qa, planner, or the project\'s own' },
+    role: { type: 'string', description: 'what the run may change: developer, reviewer, verifier, qa, planner, or the project\'s own' },
     step: { type: 'string', description: 'the step it is, if not the role\'s own' },
     risk: { type: 'string', description: 'high: one tier up' },
     size: { type: 'string', description: 'L: one tier up' },

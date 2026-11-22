@@ -17,7 +17,7 @@ MIRAI's own definitions (D-37), shipped with it:
 - **`skills/`:** skills, one folder each with its `SKILL.md` (unit 11): `mirai-docs` (a document's
   form) and `mirai-write` (unit 34: how to word the documents you approve, and tickets, with
   per-type guides and before/after examples in `guides/`, and `guides/session.md` for manual
-  steps and explanations to you in a session). Every author agent gets both.
+  steps and explanations to you in a session). Every agent that writes documents gets both.
   `mirai-interview` (unit 35) is how an agent asks the owner for decisions; its record is the
   `interview` document type.
 - **`protected-paths/`:** the protected-path rules (unit 12): which changed files force high

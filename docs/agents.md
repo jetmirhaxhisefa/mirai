@@ -2,9 +2,20 @@
 
 An **agent** is who runs: its prompt and what it's for. A **role** is what a run may change and which step it is. MIRAI keeps the two apart, so one agent can do two jobs safely. Both are data in the registry (decision D-37); a project can add its own roles in `.mirai/custom/roles/`, read from the trust root.
 
+## Who's who
+
+Each of MIRAI's agents has a persona, the name its output gives it. **The first time a command's output names an agent, it says "persona (id)"; after that, the persona:** "Rex (mirai-reviewer) reviewed SAMPLE-53 … Rex found 2 must-fix findings". In Markdown (the run report, a merge request's description) the id is in backticks. The persona is data (`persona` in `registry/agents/*.toml`); an overlay can't change it. The id is what the registry, the overlays and `mirai agent run` use.
+
+| Persona | Agent id | Role | What it does | Unit |
+|---|---|---|---|---|
+| Kai | `mirai-developer` | `developer` (build), `planner` (plan) | plans a ticket, then builds it | 21a, 21b |
+| Rex | `mirai-reviewer` | `reviewer` | reviews a ticket's change, read-only | 24a |
+
+Each new agent adds its row when it's built.
+
 ## Writing skills
 
-Every author agent gets two skills: `mirai-docs` (a document's form: template, checklist, IDs) and
+Every agent that writes documents gets two skills: `mirai-docs` (a document's form: template, checklist, IDs) and
 `mirai-write` (unit 34: how to word the documents you approve and the tickets, with per-type guides
 and before/after examples from real drafts; `docs/documents.md` has the reader test that checks
 the result). Its `guides/session.md` also covers how any agent writes to you in a session:
@@ -17,9 +28,11 @@ in `interview.md` beside the brief).
 
 | Role | Mode | Step | May change |
 |---|---|---|---|
-| `author` | read-write | build | anything in the project MIRAI doesn't protect outright |
+| `developer` | read-write | build | anything in the project MIRAI doesn't protect outright |
 | `planner` | read-only | plan | nothing: MIRAI stores the plan from the run's output |
 | `reviewer`, `verifier`, `qa` | read-only | review, verify, qa | nothing |
+
+The role `developer` was named `author` before unit 38b. The old name is refused wherever a role is named (an agent overlay, `mirai agent run --role`, the broker's `start_agent`, a project role's own name), with the new name in the message. A project whose MIRAI copy still has `author` is told to run `mirai init --refresh` and commit it.
 
 After every run, MIRAI checks each changed file against the run's role (unit 19b). A change the role doesn't allow refuses the run, and the files are left for you to look at.
 
@@ -48,10 +61,10 @@ A launch may run an agent under its own role or under a read-only one. That's ho
 
 ## Kai, the developer (`mirai-developer`)
 
-Kai's role is `author`. Kai does two jobs, one per step:
+Kai's role is `developer`. Kai does two jobs, one per step:
 
 - **Plan** (unit 21a): launched as `planner`, so it can't change anything. It reads the ticket and the code, and returns a plan.
-- **Build** (unit 21b): launched as `author`, from the plan you approved (see below).
+- **Build** (unit 21b): launched as `developer`, from the plan you approved (see below).
 
 ## The input folder
 
@@ -120,13 +133,13 @@ The ticket must be `in-progress`, with a plan whose approval verifies as it is n
 1. **The checks:** your usage, the loop guard (a build session isn't a round), and every launch check from unit 19.
 2. **The branch.** The build runs on the ticket's own branch, named by `[git] branch_pattern` (`feature/{ticket}-{slug}`, with the slug from the ticket's title). MIRAI makes it from the integration branch's commit and switches your clean checkout to it. An existing branch is used only when its record verifies and every commit on it is MIRAI's (see MIRAI's commits, below).
 3. **The launch:**
-   - Kai runs as `author`, on the `build` step's tier: `standard`, one up for a high-risk ticket or size `L`.
+   - Kai runs as `developer`, on the `build` step's tier: `standard`, one up for a high-risk ticket or size `L`.
    - It gets at most 150 turns and 60 minutes.
    - Its inputs are `plan.md`, the ticket, the project's conventions and `index.json`. The plan is its only source of truth.
 4. **Kai's own gate.** Kai runs the tests and checks through MIRAI's server before it hands over, and fixes what fails. That costs no round.
 5. **The handover** comes from the run's structured output only: `done` with a summary, or `blocked` with the reason. A file Kai writes is never it.
 6. **MIRAI's checks, in order.** Each stops the ticket with the reason and leaves the files as they are:
-   1. **The launch's own checks:** `.git`, processes, the token, and the `author` role's scope.
+   1. **The launch's own checks:** `.git`, processes, the token, and the `developer` role's scope.
    2. **A path that runs by itself** (hooks, MIRAI's own files) **parks the ticket** (`scope`), declared or not (D-15).
    3. **Protected paths:** one the plan didn't declare needs you. The manifest and lock files (node's and php's packs protect them) are never Kai's to change: the plan's packages are already installed and committed by MIRAI when Kai starts (below), so a change to them in Kai's step is always seen.
    4. **Dependencies:** the manifests are stack data (`[[dependencies]]` in `registry/stacks/`: `package.json` for npm, `composer.json` for composer). These need you:

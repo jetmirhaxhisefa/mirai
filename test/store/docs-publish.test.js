@@ -155,7 +155,7 @@ test('38 T4: the first publish makes docs/<initiative> from the integration bran
   commitOnBranch(p, 'docs/due-dates', 'src/app.js', 'console.log(1);\n');
   writeFileSync(p.at('prd.md'), PRD_READY);
   const err = await refused(() => p.publish(), 'not-docs-only');
-  assert.match(err.message, /a docs merge request carries documents only, and docs\/due-dates changes 1 path outside docs\/mirai\/due-dates\/: src\/app\.js; nothing was pushed/);
+  assert.match(err.message, /a docs pull request carries documents only, and docs\/due-dates changes 1 path outside docs\/mirai\/due-dates\/: src\/app\.js; nothing was pushed/);
   assert.deepEqual(err.paths, ['src/app.js']);
   assert.equal(p.bareGit('rev-parse', 'refs/heads/docs/due-dates'), before, 'nothing left the machine');
 });
@@ -164,6 +164,9 @@ test('38 T5 and T8 (GitHub): docs merge refuses each gap with nothing merged, wa
   const p = project('github');
   const pub = await p.run(['docs', 'publish', 'due-dates']);
   assert.equal(pub.code, EXIT.OK, pub.err);
+  // 38b T7: GitHub's word (38's P2 printed "merge request 16" here).
+  assert.match(pub.out, /^ {2}pull request #\d+: https:\/\/github\.com\//m);
+  assert.doesNotMatch(pub.out, /merge request/);
   // T8: each document's full path and its link on the docs branch; the folder last.
   const prdAbs = p.at('prd.md');
   assert.ok(pub.out.includes(`${prdAbs}   https://github.com/acme/app/blob/docs/due-dates/${D}/prd.md\n`), pub.out);
@@ -218,7 +221,7 @@ test('38 T5 and T8 (GitHub): docs merge refuses each gap with nothing merged, wa
   const pushedBySomeone = p.bareGit('commit-tree', '-p', clean.head, '-m', 'someone', `${clean.head}^{tree}`);
   p.bareGit('update-ref', 'refs/heads/docs/due-dates', pushedBySomeone);
   err = await refused(() => p.merge(), 'mr-head-moved');
-  assert.match(err.message, /the docs merge request's head moved since MIRAI published it .*; nothing was merged/);
+  assert.match(err.message, /the docs pull request's head moved since MIRAI published it .*; nothing was merged/);
   assert.equal(mergeSha(), main0);
   p.bareGit('update-ref', 'refs/heads/docs/due-dates', clean.head);
 
@@ -226,7 +229,7 @@ test('38 T5 and T8 (GitHub): docs merge refuses each gap with nothing merged, wa
   p.host.write((s) => { s.ci = [{ name: 'docs-ci', status: 'in_progress', conclusion: null }]; });
   const waiting = await p.run(['docs', 'merge', 'due-dates']);
   assert.equal(waiting.code, EXIT.BLOCKED);
-  assert.match(waiting.out, /waiting for: its checks are still running \(docs-ci\)\n {2}the merge request stays open/);
+  assert.match(waiting.out, /waiting for: its checks are still running \(docs-ci\)\n {2}the pull request stays open/);
   assert.equal(mergeSha(), main0);
   // A required review holds it too.
   p.host.write((s) => { s.ci = []; s.mergeable = false; s.mergeableState = 'blocked'; });
@@ -270,6 +273,8 @@ test('38 T6: GitLab: publish, update, the code-path refusal and the merge run th
   writeFileSync(p.at('prd.md'), PRD_READY);
   const pub = await p.run(['docs', 'publish', 'due-dates']);
   assert.equal(pub.code, EXIT.OK, pub.err);
+  // 38b T7: GitLab's word.
+  assert.match(pub.out, /^ {2}merge request !\d+: https:\/\/gitlab\.com\//m);
   assert.ok(pub.out.includes(`${p.at('prd.md')}   https://gitlab.com/acme/app/-/blob/docs/due-dates/${D}/prd.md\n`), pub.out);
   assert.equal(pub.out.trimEnd().split('\n').at(-1), `${join(p.root, D)}   https://gitlab.com/acme/app/-/tree/docs/due-dates/${D}`);
   // Pipeline running: waiting; then merged.

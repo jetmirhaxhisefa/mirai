@@ -41,7 +41,12 @@ const AGENT = {
     schema_version: { type: 'integer', min: 1, max: 1 },
     name: { type: 'string', pattern: /^mirai-[a-z0-9-]+$/, patternHint: 'for example "mirai-developer"' },
     // A role's name (unit 21a): what its runs may change and its step, which picks the tier.
-    role: { type: 'string', pattern: NAME, patternHint: 'for example "author"' },
+    role: { type: 'string', pattern: NAME, patternHint: 'for example "developer"' },
+    // The agent's persona (unit 38b): the name MIRAI's output gives it, "Kai (mirai-developer)" the
+    // first time, then "Kai" (src/agent/names.js). Every agent of MIRAI's has one (a test checks);
+    // the schema leaves it optional so a framework copy from before 38b still loads and is named as
+    // such. An overlay can't set it.
+    persona: { type: 'string', pattern: /^[A-Z][a-z]{1,19}$/, patternHint: 'one capitalised word of 2 to 20 letters' },
     // What the agent is for, in one line: tools list agents by it (unit 11).
     description: AGENT_DESCRIPTION,
     read_only: { type: 'boolean' },
@@ -1152,11 +1157,28 @@ export const loadCustomStacks = (dir, core = {}) => loadCustom(dir, 'stack', cor
 // A project's own roles (unit 19b): `<dir>/roles/*.toml`, as its stacks are.
 export const loadCustomRoles = (dir, core = {}) => loadCustom(dir, 'role', core);
 
+// Roles MIRAI renamed (unit 38b): the old name is refused wherever a role is named (an agent
+// overlay, `mirai agent run --role`, the broker's start_agent, a project role's own name), never
+// mapped, so it can't come back meaning something else.
+export const RENAMED_ROLES = Object.freeze({ author: 'developer' });
+export function renamedRoleMessage(name) {
+  if (typeof name !== 'string' || !Object.hasOwn(RENAMED_ROLES, name)) return null;
+  return `the role "${name}" is now "${RENAMED_ROLES[name]}" (MIRAI 38b): write role = "${RENAMED_ROLES[name]}"`;
+}
+// A framework copy from before 38b: its registry still has a renamed role and not the new one.
+export function staleRoleCopy(roles) {
+  return Object.entries(RENAMED_ROLES).find(([old, now]) => Object.hasOwn(roles, old) && !Object.hasOwn(roles, now)) ?? null;
+}
+
 function loadCustom(dir, kind, core) {
   const problems = [];
   const spec = KINDS.find((k) => k.kind === kind);
   const out = {};
-  for (const { name, value } of loadFolder(dir, spec, problems, core)) out[name] = value;
+  for (const { name, value, source } of loadFolder(dir, spec, problems, core)) {
+    const renamed = kind === 'role' ? renamedRoleMessage(name) : null;
+    if (renamed) { problems.push({ code: 'renamed-role', source, line: 1, column: 1, reason: renamed }); continue; }
+    out[name] = value;
+  }
   if (problems.length > 0) {
     const n = problems.length;
     throw new ConfigError(`${n} problem${n === 1 ? '' : 's'} in the project's ${spec.folder.replace('-', ' ')} (.mirai/custom/${spec.folder}/)`, { errors: problems });

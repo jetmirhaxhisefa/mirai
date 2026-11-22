@@ -7,6 +7,7 @@ import { MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
 import { atomicWrite } from '../store/files.js';
 import { gitlabHost } from './gitlab.js';
+import { hostWords, longRef } from './words.js';
 
 // The git host behind `mirai ship` (unit 27a; Jet's decision 5): one interface, so ship never
 // calls a host's CLI itself. The project's config says which host it is (`[git] host`, and
@@ -167,6 +168,7 @@ export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
   return {
     name: 'github',
     renderAs: 'github',
+    words: hostWords('github'),
     hostUrl,
     repo,
     pushUrl: `${hostUrl}/${repo}.git`,
@@ -195,7 +197,7 @@ export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
       if (!r.ok) throw failed('gh pr create', r);
       const url = r.out.trim().split('\n').at(-1);
       const m = /\/pull\/(\d+)$/.exec(url ?? '');
-      if (!m) throw hostError('gh pr create didn\'t name the new pull request', 'host-failed');
+      if (!m) throw hostError(`gh pr create didn't name the new ${hostWords('github').long}`, 'host-failed');
       return { number: Number(m[1]), url };
     },
     updateMr(number, { title, body }) {
@@ -212,7 +214,7 @@ export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
         if (!pr || pr.state !== 'open' || pr.mergeable !== null) break;
         sleep(2000); // GitHub works out mergeability a few seconds after a push
       }
-      if (!pr) throw hostError(`${repo} has no pull request #${number}`, 'no-mr');
+      if (!pr) throw hostError(`${repo} has no ${longRef(hostWords('github'), number)}`, 'no-mr');
       const head = pr.head?.sha;
       if (!SHA.test(head ?? '')) throw hostError('the host named a head MIRAI can\'t read', 'host-failed');
       const state = pr.merged ? 'merged' : pr.state === 'open' ? 'open' : 'closed';
@@ -233,7 +235,7 @@ export function githubHost({ hostUrl, repo, cli, env, cliHome = env.HOME }) {
       if (!r.ok) {
         const text = `${r.err} ${r.out}`;
         if (/HTTP 409/.test(text)) throw hostError(`GitHub refused: #${number}'s head isn't ${head.slice(0, 7)} any more`, 'mr-head-moved', 'someone pushed after your review: review it again: mirai review-mr');
-        if (/HTTP 405|HTTP 422/.test(text)) throw hostError(`GitHub can't merge #${number}: ${(/"message":"([^"]{1,200})"/.exec(text)?.[1]) ?? 'not mergeable'}`, 'mr-not-mergeable', 'see the pull request on GitHub');
+        if (/HTTP 405|HTTP 422/.test(text)) throw hostError(`GitHub can't merge #${number}: ${(/"message":"([^"]{1,200})"/.exec(text)?.[1]) ?? 'not mergeable'}`, 'mr-not-mergeable', `see the ${hostWords('github').long} on GitHub`);
         throw failed('gh api merge', r);
       }
       const out = JSON.parse(r.out || '{}');

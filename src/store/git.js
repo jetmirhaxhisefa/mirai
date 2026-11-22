@@ -736,7 +736,7 @@ export function remoteRef(root, url, ref, env, { helper = null, ca = null, timeo
   checkGuards(root);
   checkRepo(root, env);
   if (!HOST_URL(url)) throw new StoreError('MIRAI reads from an https URL', { code: 'bad-url' });
-  if (!MR_REF.test(ref)) throw new StoreError(`${JSON.stringify(ref.slice(0, 60))} isn't an MR's head ref`, { code: 'bad-ref' });
+  if (!MR_REF.test(ref)) throw new StoreError(`${JSON.stringify(ref.slice(0, 60))} isn't a refs/pull/<n>/head or refs/merge-requests/<n>/head ref`, { code: 'bad-ref' });
   const { path: excludesFile } = excludesFor(env, root, gitBinary);
   const r = exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...hostArgs(helper, ca), 'ls-remote', '--', url, ref], pinEnv({ top: root }), { timeout });
   if (!r.ok) throw new StoreError(`git couldn't read ${ref} from the host`, { code: 'remote-failed' });
@@ -750,7 +750,7 @@ export function fetchObjects(root, url, ref, env, { helper = null, ca = null, ti
   checkGuards(root);
   checkRepo(root, env);
   if (!HOST_URL(url)) throw new StoreError('MIRAI reads from an https URL', { code: 'bad-url' });
-  if (!MR_REF.test(ref)) throw new StoreError(`${JSON.stringify(ref.slice(0, 60))} isn't an MR's head ref`, { code: 'bad-ref' });
+  if (!MR_REF.test(ref)) throw new StoreError(`${JSON.stringify(ref.slice(0, 60))} isn't a refs/pull/<n>/head or refs/merge-requests/<n>/head ref`, { code: 'bad-ref' });
   const { path: excludesFile } = excludesFor(env, root, gitBinary);
   const r = exec(root, ['--no-replace-objects', ...pinArgs({ excludesFile }), ...hostArgs(helper, ca), 'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--', url, ref], pinEnv({ top: root }), { timeout });
   return { ok: r.ok };

@@ -41,7 +41,7 @@ The rung goes in the log line and the output, so a same-model check is never mis
 
 | Role | Step | May change |
 |---|---|---|
-| `author` | build | any tracked or new file MIRAI doesn't protect outright (the cage still refuses `.git`, `.mirai`, `.env*` and the rest); no ignored files |
+| `developer` | build | any tracked or new file MIRAI doesn't protect outright (the cage still refuses `.git`, `.mirai`, `.env*` and the rest); no ignored files |
 | `reviewer` | review | nothing |
 | `verifier` | verify | nothing |
 | `qa` | qa | nothing |

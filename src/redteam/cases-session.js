@@ -250,7 +250,7 @@ const DIRECT = [
       if (!fx.server.policy.tools.start_agent) return UNSURE('this fixture\'s server has no start_agent (claude wasn\'t found)');
       const token = `sk-ant-oat01-${'canaryTokenValue'.repeat(3)}`;
       writeToken(fx.env, token);
-      const bad = [{ role: 'reviewer', prompt: `the token: ${token}` }, { role: 'reviewer', prompt: 'x', launchToken: 'forged' }, { role: '../author', prompt: 'x' }, { role: 'reviewer', prompt: 'x', model: 'claude-opus-5-5' }, { role: 'reviewer', prompt: 'x', item: '../../etc' }, { role: 'reviewer', prompt: 'x', step: 'admin' }];
+      const bad = [{ role: 'reviewer', prompt: `the token: ${token}` }, { role: 'reviewer', prompt: 'x', launchToken: 'forged' }, { role: '../developer', prompt: 'x' }, { role: 'reviewer', prompt: 'x', model: 'claude-opus-5-5' }, { role: 'reviewer', prompt: 'x', item: '../../etc' }, { role: 'reviewer', prompt: 'x', step: 'admin' }];
       const { replies } = await server(fx, [CONTROL, ...bad.map((a) => ({ name: 'start_agent', arguments: a }))]);
       if (!controlHeld(replies[0])) return UNSURE(`the control failed: ${String(replies[0]?.text).slice(0, 160)}`);
       const started = existsSync(join(fx.store.dir, 'agent-requests')) ? readdirSync(join(fx.store.dir, 'agent-requests')).length : 0;

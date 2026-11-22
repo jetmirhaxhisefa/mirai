@@ -33,6 +33,7 @@ import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { planInputs, ticketAcs } from './inputs.js';
 import { checkLaunchToken } from './requests.js';
 import { inRun, launchInRun } from './run.js';
+import { agentNamer } from './names.js';
 
 // The plan step (unit 21a; design/01 §6, D-15, R2-C1, R2-M11). Kai, on the planner role (it may
 // change nothing), reads the ticket's inputs and returns the plan as its run's structured output;
@@ -232,9 +233,10 @@ export function filesAt(store, commit) {
 // callers only, the ways a launch is stopped (signals, time limits) and the hooks the tests and
 // the CLI's own test io use (the binary, the red-team status, the init check); never its role,
 // agent, inputs, prompt or token (LAUNCH_OPTIONS). `launch` is for the tests.
-export const LAUNCH_OPTIONS = ['signal', 'hardSignal', 'claude', 'status', 'check', 'timeoutMs', 'initDeadlineMs', 'onProgress', 'onCheck'];
-// The agent's name in progress lines (unit 21e).
-export const AGENT_LABEL = 'Kai';
+// `who`: the command's namer (unit 38b, src/agent/names.js), so one command introduces an agent once.
+export const LAUNCH_OPTIONS = ['signal', 'hardSignal', 'claude', 'status', 'check', 'timeoutMs', 'initDeadlineMs', 'onProgress', 'onCheck', 'who'];
+// The namer a step uses: the command's, or one of its own.
+export const namerOf = (watch) => (typeof watch.who === 'function' ? watch.who : agentNamer());
 
 // The ticket's last approval in the journal (unit 06), and how many times you rejected its plan.
 export function ticketRecord(store, ticket, keys) {
@@ -249,9 +251,10 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
   if (!Array.isArray(launchTokens) || launchTokens.length !== 2) checkLaunchToken(null);
   for (const t of launchTokens) checkLaunchToken(t);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
+  const who = namerOf(watch);
   // The first sign of life (unit 21e), before MIRAI's own checks.
   try {
-    watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
+    watch.onProgress?.({ kind: 'preparing', agent: who(AGENT), model: null, turns: 0, minutes: 0 });
   } catch {
     // a display only
   }
@@ -322,7 +325,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         let r;
         try {
           r = await launch({
-            ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: AGENT_LABEL, role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
+            ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: who(AGENT), role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
             prompt: planPrompt({ ticket, fields, via, problems, notes: record.notes.length }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
           });
         } catch (err) {

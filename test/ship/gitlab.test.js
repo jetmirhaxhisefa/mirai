@@ -13,6 +13,7 @@ import { readJournal, ticketFacts } from '../../src/store/journal.js';
 import { passed } from '../proofs/fixture.js';
 import { tempDir } from '../tests/run-fixture.js';
 import { needsTest } from '../helpers/needs.js';
+import { shortRef } from '../../src/ship/words.js';
 
 // Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
 const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
@@ -130,6 +131,8 @@ launchTest('27b: ship on GitLab opens one MR through the API, a rerun changes no
   const r = await f.ship();
   assert.equal(r.outcome, 'opened');
   assert.equal(r.mr.url, 'https://gitlab.com/acme/sub/app/-/merge_requests/1');
+  // 38b T7: GitLab's word: "MR !1: <url>".
+  assert.equal(shortRef(r.words, r.mr.number), 'MR !1');
   const head = f.git('rev-parse', 'HEAD');
   const branch = f.git('rev-parse', '--abbrev-ref', 'HEAD');
   assert.equal(f.bareGit('rev-parse', `refs/heads/${branch}`), head);

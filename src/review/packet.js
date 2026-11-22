@@ -13,6 +13,9 @@ import { claudeOf, tddEvidence } from '../proofs/record.js';
 import { declaredChanges } from '../agent/plan.js';
 import { checkProofs } from '../proofs/check.js';
 import { hostFor } from '../ship/host.js';
+import { hostWords, wordsFor, wordsOfHost } from '../ship/words.js';
+import { fullName } from '../agent/names.js';
+import { REVIEW_AGENT } from '../agent/run.js';
 import { branchKeys } from '../sign/keys.js';
 import { commitOf, isAncestor, mergeBase, remotes, reviewPatch } from '../store/git.js';
 import { readPrivateFile } from '../store/files.js';
@@ -116,9 +119,12 @@ export function packetData({ cwd, env, ticket, host = null, hostOf = hostFor, wi
   // The host: the MR's state, head, CI and whether it can merge.
   let live = null;
   let hostError = null;
+  // The host's word (unit 38b): from the host when it was asked, else from the config and remote.
+  let words = wordsFor({ config, remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null });
   if (withHost && out.mr?.number) {
     try {
       const h = host ?? hostOf({ config, remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null, store, env, root: store.checkout });
+      words = wordsOfHost(h);
       h.checkAuth();
       live = h.mrState(out.mr.number);
     } catch (err) {
@@ -200,6 +206,8 @@ export function packetData({ cwd, env, ticket, host = null, hostOf = hostFor, wi
   if (out.review?.commit && head && out.review.commit !== head && commitOf(store.checkout, out.review.commit, store.gitEnv) && commitOf(store.checkout, head, store.gitEnv)) {
     out.review.code_after = isAncestor(store.checkout, out.review.commit, head, store.gitEnv) ? codeFiles(store.checkout, out.review.commit, head, codePaths, store.gitEnv) : null;
   }
+  // Not part of the JSON: the text's words.
+  Object.defineProperty(out, 'words', { value: words, enumerable: false });
   return out;
 }
 
@@ -207,14 +215,14 @@ const d_merged = (live, facts) => (live?.state ?? facts.mr) === 'merged';
 const word = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 // The packet as text. `diff`: the whole diff after it.
-export function packetText(d, { diff = false } = {}) {
+export function packetText(d, { diff = false, words = d.words ?? hostWords(null) } = {}) {
   const out = [];
-  const mr = d.mr ? `${d.mr.url ? 'MR' : 'MR'} ${d.mr.number ? `#${d.mr.number} ` : ''}${d.host?.state ?? d.mr.state}` : 'no MR yet';
+  const mr = d.mr ? `${words.short} ${d.mr.number ? `${words.ref(d.mr.number)} ` : ''}${d.host?.state ?? d.mr.state}` : `no ${words.short} yet`;
   const proofs = d.proofs.outcome === 'pass' ? `proofs valid at its head ${d.head?.slice(0, 7)}` : d.proofs.outcome === 'merged' ? `merged at ${d.head?.slice(0, 7)}` : `proofs ${d.proofs.outcome}${d.proofs.why ? ` (${plain(d.proofs.why)})` : ''}`;
   const ci = d.host ? `CI: ${d.host.ci.state === 'none' ? 'none (local-only)' : d.host.ci.state}${d.host.ci.checks?.length && d.host.ci.state !== 'passed' ? ` (${d.host.ci.checks.filter((c) => c.state !== 'passed').map((c) => plain(c.name)).join(', ')})` : ''}` : `CI: unknown${d.host_error ? ` (${plain(d.host_error)})` : ''}`;
   out.push(`${d.ticket} · ${mr} · ${proofs} · ${ci}`);
   if (d.mr?.url) out.push(`  ${plain(d.mr.url)}`);
-  if (d.host && !d.head_is_mirais) out.push(`  the MR's head ${d.head?.slice(0, 7)} isn't what MIRAI pushed (${d.pushed?.slice(0, 7) ?? 'nothing'}): someone pushed after MIRAI`);
+  if (d.host && !d.head_is_mirais) out.push(`  the ${words.long}'s head ${d.head?.slice(0, 7)} isn't what MIRAI pushed (${d.pushed?.slice(0, 7) ?? 'nothing'}): someone pushed after MIRAI`);
   const row = (k, v) => out.push(`${k.padEnd(11)}${v}`);
   const flagged = d.files.filter((f) => f.flag);
   row('Files', `${word(d.files.length, 'code file')} changed${d.files.length ? (flagged.length ? `, ${flagged.length} outside the plan:` : ', all in the plan\'s Code map') : ''}`);
@@ -234,10 +242,10 @@ export function packetText(d, { diff = false } = {}) {
     const depth = dp ? [dp.model ? `by ${plain(dp.model)}` : null, dp.minutes != null ? `${dp.minutes} min` : null, dp.kept ? `read ${word(dp.read.length, 'file')}${dp.read.length ? ` (${dp.read.slice(0, 6).map(plain).join(', ')}${dp.read.length > 6 ? ', …' : ''})` : ''}, ${word(dp.searches, 'search', 'searches')}` : 'what it read is no longer kept'].filter(Boolean).join(', ') : '';
     const onlyInputs = dp?.kept && dp.read.length && dp.read.every((r) => r.startsWith('input: '));
     row(`Review ${d.review.n}`, `${String(d.review.outcome ?? 'incomplete').toUpperCase()}${depth ? `, ${depth}` : ''} · ${word(d.review.blocking, 'blocking finding')}, ${word(d.review.followups.length, 'follow-up')}${d.review.code_after === null ? ` · reviewed ${d.review.commit.slice(0, 7)}, which isn't in the head's history` : d.review.code_after?.length ? ` · code changed after the review (${d.review.code_after.slice(0, 3).map(plain).join(', ')})` : ''}`);
-    if (onlyInputs) out.push('  Rex read only its input (the diff and the plan), no file of the project');
+    if (onlyInputs) out.push(`  ${fullName(REVIEW_AGENT)} read only its input (the diff and the plan), no file of the project`);
     for (const f of d.review.followups) out.push(`  follow-up: ${plain(f)}`);
   } else row('Review', 'none yet');
-  const merge = !d.host ? 'unknown (the host wasn\'t asked)' : d.host.state !== 'open' ? `the MR is ${d.host.state}` : d.host.mergeable === true ? 'the host can merge it' : d.host.mergeable === null ? 'the host is still working it out' : `the host can't merge it${d.host.why ? `: ${d.host.why}` : ''}`;
+  const merge = !d.host ? 'unknown (the host wasn\'t asked)' : d.host.state !== 'open' ? `the ${words.long} is ${d.host.state}` : d.host.mergeable === true ? 'the host can merge it' : d.host.mergeable === null ? 'the host is still working it out' : `the host can't merge it${d.host.why ? `: ${d.host.why}` : ''}`;
   row('Merge', `${merge}${d.host?.state === 'open' ? ` · M1 if you merge now: ${d.head_is_mirais ? 'as is' : 'edited, unless only docs changed'}` : ''}`);
   if (d.diff) row('Diff', `+${d.diff.add} −${d.diff.del} in ${word(d.diff.files, 'file')}${diff ? '' : ` (mirai review-mr ${d.ticket} --diff for all of it)`}`);
   if (diff && d.diff) out.push('', ...d.diff.patch.split('\n').map((l) => plain(l)));
