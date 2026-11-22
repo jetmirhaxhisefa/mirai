@@ -101,3 +101,12 @@ sample app's red-team pass went stale with the refresh, hence the run above.
   after every fetch. The dry run now reproduces it: its stand-in host gets a new commit on main (as
   the runner pushes) and the fetch goes to it through `url.<bare>.insteadOf`; started from a folder
   misaligned like Jet's, it passes, and the docs branch's parent is that newest main.
+
+## Approved
+
+Jet, 2026-11-22: "approve 38b". Merged as PR #109 (`219946d`), CI green on both Ubuntu checks.
+
+## Follow-up
+
+- **Refresh the installs** to take 38b: `mirai-sample-app` (the runner refreshes it per job), `mirai-sample-app-gitlab`, and Thudos (still on 0.1.0; its refresh goes with 39's real setup).
+- **Units 39–42:** name agents through `agentNamer`/`fullName` and the host through `hostWords`/`projectWords`; T8's source check fails any new hard-coded Kai, Rex, "MR" or "merge request" in `src/`. 39 merges main next and fixes what T8 finds.
