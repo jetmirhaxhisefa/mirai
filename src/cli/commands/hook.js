@@ -39,7 +39,13 @@ async function readAll(stream) {
 const NO_VERIFY_COMMIT = 'the commit wasn\'t checked, so it\'s refused; to commit anyway: git commit --no-verify';
 function preCommit(io) {
   try {
-    const record = readHooksRecord(openStore({ cwd: io.cwd, env: io.env }));
+    // No store on this machine: no record, so nothing to forward to (the hooks folder is the store's).
+    let record = null;
+    try {
+      record = readHooksRecord(openStore({ cwd: io.cwd, env: io.env }));
+    } catch {
+      record = null;
+    }
     if (record?.pre_commit && record.hooks.includes('pre-commit')) {
       const old = join(record.forwarded_from, 'pre-commit');
       const r = spawnSync(old, [], { cwd: io.cwd, env: io.env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 });

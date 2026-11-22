@@ -39,7 +39,7 @@ export const CHECKLIST = Object.freeze([
   },
   {
     n: 5, title: 'Managed settings (locks the rules for every Claude Code session on this Mac)',
-    command: 'skip it for now; to turn it on later, setup writes /Library/Application Support/ClaudeCode/managed-settings.json with your admin password',
+    command: 'skip it for now; to turn it on later, setup writes Claude Code\'s managed-settings.json for this Mac, with your admin password',
     see: 'nothing to see while it\'s off; mirai setup checklist --done 5 records your choice',
     default: 'off',
     doctor: [], mark: true,

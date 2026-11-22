@@ -40,7 +40,8 @@ const SCRIPT_PROTECTED = Object.freeze([
   { re: /(^|[\s"'`=(/])\.mirai\//, what: '.mirai/' },
   { re: /(^|[\s"'`=(])(\.\/)?\.git\//, what: '.git/' },
   { re: /\.config\/mirai/, what: '~/.config/mirai' },
-  { re: /Application Support\/mirai/, what: 'MIRAI\'s store' },
+  // MIRAI's store, by the end of its folder's path (src/os/ names the system folder it's in).
+  { re: /Support\/mirai\b/, what: 'MIRAI\'s store' },
   { re: /\.claude\/settings/, what: '.claude/settings*.json' },
   { re: /core\.hooksPath/, what: 'core.hooksPath' },
 ]);
