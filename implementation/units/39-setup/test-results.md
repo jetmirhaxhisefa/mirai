@@ -199,6 +199,20 @@ are never touched.
   advisory yellow (a named class beside F4's `expected_until`, say `advisory: "re-register with
   mirai render or mirai session-server install"`), which line 8 and `setup done finish` don't
   count, as they don't count the Merge gate; "doesn't start", foreign and missing stay to fix.
+- **F10 (F8's sibling): every commit on the integration branch needs a new baseline before
+  finish.** After Jet's six re-decisions (9342ab9, only `.mirai/setup/ledger.md` changed) and a
+  re-register, `setup done finish` refused on one item: "checklist line 8 isn't done: Baseline:
+  none for mirai/setup at 9342ab9052fe: the next run records it first". A baseline is recorded and
+  signed per commit of the integration branch (17b; doctor's Baseline item reads it for the exact
+  head), and the line itself says why a missing one is no fault: the next run records it before it
+  judges anything. **Proposed rule, with F8's:** doctor's Baseline item gives "none at the head"
+  as the same advisory yellow (`advisory: "mirai baseline records it now; the next run does it
+  first"`), which line 8 and `setup done finish` don't count; a baseline that's incomplete or
+  doesn't verify stays to fix. Not proposed for this unit: carrying a baseline across commits that
+  touch only MIRAI's own records (`.mirai/setup/**`, `.mirai/records/**`), since the baseline is
+  signed for one commit and which paths feed a check or a level is 17b's question; a later unit
+  can add it. Jet ran `mirai baseline` to get past it. Also (F7): Jet's default `~/.claude.json`
+  still holds the registration from `c64d307`; harmless while he uses the private config.
 - **F9: `setup decide --keep` took free text from the session as the place.** The ledger held
   places such as "source for conventions-*.md in stage 3, then deleted" (4 × `.claude/rules/*.md`)
   and ".mirai/custom/agents/mirai-reviewer (overlay, read-only, appended lenses)"
