@@ -26,6 +26,11 @@ their own session. MIRAI keeps the record (`mirai setup …`); you do the resear
 
 ## Where to start
 
+0. If `mcp__mirai__mirai_command` isn't one of your tools, stop and tell the owner: "MIRAI's tools
+   aren't connected in this session. In your terminal, in this project, run
+   `mirai session-server install` with the same Claude Code config this session uses (for a config
+   other than the default: `CLAUDE_CONFIG_DIR=<its folder> mirai session-server install`), then
+   start a new session." Don't go on without them, and don't run `mirai` yourself instead.
 1. Call `setup status`. It lists each stage's state, the items decided, anything new, and
    `next:`. Go on at that stage: a stage in progress goes on where it stopped (the decisions made
    are kept; take the next undecided item).

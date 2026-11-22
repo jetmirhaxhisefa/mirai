@@ -61,27 +61,37 @@ export const CHECKLIST = Object.freeze([
   {
     n: 8, title: 'mirai doctor until it\'s green',
     command: 'mirai doctor',
-    see: 'every item ok; a yellow item names its fix on the line under it',
+    see: 'no red item, and every yellow one is either fixed or one MIRAI expects until a later unit (today: Merge gate, local-only until unit 54); a yellow item names its fix on the line under it',
     default: 'no choice to make',
     doctor: ['*'],
   },
 ]);
+
+// Doctor's items still to act on: every red and every yellow, except a yellow doctor marks as
+// expected until a named later unit (`expected_until`; P1's F4: the Merge gate is local-only until
+// unit 54, so "doctor green" could never be reached). The last line and P1's probe use it.
+export const toFix = (items) => (items ?? []).filter((i) => i.state === 'red' || (i.state === 'yellow' && !(typeof i.expected_until === 'string' && i.expected_until)));
+export const expectedNow = (items) => (items ?? []).filter((i) => i.state === 'yellow' && typeof i.expected_until === 'string' && i.expected_until);
 
 // Each line with its state: `done`, `open` or `check` (doctor has a yellow item for it), and why.
 // `items`: doctor's items ([{ id, state, detail, hint }]); `marks`: { <n>: 'done' } from setup.json.
 export function checklistState(items, marks = {}) {
   const byId = new Map((items ?? []).map((i) => [i.id, i]));
   return CHECKLIST.map((l) => {
-    const mine = l.doctor.includes('*') ? items ?? [] : l.doctor.map((id) => byId.get(id)).filter(Boolean);
+    const all = l.doctor.includes('*');
+    const mine = all ? toFix(items).concat((items ?? []).filter((i) => i.state === 'ok')) : l.doctor.map((id) => byId.get(id)).filter(Boolean);
     const red = mine.filter((i) => i.state === 'red');
     const yellow = mine.filter((i) => i.state === 'yellow');
     let state;
     let why;
     if (!l.doctor.length) [state, why] = marks[l.n] === 'done' ? ['done', 'you marked it done'] : ['open', 'mark it once done: mirai setup checklist --done ' + l.n];
-    else if (!mine.length) [state, why] = ['open', 'doctor didn\'t check it'];
+    else if (!(all ? (items ?? []).length : mine.length)) [state, why] = ['open', 'doctor didn\'t check it'];
     else if (red.length) [state, why] = ['open', `${red[0].title ?? red[0].id}: ${red[0].detail}`];
     else if (yellow.length) [state, why] = ['check', `${yellow[0].title ?? yellow[0].id}: ${yellow[0].detail}`];
-    else [state, why] = ['done', 'doctor says ok'];
+    else {
+      const later = all ? expectedNow(items) : [];
+      [state, why] = ['done', later.length ? `doctor has nothing to fix; expected until a later unit: ${later.map((i) => `${i.title ?? i.id} (unit ${i.expected_until})`).join(', ')}` : 'doctor says ok'];
+    }
     if (state === 'done' && l.mark && marks[l.n] !== 'done') [state, why] = ['open', `doctor says ok; the rest is yours to mark: mirai setup checklist --done ${l.n}`];
     return { ...l, state, why };
   });

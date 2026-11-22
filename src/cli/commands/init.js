@@ -106,7 +106,8 @@ export async function setUpHooks(io, root, { node = process.execPath, launcher =
     }
   }
   const r = installHooks({ store, env: io.env, node, launcher, forward });
-  return { installed: true, dir: r.dir, forwarded: forward?.names ?? [] };
+  // MIRAI's own hooks in the folder (P1's F2: the summary named only the pre-push).
+  return { installed: true, dir: r.dir, forwarded: forward?.names ?? [], mine: ['pre-push', 'pre-commit'].filter((n) => r.files.includes(n)) };
 }
 
 // The git host's CLI (unit 27a): `gh` and `glab` as found on your PATH, recorded in the store for
@@ -141,7 +142,7 @@ function noteHost(io, root) {
   return lines.join('\n');
 }
 
-const hooksLine = (h) => `  hooks: pre-push in ${h.dir} (core.hooksPath)${h.forwarded.length ? `; forwarding ${h.forwarded.join(', ')}` : ''}`;
+const hooksLine = (h) => `  hooks: ${(h.mine?.length ? h.mine : ['pre-push']).join(', ')} in ${h.dir} (core.hooksPath)${h.forwarded.length ? `; forwarding ${h.forwarded.join(', ')}` : ''}`;
 const hooksWarning = (h) => `warning: MIRAI's pre-push hook isn't installed: ${h.why}. MIRAI starts no agents until it is: run mirai init --refresh in a terminal\n`;
 
 async function reportHooks(io, root) {

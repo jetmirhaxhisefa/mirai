@@ -21,6 +21,16 @@ const STATES = {
   unknown: 'claude isn\'t on your PATH, or didn\'t answer, so MIRAI can\'t ask Claude Code',
 };
 
+// Which Claude Code config `claude mcp` used: CLAUDE_CONFIG_DIR as this terminal has it, else
+// the default (P1's F3: a session started with another config, `claude-priv` say, doesn't see a
+// registration made in the default one).
+export function claudeConfigOf(env) {
+  const dir = typeof env?.CLAUDE_CONFIG_DIR === 'string' && env.CLAUDE_CONFIG_DIR ? env.CLAUDE_CONFIG_DIR : null;
+  const home = env?.HOME && dir?.startsWith(`${env.HOME}/`) ? `~${dir.slice(env.HOME.length)}` : dir;
+  return dir ? `CLAUDE_CONFIG_DIR=${plain(home)}` : 'the default config (~/.claude.json; CLAUDE_CONFIG_DIR isn\'t set)';
+}
+const CONFIG_HINT = '  a session started with another Claude Code config (CLAUDE_CONFIG_DIR) won\'t see it; for one: CLAUDE_CONFIG_DIR=<its folder> mirai session-server install (and remove it from this one: mirai session-server remove)';
+
 export default {
   name: 'session-server',
   summary: 'Register MIRAI\'s MCP server for your own Claude Code sessions here',
@@ -35,15 +45,15 @@ export default {
       const trust = snapshot({ cwd: io.cwd, env: io.env });
       const r = install({ store, trust, env: io.env });
       io.stdout.write(r.done
-        ? `registered MIRAI's server for your sessions in this project (Claude Code, local scope), from the trust root at ${trust.baseSha.slice(0, 12)}\n  tools: ${Object.keys(r.policy.tools).join(', ')}\n  start a new Claude Code session to use it\n`
+        ? `registered MIRAI's server for your sessions in this project (Claude Code, local scope, in ${claudeConfigOf(io.env)}), from the trust root at ${trust.baseSha.slice(0, 12)}\n  tools: ${Object.keys(r.policy.tools).join(', ')}\n  start a new Claude Code session with that config to use it\n${CONFIG_HINT}\n`
         : `claude isn't on your PATH; to register MIRAI's server, run:\n  ${r.command}\n`);
       if (r.note) io.stderr.write(`note: ${r.note}\n`);
       return EXIT.OK;
     }
     if (action === 'remove') {
       const r = remove({ store, env: io.env });
-      io.stdout.write(r.done ? 'removed MIRAI\'s server from your sessions in this project\n'
-        : r.absent ? 'MIRAI\'s server wasn\'t registered for this project folder\n'
+      io.stdout.write(r.done ? `removed MIRAI's server from your sessions in this project (in ${claudeConfigOf(io.env)})\n`
+        : r.absent ? `MIRAI's server wasn't registered for this project folder (in ${claudeConfigOf(io.env)})\n`
           : `claude isn't on your PATH; to remove MIRAI's server, run:\n  ${r.command}\n`);
       if (r.note) io.stderr.write(`note: ${r.note}\n`);
       return EXIT.OK;
@@ -52,6 +62,7 @@ export default {
     const s = status({ store, env: io.env, trust });
     io.stdout.write([
       `MIRAI's server for your sessions: ${STATES[s.state]}`,
+      `  Claude Code config: ${claudeConfigOf(io.env)}`,
       ...(s.base ? [`  registered from the trust root at ${s.base.slice(0, 12)}${s.behind ? `; the integration branch is now at ${trust.baseSha.slice(0, 12)}` : ''}`] : []),
       ...(s.connected === false ? ['  Claude Code can\'t start it now (see: claude mcp get mirai)'] : []),
       `  policies: ${sessionDir(store)}/`,

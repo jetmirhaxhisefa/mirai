@@ -15,6 +15,7 @@ import { branchKeys } from '../../src/sign/keys.js';
 import { readLock } from '../../src/install/lock.js';
 import { projectInputs, REGISTRY_DIR } from '../../src/install/render.js';
 import { committedNotRendered } from '../../src/setup/pre-commit.js';
+import { expectedNow, toFix } from '../../src/setup/checklist.js';
 
 // Unit 39's probes P1–P3: checks you run in the project's checkout, in your terminal, after your
 // own steps in your Claude Code session. Each prints PASS or FAIL with why, and changes nothing
@@ -81,8 +82,10 @@ if (values.check === 'p1') {
   const stray = committedNotRendered({ root: store.checkout, env: store.gitEnv });
   check('nothing under .claude/ that MIRAI didn\'t render', !stray.length, stray.slice(0, 5).join(', ') || 'none');
   const doc = await runChecks({ cwd, env });
-  const red = doc.filter((i) => i.state !== 'ok').map((i) => `${i.id} ${i.state}`);
-  check('mirai doctor green', !red.length, red.join(', ') || 'all ok');
+  // Green: nothing to fix; a yellow doctor expects until a named later unit is fine (F4).
+  const red = toFix(doc).map((i) => `${i.id} ${i.state}`);
+  const later = expectedNow(doc).map((i) => `${i.id} until unit ${i.expected_until}`);
+  check('mirai doctor green', !red.length, red.join(', ') || `nothing to fix${later.length ? `; expected: ${later.join(', ')}` : ''}`);
 } else if (values.check === 'p2') {
   const text = readFileSync(join(store.checkout, '.mirai/context/business.md'), 'utf8');
   const { execFileSync } = await import('node:child_process');

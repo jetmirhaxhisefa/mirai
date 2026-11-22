@@ -622,6 +622,9 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
   } catch (err) {
     guard?.release();
     removeLaunch(launchDir, scratchDir);
+    // Which scratch folder this launch made, if any (not enumerable: it's for tests to check it's
+    // gone, not for output; scanning /private/tmp for new names raced other runs, u39-tests-4).
+    if (err && typeof err === 'object' && !Object.hasOwn(err, 'scratchDir')) Object.defineProperty(err, 'scratchDir', { value: scratchDir, enumerable: false });
     throw err;
   }
 }

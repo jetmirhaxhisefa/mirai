@@ -19,7 +19,8 @@ import { mintLaunchToken } from '../../src/agent/requests.js';
 import { runTest } from '../../src/tests/run.js';
 import { forTemplate } from '../../src/redteam/run.js';
 import { readSetup, writeSetup } from '../../src/setup/state.js';
-import { CHECKLIST, checklistState } from '../../src/setup/checklist.js';
+import { CHECKLIST, checklistState, toFix } from '../../src/setup/checklist.js';
+import { runChecks } from '../../src/doctor/checks.js';
 import { committedNotRendered } from '../../src/setup/pre-commit.js';
 import { customCheck } from '../../src/doctor/checks.js';
 import { readOverlays } from '../../src/config/overlays.js';
@@ -464,6 +465,94 @@ test('39 T7: the checklist: every line has its command, what you see and its def
   assert.ok(!file.includes(f.home), 'no path from this Mac in the committed file');
   const r2 = await cli(['setup', 'done', 'finish'], f.io);
   assert.equal(r2.code, EXIT.BLOCKED, 'stages go in order');
+});
+
+test('39 F5 (P1; Jet, option 1): an item under .claude/ can\'t be kept in place; moved beside the root it can; a decision changed later updates the ledger; a stale keep is named', async () => {
+  const f = project();
+  f.put('.claude/settings.local.json.example', '{ "permissions": {} }\n');
+  f.git('add', '-A');
+  f.git('commit', '-qm', 'example');
+  await cli(['setup', 'scan'], f.io);
+  const id = '.claude/settings.local.json.example';
+  let r = await cli(['setup', 'decide', id, '--keep', 'in place (the project\'s own)'], f.io);
+  assert.equal(r.code, EXIT.USAGE, r.out);
+  assert.match(r.err, /under an agent folder, where only what MIRAI renders stays/);
+  assert.match(r.err, /git mv/);
+  r = await cli(['setup', 'decide', id, '--keep', '.claude/examples/settings.local.json.example'], f.io);
+  assert.equal(r.code, EXIT.USAGE, 'still under .claude/');
+  // Outside the agent folders, "in place" is fine (CLAUDE.md), and so is a project script.
+  r = await cli(['setup', 'decide', 'CLAUDE.md', '--keep', 'in place (the project\'s own)'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  // MIRAI's own settings file (rendered, with the project's other content) may stay.
+  const settingsRow = readSetup(openStore(f.io)).items['.claude/settings.json'];
+  if (settingsRow) assert.equal((await cli(['setup', 'decide', '.claude/settings.json', '--keep', 'in place'], f.io)).code, EXIT.OK);
+  // Moved beside the root: kept there.
+  f.git('mv', id, 'settings.local.json.example');
+  f.git('commit', '-qm', 'moved');
+  r = await cli(['setup', 'decide', id, '--keep', 'settings.local.json.example (beside the root)'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  const ledger = () => readFileSync(join(f.root, '.mirai/setup/ledger.md'), 'utf8');
+  assert.match(ledger(), /\| `\.claude\/settings\.local\.json\.example` \| [^|]+ \| [^|]* \| [^|]* \| keep: settings\.local\.json\.example \(beside the root\) \|/);
+  // Deleted later: the keep is stale, status names it; deciding again updates the ledger.
+  f.git('rm', '-q', 'settings.local.json.example');
+  f.git('commit', '-qm', 'gone');
+  r = await cli(['setup', 'status'], f.io);
+  assert.match(r.out, /stale decision: \.claude\/settings\.local\.json\.example: the ledger says keep/);
+  r = await cli(['setup', 'decide', id, '--drop'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.match(ledger(), /\| `\.claude\/settings\.local\.json\.example` \| [^|]+ \| [^|]* \| [^|]* \| drop \|/);
+  r = await cli(['setup', 'status'], f.io);
+  assert.ok(!/stale decision/.test(r.out), r.out);
+});
+
+test('39 F2 (P1): mirai init\'s summary names both of MIRAI\'s hooks', async () => {
+  const root = join(tempDir('f2'), 'r');
+  mkdirSync(root);
+  const home = tempDir('home');
+  const env = { PATH: '/usr/bin:/bin', HOME: home };
+  const git = (...a) => spawnSync('/usr/bin/git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: root, encoding: 'utf8', env: { ...env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'README.md'), '# r\n');
+  git('add', '-A');
+  git('commit', '-qm', 'first');
+  const r = await cli(['init', '--branch', 'main'], { cwd: root, env });
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.match(r.out, /^ {2}hooks: pre-push, pre-commit in .+ \(core\.hooksPath\)$/m);
+});
+
+test('39 F4 (P1): line 8 is done with no red and only yellows doctor expects until a later unit (the Merge gate until 54); finish reads doctor now', async () => {
+  const f = project();
+  // Doctor's real items on the fixture, then each made ok but the Merge gate, as on Thudos after P1.
+  const real = await runChecks({ cwd: f.root, env: f.env, ...stubs });
+  const gate = real.find((i) => i.id === 'merge-gate');
+  assert.equal(gate.state, 'yellow');
+  assert.match(gate.detail, /local-only/);
+  assert.equal(gate.expected_until, '54');
+  const thudos = real.map((i) => (i.id === 'merge-gate' ? i : { id: i.id, title: i.title, state: 'ok', detail: 'ok' }));
+  const marks = { 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'done' };
+  let line8 = checklistState(thudos, marks)[7];
+  assert.equal(line8.state, 'done', line8.why);
+  assert.match(line8.why, /expected until a later unit: Merge gate \(unit 54\)/);
+  assert.ok(checklistState(thudos, marks).every((l) => l.state === 'done'));
+  assert.deepEqual(toFix(thudos), []);
+  // Any other yellow still needs fixing, and any red; a yellow with no unit named isn't expected.
+  line8 = checklistState(thudos.map((i) => (i.id === 'session' ? { ...i, state: 'yellow', detail: 'not registered' } : i)), marks)[7];
+  assert.equal(line8.state, 'check');
+  assert.match(line8.why, /not registered/);
+  line8 = checklistState(thudos.map((i) => (i.id === 'merge-gate' ? { ...i, expected_until: undefined } : i)), marks)[7];
+  assert.equal(line8.state, 'check');
+  assert.equal(checklistState(thudos.map((i) => (i.id === 'login' ? { ...i, state: 'red', detail: 'no token' } : i)), marks)[7].state, 'open');
+  // Finish reads doctor when it's asked, not the last stored states: on the fixture (reds) it's
+  // refused, naming doctor's red item for line 8, never the Merge gate.
+  const store = openStore(f.io);
+  const st = readSetup(store);
+  for (const x of ['scan', 'migrate', 'context', 'connect']) st.stages[x] = { state: 'done', commit: f.git('rev-parse', 'HEAD') };
+  st.checklist = Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [n, 'done']));
+  writeSetup(store, st);
+  const r = await cli(['setup', 'done', 'finish'], f.io, { doctor: stubs });
+  assert.equal(r.code, EXIT.BLOCKED, 'stored done states don\'t count; doctor now has reds');
+  assert.match(r.err, /checklist line 8 \(mirai doctor until it's green\) isn't done: /);
+  assert.ok(!/line 8[^\n]*Merge gate/.test(r.err), r.err);
 });
 
 test('39 T8: /mirai setup, /mirai setup status and /mirai custom add are on the session list', () => {

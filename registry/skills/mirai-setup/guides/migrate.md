@@ -32,6 +32,12 @@ and say why:
 | MCP server | `.mirai/custom/mcp/`, the owner's sessions only, never MIRAI's runs |
 | BMAD documents | sources for stage 3; kept where they are, or moved under the docs root |
 
+Nothing MIRAI didn't render stays under `.claude/`, `.cursor/` or `.codex/` (Jet, F5): for an
+item there, "keep" means moved, into `.mirai/custom/` (`custom add`) or beside the repo root
+outside those folders (`git mv`, as for an example file such as `settings.local.json.example`);
+never "in place" (`setup decide` refuses it). A script or document outside them may stay where it
+is. To change a decision later, call `setup decide` again: the ledger follows.
+
 Then ask, one question at a time, until it's settled: keep (where) or drop. For a hook, ask
 which form: a check (runs in the sandbox at the build's checks step), interactive-only (the
 owner's sessions only), or both. Default to the narrower choice when the owner has no preference.

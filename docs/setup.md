@@ -70,6 +70,11 @@ decision goes in with `mirai setup decide <item> --keep <where>` or `--drop`, wi
 | MCP server | `.mirai/custom/mcp/`, for your sessions only; never in MIRAI's runs |
 | BMAD documents (PRD, architecture) | sources for stage 3; kept where they are, or moved under the docs root |
 
+Nothing MIRAI didn't render stays under `.claude/`, `.cursor/` or `.codex/`: an item there that
+you keep is moved, into `.mirai/custom/` or beside the repo root outside those folders; `mirai
+setup decide` refuses "in place" for it. `mirai setup decide` again changes a decision, and the
+ledger follows; `mirai setup status` lists a kept item that's no longer anywhere in the repo.
+
 **Nothing kept may break MIRAI.** Every kept item gets the static checks before it moves:
 
 - no name clash with MIRAI's (`mirai`, `mirai-*`, MIRAI's skills and agents, Claude Code's own skills);

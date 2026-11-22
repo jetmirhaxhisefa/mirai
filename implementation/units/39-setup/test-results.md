@@ -114,44 +114,54 @@ are never touched.
   deleted, it's refused (`identity-changed`); store 43/43, and the setup, launch, install and
   doctor files pass. The scratch scan before P1 used a temp HOME, so it never met the pilot's store.
 
-- **F2, P1 step 4 (cosmetic): `mirai init`'s summary names only the pre-push.** It prints
-  `hooks: pre-push in … (core.hooksPath)`, but the pre-commit was installed too and ran at the
-  install commit ("mirai pre-commit: skipped: … isn't committed on the integration branch yet").
-  **Draft fix (not applied; batched after P1):** `hooksLine` in `src/cli/commands/init.js` names
-  the hooks the folder holds, from the record `installHooks` returns (`pre-push` and, with
-  `pre_commit: true`, `pre-commit`): `hooks: pre-push, pre-commit in … (core.hooksPath)`; a test in
-  `test/setup/setup.test.js` (T6) pins the line.
-- **F3, P1 step 8: `mirai session-server install` registered in the wrong Claude Code config,
-  and said nothing about which.** It calls `claude mcp add` at local scope with the terminal's
-  environment, so it went into the default `~/.claude.json` (Jet's work account). Jet runs MIRAI
-  only under his private account (`claude-priv`, `CLAUDE_CONFIG_DIR=~/.claude-private`), so
-  `/mirai setup` there found no `mcp__mirai__` tools. The output said "registered … (Claude Code,
-  local scope)" only. **Draft fix (not applied; batched after P1):**
-  - `install`, `remove` and `status` (`src/cli/commands/session-server.js`, `src/mcp/session.js`)
-    say which config they used: `CLAUDE_CONFIG_DIR` when it's set (its path), else
-    "the default config (~/.claude.json)"; for example `registered … (Claude Code, local scope, in
-    ~/.claude-private)`.
-  - Doctor's Session server item and the setup skill's first step (`registry/skills/mirai-setup/SKILL.md`,
-    "Where to start"; the same in `/mirai`'s command file): when the `mcp__mirai__` tools aren't in
-    the session, say "MIRAI's tools aren't connected in this session: in your terminal, run
-    `CLAUDE_CONFIG_DIR=<the dir this session uses> mirai session-server install`, then start a new
-    session", and stop there instead of going on without them. Doctor can't see which config a
-    session uses, so its line names the one it checked.
-  - `session-server remove` and `install` share `.claude/settings.local.json` (the ask rules), so
-    moving a registration from one config to another is `remove` with the old config's env, then
-    `install` with the new one's; the docs (`docs/agent-safety.md`, the session server's section)
-    say so.
-  - Tests: `install` with `CLAUDE_CONFIG_DIR` set names that dir and passes it to `claude` (fake
-    `claude`); without it, names the default.
-  - For Jet now: `mirai session-server remove` (default config), then
-    `CLAUDE_CONFIG_DIR=~/.claude-private mirai session-server install`, then `claude-priv`.
+- **F2, P1 step 4 (cosmetic): `mirai init`'s summary named only the pre-push**, though the
+  pre-commit was installed and ran at the install commit. **Fixed:** `setUpHooks` returns MIRAI's
+  hooks in the folder and the line reads `hooks: pre-push, pre-commit in … (core.hooksPath)`
+  (`src/cli/commands/init.js`; test "39 F2").
+- **F3, P1 step 8: `mirai session-server install` registered in the default Claude Code config**
+  (`~/.claude.json`, Jet's work account) and didn't say which; Jet runs MIRAI under
+  `CLAUDE_CONFIG_DIR=~/.claude-private`, so `/mirai setup` there had no `mcp__mirai__` tools.
+  **Fixed:** `install`, `remove` and `status` name the config (`CLAUDE_CONFIG_DIR=<dir>`, or "the
+  default config (~/.claude.json; CLAUDE_CONFIG_DIR isn't set)") and how to register for another;
+  doctor's Session server item names the config it checked; `/mirai`'s command file and the setup
+  skill's step 0 stop with "MIRAI's tools aren't connected in this session … `CLAUDE_CONFIG_DIR=<its
+  folder> mirai session-server install` …" when the tools are missing; `docs/agent-safety.md`
+  says a registration moves with `remove` (old config's env), then `install` (new one's), since
+  both share `.claude/settings.local.json` (test: 15b T6 in `test/mcp/session.test.js`).
+- **F4, P1 stage 5 (blocking): `mirai setup done finish` could never succeed.** Line 8 ("mirai
+  doctor until it's green") took every doctor item, and the Merge gate is always yellow
+  (local-only) until unit 54; finish also read the states the last `setup checklist` stored. On
+  Thudos: doctor 21 ok, 1 yellow (Merge gate), 0 red, and line 8 stayed `check`. The tests used a
+  fake doctor without the Merge gate. **Fixed, with a named rule:** a doctor item can be a yellow
+  *expected until a named later unit* (`expected_until`; today only the Merge gate, unit 54).
+  Line 8 is done when doctor has no red and no other yellow, and says which expected ones remain;
+  `setup done finish` runs doctor then and computes every line (not the stored states); P1's probe
+  check uses the same rule (`toFix`, `expectedNow` in `src/setup/checklist.js`). Test "39 F4" uses
+  doctor's real items on the fixture (its real Merge gate item) made ok elsewhere, as on Thudos.
+- **F5, P1 stage 2 to 5: "keep in place" for a file under `.claude/` that finish then refused.**
+  `.claude/settings.local.json.example` (kind `other`) was decided "keep: in place (the project's
+  own)"; doctor's "Not rendered by MIRAI" flagged it, `custom add` refused it (not a custom kind),
+  so Jet deleted it (39fffdc) and the ledger still said "keep". **Decision (Jet, 2026-11-22: F5
+  option 1):** everything under `.claude/`, `.cursor/` and `.codex/` is MIRAI's rendered output
+  (P3's premise). **Fixed:** `setup decide --keep` refuses "in place" (or any place still under
+  those folders) for an item there that MIRAI didn't render, naming the ways out (`custom add`,
+  `git mv` beside the root then `--keep <that path>`, or `--drop`); MIRAI's own settings file,
+  rendered with the project's content, may stay. A decision made again updates the ledger, and a
+  kept item that's gone from the repo with its place is a "stale decision" in `setup status` and a
+  gap for `setup done migrate` and `finish`. The migrate guide and `docs/setup.md` say so. Test "39
+  F5".
 - **Known flake, u39-tests-4 (at `d6afc48`): `test/launch/strict.test.js` T5/T6** failed once with
-  "a failed launch left its scratch folder" (`mirai-3d44597f`). The check lists every
-  `/private/tmp/mirai-*` folder before and after a refused launch, so another test file (or any
-  MIRAI run on the Mac) making one in between reads as a leak. The commit touched only the
-  store; the file passes 14/14 alone, and u39-tests-5 at the same commit passed 771/771. A later
-  fix: compare against the folder the refused launch would have used (or a private TMPDIR per
-  test), not the whole of `/private/tmp`.
+  "a failed launch left its scratch folder": it scanned all of `/private/tmp/mirai-*`, so another
+  run's folder read as a leak (u39-tests-5 at the same commit passed 771/771). **Fixed:** a refused
+  launch's error names the scratch folder it made (`scratchDir`, not enumerable), and the test
+  checks only that one is gone.
+- **What passed on P1 (Jet, 2026-11-22, on `thudos-setup` with MIRAI from `d6afc48`):** every stage
+  but finish done (finish blocked by F4); doctor 21 ok, 1 yellow (Merge gate), 0 red; the P1 check
+  all PASS but finish and "doctor green" (both F4). Jet: resuming after Ctrl-D in stage 2 went on
+  at the next undecided item (pass); stage 3 showed every context file with its path and link,
+  then the `(open)` questions, then approve or review per file (pass); `CLAUDE.local.md.example`
+  kept in place (right); nothing else looked wrong ("generally ok"). The setup session ran out of
+  context once (an auto-summary) during stages 4 and 5 and carried on correctly.
 
 ### Before P1 and P2 (once, in Terminal)
 

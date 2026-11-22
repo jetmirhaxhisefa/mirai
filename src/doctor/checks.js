@@ -46,6 +46,9 @@ import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 export const STATES = Object.freeze(['ok', 'yellow', 'red']);
 const ok = (detail) => ({ state: 'ok', detail });
 const yellow = (detail, hint) => ({ state: 'yellow', detail, hint });
+// A yellow MIRAI itself expects until a later unit builds the missing part (unit 39, P1's F4): the
+// unit is named, so setup's last checklist line and its probe can tell it from a yellow to fix.
+const expectedYellow = (detail, hint, unit) => ({ ...yellow(detail, hint), expected_until: unit });
 const red = (detail, hint, fix) => ({ state: 'red', detail, hint, ...(fix ? { fix } : {}) });
 const DAY = 86_400_000;
 
@@ -235,7 +238,7 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (!same) return red(`the registry lists ${have.length} branch entr${have.length === 1 ? 'y' : 'ies'}, the journal and the signed records ${r.entries.length}${r.skipped.length ? ` (${r.skipped.length} that don't verify: ${r.skipped[0].why})` : ''}`, 'mirai doctor --fix rebuilds it from the branch records', 'registry');
     return ok(`${have.length} MIRAI branch entr${have.length === 1 ? 'y' : 'ies'}, as the journal and the signed records say${r.unchecked.length ? ` (${r.unchecked.length} can't be checked here: its commit isn't in this clone)` : ''}`);
   });
-  await check('merge-gate', 'Merge gate', () => yellow('local-only: no CI checks MIRAI\'s proofs yet, so your merge is the gate', 'CI comes with unit 54; until then merge only what mirai review-mr (29d) or the host shows you'));
+  await check('merge-gate', 'Merge gate', () => expectedYellow('local-only: no CI checks MIRAI\'s proofs yet, so your merge is the gate', 'CI comes with unit 54; until then merge only what mirai review-mr (29d) or the host shows you', '54'));
   await check('usage', 'Plan and week', () => {
     const caps = usageCaps(env);
     if (caps.error) return red(`your usage caps can't be read (${caps.error})`, 'fix ~/.config/mirai/config.toml');
@@ -341,7 +344,9 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     const s = session({ store, env, trust });
     if (s.state === 'current') return ok('registered for the current trust root');
     if (s.state === 'unknown') return yellow('Claude Code didn\'t answer, so MIRAI can\'t tell', 'claude mcp list');
-    if (s.state === 'missing') return yellow('not registered for this project: /mirai in your sessions won\'t work', 'mirai session-server install, in your terminal');
+    // P1's F3: the registration is per Claude Code config; say which one was checked.
+    const config = env?.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${env.CLAUDE_CONFIG_DIR}` : 'the default Claude Code config (~/.claude.json)';
+    if (s.state === 'missing') return yellow(`not registered for this project in ${config}: /mirai in your sessions won't work`, 'mirai session-server install, in your terminal; for sessions with another Claude Code config: CLAUDE_CONFIG_DIR=<its folder> mirai session-server install');
     if (s.state === 'foreign') return red('Claude Code has a server named mirai here that MIRAI didn\'t register', 'claude mcp get mirai; then mirai session-server install');
     return yellow(`behind${s.behind ? ' (an older trust root)' : ''}${s.connected === false ? ', and it doesn\'t start' : ''}`, 'mirai session-server install, in your terminal');
   });

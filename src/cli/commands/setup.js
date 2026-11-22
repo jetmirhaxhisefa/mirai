@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -15,6 +15,7 @@ import { LEDGER_FILE, ledgerText, scanLedger, staysInPlace } from '../../setup/l
 import { DECISIONS, STAGES, STAGE_TITLES, markStage, nextStage, readSetup, writeSetup } from '../../setup/state.js';
 import { CHECKLIST, CHECKLIST_FILE, checklistState, checklistText } from '../../setup/checklist.js';
 import { contextFiles, contextGaps, reviewText } from '../../setup/review.js';
+import { AGENT_FOLDERS } from '../../setup/pre-commit.js';
 import { CONTEXT_DIR, contextKindOf } from '../../lint/context.js';
 
 // mirai setup … (unit 39, Scopes 2, 3, 5, 11 and 12): the record behind `/mirai setup`, the guided
@@ -65,7 +66,7 @@ function mergeScan(state, rows, now) {
 }
 
 // Where setup stands: { next, lines }. `rows`: a scan of HEAD now (new items show).
-function statusLines(state, rows) {
+function statusLines(state, rows, stale = []) {
   const lines = [];
   for (const s of STAGES) {
     const st = state.stages[s];
@@ -82,6 +83,7 @@ function statusLines(state, rows) {
     lines.push(`new or undecided: ${all.slice(0, 10).join(', ')}${all.length > 10 ? `, and ${all.length - 10} more` : ''}`);
     if (next === null || STAGES.indexOf(next) > STAGES.indexOf('migrate')) next = unseen.length ? 'scan' : 'migrate';
   }
+  for (const x of stale.slice(0, 10)) lines.push(`stale decision: ${x}`);
   if (state.deferred.length) lines.push(`put off for later (each a checklist line): ${state.deferred.join(', ')}`);
   const open = Object.entries(state.checklist ?? {}).filter(([, v]) => v !== 'done').map(([n]) => n);
   if (state.stages.finish.state === 'done' && open.length) lines.push(`checklist lines still open: ${open.join(', ')} (mirai setup checklist)`);
@@ -117,7 +119,7 @@ export default {
 
     if (sub === 'status') {
       if (arg !== undefined) throw new UsageError('setup status takes no argument');
-      const s = statusLines(state, scanRows(store, io.env));
+      const s = statusLines(state, scanRows(store, io.env), staleKeeps(store, state));
       for (const l of s.lines) say(plain(l));
       if (s.nothing) {
         say('setup is done: nothing new or changed since the last run');
@@ -152,6 +154,12 @@ export default {
       if ((keep === undefined) === (args.values.drop !== true)) throw new UsageError('give --keep <where> or --drop, one of them');
       for (const [k, v] of [['keep', keep], ['summary', args.values.summary]]) {
         if (v !== undefined && (typeof v !== 'string' || !/^[^\n\r\0]{1,300}$/.test(v))) throw new UsageError(`--${k} is one line, at most 300 characters`);
+      }
+      // F5 (Jet, 2026-11-22, option 1): everything under .claude/, .cursor/ and .codex/ is MIRAI's
+      // rendered output, so an item there that MIRAI didn't render can't be kept in place: it's
+      // moved (into .mirai/custom/, or beside the repo root, as CLAUDE.local.md.example is) or dropped.
+      if (keep !== undefined && underAgentFolder(arg, readLock(store.checkout)?.files ?? null) && keepsInPlace(arg, keep)) {
+        throw new UsageError(`${shown(arg)} is under an agent folder, where only what MIRAI renders stays (mirai doctor and the pre-commit refuse anything else): it can't be kept in place`, `move it: mirai custom add ${arg} (a skill, agent, command, hook or script), or beside the repo root (git mv ${arg} <path outside .claude/, .cursor/, .codex/>) and decide --keep <that path>; or --drop`);
       }
       Object.assign(it, { decision: keep !== undefined ? DECISIONS[0] : DECISIONS[1], ...(keep !== undefined ? { place: keep } : { place: undefined }), decided_at: now });
       if (args.values.summary) Object.assign(it, { summary: args.values.summary, researched: true });
@@ -224,7 +232,9 @@ export default {
     }
     const before = STAGES.slice(0, STAGES.indexOf(arg)).filter((s) => state.stages[s].state !== 'done');
     if (before.length) throw new MiraiError(`stage ${before[0]} isn't done yet; stages go in order (${STAGES.join(', ')})`, EXIT.BLOCKED);
-    const gaps = stageGaps(arg, { store, state, env: io.env });
+    // Finish reads doctor now, not the states the last `setup checklist` stored (P1's F4).
+    const items = arg === 'finish' ? await runChecks({ cwd: io.cwd, env: io.env, ...(io.doctor ?? {}) }) : null;
+    const gaps = stageGaps(arg, { store, state, env: io.env, items });
     if (gaps.length) {
       for (const g of gaps.slice(0, 20)) io.stderr.write(`  ${plain(g)}\n`);
       throw Object.assign(new MiraiError(`stage ${arg} isn't done: ${gaps.length} thing${gaps.length === 1 ? '' : 's'} left, listed above`, EXIT.BLOCKED), { hint: STEP[arg] });
@@ -251,8 +261,40 @@ function deferredLines(files, deferred) {
   });
 }
 
+// F5: whether an item's file is under an agent folder and isn't MIRAI's own rendered file (the
+// settings file MIRAI merges into stays: its other content is the project's).
+function underAgentFolder(id, lock) {
+  const path = id.split('#')[0];
+  if (!AGENT_FOLDERS.some((d) => path === d || path.startsWith(`${d}/`) || path.includes(`/${d}/`))) return false;
+  const e = lock?.get(path);
+  return !(e && e.mark === 'rendered');
+}
+// Whether a keep's place leaves the item where it is: the words "in place", its own path, or a
+// path still under an agent folder.
+function keepsInPlace(id, place) {
+  if (/\bin place\b/i.test(place) || /\bwhere it is\b/i.test(place)) return true;
+  const target = place.trim().split(/\s/)[0].replace(/^\.\//, '');
+  if (target === id.split('#')[0]) return true;
+  return !target.startsWith('.mirai/') && AGENT_FOLDERS.some((d) => target === d || target.startsWith(`${d}/`) || target.includes(`/${d}/`));
+}
+
+// F5: kept items whose file is gone and whose place isn't in the repo: the ledger says "keep" for
+// something deleted; decide it again (--drop, or --keep <where it went>).
+function staleKeeps(store, state) {
+  const out = [];
+  for (const [id, it] of Object.entries(state.items)) {
+    if (it.decision !== 'keep') continue;
+    const path = id.split('#')[0];
+    if (existsSync(join(store.checkout, path))) continue;
+    const target = String(it.place ?? '').trim().split(/\s/)[0].replace(/^\.\//, '');
+    if (target && !/^in$/i.test(target) && existsSync(join(store.checkout, target))) continue;
+    out.push(`${id}: the ledger says keep (${it.place ?? ''}), but neither it nor that place is in the repo; decide it again: mirai setup decide ${id} --drop (or --keep <where it went>)`);
+  }
+  return out;
+}
+
 // What still keeps a stage from done (beyond the commit).
-function stageGaps(stage, { store, state, env }) {
+function stageGaps(stage, { store, state, env, items = null }) {
   if (stage === 'scan') return Object.keys(state.items).length || state.stages.scan.state !== 'not started' ? [] : ['the ledger isn\'t written: mirai setup scan'];
   if (stage === 'migrate') {
     const rows = scanRows(store, env);
@@ -263,6 +305,7 @@ function stageGaps(stage, { store, state, env }) {
       if (!it.decision) out.push(`${id}: not decided (mirai setup decide ${id} --keep <where> | --drop)`);
       else if (MOVED_KINDS.has(it.kind) && here.has(id) && !(it.decision === 'keep' && staysInPlace(id))) out.push(`${id}: ${it.decision === 'keep' ? 'kept, but still in its old place (mirai custom add ' + id + ')' : 'dropped, but still there (delete it)'}`);
     }
+    out.push(...staleKeeps(store, state));
     return out;
   }
   if (stage === 'context') {
@@ -272,7 +315,8 @@ function stageGaps(stage, { store, state, env }) {
     return contextGaps(files, state.deferred).map((f) => `${f.rel}: ${f.state}${f.open.length ? `, ${f.open.length} (open) line${f.open.length === 1 ? '' : 's'}` : ''} (approve it: mirai approve --file ${f.rel}; or put it off: mirai setup defer ${f.rel})`);
   }
   if (stage === 'finish') {
-    const open = CHECKLIST.filter((l) => (state.checklist ?? {})[l.n] !== 'done').map((l) => `checklist line ${l.n} (${l.title}) isn't done (mirai setup checklist)`);
+    const open = checklistState(items, state.marks ?? {}).filter((l) => l.state !== 'done').map((l) => `checklist line ${l.n} (${l.title}) isn't done: ${l.why}`);
+    open.push(...staleKeeps(store, state));
     return open;
   }
   return [];
