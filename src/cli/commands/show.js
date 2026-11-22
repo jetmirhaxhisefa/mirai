@@ -1,5 +1,5 @@
 import { lstatSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { contentHash } from '../../sign/sign.js';
 
@@ -8,7 +8,7 @@ import { UsageError } from '../errors.js';
 import { checkTicketArg, readApprovedFile } from '../human-move.js';
 import { showData, showText } from '../../run/show.js';
 import { openStore } from '../../store/home.js';
-import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.js';
+import { snapshot, trustedRegistry } from '../../trust/snapshot.js';
 import { trustOverlayFiles, trustedOverlays } from '../../trust/overlays.js';
 import { CUSTOM_DIR, STATE_TEXT, checklistTextOf, overlayFilesIn, overlayState, readOverlays, templateTextOf, verifyRecords } from '../../config/overlays.js';
 import { branchKeys } from '../../sign/keys.js';
@@ -17,10 +17,11 @@ import { trustedRoles } from '../../agent/scope.js';
 import { readJournal } from '../../store/journal.js';
 import { readFrontmatter } from '../../lint/frontmatter.js';
 import { plain } from '../../status/text.js';
-import { briefFiles, contextApproval, documentApproval, epicApproval } from './approve.js';
+import { contextApproval } from './approve.js';
+import { docsStoreFor } from '../../store/connectors/index.js';
+import { documentRows } from '../../store/connectors/state.js';
+import { documentLine } from '../../store/connectors/links.js';
 import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js';
-import { readTicketFolder } from '../../lint/lint.js';
-import { ticketsOf } from '../../lint/graph.js';
 
 // mirai show <ticket> (unit 28, decision 7; design/03 "mirai show"): the ticket's page from the
 // store: its plan, build, review rounds with every blocking finding, the MR, rounds, usage and why
@@ -84,63 +85,35 @@ export default {
 };
 
 // The initiative folder and its documents: { exists, docsRoot, shown, dir, docs: [{ file, type,
-// id, track, state, path }] }. The docs root comes from the trusted config, as the lint and
-// approval read it; a folder that's a symbolic link isn't one (documents are real files, 07b).
+// id, track, state, path, link }] }. Unit 38: the folder is the project's store's (`[docs] store`,
+// read from the trust root like the docs root): the repo's docs root, or MIRAI's store on this Mac
+// for the local store. A folder that's a symbolic link isn't one (documents are real files, 07b).
+// A document on a pushed branch with these bytes also gets its host link.
 function initiativeOf({ cwd, env, name }) {
   const store = openStore({ cwd, env });
-  let docsRoot = 'docs/mirai';
-  try {
-    docsRoot = trustedConfig(snapshot({ cwd, env })).docs?.root ?? docsRoot;
-  } catch {
-    // No trusted config yet: the default root.
-  }
-  const shown = `${docsRoot}/${name}`;
-  const dir = join(store.checkout, docsRoot, name);
+  const { conn, config } = docsStoreFor({ cwd, env, store });
+  const shown = `${conn.docsRoot}/${name}`;
+  const dir = conn.dir(name);
   let exists = false;
   try {
     exists = lstatSync(dir).isDirectory();
   } catch {
     exists = false;
   }
-  const docs = [];
+  let docs = [];
   if (exists) {
-    for (const file of readdirSync(dir).filter((f) => /\.md$/i.test(f)).sort()) {
-      const rel = `${shown}/${file}`;
-      let value = {};
+    const { events } = readJournal(store);
+    docs = documentRows({ store, conn, initiative: name }).map((d) => {
       let bytes = null;
       try {
-        bytes = readApprovedFile(store.checkout, store.checkout, rel).bytes;
-        value = readFrontmatter(bytes)?.value ?? {};
+        bytes = readApprovedFile(conn.base, conn.base, d.rel).bytes;
       } catch {
-        value = {};
+        bytes = null;
       }
-      const id = typeof value.id === 'string' ? value.id : null;
-      // Unit 33: an epic is approved with its tickets (tickets/ beside it, by their `epic` field),
-      // so its state and its ticket count come from them.
-      let tickets = null;
-      if (value.type === 'epic' && id) {
-        tickets = [];
-        for (const t of ticketsOf(readTicketFolder(dir, { root: store.checkout }).all, id)) {
-          try {
-            tickets.push({ path: `${shown}/${t.path}`, ...readApprovedFile(store.checkout, store.checkout, `${shown}/${t.path}`) });
-          } catch {
-            // a ticket file that can't be read can't be approved: the epic shows as not approved
-            tickets.push({ path: `${shown}/${t.path}`, bytes: Buffer.alloc(0) });
-          }
-        }
-      }
-      const a = !id || !bytes ? { approved: false, stale: false } : tickets ? epicApproval(store, id, bytes, tickets) : documentApproval(store, id, bytes, value.type === 'brief' ? briefFiles(store.checkout, rel, bytes) : undefined);
-      // Unit 35: an interview isn't approved; its state (open, paused, confirmed) is its own.
-      const interview = value.type === 'interview';
-      docs.push({
-        file, type: typeof value.type === 'string' ? value.type : null, id, track: typeof value.track === 'string' ? value.track : null,
-        state: bytes === null ? 'unreadable' : interview ? (typeof value.state === 'string' ? value.state : 'no state') : a.approved ? 'approved' : a.stale ? 'changed since approval' : 'not approved',
-        path: join(dir, file),
-        ...(tickets ? { tickets: tickets.length } : {}),
-      });
-    }
+      return { ...d, line: documentLine({ store, config, conn, abs: d.path, rel: d.rel, bytes, events }) };
+    });
   }
-  return { exists, docsRoot, shown, dir, name, docs };
+  return { exists, docsRoot: conn.docsRoot, shown: conn.kind === 'local' ? dir : shown, dir, name, docs, store: conn.name };
 }
 
 // One header line (the initiative and its track, from the PRD or the brief), then a line per
@@ -153,7 +126,7 @@ function initiativeText({ name, docs, shown }) {
   const rows = docs.map((d) => ({ ...d, type: d.tickets === undefined ? d.type : `${d.type} (${d.tickets} ticket${d.tickets === 1 ? '' : 's'})` }));
   const w = (k) => Math.max(...rows.map((d) => plain(String(d[k] ?? '—')).length));
   for (const d of rows) {
-    out.push(`  ${plain(d.file).padEnd(w('file'))}   ${plain(d.type ?? '—').padEnd(w('type'))}   ${plain(d.id ?? '—').padEnd(w('id'))}   ${d.state.padEnd(22)}   ${plain(d.path)}`);
+    out.push(`  ${plain(d.file).padEnd(w('file'))}   ${plain(d.type ?? '—').padEnd(w('type'))}   ${plain(d.id ?? '—').padEnd(w('id'))}   ${d.state.padEnd(22)}   ${d.line ?? plain(d.path)}`);
   }
   return `${out.join('\n')}\n`;
 }
@@ -166,7 +139,8 @@ function initiativeText({ name, docs, shown }) {
 // (the lint checks them against the code). A kind with no file shows as missing.
 export function contextOf({ cwd, env }) {
   const store = openStore({ cwd, env });
-  const dir = join(store.checkout, CONTEXT_DIR);
+  // Unit 38: through the store's pathOf; context files are the repo's, whatever the store.
+  const dir = dirname(docsStoreFor({ cwd, env, store, check: false }).conn.pathOf('business', null));
   let names = [];
   try {
     if (lstatSync(dir).isDirectory()) names = readdirSync(dir).sort();

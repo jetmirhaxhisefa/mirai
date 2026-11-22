@@ -302,6 +302,12 @@ export const CONFIG_SCHEMA = {
           patternHint: 'a folder inside the repo, written like docs/mirai: no leading ./ or /, no .., no empty parts',
           check: relativePath,
         },
+        // Where the project's documents are kept (unit 38, Jet's decision 4): `repo` (the default:
+        // under the docs root, reaching the integration branch through one docs merge request per
+        // initiative) or `local` (MIRAI's store on this Mac, never committed). Team policy, so the
+        // project layer only (LAYER_KEYS: personal files can't set docs.*), read from the
+        // integration branch like docs.root.
+        store: { type: 'enum', values: ['repo', 'local'] },
         // The reader test before approval (unit 34, Scope 6): on unless the project turns it off,
         // for a project with no subscription to spare (not a quality switch). Team policy, so the
         // project layer only (LAYER_KEYS: personal files can't set docs.*).

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,6 +11,8 @@ import { projectOverlays } from '../../trust/overlays.js';
 import { frameworkDefaults } from '../../config/defaults.js';
 import { topLevel, lsFiles } from '../../store/git.js';
 import { lintPaths, LintPathError, projectOf } from '../../lint/lint.js';
+import { openStore } from '../../store/home.js';
+import { docsStoreFor } from '../../store/connectors/index.js';
 
 // mirai lint [<path>...] [--json] (unit 07b). Checks the shape of MIRAI documents and writes
 // nothing. Exit 0 when clean (warnings allowed), 1 with problems, 2 on a usage error, 3 on a
@@ -48,9 +50,21 @@ export function createLintCommand({ registryDir = REGISTRY_DIR } = {}) {
       // .gitignore excludes.
       const files = top ? lsFiles(top, ['.'], io.env) : null;
       if (top && files === null) throw new MiraiError("git couldn't list the repo's files", EXIT.FAILURE);
-      let result;
+      // Unit 38: with the local store, the documents are in MIRAI's store on this Mac: linted too
+      // with no paths, or when a path names them; their problems are shown with full paths.
+      const local = top ? localDocs(io) : null;
+      const asked = args.positionals.map((p) => resolve(io.cwd, p));
+      const inLocal = (p) => local && (p === local.base || p.startsWith(`${local.base}/`));
+      const repoPaths = asked.filter((p) => !inLocal(p));
+      const localPaths = asked.filter(inLocal);
+      let result = { files: 0, skipped: 0, problems: [] };
       try {
-        result = lintPaths({ root, paths: args.positionals.map((p) => resolve(io.cwd, p)), files, registry, docsRoot, project });
+        if (!asked.length || repoPaths.length) result = lintPaths({ root, paths: repoPaths, files, registry, docsRoot, project });
+        const own = local && (asked.length ? localPaths : existsSync(local.docs) ? [local.docs] : []);
+        if (own && own.length) {
+          const r = lintPaths({ root: local.base, paths: own, files: null, registry, docsRoot: local.docsRoot, project });
+          result = { files: result.files + r.files, skipped: result.skipped + r.skipped, problems: [...result.problems, ...r.problems.map((p) => ({ ...p, file: join(local.base, p.file) }))] };
+        }
       } catch (err) {
         if (err instanceof LintPathError) throw new UsageError(clean(err.message), 'lint files or folders inside the repo');
         throw err;
@@ -82,6 +96,21 @@ function gitTop(io) {
   } catch (err) {
     if (err instanceof MiraiError) return null;
     throw err;
+  }
+}
+
+// The local store's documents, when the project keeps them there (unit 38): { base, docsRoot,
+// docs }, or null (the repo store, or no MIRAI store for this repo yet).
+function localDocs(io) {
+  try {
+    const store = openStore({ cwd: io.cwd, env: io.env });
+    const { conn } = docsStoreFor({ cwd: io.cwd, env: io.env, store, trusted: false });
+    if (conn.kind !== 'local' || !existsSync(conn.base)) return null;
+    const base = realpathSync(conn.base);
+    return { base, docsRoot: conn.docsRoot, docs: join(base, conn.docsRoot) };
+  } catch (err) {
+    if (err.code === 'store-change') throw err;
+    return null;
   }
 }
 
