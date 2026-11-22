@@ -39,10 +39,12 @@ A skill added later is the only thing it offers then.
 `mirai setup scan` reads the commit you're on (never your uncommitted files) and lists:
 
 - `.claude/`: skills, agents, commands, hook scripts, and each hook in `settings.json`;
-- `.cursor/`, `.codex/`, `.agents/`, `AGENTS.md`, `CLAUDE.md` and the files they import with `@`;
+- `.cursor/`, `.codex/`, `.agents/`, `AGENTS.md`, `CLAUDE.md` (and `CLAUDE.local.md`, or its
+  `.example`) and the files they import with `@`;
 - BMAD's folders (`bmad/`, `_bmad/`, `.bmad-core/`) and its documents in `docs/` (a PRD, an
   architecture note);
-- the council's folders (`council/`, `.council/`);
+- the council's folders (`council/`, `.council/`) and Markdown files named for it
+  (`docs/development-council.md`);
 - `.mcp.json`'s servers, and the scripts the items call.
 
 Each row has the item's path, its kind (skill, agent, command, hook, script, instruction, mcp,
@@ -63,7 +65,7 @@ decision goes in with `mirai setup decide <item> --keep <where>` or `--drop`, wi
 | agent | `.mirai/custom/agents/<name>.toml` + `.md`, as an overlay of a MIRAI agent (`mirai-developer`, `mirai-reviewer`) whose write scope is a role in `.mirai/custom/roles/`; any other agent is dropped or made into a skill |
 | command (`.claude/commands/`) | a project skill, or dropped when a `mirai` command does the same |
 | hook | a check under `[checks]`, an interactive-only hook in `.mirai/custom/hooks/`, or both |
-| script | `.mirai/custom/scripts/`, called by a check, a hook or a skill |
+| script | `.mirai/custom/scripts/`, called by a check, a hook or a skill; a script outside the agent folders that the project itself uses (a build, CI or Docker script) is kept where it is |
 | instruction text | its rules to `conventions-<service>.md`; its facts to `project-<service>.md`; the rest to `agents-local.md` |
 | MCP server | `.mirai/custom/mcp/`, for your sessions only; never in MIRAI's runs |
 | BMAD documents (PRD, architecture) | sources for stage 3; kept where they are, or moved under the docs root |

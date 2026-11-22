@@ -19,6 +19,17 @@ a script the skill calls, `_bmad/agents/pm.md`, `docs/prd.md`, an MCP server in 
   `AGENTS.md` with only its block) are no items. Nothing in it reaches a launch (fake launcher,
   macOS): Kai's launch carries none of the items' names, texts, hook scripts or servers, in its
   arguments, its settings file or any JSON it's given, and has `--strict-mcp-config`.
+- **T1/T5 Thudos's markers and the project's own scripts:** the fixture plus
+  `docs/development-council.md` and `CLAUDE.local.md.example` (as on Thudos's main): the scan lists
+  them (`other`, `instruction`); a `.txt` with "council" in its name isn't an item. `scripts/release.sh`
+  (called by the skill, outside the agent folders) kept "in place (the project's own)" doesn't hold
+  up `setup done migrate`, while a dropped agent still there does; with the agent-folder items gone
+  and a kept instruction file still naming the script, migrate is done and the script is still there.
+  Checked by hand on a local clone of Thudos's main (224afc4, a temp HOME, nothing pushed): the scan
+  lists 54 items, every council file of the pilot's decision 3 among them (all of `.claude/`, the
+  three `CLAUDE.md`, `CLAUDE.local.md.example`, `docs/development-council.md`, `scripts/set-risk.sh`,
+  `scripts/token-savings.sh`), plus `scripts/quality-gate*.sh` and `docker/php/entrypoint.sh` as
+  scripts the items call.
 - **T2 `mirai custom add`:** the skill (both files), the agent (as an overlay of `mirai-reviewer`
   under a project role, its tools kept), a script, a command (made a project skill with its
   description) and the hook (its script moved, its group taken out of the settings, the hook file
@@ -114,6 +125,17 @@ project's checkout, in your terminal:
 - **The ledger keeps every item it has seen,** in `setup.json`, so a moved item stays in the ledger
   with its decision; a scan adds new items and keeps decisions. It reads the commit you're on
   (HEAD), not uncommitted files, as 17a reads committed content.
+- **A script outside the agent folders stays where it is when kept** (found on Thudos's main
+  before P1): the ledger lists the scripts the items call, and on Thudos those include
+  `scripts/quality-gate.sh` (the project's own gate, kept by the pilot's decision 3) and
+  `docker/php/entrypoint.sh`. Moving them into `.mirai/custom/scripts/` (decision 5) would break
+  the project, so a kept script outside `.claude/`, `.cursor/`, `.codex/`, `.agents/` and the
+  council's and BMAD's folders isn't moved (`staysInPlace`); `setup done migrate` and P1's check
+  don't count it as "left in its old place". Only the items that call it move.
+- **The council's markers** (question 3 below, partly answered from Thudos's main): a `council/` or
+  `.council/` folder, or a Markdown file with "council" in its name (`docs/development-council.md`);
+  and an instruction file's `.example` (`CLAUDE.local.md.example`). The README's council section and
+  the `.gitignore` lines aren't items: P1 removes them by hand, as the pilot did.
 - **A ledger kind `document`** for BMAD's documents (a PRD, an architecture note in `docs/`), which
   the migrate table treats apart; the spec's list has no kind for them.
 - **Project items' kinds and files:** `project-skill` is `project-skills/<name>/SKILL.md` plus its
@@ -171,9 +193,9 @@ project's checkout, in your terminal:
 2. **The key's backup line:** MIRAI has no `mirai key backup`; the line says to copy the private
    key file into your password manager and mark it. Options: (A) keep the hand step (built); (B) a
    `mirai key backup` command in a later unit. Default: A.
-3. **The council's markers:** without Thudos here, the ledger finds the council by a `council/` or
-   `.council/` folder, plus whatever it put in `.claude/`. Options: (A) fix the markers at P1 when
-   we see Thudos (default); (B) you name them now.
+3. **The council's markers:** read from a local clone of Thudos's main (see "Changed from the
+   spec"): every council file of the pilot's list now has a row. Options: (A) that's enough; P1
+   shows anything missed (default); (B) you name more now.
 
 ## For later units
 

@@ -118,6 +118,47 @@ test('39 T1: the ledger lists every item with its kind and flags; MIRAI\'s own f
   assert.equal(Object.keys(state.items).length, 12);
 });
 
+test('39 T1/T5: Thudos\'s council markers are items; a project script an item calls is kept where it is, and migrate can finish with it there', async () => {
+  const f = project();
+  // As found on Thudos's main (2026-11-22): the council's doc and the example CLAUDE.local.md.
+  f.put('docs/development-council.md', '# Development council\n\nSee .claude/README.md.\n');
+  f.put('CLAUDE.local.md.example', '# Personal notes\n\nCopy to CLAUDE.local.md.\n');
+  f.put('docs/council-history.txt', 'not Markdown: not a council item\n');
+  f.git('add', '-A');
+  f.git('commit', '-qm', 'council');
+  let r = await cli(['setup', 'scan'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.match(r.out, /other +docs\/development-council\.md/);
+  assert.match(r.out, /instruction +CLAUDE\.local\.md\.example/);
+  assert.ok(!/council-history/.test(r.out), r.out);
+  f.git('add', '-A');
+  f.git('commit', '-qm', 'MIRAI setup: scan');
+  await cli(['setup', 'done', 'scan'], f.io);
+  // scripts/release.sh is the project's own (outside the agent folders): kept, it stays; the
+  // agent-folder items still have to move or go.
+  const state = readSetup(openStore(f.io));
+  for (const id of Object.keys(state.items)) {
+    const moved = ['skill', 'agent', 'command', 'hook', 'script', 'mcp'].includes(state.items[id].kind);
+    const where = id === 'scripts/release.sh' || !moved;
+    await cli(['setup', 'decide', id, ...(where ? ['--keep', 'in place (the project\'s own)'] : ['--drop'])], f.io);
+  }
+  r = await cli(['setup', 'done', 'migrate'], f.io);
+  assert.equal(r.code, EXIT.BLOCKED);
+  assert.match(r.err, /\.claude\/agents\/security\.md: dropped, but still there/);
+  assert.ok(!/scripts\/release\.sh/.test(r.err), r.err);
+  execFileSync('/bin/rm', ['-rf', '.claude/agents/security.md', '.claude/commands/release.md', '.claude/hooks', '.claude/skills/deploy', '_bmad/agents/pm.md', '.mcp.json'], { cwd: f.root });
+  const settings = JSON.parse(readFileSync(join(f.root, '.claude/settings.json'), 'utf8'));
+  delete settings.hooks;
+  writeFileSync(join(f.root, '.claude/settings.json'), `${JSON.stringify(settings, null, 2)}\n`);
+  // A kept instruction file still names the script, so the scan still finds it there.
+  f.put('docs/notes.md', '# Notes\n\nAlways run `npm install` first. Release with scripts/release.sh.\n');
+  f.git('add', '-A');
+  f.git('commit', '-qm', 'MIRAI setup: migrate');
+  r = await cli(['setup', 'done', 'migrate'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.ok(existsSync(join(f.root, 'scripts/release.sh')));
+});
+
 launchTest('39 T1/T3/T4: nothing in the ledger reaches a launch; an interactive-only hook is in your settings, not a launch\'s; a widened agent overlay is refused at launch', async () => {
   const f = project();
   await cli(['setup', 'scan'], f.io);

@@ -7,7 +7,7 @@ import { runChecks } from '../../src/doctor/checks.js';
 import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { readSetup, STAGES } from '../../src/setup/state.js';
-import { scanLedger } from '../../src/setup/ledger.js';
+import { scanLedger, staysInPlace } from '../../src/setup/ledger.js';
 import { contextFiles } from '../../src/setup/review.js';
 import { loadRegistry } from '../../src/config/registry.js';
 import { CUSTOM_DIR, overlayFilesIn, overlayState, readOverlays, verifyRecords } from '../../src/config/overlays.js';
@@ -69,7 +69,7 @@ if (values.check === 'p1') {
   const unresearched = Object.entries(s.items).filter(([, it]) => !it.researched).map(([id]) => id);
   check('every item has a researched summary', !unresearched.length, unresearched.slice(0, 5).join(', ') || 'all');
   const here = new Set(scanLedger({ root: store.checkout, env: store.gitEnv, registry, lock: readLock(store.checkout)?.files ?? null }).map((r) => r.id));
-  const left = Object.entries(s.items).filter(([id, it]) => ['skill', 'agent', 'command', 'hook', 'script', 'mcp'].includes(it.kind) && here.has(id)).map(([id]) => id);
+  const left = Object.entries(s.items).filter(([id, it]) => ['skill', 'agent', 'command', 'hook', 'script', 'mcp'].includes(it.kind) && here.has(id) && !(it.decision === 'keep' && staysInPlace(id))).map(([id]) => id);
   check('nothing left in its old place', !left.length, left.slice(0, 5).join(', ') || 'none');
   const items = customItems();
   const bad = items.filter((o) => o.state !== 'approved').map((o) => `${o.path} (${o.state})`);

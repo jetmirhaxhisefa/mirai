@@ -11,7 +11,7 @@ import { loadRegistry } from '../../config/registry.js';
 import { readLock } from '../../install/lock.js';
 import { projectInputs, REGISTRY_DIR } from '../../install/render.js';
 import { runChecks } from '../../doctor/checks.js';
-import { LEDGER_FILE, ledgerText, scanLedger } from '../../setup/ledger.js';
+import { LEDGER_FILE, ledgerText, scanLedger, staysInPlace } from '../../setup/ledger.js';
 import { DECISIONS, STAGES, STAGE_TITLES, markStage, nextStage, readSetup, writeSetup } from '../../setup/state.js';
 import { CHECKLIST, CHECKLIST_FILE, checklistState, checklistText } from '../../setup/checklist.js';
 import { contextFiles, contextGaps, reviewText } from '../../setup/review.js';
@@ -261,7 +261,7 @@ function stageGaps(stage, { store, state, env }) {
     for (const r of rows) if (!state.items[r.id]) out.push(`${r.id}: new since the scan (mirai setup scan, then decide it)`);
     for (const [id, it] of Object.entries(state.items)) {
       if (!it.decision) out.push(`${id}: not decided (mirai setup decide ${id} --keep <where> | --drop)`);
-      else if (MOVED_KINDS.has(it.kind) && here.has(id)) out.push(`${id}: ${it.decision === 'keep' ? 'kept, but still in its old place (mirai custom add ' + id + ')' : 'dropped, but still there (delete it)'}`);
+      else if (MOVED_KINDS.has(it.kind) && here.has(id) && !(it.decision === 'keep' && staysInPlace(id))) out.push(`${id}: ${it.decision === 'keep' ? 'kept, but still in its old place (mirai custom add ' + id + ')' : 'dropped, but still there (delete it)'}`);
     }
     return out;
   }

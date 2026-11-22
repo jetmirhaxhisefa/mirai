@@ -18,10 +18,16 @@ const MAX_ROWS = 1000;
 // The files Claude Code, Cursor, Codex, Gemini, Copilot and Windsurf read as instructions.
 const INSTRUCTION_NAMES = Object.freeze([...INSTRUCTION_FILES, 'GEMINI.md', '.cursorrules', '.windsurfrules']);
 const INSTRUCTION_PATHS = Object.freeze(['.github/copilot-instructions.md']);
-// BMAD's folders (any version), and the council's (Thudos: its markers are a council/ or
-// .council/ folder; the .claude/ items it adds are found as any other).
+// BMAD's folders (any version), and the council's: a council/ or .council/ folder, or a Markdown
+// file named for it (Thudos: docs/development-council.md); the .claude/ items it adds are found as
+// any other.
 const BMAD = /^(?:.*\/)?(bmad|_bmad|\.bmad-core|\.bmad-[a-z0-9-]+)\//;
-const COUNCIL = /^(?:.*\/)?(council|\.council)\//;
+const COUNCIL = /^(?:.*\/)?(council|\.council)\/|^(?:.*\/)?[^/]*\bcouncil\b[^/]*\.md$/i;
+// An instruction file's name, or its example to copy (Thudos: CLAUDE.local.md.example).
+const instructionName = (p) => {
+  const name = p.slice(p.lastIndexOf('/') + 1);
+  return INSTRUCTION_NAMES.includes(name) || INSTRUCTION_NAMES.includes(name.replace(/\.example$/, ''));
+};
 const SCRIPT_REF = /(?:^|[\s"'`=(])((?:\.\/)?(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.(?:sh|bash|py|js|mjs|ts|rb))(?=$|[\s"'`);])/g;
 
 const clip = (s, n = 140) => {
@@ -89,7 +95,7 @@ export function scanLedger({ root, env, registry, lock, ref = 'HEAD' }) {
     else if (/^(?:.*\/)?\.claude\/hooks\//.test(p)) row(p, 'script', t ? summaryOf(t) : '', [p], f);
     else if (/^(?:.*\/)?\.claude\/settings(\.local)?\.json$/.test(p)) settingsRows(p, t, row, patterns, rules, calls, lock);
     else if (/^(?:.*\/)?\.mcp\.json$/.test(p)) mcpRows(p, t, row, patterns, rules);
-    else if (INSTRUCTION_NAMES.includes(p.slice(p.lastIndexOf('/') + 1)) || INSTRUCTION_PATHS.includes(p) || /^(?:.*\/)?\.cursor\/rules\//.test(p) || /^\.github\/instructions\//.test(p) || /^\.windsurf\/rules\//.test(p)) {
+    else if (instructionName(p) || INSTRUCTION_PATHS.includes(p) || /^(?:.*\/)?\.cursor\/rules\//.test(p) || /^\.github\/instructions\//.test(p) || /^\.windsurf\/rules\//.test(p)) {
       if (t !== null && blockOf(t) !== null && withoutBlock(t).trim() === '') continue;
       row(p, 'instruction', t ? summaryOf(withoutBlockSafe(t)) : '', [p], f);
       if (t !== null && INSTRUCTION_FILES.includes(p.slice(p.lastIndexOf('/') + 1))) {
@@ -123,8 +129,13 @@ export function scanLedger({ root, env, registry, lock, ref = 'HEAD' }) {
 // Whether a path is an AI item's file (the scripts they call and BMAD's documents are found after).
 function isItem(p) {
   return /(^|\/)\.(claude|cursor|codex|agents|windsurf)\//.test(p) || /(^|\/)\.mcp\.json$/.test(p) || /^\.github\/(copilot-instructions\.md|instructions\/)/.test(p)
-    || INSTRUCTION_NAMES.includes(p.slice(p.lastIndexOf('/') + 1)) || BMAD.test(p) || COUNCIL.test(p);
+    || instructionName(p) || BMAD.test(p) || COUNCIL.test(p);
 }
+
+// Unit 39: a script an item calls that sits outside the agent folders is the project's own (a
+// build or CI script, Thudos's scripts/quality-gate.sh, a Docker entrypoint): it's researched and
+// decided like any item, but kept, it stays where it is; only the items that call it move.
+export const staysInPlace = (id) => !isItem(id.split('#')[0]);
 
 function withoutBlock(t) {
   const b = blockOf(t);

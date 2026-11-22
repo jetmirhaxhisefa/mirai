@@ -27,7 +27,7 @@ and say why:
 | agent | an overlay of `mirai-developer` or `mirai-reviewer` whose write scope is a role in `.mirai/custom/roles/`; or a project skill; any other agent is dropped |
 | command | a project skill, or dropped when a `mirai` command does the same |
 | hook | a check under `[checks]`, an interactive-only hook, or both (ask: decision 4) |
-| script | `.mirai/custom/scripts/`, called by a check, a hook or a skill |
+| script | `.mirai/custom/scripts/`, called by a check, a hook or a skill; a script outside the agent folders that the project itself uses (a build, CI or Docker script) stays where it is: keep it with the place `in place (the project's own)` |
 | instruction text | its rules to `conventions-<service>.md`, its facts to `project-<service>.md`, the rest to `agents-local.md` (stage 3 writes them; here you note what goes where) |
 | MCP server | `.mirai/custom/mcp/`, the owner's sessions only, never MIRAI's runs |
 | BMAD documents | sources for stage 3; kept where they are, or moved under the docs root |
