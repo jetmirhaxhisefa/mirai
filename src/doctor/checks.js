@@ -34,6 +34,7 @@ import { loadRegistry } from '../config/registry.js';
 import { overlayKeys, projectInputs, renderPlan, REGISTRY_DIR as RENDER_REGISTRY_DIR } from '../install/render.js';
 import { contextApproval } from '../cli/commands/approve.js';
 import { readApprovedFile } from '../cli/human-move.js';
+import { docsStoreFor } from '../store/connectors/index.js';
 import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 
 // `mirai doctor`'s checks (unit 29c, Jet's decisions 1–2): each item ok, yellow (works, worth
@@ -366,6 +367,14 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
   await check('context', 'Context files', () => {
     if (journalError) throw journalError;
     return contextCheck({ store, events, now });
+  });
+  // Unit 38: the document store and its proof step (setup), as at mirai init.
+  await check('docs-store', 'Document store', () => {
+    const { conn } = docsStoreFor({ cwd, env, store });
+    const r = conn.setup();
+    if (!r.ok) return red(r.detail, r.hint ?? 'run: mirai doctor again once it\'s fixed');
+    if (!conn.teamCanSee) return ok(`${r.detail}; teammates can't see these documents (they never leave this Mac)`);
+    return ok(r.detail);
   });
   await check('overlays', 'Overlays', () => {
     if (journalError) throw journalError;

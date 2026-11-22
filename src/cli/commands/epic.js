@@ -14,6 +14,8 @@ import { checkIds, linkLinesOf } from '../../lint/rules.js';
 import { renderEpic, renderSections, ticketSet } from '../../lint/epic.js';
 import { prdItems } from '../../lint/graph.js';
 import { REGISTRY_DIR } from './lint.js';
+import { openStore } from '../../store/home.js';
+import { baseForArg, docsStoreFor } from '../../store/connectors/index.js';
 
 // mirai epic render <epic file> (unit 33, Jet's decision 2). Writes the epic's four generated
 // sections (Tickets, Dependencies, Coverage, Design decisions) from its ticket files (every
@@ -35,7 +37,9 @@ export function createEpicCommand({ registryDir = REGISTRY_DIR } = {}) {
       if (action !== 'render') throw new UsageError(`unknown action ${shown(action)}`, 'run: mirai epic render <epic file>');
       const root = topLevel(io.cwd);
       if (!root) throw new UsageError('not inside a git repo', 'run it in the repo that holds the epic');
-      const epic = readInRepo(root, io.cwd, file);
+      // Unit 38: through the project's store: an epic in the local store is read and written there.
+      const docRoot = documentRoot(io, root, file);
+      const epic = readInRepo(docRoot, io.cwd, file);
       const text = epic.bytes.toString('utf8');
       let doc;
       try {
@@ -55,7 +59,7 @@ export function createEpicCommand({ registryDir = REGISTRY_DIR } = {}) {
       if (!prdLine) throw new UsageError(`${shown(epic.rel)} has no "PRD:" line under its title`, 'add "PRD: [<its title>](prd.md)" right under the # title, then render again');
       let prd;
       try {
-        const p = readInRepo(root, dirname(epic.abs), prdLine.targets[0]);
+        const p = readInRepo(docRoot, dirname(epic.abs), prdLine.targets[0]);
         prd = parseDocument(p.bytes.toString('utf8'), p.rel);
       } catch (err) {
         throw new UsageError(`the PRD ${shown(prdLine.targets[0])} that ${shown(epic.rel)} links can't be read${err instanceof UsageError ? `: ${err.message}` : ''}`, 'correct the "PRD:" line, then render again');
@@ -63,7 +67,7 @@ export function createEpicCommand({ registryDir = REGISTRY_DIR } = {}) {
       if (prd.value.type !== 'prd') throw new UsageError(`${shown(prdLine.targets[0])} is not a PRD`, 'link the PRD this epic comes from');
       const up = { doc: prd, ids: checkIds(prd, registry.documentTypes.prd, () => {}, null) };
 
-      const set = ticketSet(doc, { readTickets: () => readTicketFolder(dirname(epic.abs), { root }), registry });
+      const set = ticketSet(doc, { readTickets: () => readTicketFolder(dirname(epic.abs), { root: docRoot }), registry });
       const sections = renderSections({ track: doc.value.track, tickets: set.tickets, items: prdItems(up) });
       // Unit 37: a renamed generated section is found, and kept, under the project's name.
       const renames = def.renames ?? {};
@@ -85,6 +89,18 @@ export function createEpicCommand({ registryDir = REGISTRY_DIR } = {}) {
 }
 
 export default createEpicCommand();
+
+// The folder the epic is read from: the local store's, when the project keeps its documents there
+// and the file is inside it; else the repo.
+function documentRoot(io, root, file) {
+  try {
+    const store = openStore({ cwd: io.cwd, env: io.env });
+    return baseForArg(docsStoreFor({ cwd: io.cwd, env: io.env, store, trusted: false }).conn, io.cwd, file);
+  } catch (err) {
+    if (err.code === 'store-change') throw err;
+    return root;
+  }
+}
 
 // A regular file inside the repo, not a link, read once: { abs, rel, bytes }.
 function readInRepo(root, from, arg) {
