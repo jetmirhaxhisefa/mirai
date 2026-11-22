@@ -55,7 +55,7 @@ export function frameworkDefaults() {
     repos: [{ name: '.', path: '.' }],
     workspace: { e2e: 'none' },
     gate: { code_paths: ['**', '!docs/mirai/**', '!.mirai/**'], risk: { high: [] } },
-    docs: { root: 'docs/mirai' },
+    docs: { root: 'docs/mirai', store: 'repo' },
     retention: { days: 90, auto: false },
     usage: { night_max: 15, week_max: 60, reserve: 40 },
   };

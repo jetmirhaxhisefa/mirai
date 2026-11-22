@@ -1,0 +1,19 @@
+# A fake external store for unit 38's contract tests: documents in memory, a status cache with a
+# last-sync time. It proves the contract fits a store outside the machine (Confluence, Jira:
+# post-MVP) without building one.
+schema_version = 1
+name = "fake-external"
+kind = "external"
+description = "A store outside the machine, faked in memory for the contract tests."
+verbs = ["setup", "write", "read", "query", "publish", "status"]
+holds = ["interview", "brief", "prd", "epic", "story", "bug"]
+sync_window_minutes = 15
+
+[setup]
+proof = "the fake answers a ping"
+
+[status_map]
+draft = "draft"
+in_review = "in-review"
+signed_off = "approved"
+live = "published"
