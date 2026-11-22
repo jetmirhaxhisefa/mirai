@@ -63,11 +63,13 @@ Through the build runner, `u38b-tests-2` on a635ee2: **767/767 pass** (13.1 min)
 
 ## The red team
 
+**Re-run and green:** the runner's `u38b-baseline-1` and `u38b-redteam-1` (`redteam-full`) passed at
+85afad4, the sample app refreshed to 38b.
+
 The cage changes: `registry/roles/author.toml` → `developer.toml`, `src/agent/run.js`, and two new
 cage files, `src/agent/persona.js` (the pure full-name helper `run.js` uses, so the registry folder
 stays out of the cage) and `src/ship/words.js` (reached through `src/status/derive.js`). The
-sample app's red-team pass goes stale with the refresh; a `redteam-full` run is due before
-approval.
+sample app's red-team pass went stale with the refresh, hence the run above.
 
 ## Probes (real)
 
@@ -75,7 +77,11 @@ approval.
   from this branch's worktree (a sample-app clone refreshed to 38b, Haiku, `--step commit-message`):
   `r1-naming: role developer; first progress line: Kai (mirai-developer) (Haiku): started`; the
   handover came back ok, 4 turns, 1.15 min, model Haiku.
-- **P1, `mirai docs publish`: prepared, not run yet.** The sample app's checkout is shared with the
+- **P1, `mirai docs publish`: passed with Jet (2026-11-22).** `node test/probes/naming-probes.js
+  --publish --dir … --yes` printed `docs publish naming-38b: opened`, `pushed 2b255ebfa0dc to
+  docs/naming-38b`, `pull request #18: https://github.com/jetmirhaxhisefa/mirai-sample-app/pull/18`,
+  `PASS`. Jet then closed PR #18, deleted its branch and removed the work folder; the sample app's
+  main was never changed. How the probe works: The sample app's checkout is shared with the
   build runner (its main is refreshed and pushed by u39's jobs), so `test/probes/naming-probes.js`
   works in a clone of its own: a probe HOME (its own MIRAI store; the sample app's store and
   checkout are never touched), MIRAI refreshed from this checkout and committed on the clone's main
