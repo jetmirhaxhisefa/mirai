@@ -1,0 +1,17 @@
+# The local store (unit 38): documents in MIRAI's store on this Mac, outside the repo, never
+# committed. For solo or private work: teammates can't see them, and `publish` does nothing and
+# says so (docs/stores.md).
+schema_version = 1
+name = "local"
+kind = "local"
+description = "Documents in MIRAI's store on this Mac, outside the repo and never committed; teammates can't see them."
+verbs = ["setup", "write", "read", "query", "publish", "status"]
+holds = ["interview", "brief", "prd", "epic", "story", "bug"]
+
+[setup]
+proof = "the store's docs folder is a private real folder outside the repo, and a file written there reads back the same"
+
+[status_map]
+not_approved = "draft"
+changed_since_approval = "draft"
+approved = "approved"

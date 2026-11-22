@@ -37,6 +37,10 @@ MIRAI's own definitions (D-37), shipped with it:
   (`npm run nope` fails). A project adds its own in `.mirai/custom/stacks/`.
 - **`instruction-flags/`:** the agent-instruction files setup detection lists, and the shell,
   network and install commands it flags in them (unit 17a; P2).
+- **`connectors/`:** the document stores (unit 38, D-36): `repo` (the default) and `local`, one
+  TOML file each with the contract's verbs (`setup`, `write`, `read`, `query`, `publish`,
+  `status`), its status map onto MIRAI's states and the document types it holds
+  (`docs/stores.md`). Each store's code is in `src/store/connectors/`.
 - **`adapters/`:** one profile per tool, which says where it reads instructions, skills and
   agents (unit 11): `claude-code`.
 

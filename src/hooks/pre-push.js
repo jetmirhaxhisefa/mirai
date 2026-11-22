@@ -53,6 +53,31 @@ export function trailerValues(message, trailer) {
   return last.split('\n').filter((l) => l.startsWith(prefix)).map((l) => l.slice(prefix.length).trim());
 }
 
+// Unit 38: the push check's secret scan for a docs branch (`mirai docs publish`): the same
+// patterns from the integration branch, your token, and the same "what the remote already has",
+// over what pushing `head` would add. The scope and proof rules are for ticket branches; a docs
+// merge request has its own gate (your signed approvals) and the docs-only check. Returns
+// { outcome: 'pass' | 'secret' | 'too-large-to-scan', findings, why }. A finding names the
+// pattern, the file and the commit, never the secret.
+export function docsPushScan({ cwd, env, remote = 'origin', head, remoteSha = null }) {
+  const store = openStore({ cwd, env });
+  const root = store.checkout;
+  const genv = store.gitEnv;
+  const trust = snapshot({ cwd, env, forPush: true });
+  const registry = trustedRegistry(trust);
+  const patterns = Object.values(registry.secrets ?? {}).flatMap((d) => d.patterns.map((p) => ({ name: p.name, regex: p.regex })));
+  const token = readToken(env);
+  const tracked = REMOTE_NAME.test(remote) && hasTrackingRefs(root, remote, genv);
+  const exclude = [tracked ? `--remotes=${remote}` : trust.baseSha];
+  if (remoteSha && SHA.test(remoteSha) && commitOf(root, remoteSha, genv)) exclude.push(remoteSha);
+  const scan = scanPush({ root, env: genv, head, exclude, patterns, token });
+  if (scan.tooLarge) return { outcome: 'too-large-to-scan', findings: [], why: 'what this push adds is more than the secret scan reads (64 MB)' };
+  if (!scan.findings.length) return { outcome: 'pass', findings: [] };
+  const f = scan.findings[0];
+  const where = f.file === null ? `the message of ${f.commit.slice(0, 12)}` : `${f.file} in ${f.commit.slice(0, 12)}`;
+  return { outcome: 'secret', findings: scan.findings.map((x) => ({ pattern: x.pattern, file: x.file, commit: x.commit })), why: `a secret (${f.pattern}) in ${where}${scan.findings.length > 1 ? `, and ${scan.findings.length - 1} more` : ''}` };
+}
+
 export function prePushCheck({ cwd, env, remote, updates, checkHooks = true }) {
   const store = openStore({ cwd, env });
   const root = store.checkout;

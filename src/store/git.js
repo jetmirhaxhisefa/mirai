@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdtempSync, openSync, readSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { StoreError } from '../cli/errors.js';
@@ -22,7 +23,7 @@ import { parseDiff } from '../tests/diff.js';
 // (unit 07b) `ls-files`, (unit 10) `symbolic-ref` and `check-ignore`, (unit 12) `diff
 // --name-only` and `merge-base`, (unit 13b) `ls-files` for `.env*` files, (unit 16b) `diff -U0`,
 // (unit 17a) `for-each-ref` and `log`, (unit 18a) `clone`, (unit 24a) `diff -U<n> --text` between
-// two commits for the reviewer, (unit 25a) `diff -U3 --text` over literal paths for the proof hash, (unit 26a) `log` for a push's commits and their `-p --text -U0` diffs, `for-each-ref` on a remote's tracking refs, `config --file .git/config core.hooksPath`. A new call needs its own probe (test/probes/git-probes.js
+// two commits for the reviewer, (unit 25a) `diff -U3 --text` over literal paths for the proof hash, (unit 26a) `log` for a push's commits and their `-p --text -U0` diffs, `for-each-ref` on a remote's tracking refs, `config --file .git/config core.hooksPath`, (unit 38) the docs commit on a private index (`read-tree`, `rm --cached`, `hash-object -w --stdin`, `update-index --index-info`, `write-tree`, `commit-tree`) and `update-ref` of a docs branch. A new call needs its own probe (test/probes/git-probes.js
 // --mirai).
 
 const TIMEOUT_MS = 10_000;
@@ -769,3 +770,49 @@ export function fetchBranch(root, url, branch, env, { helper = null, ca = null, 
 }
 
 const shQuote = (s) => `'${String(s).replace(/'/g, '\'\\\'\'')}'`;
+
+// Unit 38: the docs merge request's commit, made without touching your work tree, your index or
+// your current branch: a private temporary index read from `parent`, the initiative's `folder`
+// emptied and filled with `files` ([{ path, bytes }], each written as a blob), written as a tree
+// and committed with MIRAI's identity (author you, committer MIRAI, as unit 22's commits). Calls:
+// `read-tree`, `rm --cached --force` (the temporary index only; the work tree is never read),
+// `hash-object -w --stdin`, `update-index --index-info`, `write-tree`,
+// `rev-parse <commit>^{tree}` and `commit-tree`. Returns { sha, same } (same: the tree is the
+// parent's, so there is nothing to commit and `sha` is the parent).
+export function docsCommit(root, env, { parent, folder, files, message, author, committer }) {
+  checkGuards(root);
+  checkRepo(root, env);
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(parent)) throw new StoreError('not a commit id', { code: 'bad-ref' });
+  const safe = (p) => typeof p === 'string' && /^[A-Za-z0-9._/@+-]{1,400}$/.test(p) && !p.split('/').some((x) => x === '' || x === '.' || x === '..');
+  if (!safe(folder) || files.some((f) => !safe(f.path) || !f.path.startsWith(`${folder}/`))) throw new StoreError('a docs commit holds files of its folder only', { code: 'bad-path' });
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'mirai-docs-index-')));
+  const index = { GIT_INDEX_FILE: join(tmp, 'index') };
+  const run = (args, opts = {}) => {
+    const r = pinned(root, args, env, { ...opts, identity: { ...index, ...(opts.identity ?? {}) } });
+    if (!r.ok) throw new StoreError(`git ${args[0]} failed while making the docs commit`, { code: 'git-failed' });
+    return r.out;
+  };
+  try {
+    run(['read-tree', parent]);
+    run(['rm', '--cached', '-r', '-q', '--force', '--ignore-unmatch', '--', `:(literal)${folder}`]);
+    const lines = files.map((f) => `100644 ${run(['hash-object', '-w', '--stdin'], { input: f.bytes })}\t${f.path}\n`).join('');
+    if (lines) run(['update-index', '--index-info'], { input: lines });
+    const tree = run(['write-tree']);
+    if (tree === run(['rev-parse', `${parent}^{tree}`])) return { sha: parent, same: true };
+    const ident = { GIT_AUTHOR_NAME: author.name, GIT_AUTHOR_EMAIL: author.email, GIT_COMMITTER_NAME: committer.name, GIT_COMMITTER_EMAIL: committer.email };
+    const sha = run(['commit-tree', tree, '-p', parent, '-F', '-'], { input: message, identity: ident });
+    if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) throw new StoreError('the docs commit has no id', { code: 'git-failed' });
+    return { sha, same: false };
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+// Unit 38: moves a docs branch (refs/heads/docs/<initiative>) to `sha`, only if it is still at
+// `old` (null: only if it doesn't exist yet).
+export function setDocsBranch(root, branch, sha, old, env) {
+  if (!/^docs\/[a-z0-9][a-z0-9._-]{0,63}$/.test(branch) || !BRANCH_NAME.test(branch)) throw new StoreError('not a docs branch', { code: 'bad-branch' });
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha) || (old !== null && !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(old))) throw new StoreError('not a commit id', { code: 'bad-ref' });
+  const r = git(root, ['update-ref', `refs/heads/${branch}`, sha, old ?? '0'.repeat(sha.length)], env);
+  if (!r.ok) throw new StoreError(`git couldn't move ${branch} (it moved meanwhile)`, { code: 'git-failed' });
+}

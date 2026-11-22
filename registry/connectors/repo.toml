@@ -1,0 +1,21 @@
+# The repo store (unit 38): the default. Documents live under the docs root ([docs] root, default
+# docs/mirai) in the project's git repo; `publish` commits an initiative's folder on
+# docs/<initiative>, pushes it and opens one docs merge request, which MIRAI merges after your
+# signed approvals (docs/stores.md).
+schema_version = 1
+name = "repo"
+kind = "repo"
+description = "Documents under the docs root in the project's repo; they reach the integration branch through one docs merge request per initiative."
+verbs = ["setup", "write", "read", "query", "publish", "status"]
+holds = ["interview", "brief", "prd", "epic", "story", "bug"]
+
+[setup]
+proof = "the docs root is a real folder inside the repo (or not made yet), not a link"
+
+# The repo store's states, from the journal and the docs merge request, as MIRAI's states.
+[status_map]
+not_approved = "draft"
+changed_since_approval = "draft"
+approved = "approved"
+in_docs_mr = "in-review"
+merged = "published"

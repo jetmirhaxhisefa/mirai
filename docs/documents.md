@@ -434,6 +434,18 @@ The state is "approved", "changed since approval" or "not approved". When the na
 ticket MIRAI knows, `show` asks you to choose: `--docs` for the documents, `--full` for the
 ticket. It writes nothing, so `/mirai show` in your session has it too.
 
+Once a document is on a pushed branch with the same bytes, its line also gives its GitHub or
+GitLab link after the path. `mirai approve` ends the same way: its last line is the document's
+full path, and the link once it's pushed.
+
+### Where documents are kept, and how they reach main
+
+Documents are kept in the project's store: the repo (the default) or your Mac only. In the repo,
+an initiative's documents reach the integration branch through one docs merge request, which
+MIRAI opens with `mirai docs publish <initiative>` and merges with `mirai docs merge
+<initiative>` after your signed approvals. [Stores and the docs merge request](stores.md) has the
+whole flow.
+
 ## Epics and ticket sets
 
 After the PRD, the work is split into tickets, and you approve the set before any of it is built

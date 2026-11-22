@@ -1409,13 +1409,24 @@ now means **the integration branch**, `[git] integration_branch` (D-15).
   - **MCP is only for reading inside an agent session.**
   - **Credentials come from the tool's own login** (`gh`, `acli`, …) and are never stored by
     MIRAI.
-  - **The MVP ships the `repo` store and the git host (GitHub) only.** The first external
-    connector is chosen when you pick a tool, and is written against the contract without
-    changing any workflow.
+  - **The MVP ships the `repo` and `local` stores and the git hosts GitHub and GitLab** (unit 38,
+    Jet's decisions 3–5, 2026-11-20; it was "the git host (GitHub) only"). The contract is data
+    (`registry/connectors/<name>.toml`): the verbs `setup`, `write`, `read`, `query`, `publish`
+    and `status`, a status map onto MIRAI's states, and the document types the store holds (one
+    source of truth per type, D5).
+  - **The store is a project setting:** `[docs] store = "repo"` (the default: documents in the
+    repo, reaching the integration branch through one docs merge request per initiative, which
+    MIRAI merges after your signed ticket-set approval) or `"local"` (MIRAI's store on your Mac,
+    never committed). Read from the integration branch; a personal file can't set it.
+  - **Confluence (P08) and Jira (P07) are post-MVP.** Confluence starts with its own interview.
+    The first external connector is written against the contract without changing any workflow;
+    unit 38 proves the contract fits one with a fake external store.
   - **External status is advisory** (R2-M13). Tracker status is mirrored into a local cache in the
-    store with a last-sync time. Gates use only repo-side facts (the signed proofs), so MIRAI
-    works offline.
-- **Consequences:** no ClickUp, Jira or Linear in the MVP.
+    store with a last-sync time, and shown as stale past it. Gates use only repo-side facts (the
+    signed proofs), so MIRAI works offline. **External text is untrusted:** it reaches an agent
+    only inside a fence that names its source.
+- **Consequences:** no ClickUp, Jira, Linear or Confluence in the MVP. `docs/stores.md` is the
+  user's page.
 
 ### D-37 · Extension points are data with a schema
 

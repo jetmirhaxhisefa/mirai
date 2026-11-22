@@ -475,8 +475,13 @@ test('14d T6/T9: a cancelled run kills its Docker call and still cleans up; mira
   assert.match(ok.out, new RegExp(`signed with ${key.keyId} for main at [0-9a-f]{12}`));
   const store = openStore({ cwd: r.root, env: r.env });
   const dir = join(store.dir, 'tests');
-  const latest = readdirSync(dir).filter((n) => n.startsWith('t-')).sort().at(-1);
-  const signed = JSON.parse(readFileSync(join(dir, latest, 'result.json'), 'utf8'));
+  // The gate run is the one whose result carries a gate: run ids have one-second precision and a
+  // random suffix, so sorting by name can pick another run made in the same second.
+  const gated = readdirSync(dir).filter((n) => n.startsWith('t-')).map((n) => {
+    try { return JSON.parse(readFileSync(join(dir, n, 'result.json'), 'utf8')); } catch { return null; }
+  }).filter((x) => x?.gate);
+  assert.equal(gated.length, 1, 'exactly one gate run was stored');
+  const signed = gated[0];
   const keys = branchKeys(r.root, 'main', r.env);
   assert.deepEqual(verifyTestResult(signed, keys, store.repoId), { ok: true, keyId: key.keyId });
   assert.equal(signed.gate.head, r.git('rev-parse', 'HEAD'));

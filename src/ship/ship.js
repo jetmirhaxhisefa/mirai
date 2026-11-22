@@ -7,7 +7,7 @@ import { prePushCheck } from '../hooks/pre-push.js';
 import { checkProofs } from '../proofs/check.js';
 import { renderMrDescription } from '../reports/render.js';
 import { branchKeys } from '../sign/keys.js';
-import { commitOf, isAncestor, mergeBase, pushBranch, remotes } from '../store/git.js';
+import { changedNames, commitOf, isAncestor, mergeBase, pushBranch, remotes } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { appendEvent, readJournal, ticketFacts } from '../store/journal.js';
 import { readTicketStatus } from '../store/tickets.js';
@@ -91,6 +91,17 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   const proofs = checkProofs({ root: store.checkout, env: store.gitEnv, ticket, commit: head, integration: trust.baseSha, codePaths: config.gate?.code_paths, keys, repoId: store.repoId, rules: protectionRules(trustedRegistry(trust), config).rules, docsRoot: config.docs?.root });
   if (proofs.outcome !== 'pass') throw fail(`${ticket}: gate check is ${proofs.outcome} at ${head.slice(0, 12)}`, proofs.outcome, `mint the proofs after the review: mirai gate record ${ticket}`);
 
+  // 2b. Unit 38 (Jet's decision 6): a code MR carries no feature documents; those reach the
+  // integration branch through their initiative's docs merge request. A lone ticket (no
+  // initiative, such as a bug) is the exception: its own ticket file rides with its code. The docs
+  // root is outside gate.code_paths, so the proof above holds either way.
+  const docsRoot = config.docs?.root ?? 'docs/mirai';
+  const ownFile = loneTicketFile(readJournal(store, { keys }).events, ticket, docsRoot);
+  const from = mergeBase(store.checkout, trust.baseSha, head, store.gitEnv);
+  const docs = from ? changedNames(store.checkout, from, head, store.gitEnv).filter((n) => n === docsRoot || n.startsWith(`${docsRoot}/`)) : [];
+  const carried = docs.filter((n) => n !== ownFile);
+  if (carried.length) throw fail(`${branch} changes ${carried.length} document${carried.length === 1 ? '' : 's'} under ${docsRoot}/ (${carried.slice(0, 10).join(', ')}): a ticket's code MR doesn't carry documents`, 'docs-in-code-mr', `take them off ${branch}; an initiative's documents reach ${config.git.integration_branch} through its docs merge request (mirai docs publish <initiative>)${ownFile ? '' : '; only a lone ticket\'s own file rides with its code'}`);
+
   // 3. The host.
   const remoteUrl = remotes(store.checkout, store.gitEnv).get('origin') ?? null;
   const host = hostOf({ config, remoteUrl, store, env, root: store.checkout });
@@ -148,4 +159,13 @@ export async function shipTicket({ cwd, env, ticket, now = () => new Date(), hos
   if (edited) host.updateMr(mr.number, { title, body });
   if (facts.mr !== 'open' || facts.url !== mr.url) appendEvent(store, { type: 'mr_opened', by: 'script', ticket, head, target: integration, number: mr.number, url: mr.url });
   return { ticket, outcome: pushed || edited ? 'updated' : 'unchanged', mr: { number: mr.number, url: mr.url }, head, pushed, branch };
+}
+
+// A lone ticket's own file (unit 38, decision 6): the path you approved the ticket at, when it is
+// directly in the docs root's tickets/ folder (no initiative), or null. A ticket of an initiative
+// is in <docs root>/<initiative>/tickets/ and carries nothing.
+export function loneTicketFile(events, ticket, docsRoot) {
+  const last = events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'ticket' && e.item === ticket && e.decision !== 'rejected').at(-1);
+  const path = last?.path;
+  return typeof path === 'string' && path.startsWith(`${docsRoot}/tickets/`) && !path.slice(docsRoot.length + 9).includes('/') ? path : null;
 }

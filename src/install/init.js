@@ -8,6 +8,7 @@ import { PROJECT_CONFIG, readConfigFile, checkConfig } from '../config/load.js';
 import { BRANCH } from '../config/config-schema.js';
 import { topLevel, isShallow, refExists, remotes, symbolicBranch, ignoredPaths } from '../store/git.js';
 import { createStore, openStore } from '../store/home.js';
+import { openDocsStore } from '../store/connectors/index.js';
 import { LOCK_FILE, checkLock, frameworkDigest, lockText, newer, readLock, sha256, filesUnder } from './lock.js';
 import { LOCAL_FILE, applyPlan, overlayKeys, renderPlan, undoAll } from './render.js';
 
@@ -162,13 +163,22 @@ export function init({ cwd, env, branch: wanted, refresh = false, now = () => ne
       const made = store.repoHome;
       undo.push(() => rmSync(made, { recursive: true, force: true }));
     }
+    // Unit 38: the document store's proof step ([docs] store; repo by default). A store that
+    // can't be used is a warning here, and doctor's red item until it's fixed.
+    let docsStore;
+    try {
+      const conn = openDocsStore({ store, config: loadProjectConfig(root, configPath) });
+      docsStore = { name: conn.name, ...conn.setup() };
+    } catch (err) {
+      docsStore = { name: 'unknown', ok: false, detail: String(err.message ?? err).slice(0, 300) };
+    }
     if (refresh) swapAside(join(root, LOCK_FILE), join(stage, 'old.lock'), undo);
     move(join(stage, 'mirai.lock'), join(root, LOCK_FILE), undo);
     rmSync(stage, { recursive: true, force: true });
     const edited = plan.files.filter((f) => f.edited).map((f) => `${f.path}: MIRAI's part had been edited by hand; it is rendered again`);
     return {
-      root, branch, branchFrom, version: pkg.version, previous: oldLock?.miraiVersion, sameCopy: oldLock ? oldLock.frameworkSha256 === frameworkDigest(files) : undefined, source, store: store.repoHome, files: files.length, wrote,
-      warnings: [...plan.warnings, ...edited],
+      root, branch, branchFrom, docsStore, version: pkg.version, previous: oldLock?.miraiVersion, sameCopy: oldLock ? oldLock.frameworkSha256 === frameworkDigest(files) : undefined, source, store: store.repoHome, files: files.length, wrote,
+      warnings: [...plan.warnings, ...edited, ...(docsStore.ok ? [] : [`the document store (${docsStore.name}) can't be used: ${docsStore.detail}`])],
     };
   } catch (err) {
     // Every step is undone, even when one of them fails; the first error is the one reported.

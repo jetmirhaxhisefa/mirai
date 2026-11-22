@@ -142,6 +142,19 @@ export const EVENT_TYPES = Object.freeze({
   // Your words on how the work with an agent went (unit 29a, Jet's decision 3): signed from your
   // terminal (`human`), or your session's line (`session`); never an agent's (not in LOG_TYPES).
   feedback: { privileged: true, human: true, session: true, fields: { ticket: f.ticket, text: { type: 'string', pattern: /^(?=[^]*\S)[^\n\r]{1,2000}$/, patternHint: 'one line, up to 2,000 characters' } }, required: ['ticket', 'text'] },
+  // Unit 38: an initiative's docs merge request. `item` is the initiative. `docs_published`: MIRAI
+  // committed its folder on `branch`, pushed it at `head` and opened or updated the merge request
+  // (`number`, `url`), with each file and its hash; `docs_merged`: MIRAI merged it at `head`, as
+  // `merge_sha`, after your signed approvals.
+  docs_published: {
+    privileged: true,
+    fields: {
+      branch: f.branch, head: f.sha, number: { type: 'integer', min: 1 }, url: { type: 'string', pattern: /^https:\/\/[^\s"'<>\\]{1,500}$/, patternHint: 'the MR\'s https URL' },
+      files: { type: 'array', items: { type: 'table', fields: { path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo' }, content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' } }, required: ['path', 'content_hash'] }, uniqueBy: 'path' },
+    },
+    required: ['item', 'branch', 'head', 'number', 'files'],
+  },
+  docs_merged: { privileged: true, fields: { number: { type: 'integer', min: 1 }, head: f.sha, merge_sha: f.sha }, required: ['item', 'number', 'head', 'merge_sha'] },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },
 });

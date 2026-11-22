@@ -117,6 +117,20 @@ export const MIRAI_STEPS = Object.freeze([
       rmSync(bare, { recursive: true, force: true });
     }
   }],
+  // Unit 38: the docs merge request's commit, made on a private temporary index (read-tree,
+  // rm --cached --force, hash-object -w --stdin, update-index --index-info, write-tree, rev-parse,
+  // commit-tree), never the work tree or your index; then update-ref of the docs branch.
+  ['docsCommit', (root, env) => mirai.docsCommit(root, env, {
+    parent: mirai.commitOf(root, 'main', env), folder: 'docs/probe', files: [{ path: 'docs/probe/a.md', bytes: Buffer.from('# probe\n') }],
+    message: 'Docs: probe\n', author: { name: 'Probe', email: 'probe@example.invalid' }, committer: { name: 'MIRAI', email: 'mirai@localhost' },
+  })],
+  ['setDocsBranch', (root, env) => {
+    const made = mirai.docsCommit(root, env, {
+      parent: mirai.commitOf(root, 'main', env), folder: 'docs/probe', files: [{ path: 'docs/probe/b.md', bytes: Buffer.from('# probe b\n') }],
+      message: 'Docs: probe b\n', author: { name: 'Probe', email: 'probe@example.invalid' }, committer: { name: 'MIRAI', email: 'mirai@localhost' },
+    });
+    return mirai.setDocsBranch(root, 'docs/probe', made.sha, mirai.commitOf(root, 'refs/heads/docs/probe', env), env);
+  }],
   ['cloneTo', (root, env) => {
     const dest = `${root}-clone`;
     try {

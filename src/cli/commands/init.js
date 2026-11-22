@@ -66,6 +66,7 @@ export default {
       `  integration branch: ${r.branch} (from ${r.branchFrom})`,
       `  wrote: ${r.wrote.join(', ')} (${r.files} files in the lock)`,
       `  store: ${r.store}`,
+      ...(r.docsStore?.ok ? [`  documents: ${r.docsStore.detail}`] : []),
       ...(hooks.installed ? [hooksLine(hooks)] : []),
       host,
       ...(teammates(r.version) ? [`  teammates install MIRAI ${r.version} with: ${teammates(r.version)}`] : []),

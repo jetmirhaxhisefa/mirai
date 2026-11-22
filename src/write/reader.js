@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { EXIT } from '../cli/exit-codes.js';
 import { MiraiError, UsageError } from '../cli/errors.js';
 import { readApprovedFile } from '../cli/human-move.js';
+import { baseForArg, docsStoreFor } from '../store/connectors/index.js';
 import { pickTier } from '../agent/tiers.js';
 import { parseDocument } from '../lint/lint.js';
 import { aliased } from '../lint/rules.js';
@@ -176,7 +177,9 @@ const refuse = (message, code, hint, exit = EXIT.BLOCKED) => Object.assign(new M
 // fake launcher and a stand-in binary); nothing else changes for them.
 export async function runReaderTest({ cwd, env, file, launch = runClaude, claude = null, now = () => new Date(), timeoutMs = TIMEOUT_MS }) {
   const store = openStore({ cwd, env });
-  const read = readApprovedFile(store.checkout, cwd, file);
+  // Unit 38: a document in the local store is read from there.
+  const { conn } = docsStoreFor({ cwd, env, store });
+  const read = readApprovedFile(baseForArg(conn, cwd, file), cwd, file);
   const { path } = read;
   const text = read.bytes.toString('utf8');
   let doc;
