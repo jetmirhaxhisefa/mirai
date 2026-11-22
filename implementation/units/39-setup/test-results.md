@@ -166,6 +166,9 @@ are never touched.
   a test pins it. `h-timeout-link` and `l-cd` failed as always: informational (the known limits
   accepted 2026-11-07), never part of the state, in every repo; `adv-linger` inconclusive 2/3 (timed
   out under the load) and `w-claude-config` inconclusive runs (3/3 in the end) don't make it red.
+  **Confirmed (Jet, 2026-11-22):** the same red team in `thudos-setup`, on the same copy (from
+  `10c615e`), run again on a quiet Mac with nothing else on Docker: **GREEN** (333 runs, 17 min
+  35 s). The earlier red was F6.
 - **What passed on P1 (Jet, 2026-11-22, on `thudos-setup` with MIRAI from `d6afc48`):** every stage
   but finish done (finish blocked by F4); doctor 21 ok, 1 yellow (Merge gate), 0 red; the P1 check
   all PASS but finish and "doctor green" (both F4). Jet: resuming after Ctrl-D in stage 2 went on
