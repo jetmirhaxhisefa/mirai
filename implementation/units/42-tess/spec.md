@@ -242,7 +242,9 @@ hand.
   merge request (38).
 - **40:** Vera checks the set with the ticket checklist. Her 36 rule applies to journeys.
 - **41:** the pause, the telling, the template gaps and the run record are 41's, reused.
-- **44:** chains Tess after the PRD behind `/mirai-new`.
+- **44** *(corrected by 44's interview, Jet 2026-11-22; it said "chains Tess after the PRD
+  behind `/mirai-new`"):* 44 ends at the approved, published PRD. You start Tess yourself; 45 automates
+  the hand-off. `/mirai-new` sends a `quick` request to the one-ticket path (decision 2).
 - **55:** the night run starts from Tess's approved set, in the run's pick order.
 - **42b (new):** running an `investigation` ticket.
 
