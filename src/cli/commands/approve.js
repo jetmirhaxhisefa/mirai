@@ -28,7 +28,7 @@ import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
 import { readerResultFor } from '../../store/reader-tests.js';
 import { ROUNDS, failedLabels, needsReaderTest, resultLines, summaryHash, summaryText } from '../../write/reader.js';
 import { CONTEXT_DIR, contextKindOf, isContextFile } from '../../lint/context.js';
-import { CUSTOM_DIR, RECORDS_FOLDER, overlayFilesIn, overlayRecord, overlayRecordContext, overlayState, readOverlays, recordPathOf, recordText, verifyRecords } from '../../config/overlays.js';
+import { CUSTOM_DIR, CUSTOM_KINDS, RECORDS_FOLDER, overlayFilesIn, overlayRecord, overlayRecordContext, overlayState, readOverlays, recordPathOf, recordText, verifyRecords } from '../../config/overlays.js';
 import { trustedRoles } from '../../agent/scope.js';
 import { baseForArg, docsStoreFor } from '../../store/connectors/index.js';
 import { documentLine } from '../../store/connectors/links.js';
@@ -717,18 +717,20 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
   const o = overlays.find((x) => x.path === file.path) ?? null;
   const owner = o ? null : overlays.find((x) => x.bound.some((b) => b.path === file.path));
   if (owner) throw new UsageError(`${plain(file.path)} is approved with its overlay ${owner.path}; nothing was written`, `mirai approve --file ${owner.path}`);
-  if (!o) throw new UsageError(`${plain(file.path)} isn't an overlay; nothing was written`, 'an overlay is .mirai/custom/document-types/<type>.toml, agents/<name>.toml or skills/<name>/overlay.toml');
+  if (!o) throw new UsageError(`${plain(file.path)} isn't an overlay; nothing was written`, 'an overlay is .mirai/custom/document-types/<type>.toml, agents/<name>.toml or skills/<name>/overlay.toml; a custom item (unit 39) is project-skills/<name>/SKILL.md, hooks/<name>.toml, scripts/<name>.<ext> or mcp/<name>.toml');
   if (o.problems.length) {
     for (const p of o.problems.slice(0, 20)) io.stderr.write(`${o.path}: ${plain(p)}\n`);
     const n = o.problems.length;
     throw Object.assign(new MiraiError(`${o.path} can't be approved: ${n} problem${n === 1 ? '' : 's'}, listed above; nothing was written`, EXIT.BLOCKED), { code: 'overlay-invalid', hint: 'fix them, then approve again' });
   }
-  const item = `overlay-${o.name}`.slice(0, 64);
+  // Unit 39: a project's own item is typed as <kind>-<name> (a script and a hook may share a name).
+  const item = (CUSTOM_KINDS.includes(o.kind) ? `${o.kind}-${o.name}` : `overlay-${o.name}`).slice(0, 64);
   if (id !== undefined && id !== item) throw new UsageError(`${plain(file.path)} is approved as "${item}", not "${id}"; nothing was written`, `run: mirai approve --file ${fileArg}`);
   const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
   const before = overlayState(o, readJournal(store).events, verifyRecords(overlayFilesIn(join(store.checkout, CUSTOM_DIR)), { keys, repoId: store.repoId }));
   const r = o.result;
-  const what = o.kind === 'document-type' ? `the ${o.name} type, ${r.replace ? 'a replacement template' : 'a section overlay'}`
+  const what = o.kind === 'project-skill' ? `the project's own skill ${o.name}, for your sessions` : o.kind === 'hook' ? `a hook for your sessions only (${r.event}${r.group.matcher ? ` ${r.group.matcher}` : ''}), never a MIRAI run; it runs ${r.script}` : o.kind === 'script' ? `a script (${r.runner})` : o.kind === 'mcp' ? 'an MCP server for your sessions only, never a MIRAI run'
+    : o.kind === 'document-type' ? `the ${o.name} type, ${r.replace ? 'a replacement template' : 'a section overlay'}`
     : o.kind === 'agent' ? `${o.name}, ${r.change === 'instructions' ? 'instructions only' : `${r.change}: ${r.why.join(', ')}`}` : `the ${o.name} skill, instructions`;
   io.stdout.write(`overlay: ${o.path} (${what})${before.state === 'approved' ? ' (approved before, as it is now)' : before.state === 'changed' ? ' (approved before; it has changed since)' : ''}\nhash:    ${o.hash}\n`);
   for (const b of o.bound) io.stdout.write(`with:    ${b.path}   ${b.content_hash}, signed with it\n`);
@@ -773,11 +775,11 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
     io.stdout.write(decision === 'rejected'
       ? `recorded: ${o.path} rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: ${o.path}, as it is now (${decision}; signed with ${signer.keyId}, seq ${seq}); MIRAI uses it once it's on ${store.branch}, and a change to it needs a new approval\n`);
-    if (o.kind === 'document-type') io.stdout.write(`record:  ${recordFile}: commit it with the overlay\n`);
+    if (o.kind === 'document-type' || o.kind === 'script') io.stdout.write(`record:  ${recordFile}: commit it with the ${o.kind === 'script' ? 'script' : 'overlay'}\n`);
     else {
       // An agent or skill overlay also changes your sessions' copy, which mirai render writes.
       const files = [o.path, ...o.bound.map((b) => b.path), recordFile];
-      io.stdout.write(`record:  ${recordFile}\nnext:\n  1. mirai render       (your sessions' copy of ${o.name}, from the approved overlay)\n  2. git add ${files.join(' ')} .claude/ .mirai/mirai.lock\n  3. git commit, then merge it into ${store.branch}: the overlay, its record and the rendered files together\n`);
+      io.stdout.write(`record:  ${recordFile}\nnext:\n  1. mirai render       (your sessions' copy of ${o.name}, from the approved overlay)\n  2. git add ${files.join(' ')} ${o.kind === 'mcp' ? '.mcp.json' : '.claude/'} .mirai/mirai.lock\n  3. git commit, then merge it into ${store.branch}: the overlay, its record and the rendered files together\n`);
     }
     return EXIT.OK;
   } finally {
