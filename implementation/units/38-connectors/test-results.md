@@ -66,6 +66,8 @@
   Changed pins: the command list (`docs`), the journal's event types (`docs_published`,
   `docs_merged`), doctor's items (`docs-store`, 21 items).
 
+- **The flaky 14d test (37's follow-up):** it failed on both Ubuntu jobs of PR #106, so it is fixed here: `test/tests/test-run.test.js` now reads the stored run whose result carries a gate (exactly one) instead of the last name in sort order (run ids have one-second precision).
+
 ## Probes (real)
 
 P1 and P2 passed with Jet (2026-11-22): GitLab MR 5 merged as 0dc820f, GitHub PR #16 merged as
