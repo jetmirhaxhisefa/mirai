@@ -17,7 +17,7 @@ process.stdin.on('data', (d) => {
   if (token.length < 256) token += d;
 });
 process.stdin.on('end', () => {
-  runWorker({ checkout, id, claude, token: token.trim(), env: { HOME: process.env.HOME, PATH: process.env.PATH }, signal: soft.signal, hardSignal: hard.signal }).then(
+  runWorker({ checkout, id, claude, token: token.trim(), env: { HOME: process.env.HOME, PATH: process.env.PATH, ...(process.env.CLAUDE_CONFIG_DIR ? { CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR } : {}) }, signal: soft.signal, hardSignal: hard.signal }).then(
     () => process.exit(0),
     () => process.exit(1),
   );

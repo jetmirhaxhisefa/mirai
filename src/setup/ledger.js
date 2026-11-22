@@ -208,7 +208,7 @@ export function ledgerText(rows, items = {}) {
   ];
   for (const r of rows) {
     const d = items[r.id];
-    const decision = !d?.decision ? '' : d.decision === 'keep' ? `keep: ${d.place ?? ''}` : d.decision === 'drop' ? 'drop' : d.decision;
+    const decision = !d?.decision ? '' : d.decision === 'keep' ? `keep: ${d.place ?? ''}${d.note ? ` (${d.note})` : ''}` : d.decision === 'drop' ? `drop${d.note ? `: ${d.note}` : ''}` : d.decision;
     lines.push(`| \`${cell(r.id)}\` | ${r.kind} | ${cell(d?.summary ?? r.summary)} | ${cell(r.flags.join(', '))} | ${cell(decision)} |`);
   }
   if (!rows.length) lines.push('| (none) | | | | |');

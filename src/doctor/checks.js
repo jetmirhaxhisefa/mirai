@@ -3,12 +3,12 @@ import { fileURLToPath } from 'node:url';
 import { readInstall, ticketImages } from '../agent/install.js';
 import { join } from 'node:path';
 
-import { readBaseline } from '../baseline/store.js';
+import { latestOther, readBaseline } from '../baseline/store.js';
 import { readHooksRecord, hooksState } from '../hooks/install.js';
 import { checkLock, readLock } from '../install/lock.js';
 import { agentTemplate, canonicalSha256, MODES } from '../launch/strict.js';
 import { usageCaps, usageCheck } from '../loop/ledger.js';
-import { status as sessionStatus } from '../mcp/session.js';
+import { claudeConfigDir, otherConfigs, status as sessionStatus } from '../mcp/session.js';
 import { redTeamStatus } from '../redteam/run.js';
 import { readTested } from '../redteam/tested.js';
 import { gapNote } from '../redteam/move.js';
@@ -18,7 +18,7 @@ import { userSettings } from '../sign/denies.js';
 import { holderStatus } from '../sign/unlock.js';
 import { RENEW_AFTER_DAYS, readToken, tokenSetAt } from '../sign/token.js';
 import { readRegistry } from '../store/branches.js';
-import { blobAt, commitOf } from '../store/git.js';
+import { blobAt, commitOf, isAncestor } from '../store/git.js';
 import { runLockHolder, globalPaths } from '../store/global.js';
 import { checkPrivateDir, lockHolder } from '../store/files.js';
 import { openStore } from '../store/home.js';
@@ -49,6 +49,11 @@ const yellow = (detail, hint) => ({ state: 'yellow', detail, hint });
 // A yellow MIRAI itself expects until a later unit builds the missing part (unit 39, P1's F4): the
 // unit is named, so setup's last checklist line and its probe can tell it from a yellow to fix.
 const expectedYellow = (detail, hint, unit) => ({ ...yellow(detail, hint), expected_until: unit });
+// An advisory yellow (unit 39, P1's F8 and F10; Jet, 2026-11-22): a note that isn't a fault, as
+// the design means it (a session server behind still runs the rules it was registered with, 15b;
+// a baseline missing at the head is recorded by the next run first, 17b). Its hint says how to
+// clear it; setup's last checklist line and finish don't count it.
+const advisoryYellow = (detail, hint) => ({ ...yellow(detail, hint), advisory: true });
 const red = (detail, hint, fix) => ({ state: 'red', detail, hint, ...(fix ? { fix } : {}) });
 const DAY = 86_400_000;
 
@@ -346,15 +351,37 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (s.state === 'unknown') return yellow('Claude Code didn\'t answer, so MIRAI can\'t tell', 'claude mcp list');
     // P1's F3: the registration is per Claude Code config; say which one was checked.
     const config = env?.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${env.CLAUDE_CONFIG_DIR}` : 'the default Claude Code config (~/.claude.json)';
-    if (s.state === 'missing') return yellow(`not registered for this project in ${config}: /mirai in your sessions won't work`, 'mirai session-server install, in your terminal; for sessions with another Claude Code config: CLAUDE_CONFIG_DIR=<its folder> mirai session-server install');
+    // F7: another config MIRAI registered this folder in, current there: said, so a stale default
+    // doesn't read as your sessions' problem.
+    const elsewhere = () => {
+      try {
+        const found = otherConfigs(store, claudeConfigDir(env)).filter((c) => {
+          const e = { ...env };
+          if (c) e.CLAUDE_CONFIG_DIR = c;
+          else delete e.CLAUDE_CONFIG_DIR;
+          return session({ store, env: e, trust }).state === 'current';
+        });
+        return found.length ? `; current in ${found.map((c) => (c ? `CLAUDE_CONFIG_DIR=${c}` : 'the default config')).join(', ')}` : '';
+      } catch {
+        return '';
+      }
+    };
+    if (s.state === 'missing') return yellow(`not registered for this project in ${config}${elsewhere()}: /mirai in sessions with this config won't work`, 'mirai session-server install, in your terminal; for sessions with another Claude Code config: CLAUDE_CONFIG_DIR=<its folder> mirai session-server install');
     if (s.state === 'foreign') return red('Claude Code has a server named mirai here that MIRAI didn\'t register', 'claude mcp get mirai; then mirai session-server install');
-    return yellow(`behind${s.behind ? ' (an older trust root)' : ''}${s.connected === false ? ', and it doesn\'t start' : ''}`, 'mirai session-server install, in your terminal');
+    // Behind and still starting: the pin (15b, D-53) by design; it runs the rules it was registered with.
+    if (s.behind && s.connected !== false) return advisoryYellow(`behind (registered at an older trust root, in ${config}); it still starts and runs the rules it was registered with`, 'to bring it up to date: mirai render, or mirai session-server install, in your terminal');
+    return yellow(`behind${s.behind ? ' (an older trust root)' : ''}${s.connected === false ? ', and it doesn\'t start' : ''} (in ${config})${elsewhere()}`, 'mirai session-server install, in your terminal (with the CLAUDE_CONFIG_DIR your sessions use)');
   });
   await check('baseline', 'Baseline', () => {
     const sha = trust?.baseSha ?? commitOf(store.checkout, `refs/heads/${store.branch}`, store.gitEnv);
     if (!sha) return yellow(`${store.branch} has no commit MIRAI can read`, `git switch ${store.branch}`);
     const b = readBaseline(store, sha, { keys });
-    if (!b) return yellow(`none for ${store.branch} at ${sha.slice(0, 12)}: the next run records it first`, 'to record it now: mirai baseline');
+    if (!b) {
+      // F10: one that verifies at an ancestor of the head: the next run records the head's first.
+      const prev = latestOther(store, sha);
+      if (prev && isAncestor(store.checkout, prev.baseline.sha, sha, store.gitEnv)) return advisoryYellow(`none for ${store.branch} at ${sha.slice(0, 12)} yet (one at ${prev.baseline.sha.slice(0, 12)}, an earlier commit): the next run records it first`, 'to record it now: mirai baseline');
+      return yellow(`none for ${store.branch} at ${sha.slice(0, 12)}: the next run records it first`, 'to record it now: mirai baseline');
+    }
     return ok(`recorded for ${sha.slice(0, 12)}${b.complete ? '' : ' (incomplete)'}`);
   });
   // Unit 30b: per-ticket images whose ticket no longer has an install record (done, dropped, or

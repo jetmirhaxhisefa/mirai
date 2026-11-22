@@ -27,7 +27,7 @@ and say why:
 | agent | an overlay of `mirai-developer` or `mirai-reviewer` whose write scope is a role in `.mirai/custom/roles/`; or a project skill; any other agent is dropped |
 | command | a project skill, or dropped when a `mirai` command does the same |
 | hook | a check under `[checks]`, an interactive-only hook, or both (ask: decision 4) |
-| script | `.mirai/custom/scripts/`, called by a check, a hook or a skill; a script outside the agent folders that the project itself uses (a build, CI or Docker script) stays where it is: keep it with the place `in place (the project's own)` |
+| script | `.mirai/custom/scripts/`, called by a check, a hook or a skill; a script outside the agent folders that the project itself uses (a build, CI or Docker script) stays where it is: keep it with its own path as the place |
 | instruction text | its rules to `conventions-<service>.md`, its facts to `project-<service>.md`, the rest to `agents-local.md` (stage 3 writes them; here you note what goes where) |
 | MCP server | `.mirai/custom/mcp/`, the owner's sessions only, never MIRAI's runs |
 | BMAD documents | sources for stage 3; kept where they are, or moved under the docs root |
@@ -66,8 +66,15 @@ settings file, the lines to remove.
 
 ## 4. Record
 
-Call `setup decide` with the item's path and `place` (keep) or `drop`, and `summary` set to your
-one line on what it does. Then take the next item.
+Call `setup decide` with the item's path and `summary` set to your one line on what it does, and:
+
+- **kept:** `place` set to the one repo path where it is now: the path `custom add` printed, or
+  the item's own path where it may stay (a script or document outside the agent folders). A
+  description isn't a place; `setup decide` refuses one.
+- **dropped, used as a source, or merged into another file:** `drop`, with `note` saying what
+  became of it ("used as a source for conventions-app.md", "merged into the reviewer overlay").
+
+Then take the next item.
 
 ## End of the stage
 

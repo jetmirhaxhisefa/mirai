@@ -61,7 +61,7 @@ export const CHECKLIST = Object.freeze([
   {
     n: 8, title: 'mirai doctor until it\'s green',
     command: 'mirai doctor',
-    see: 'no red item, and every yellow one is either fixed or one MIRAI expects until a later unit (today: Merge gate, local-only until unit 54); a yellow item names its fix on the line under it',
+    see: 'no red item, and every yellow one is either fixed, one MIRAI expects until a later unit (today: Merge gate, local-only until unit 54), or advisory (a session server behind that still starts; no baseline yet at the head with one at an earlier commit); a yellow item names its fix on the line under it',
     default: 'no choice to make',
     doctor: ['*'],
   },
@@ -70,8 +70,13 @@ export const CHECKLIST = Object.freeze([
 // Doctor's items still to act on: every red and every yellow, except a yellow doctor marks as
 // expected until a named later unit (`expected_until`; P1's F4: the Merge gate is local-only until
 // unit 54, so "doctor green" could never be reached). The last line and P1's probe use it.
-export const toFix = (items) => (items ?? []).filter((i) => i.state === 'red' || (i.state === 'yellow' && !(typeof i.expected_until === 'string' && i.expected_until)));
-export const expectedNow = (items) => (items ?? []).filter((i) => i.state === 'yellow' && typeof i.expected_until === 'string' && i.expected_until);
+// Advisory yellows (F8, F10: `advisory: true`, a note doctor gives with its hint, not a fault) don't
+// count either; they're listed apart.
+const isExpected = (i) => i.state === 'yellow' && typeof i.expected_until === 'string' && i.expected_until;
+const isAdvisory = (i) => i.state === 'yellow' && i.advisory === true && !isExpected(i);
+export const toFix = (items) => (items ?? []).filter((i) => i.state === 'red' || (i.state === 'yellow' && !isExpected(i) && !isAdvisory(i)));
+export const expectedNow = (items) => (items ?? []).filter(isExpected);
+export const advisoryNow = (items) => (items ?? []).filter(isAdvisory);
 
 // Each line with its state: `done`, `open` or `check` (doctor has a yellow item for it), and why.
 // `items`: doctor's items ([{ id, state, detail, hint }]); `marks`: { <n>: 'done' } from setup.json.
@@ -90,7 +95,12 @@ export function checklistState(items, marks = {}) {
     else if (yellow.length) [state, why] = ['check', `${yellow[0].title ?? yellow[0].id}: ${yellow[0].detail}`];
     else {
       const later = all ? expectedNow(items) : [];
-      [state, why] = ['done', later.length ? `doctor has nothing to fix; expected until a later unit: ${later.map((i) => `${i.title ?? i.id} (unit ${i.expected_until})`).join(', ')}` : 'doctor says ok'];
+      const notes = all ? advisoryNow(items) : [];
+      const parts = [
+        ...(later.length ? [`expected until a later unit: ${later.map((i) => `${i.title ?? i.id} (unit ${i.expected_until})`).join(', ')}`] : []),
+        ...(notes.length ? [`advisory: ${notes.map((i) => `${i.title ?? i.id} (${i.hint})`).join(', ')}`] : []),
+      ];
+      [state, why] = ['done', parts.length ? `doctor has nothing to fix; ${parts.join('; ')}` : 'doctor says ok'];
     }
     if (state === 'done' && l.mark && marks[l.n] !== 'done') [state, why] = ['open', `doctor says ok; the rest is yours to mark: mirai setup checklist --done ${l.n}`];
     return { ...l, state, why };

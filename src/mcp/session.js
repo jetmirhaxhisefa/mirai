@@ -77,6 +77,31 @@ export function registrationId(store) {
 }
 
 // The policy files written here: [{ file, sha, base }].
+// CLAUDE_CONFIG_DIR as an absolute path, or null for Claude Code's default config.
+export function claudeConfigDir(env) {
+  const d = env?.CLAUDE_CONFIG_DIR;
+  if (typeof d !== 'string' || !d || !isAbsolute(d)) return null;
+  try {
+    return realpathSync(d);
+  } catch {
+    return d;
+  }
+}
+
+// The Claude Code configs MIRAI's policies here were registered for, other than `mine` (F7).
+export function otherConfigs(store, mine) {
+  const seen = new Set();
+  for (const { file } of policyFiles(store)) {
+    try {
+      const c = JSON.parse(readFileSync(file, 'utf8')).claude_config ?? null;
+      if (c !== mine) seen.add(c);
+    } catch {
+      // unreadable: not evidence of anything
+    }
+  }
+  return [...seen];
+}
+
 export function policyFiles(store) {
   const dir = sessionDir(store);
   if (!existsSync(dir)) return [];
@@ -125,6 +150,9 @@ export function sessionServer({ store, trust, env, write = true }) {
   const policy = {
     schema: POLICY_SCHEMA, kind: 'interactive', checkout, trust_dir: trustDir, manifest_sha256: trust.manifestSha256, home: realpathSync(env.HOME),
     registration_id: registrationId(store), state_dir: realpathSync(join(dir, 'state')), store: { dir: realpathSync(store.dir), repo_id: store.repoId }, tools,
+    // Unit 39 (P1's F7): the Claude Code config it's registered in, so the commands the session
+    // runs check that config and the terminal steps it gives carry it.
+    claude_config: claudeConfigDir(env),
   };
   const body = `${JSON.stringify(policy, null, 2)}\n`;
   const policySha256 = sha256(body);

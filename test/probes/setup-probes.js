@@ -15,7 +15,7 @@ import { branchKeys } from '../../src/sign/keys.js';
 import { readLock } from '../../src/install/lock.js';
 import { projectInputs, REGISTRY_DIR } from '../../src/install/render.js';
 import { committedNotRendered } from '../../src/setup/pre-commit.js';
-import { expectedNow, toFix } from '../../src/setup/checklist.js';
+import { advisoryNow, expectedNow, toFix } from '../../src/setup/checklist.js';
 
 // Unit 39's probes P1–P3: checks you run in the project's checkout, in your terminal, after your
 // own steps in your Claude Code session. Each prints PASS or FAIL with why, and changes nothing
@@ -85,7 +85,8 @@ if (values.check === 'p1') {
   // Green: nothing to fix; a yellow doctor expects until a named later unit is fine (F4).
   const red = toFix(doc).map((i) => `${i.id} ${i.state}`);
   const later = expectedNow(doc).map((i) => `${i.id} until unit ${i.expected_until}`);
-  check('mirai doctor green', !red.length, red.join(', ') || `nothing to fix${later.length ? `; expected: ${later.join(', ')}` : ''}`);
+  const notes = advisoryNow(doc).map((i) => `${i.id} (advisory)`);
+  check('mirai doctor green', !red.length, red.join(', ') || `nothing to fix${later.length ? `; expected: ${later.join(', ')}` : ''}${notes.length ? `; ${notes.join(', ')}` : ''}`);
 } else if (values.check === 'p2') {
   const text = readFileSync(join(store.checkout, '.mirai/context/business.md'), 'utf8');
   const { execFileSync } = await import('node:child_process');

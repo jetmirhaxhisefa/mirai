@@ -143,7 +143,7 @@ test('39 T1/T5: Thudos\'s council markers are items; a project script an item ca
   for (const id of Object.keys(state.items)) {
     const moved = ['skill', 'agent', 'command', 'hook', 'script', 'mcp'].includes(state.items[id].kind);
     const where = id === 'scripts/release.sh' || !moved;
-    await cli(['setup', 'decide', id, ...(where ? ['--keep', 'in place (the project\'s own)'] : ['--drop'])], f.io);
+    await cli(['setup', 'decide', id, ...(where ? ['--keep', id] : ['--drop'])], f.io);
   }
   r = await cli(['setup', 'done', 'migrate'], f.io);
   assert.equal(r.code, EXIT.BLOCKED);
@@ -367,7 +367,7 @@ test('39 T5: stages: scan, then migrate done with its commit, and the next /mira
   for (const id of Object.keys(state.items)) {
     if (state.items[id].decision) continue;
     const moved = ['skill', 'agent', 'command', 'hook', 'script', 'mcp'].includes(state.items[id].kind);
-    await cli(['setup', 'decide', id, ...(moved ? ['--drop'] : ['--keep', 'kept where it is'])], f.io);
+    await cli(['setup', 'decide', id, ...(moved ? ['--drop'] : ['--keep', id.split('#')[0]])], f.io);
   }
   r = await cli(['setup', 'done', 'migrate'], f.io);
   assert.match(r.err, /\.claude\/agents\/security\.md: dropped, but still there/);
@@ -476,22 +476,22 @@ test('39 F5 (P1; Jet, option 1): an item under .claude/ can\'t be kept in place;
   f.git('commit', '-qm', 'example');
   await cli(['setup', 'scan'], f.io);
   const id = '.claude/settings.local.json.example';
-  let r = await cli(['setup', 'decide', id, '--keep', 'in place (the project\'s own)'], f.io);
+  let r = await cli(['setup', 'decide', id, '--keep', id], f.io);
   assert.equal(r.code, EXIT.USAGE, r.out);
   assert.match(r.err, /under an agent folder, where only what MIRAI renders stays/);
   assert.match(r.err, /git mv/);
   r = await cli(['setup', 'decide', id, '--keep', '.claude/examples/settings.local.json.example'], f.io);
   assert.equal(r.code, EXIT.USAGE, 'still under .claude/');
   // Outside the agent folders, "in place" is fine (CLAUDE.md), and so is a project script.
-  r = await cli(['setup', 'decide', 'CLAUDE.md', '--keep', 'in place (the project\'s own)'], f.io);
+  r = await cli(['setup', 'decide', 'CLAUDE.md', '--keep', 'CLAUDE.md'], f.io);
   assert.equal(r.code, EXIT.OK, r.err);
   // MIRAI's own settings file (rendered, with the project's other content) may stay.
   const settingsRow = readSetup(openStore(f.io)).items['.claude/settings.json'];
-  if (settingsRow) assert.equal((await cli(['setup', 'decide', '.claude/settings.json', '--keep', 'in place'], f.io)).code, EXIT.OK);
+  if (settingsRow) assert.equal((await cli(['setup', 'decide', '.claude/settings.json', '--keep', '.claude/settings.json'], f.io)).code, EXIT.OK);
   // Moved beside the root: kept there.
   f.git('mv', id, 'settings.local.json.example');
   f.git('commit', '-qm', 'moved');
-  r = await cli(['setup', 'decide', id, '--keep', 'settings.local.json.example (beside the root)'], f.io);
+  r = await cli(['setup', 'decide', id, '--keep', 'settings.local.json.example', '--note', 'beside the root'], f.io);
   assert.equal(r.code, EXIT.OK, r.err);
   const ledger = () => readFileSync(join(f.root, '.mirai/setup/ledger.md'), 'utf8');
   assert.match(ledger(), /\| `\.claude\/settings\.local\.json\.example` \| [^|]+ \| [^|]* \| [^|]* \| keep: settings\.local\.json\.example \(beside the root\) \|/);
@@ -515,6 +515,77 @@ test('39 + 38b: the rule sentence on scripts uses the host\'s word: pull request
   assert.match(text(hostWords('gitlab')), /tickets, documents or merge requests, use MIRAI's commands/);
   assert.match(text(null), /tickets, documents or merge requests, use MIRAI's commands/);
   assert.ok(!text(hostWords('github')).includes('{merge_requests}'));
+});
+
+test('39 F9 (P1): --keep takes a repo path that is there; a description is refused; a source used up is a drop with a note', async () => {
+  const f = project();
+  await cli(['setup', 'scan'], f.io);
+  let r = await cli(['setup', 'decide', '.claude/agents/security.md', '--keep', '.mirai/custom/agents/mirai-reviewer (overlay, read-only)'], f.io);
+  assert.equal(r.code, EXIT.USAGE);
+  assert.match(r.err, /--keep takes the repo path where the kept item is now/);
+  assert.match(r.err, /--drop --note/);
+  r = await cli(['setup', 'decide', 'docs/notes.md', '--keep', 'source for conventions-*.md in stage 3, then deleted'], f.io);
+  assert.equal(r.code, EXIT.USAGE);
+  r = await cli(['setup', 'decide', 'docs/notes.md', '--keep', '../outside'], f.io);
+  assert.equal(r.code, EXIT.USAGE);
+  r = await cli(['setup', 'decide', 'docs/notes.md', '--drop', '--note', 'used as a source for conventions-app.md'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  const ledger = readFileSync(join(f.root, '.mirai/setup/ledger.md'), 'utf8');
+  assert.match(ledger, /\| `docs\/notes\.md` \| [^|]+ \| [^|]* \| [^|]* \| drop: used as a source for conventions-app\.md \|/);
+  // The path custom add printed is accepted (in the work tree, before the stage commit), and a
+  // hint names what .mirai/custom/ holds for the item.
+  r = await cli(['custom', 'add', '.claude/skills/deploy'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  r = await cli(['setup', 'decide', '.claude/skills/deploy', '--keep', 'the project skills folder'], f.io);
+  assert.match(r.err, /under \.mirai\/custom\/ for it: \.mirai\/custom\/project-skills\/deploy/);
+  r = await cli(['setup', 'decide', '.claude/skills/deploy', '--keep', '.mirai/custom/project-skills/deploy'], f.io);
+  assert.equal(r.code, EXIT.OK, r.err);
+  // Through the session: the note is passed on.
+  assert.deepEqual(COMMANDS['setup decide'].argv(checkCommand({ command: 'setup decide', path: 'docs/notes.md', drop: true, note: 'used as a source' }).args), ['setup', 'decide', 'docs/notes.md', '--drop', '--note', 'used as a source']);
+});
+
+test('39 F8 + F10 (P1): a session server behind that still starts, and a missing baseline with one at an earlier commit, are advisory: line 8 and finish skip them; the rest still block', async () => {
+  const f = project();
+  const behind = await runChecks({ cwd: f.root, env: f.env, ...stubs, session: () => ({ state: 'stale', base: 'x', behind: true, connected: true }) });
+  const item = behind.find((i) => i.id === 'session');
+  assert.equal(item.state, 'yellow');
+  assert.equal(item.advisory, true);
+  assert.match(item.detail, /it still starts and runs the rules it was registered with/);
+  assert.match(item.hint, /mirai render, or mirai session-server install/);
+  const broken = (await runChecks({ cwd: f.root, env: f.env, ...stubs, session: () => ({ state: 'stale', base: 'x', behind: true, connected: false }) })).find((i) => i.id === 'session');
+  assert.equal(broken.advisory, undefined, 'one that doesn\'t start is to fix');
+  const marks = { 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'done' };
+  const ok = (list) => list.map((i) => (['merge-gate', 'session', 'baseline'].includes(i.id) ? i : { id: i.id, title: i.title, state: 'ok', detail: 'ok' }));
+  const base = { id: 'baseline', title: 'Baseline', state: 'yellow', detail: 'none at the head yet (one at an earlier commit)', hint: 'to record it now: mirai baseline', advisory: true };
+  const items = ok(behind).map((i) => (i.id === 'baseline' ? base : i));
+  const line8 = checklistState(items, marks)[7];
+  assert.equal(line8.state, 'done', line8.why);
+  assert.match(line8.why, /expected until a later unit: Merge gate \(unit 54\); advisory: Session server \(/);
+  assert.match(line8.why, /Baseline \(to record it now: mirai baseline\)/);
+  assert.deepEqual(toFix(items), []);
+  // No baseline at all (no earlier one): still to fix.
+  assert.equal(checklistState(items.map((i) => (i.id === 'baseline' ? { ...base, advisory: undefined } : i)), marks)[7].state, 'check');
+});
+
+test('39 F7 (P1): the session server records its Claude Code config; the steps it gives and the commands it runs carry it', async () => {
+  const { withConfig } = await import('../../src/mcp/tools/commands.js');
+  const { checkPolicy } = await import('../../src/mcp/server.js');
+  const { claudeConfigDir } = await import('../../src/mcp/session.js');
+  assert.equal(withConfig({ claude_config: '/Users/j/.claude-private' }, 'mirai approve PMT-1'), 'CLAUDE_CONFIG_DIR=/Users/j/.claude-private mirai approve PMT-1');
+  assert.equal(withConfig({ claude_config: '/Users/j/my claude' }, 'mirai key new'), "CLAUDE_CONFIG_DIR='/Users/j/my claude' mirai key new");
+  assert.equal(withConfig({ claude_config: null }, 'mirai key new'), 'mirai key new');
+  assert.equal(claudeConfigDir({}), null);
+  assert.equal(claudeConfigDir({ CLAUDE_CONFIG_DIR: 'relative' }), null);
+  const home = tempDir('cfg');
+  assert.equal(claudeConfigDir({ CLAUDE_CONFIG_DIR: home }), realpathSync(home));
+  const policy = { schema: 'mirai-mcp-policy/2', kind: 'interactive', registration_id: 's-0123456789ab', state_dir: '/s', checkout: '/c', trust_dir: '/t', home: '/h', manifest_sha256: 'a'.repeat(64), tools: {} };
+  assert.throws(() => checkPolicy({ ...policy, claude_config: 'relative' }), /Claude Code config/);
+  // setup status, run through the session (CLAUDE_CONFIG_DIR in its env), names it for the steps.
+  const f = project();
+  const r = await cli(['setup', 'status'], { ...f.io, env: { ...f.env, CLAUDE_CONFIG_DIR: home } });
+  assert.match(r.out, /Claude Code config: CLAUDE_CONFIG_DIR=.+ \(write each terminal step as: CLAUDE_CONFIG_DIR=.+ mirai …\)/);
+  const plainStatus = await cli(['setup', 'status'], f.io);
+  assert.ok(!/Claude Code config:/.test(plainStatus.out));
 });
 
 test('39 F2 (P1): mirai init\'s summary names both of MIRAI\'s hooks', async () => {

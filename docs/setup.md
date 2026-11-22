@@ -72,8 +72,11 @@ decision goes in with `mirai setup decide <item> --keep <where>` or `--drop`, wi
 
 Nothing MIRAI didn't render stays under `.claude/`, `.cursor/` or `.codex/`: an item there that
 you keep is moved, into `.mirai/custom/` or beside the repo root outside those folders; `mirai
-setup decide` refuses "in place" for it. `mirai setup decide` again changes a decision, and the
-ledger follows; `mirai setup status` lists a kept item that's no longer anywhere in the repo.
+setup decide` refuses "in place" for it. A kept item's place is one repo path that's there
+(`--keep .mirai/custom/project-skills/deploy`, or the item's own path where it may stay); what was
+used as a source or merged into another file is `--drop --note "<what it became>"`, and the
+ledger shows the note. `mirai setup decide` again changes a decision, and the ledger follows;
+`mirai setup status` lists a kept item that's no longer anywhere in the repo.
 
 **Nothing kept may break MIRAI.** Every kept item gets the static checks before it moves:
 

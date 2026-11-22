@@ -186,8 +186,9 @@ are never touched.
   35 s). The earlier red was F6.
 - **P1, finish (Jet, 2026-11-22, copy from `10c615e`):** `CLAUDE_CONFIG_DIR=~/.claude-private mirai
   setup checklist` showed all 8 lines done (F4's fix works); after committing the checklist
-  (3b877ee), `setup done finish` refused with 7 items: F7, F8 and F9 below. Not fixed yet: decided
-  after P1.
+  (3b877ee), `setup done finish` refused with 7 items: F7, F8 and F9 below, then F10.
+  **Decision (Jet, 2026-11-22): F7–F10 fixed before approval (A)**, as drafted; each entry's
+  "Fixed" line says how.
 - **F7: doctor and the checklist check only the Claude Code config of the environment they run
   in.** Jet's default `~/.claude.json` still had a registration from `c64d307`. In stage 5 the
   setup session told him to run `mirai session-server install` without `CLAUDE_CONFIG_DIR`, so a
@@ -201,6 +202,15 @@ are never touched.
   has MIRAI's registration for this folder, say so ("current in CLAUDE_CONFIG_DIR=…; this one is
   behind"). The old registration in `~/.claude.json` is Jet's to remove: `mirai session-server
   remove` with no `CLAUDE_CONFIG_DIR`.
+  **Fixed:** the session server's policy records the config it was registered in
+  (`claude_config`, `CLAUDE_CONFIG_DIR` resolved, or null for the default); the commands it runs
+  (the worker) get that `CLAUDE_CONFIG_DIR`, so doctor and `setup checklist` from a session check
+  the session's config; a gate's terminal command comes back prefixed
+  (`CLAUDE_CONFIG_DIR=<dir> mirai approve …`, `withConfig`); `setup status` prints `Claude Code
+  config: …` and the skill writes every terminal step with that prefix. In a terminal, doctor's
+  Session server item names the config it checked and adds "current in CLAUDE_CONFIG_DIR=…" (or
+  "the default config") when another config MIRAI registered for this folder is current. Test
+  "39 F7".
 - **F8: every commit on the integration branch puts the session server "behind", and finish
   refuses on it.** Committing the checklist itself (3b877ee) did it (line 8, through doctor's
   Session server item). Why it's pinned (unit 15b, D-53; design/05): the server runs from the
@@ -214,6 +224,11 @@ are never touched.
   advisory yellow (a named class beside F4's `expected_until`, say `advisory: "re-register with
   mirai render or mirai session-server install"`), which line 8 and `setup done finish` don't
   count, as they don't count the Merge gate; "doesn't start", foreign and missing stay to fix.
+  **Fixed** with F10: doctor gives an *advisory* yellow (`advisory: true`, with its hint), a
+  class apart from F4's `expected_until`; `toFix` and line 8 skip both and line 8 names them; the
+  P1 probe's doctor check does the same. A session server behind that still starts is advisory
+  ("to bring it up to date: mirai render, or mirai session-server install"); one that doesn't
+  start, a foreign one and a missing one stay to fix. The pin stays. Test "39 F8 + F10".
 - **F10 (F8's sibling): every commit on the integration branch needs a new baseline before
   finish.** After Jet's six re-decisions (9342ab9, only `.mirai/setup/ledger.md` changed) and a
   re-register, `setup done finish` refused on one item: "checklist line 8 isn't done: Baseline:
@@ -226,7 +241,10 @@ are never touched.
   doesn't verify stays to fix. Not proposed for this unit: carrying a baseline across commits that
   touch only MIRAI's own records (`.mirai/setup/**`, `.mirai/records/**`), since the baseline is
   signed for one commit and which paths feed a check or a level is 17b's question; a later unit
-  can add it. Jet ran `mirai baseline` to get past it. Also (F7): Jet's default `~/.claude.json`
+  can add it. Jet ran `mirai baseline` to get past it. **Fixed:** doctor's Baseline item, with no
+  baseline at the head but one that verifies at an ancestor of it (`latestOther`, `isAncestor`),
+  is advisory ("the next run records it first"; hint: `mirai baseline`); none at all, or one that
+  doesn't verify, stays to fix. Also (F7): Jet's default `~/.claude.json`
   still holds the registration from `c64d307`; harmless while he uses the private config.
 - **F9: `setup decide --keep` took free text from the session as the place.** The ledger held
   places such as "source for conventions-*.md in stage 3, then deleted" (4 × `.claude/rules/*.md`)
@@ -239,6 +257,11 @@ are never touched.
   used as a source or merged into another file is `--drop --note "<what it became>"` (the ledger
   shows "drop: used as a source for conventions-app.md"), so no decision claims a place that isn't
   there. The migrate guide says so, and the skill passes the path `custom add` printed.
+  **Fixed:** `setup decide --keep <path>` takes one repo path (no spaces, no `..`, not absolute)
+  that's in the work tree or at HEAD; otherwise it's refused, naming what `.mirai/custom/` holds
+  with the item's name and the `--drop --note` form. `--note` (also through `/mirai`, as `note`)
+  is kept with either decision; the ledger shows "drop: <note>" or "keep: <path> (<note>)". Test
+  "39 F9".
 - **What passed on P1 (Jet, 2026-11-22, on `thudos-setup` with MIRAI from `d6afc48`):** every stage
   but finish done (finish blocked by F4); doctor 21 ok, 1 yellow (Merge gate), 0 red; the P1 check
   all PASS but finish and "doctor green" (both F4). Jet: resuming after Ctrl-D in stage 2 went on
@@ -292,25 +315,53 @@ are never touched.
     `node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p1`. Pass when every line says
     PASS. You judge the rest: each researched summary was right, and step 12 happened as written.
 
+### Refresh after F7–F10, then P2 and P3 (on the new copy)
+
+Every `mirai` step below runs with your private Claude Code config: `C=~/.claude-private` stands
+for `CLAUDE_CONFIG_DIR=~/.claude-private`, typed in full; sessions start with `claude-priv`.
+
+**The refresh of `~/Projects/thudos-setup`** (with nothing else running on Docker):
+1. `git -C ~/Projects/mirai fetch origin unit/39-build && git -C ~/Projects/mirai-u39 checkout --detach origin/unit/39-build`
+   (you see `HEAD is now at <commit> …`).
+2. `cd ~/Projects/thudos-setup && git status` (clean), then
+   `node ~/Projects/mirai-u39/bin/mirai.js init --refresh` (ends with `hooks: pre-push, pre-commit in …`).
+3. `git add -A && git commit -m "MIRAI refresh: unit 39 F7-F10" && git push` (the pre-commit
+   prints nothing; the commit goes through).
+4. `CLAUDE_CONFIG_DIR=~/.claude-private mirai session-server install` (says `local scope, in
+   CLAUDE_CONFIG_DIR=~/.claude-private`).
+5. `mirai baseline`.
+6. When the build runner is idle and `docker ps -aq --filter label=mirai.repo | wc -l` prints 0:
+   `mirai redteam run --kept` (GREEN; h-timeout-link and l-cd listed as known, not counted).
+7. `CLAUDE_CONFIG_DIR=~/.claude-private mirai setup checklist`: line 8 `[done]`, its "now" naming
+   the Merge gate (expected until unit 54) and any advisory item (a session server behind, a
+   baseline at an earlier commit) with its hint. Commit `.mirai/setup/checklist.md` if it changed:
+   the session server and the baseline go behind (advisory), and line 8 stays done.
+8. `CLAUDE_CONFIG_DIR=~/.claude-private mirai doctor`: no red; yellow only the Merge gate and
+   advisory items.
+
 ### P2 Pasted text only
 
 1. `mkdir ~/Projects/u39-p2 && cd ~/Projects/u39-p2 && git init -b main && echo "# p2" > README.md && git add -A && git commit -m first`
 2. `node ~/Projects/mirai-u39/bin/mirai.js init --branch main`, then
-   `git add -A && git commit -m "Install MIRAI"` (the same one skipped line as in P1, step 5).
-3. `mirai session-server install`, then `claude`, then `/mirai setup`.
+   `git add -A && git commit -m "Install MIRAI"` (one line: `mirai pre-commit: skipped: … MIRAI
+   isn't committed on the integration branch yet …`).
+3. `CLAUDE_CONFIG_DIR=~/.claude-private mirai session-server install`, then `claude-priv`, then
+   `/mirai setup`. `setup status` shows `Claude Code config: CLAUDE_CONFIG_DIR=…`, and every
+   terminal step the session gives you carries that prefix.
 4. Go through scan and migrate (nothing to migrate). In stage 3, when asked for sources, give no
    links or files: paste a short description of a made-up product (5 to 10 sentences).
 5. Answer its `(open)` questions; stop after the review list (no approval needed).
 6. In Terminal: `node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p2`. Pass when
    `business.md` lints clean and its Sources table lists only "you said" and the pasted text.
 
-### P3 A skill added later (after P1, in `~/Projects/thudos-setup`)
+### P3 A skill added later (after the refresh, in `~/Projects/thudos-setup`)
 
-1. `claude`, then ask: "make a skill that lists the open merge requests". Pass when it uses
+1. `claude-priv`, then ask: "make a skill that lists the open merge requests". Pass when it uses
    `/mirai custom add` (or `mcp__mirai__mirai_command` with `custom add`) and doesn't write into
    `.claude/` itself.
-2. In Terminal: the `mirai approve --file …` and `mirai render` it gives you; commit them.
-3. `node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p3 --skill <its name>`: PASS.
+2. In Terminal: the `CLAUDE_CONFIG_DIR=~/.claude-private mirai approve --file …` and `mirai render`
+   it gives you; commit them.
+3. `CLAUDE_CONFIG_DIR=~/.claude-private node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p3 --skill <its name>`: PASS.
 4. By hand: `cp -R .mirai/custom/project-skills/<its name> .claude/skills/handmade`, change the
    `name:` line in `.claude/skills/handmade/SKILL.md` to `handmade`, then
    `git add .claude/skills/handmade && git commit -m x`. Pass when the commit is refused and

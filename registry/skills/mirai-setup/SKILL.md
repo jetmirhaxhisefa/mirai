@@ -14,6 +14,11 @@ their own session. MIRAI keeps the record (`mirai setup …`); you do the resear
   `mcp__mirai__mirai_command`, as `/mirai` does (`setup status`, `setup scan`, `setup decide`,
   `custom add`, …). Never write a script to do a step: a missing command is something to tell the
   owner.
+- **The same Claude Code config in every step.** If `setup status` prints a `Claude Code config:`
+  line, write every terminal step that runs `mirai` with that prefix
+  (`CLAUDE_CONFIG_DIR=<it> mirai session-server install`, `… mirai setup checklist`), and give
+  a gate's command exactly as `mirai_command` returns it (it carries the prefix already). A step
+  without it would check or change another config than this session's.
 - **The gates are the owner's.** Approvals (`mirai approve --file …`), the key, the token and every
   commit are theirs, in their terminal. Give the exact command and what they'll see; never run it.
 - **Ask one question at a time**, each with lettered options and your guess, as the

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -6,7 +6,7 @@ import { MiraiError, UsageError } from '../errors.js';
 import { plain, shown } from '../../status/text.js';
 import { openStore } from '../../store/home.js';
 import { atomicWrite } from '../../store/files.js';
-import { commitOf, workTreeChanges } from '../../store/git.js';
+import { commitOf, lsTree, workTreeChanges } from '../../store/git.js';
 import { loadRegistry } from '../../config/registry.js';
 import { readLock } from '../../install/lock.js';
 import { projectInputs, REGISTRY_DIR } from '../../install/render.js';
@@ -104,7 +104,8 @@ export default {
   usage: 'mirai setup [status] | mirai setup scan | mirai setup decide <item> --keep <where> | --drop [--summary <text>] | mirai setup review | mirai setup defer <file> | mirai setup checklist [--done <n>] | mirai setup start <stage> | mirai setup done <stage>',
   positionals: { min: 0, max: 2 },
   options: {
-    keep: { type: 'string', description: 'with decide: where the item goes (as the table in docs/setup.md says)' },
+    keep: { type: 'string', description: 'with decide: the repo path the kept item is at now (the path custom add printed, or its own where it may stay)' },
+    note: { type: 'string', description: 'with decide: one line on what became of it (with --drop: "used as a source for conventions-app.md")' },
     drop: { type: 'boolean', description: 'with decide: the item is deleted, not kept' },
     summary: { type: 'string', description: 'with decide: what the item does, from your research (one line)' },
     done: { type: 'string', description: 'with checklist: mark line <n> done (the lines doctor can\'t check)' },
@@ -121,6 +122,9 @@ export default {
       if (arg !== undefined) throw new UsageError('setup status takes no argument');
       const s = statusLines(state, scanRows(store, io.env), staleKeeps(store, state));
       for (const l of s.lines) say(plain(l));
+      // F7: the Claude Code config this runs under (a session's, through MIRAI's server): every
+      // terminal step for MIRAI carries it, so it touches the same config.
+      if (io.env?.CLAUDE_CONFIG_DIR) say(`Claude Code config: CLAUDE_CONFIG_DIR=${plain(io.env.CLAUDE_CONFIG_DIR)} (write each terminal step as: CLAUDE_CONFIG_DIR=${plain(io.env.CLAUDE_CONFIG_DIR)} mirai …)`);
       if (s.nothing) {
         say('setup is done: nothing new or changed since the last run');
         return EXIT.OK;
@@ -152,7 +156,7 @@ export default {
       if (!it) throw new UsageError(`${shown(arg)} isn't in the ledger`, 'run: mirai setup scan');
       const keep = args.values.keep;
       if ((keep === undefined) === (args.values.drop !== true)) throw new UsageError('give --keep <where> or --drop, one of them');
-      for (const [k, v] of [['keep', keep], ['summary', args.values.summary]]) {
+      for (const [k, v] of [['keep', keep], ['summary', args.values.summary], ['note', args.values.note]]) {
         if (v !== undefined && (typeof v !== 'string' || !/^[^\n\r\0]{1,300}$/.test(v))) throw new UsageError(`--${k} is one line, at most 300 characters`);
       }
       // F5 (Jet, 2026-11-22, option 1): everything under .claude/, .cursor/ and .codex/ is MIRAI's
@@ -161,8 +165,20 @@ export default {
       if (keep !== undefined && underAgentFolder(arg, readLock(store.checkout)?.files ?? null) && keepsInPlace(arg, keep)) {
         throw new UsageError(`${shown(arg)} is under an agent folder, where only what MIRAI renders stays (mirai doctor and the pre-commit refuse anything else): it can't be kept in place`, `move it: mirai custom add ${arg} (a skill, agent, command, hook or script), or beside the repo root (git mv ${arg} <path outside .claude/, .cursor/, .codex/>) and decide --keep <that path>; or --drop`);
       }
+      // F9 (Jet, 2026-11-22): a place is one repo path that's there now (HEAD or the work tree),
+      // never a description; what became of an item otherwise is a drop with a note.
+      if (keep !== undefined) {
+        const target = keep.trim().replace(/^\.\//, '');
+        const where = target.split('#')[0];
+        if (!/^[^\s]+$/.test(target) || where.startsWith('/') || where.split('/').includes('..') || !(existsSync(join(store.checkout, where)) || inHead(store, where))) {
+          const mine = customFor(store, arg);
+          throw new UsageError(`--keep takes the repo path where the kept item is now; ${shown(keep)} isn't one that's there`, `${mine.length ? `under .mirai/custom/ for it: ${mine.join(', ')}; ` : ''}for an item used as a source or merged into another file: --drop --note "<what it became>"`);
+        }
+      }
       Object.assign(it, { decision: keep !== undefined ? DECISIONS[0] : DECISIONS[1], ...(keep !== undefined ? { place: keep } : { place: undefined }), decided_at: now });
       if (args.values.summary) Object.assign(it, { summary: args.values.summary, researched: true });
+      if (args.values.note !== undefined) it.note = args.values.note;
+      else delete it.note;
       if (state.stages.migrate.state === 'not started') markStage(state, 'migrate', { state: 'in progress', at: now });
       writeSetup(store, state);
       const abs = writeLedger(store, state);
@@ -259,6 +275,36 @@ function deferredLines(files, deferred) {
     const done = f?.state === 'approved';
     return { n: CHECKLIST.length + 1 + i, title: `Review and approve ${rel} (put off at setup)`, command: `mirai approve --file ${rel}`, see: `approved: ${rel}; mirai setup review shows it approved`, default: 'no choice to make: agents read it only once it\'s approved', doctor: [], state: done ? 'done' : 'open', why: done ? 'approved as it is' : f ? f.state : 'the file isn\'t there' };
   });
+}
+
+// Whether `path` is in the commit you're on.
+function inHead(store, path) {
+  try {
+    return (lsTree(store.checkout, 'HEAD', path, store.gitEnv) ?? []).length > 0;
+  } catch {
+    return false;
+  }
+}
+// What .mirai/custom/ holds with the item's name (F9's hint).
+function customFor(store, id) {
+  const base = id.split('#')[0].split('/').filter(Boolean).pop()?.replace(/\.(md|toml|sh|bash|js|mjs|py|json)$/, '') ?? '';
+  if (!base) return [];
+  const out = [];
+  const walk = (rel) => {
+    let names;
+    try {
+      names = readdirSync(join(store.checkout, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const n of names) {
+      const p = `${rel}/${n.name}`;
+      if (n.name.startsWith(base) || n.name === base) out.push(p);
+      if (n.isDirectory() && out.length < 10) walk(p);
+    }
+  };
+  walk('.mirai/custom');
+  return out.slice(0, 5);
 }
 
 // F5: whether an item's file is under an agent folder and isn't MIRAI's own rendered file (the
