@@ -169,6 +169,47 @@ are never touched.
   **Confirmed (Jet, 2026-11-22):** the same red team in `thudos-setup`, on the same copy (from
   `10c615e`), run again on a quiet Mac with nothing else on Docker: **GREEN** (333 runs, 17 min
   35 s). The earlier red was F6.
+- **P1, finish (Jet, 2026-11-22, copy from `10c615e`):** `CLAUDE_CONFIG_DIR=~/.claude-private mirai
+  setup checklist` showed all 8 lines done (F4's fix works); after committing the checklist
+  (3b877ee), `setup done finish` refused with 7 items: F7, F8 and F9 below. Not fixed yet: decided
+  after P1.
+- **F7: doctor and the checklist check only the Claude Code config of the environment they run
+  in.** Jet's default `~/.claude.json` still had a registration from `c64d307`. In stage 5 the
+  setup session told him to run `mirai session-server install` without `CLAUDE_CONFIG_DIR`, so a
+  plain `mirai setup checklist` said "Session server: behind, and it doesn't start" while the
+  private config's registration was current. **Draft fix:** the session's own config travels with
+  every step it gives: an MCP server inherits the session's environment, so `mirai_command`'s
+  answers for terminal steps (`yours`, the setup skill's hand steps, doctor's hints run from a
+  session) prefix `CLAUDE_CONFIG_DIR=<the session's>` when the server's environment has it; the
+  skill says "run it in this form". Doctor and `setup checklist` run through the session check the
+  session's config; in a terminal they name the config they checked (F3) and, when another config
+  has MIRAI's registration for this folder, say so ("current in CLAUDE_CONFIG_DIR=…; this one is
+  behind"). The old registration in `~/.claude.json` is Jet's to remove: `mirai session-server
+  remove` with no `CLAUDE_CONFIG_DIR`.
+- **F8: every commit on the integration branch puts the session server "behind", and finish
+  refuses on it.** Committing the checklist itself (3b877ee) did it (line 8, through doctor's
+  Session server item). Why it's pinned (unit 15b, D-53; design/05): the server runs from the
+  trust root verified at registration, with its policy's hash on the command line, so nothing in
+  the work tree or a later branch state changes what the tools in your session do without your
+  act in a terminal; 15b says "a stale registration still works, with the rules it was made
+  with", and `mirai render` registers again. So "behind" is by design a note, not a fault; only
+  "doesn't start" (`connected: false`), a foreign server and "missing" stop `/mirai`. **Proposed
+  rule:** keep the pin (following the branch's head at each start would let a merge change your
+  session's tools without you); doctor's Session server item gives "behind, still starts" as an
+  advisory yellow (a named class beside F4's `expected_until`, say `advisory: "re-register with
+  mirai render or mirai session-server install"`), which line 8 and `setup done finish` don't
+  count, as they don't count the Merge gate; "doesn't start", foreign and missing stay to fix.
+- **F9: `setup decide --keep` took free text from the session as the place.** The ledger held
+  places such as "source for conventions-*.md in stage 3, then deleted" (4 × `.claude/rules/*.md`)
+  and ".mirai/custom/agents/mirai-reviewer (overlay, read-only, appended lenses)"
+  (`architecture-reviewer.md`); F5's stale check then flagged them (rightly) as "neither it nor that
+  place is in the repo". Jet re-decided them: the rules and `settings.local.json.example`
+  `--drop`, `architecture-reviewer.md` `--keep .mirai/custom/agents/mirai-reviewer.toml`. **Draft
+  fix:** `--keep` takes one repo path that exists at HEAD or in the work tree (refused otherwise,
+  naming what's there under `.mirai/custom/` for that item), with an optional `--note`; an item
+  used as a source or merged into another file is `--drop --note "<what it became>"` (the ledger
+  shows "drop: used as a source for conventions-app.md"), so no decision claims a place that isn't
+  there. The migrate guide says so, and the skill passes the path `custom add` printed.
 - **What passed on P1 (Jet, 2026-11-22, on `thudos-setup` with MIRAI from `d6afc48`):** every stage
   but finish done (finish blocked by F4); doctor 21 ok, 1 yellow (Merge gate), 0 red; the P1 check
   all PASS but finish and "doctor green" (both F4). Jet: resuming after Ctrl-D in stage 2 went on
