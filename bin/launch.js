@@ -30,6 +30,7 @@ try {
 if (argv[0] === 'which') {
   // `mirai which [<command>]`: which MIRAI would run here, and why.
   if (decision.refuse) process.stdout.write(`none may run here: ${decision.refuse}\n${decision.hint}\n`);
+  else if (decision.run === 'skip') process.stdout.write(`none runs: ${decision.note}\n`);
   else process.stdout.write(`runs: ${decision.run === 'self' ? SELF_ENTRY : join(decision.storeDir, 'runtime', copyDigest(decision.files), 'bin', 'mirai.js')}\nwhy: ${decision.why}\n${decision.note ? `note: ${decision.note}\n` : ''}`);
   process.exit(decision.refuse ? decision.exitCode : 0);
 }
@@ -39,10 +40,17 @@ if (decision.refuse && (argv[0] === '--version' || argv[0] === '--help' || argv[
   process.stderr.write(`mirai: this repo's copy may not run (${decision.refuse}); this is the launcher's own answer\n`);
   decision = { run: 'self' };
 }
+// A git hook that can't run its check refuses (unit 26a); the pre-commit (unit 39) says so for a commit.
+const UNCHECKED = argv[1] === 'pre-commit' ? 'mirai: the commit wasn\'t checked, so it\'s refused; to commit anyway: git commit --no-verify\n' : 'mirai: the push wasn\'t checked, so it\'s refused; to push anyway: git push --no-verify\n';
+// Unit 39: MIRAI's pre-commit where nothing is committed to seal yet: one line, and the commit goes on.
+if (decision.run === 'skip') {
+  process.stderr.write(`${decision.note}\n`);
+  process.exit(0);
+}
 if (decision.refuse) {
   process.stderr.write(`mirai: ${decision.refuse}\n${decision.hint}\n`);
   // A git hook that can't run its check refuses the push (unit 26a, Jet's decision 6).
-  if (argv[0] === 'hook') process.stderr.write('mirai: the push wasn\'t checked, so it\'s refused; to push anyway: git push --no-verify\n');
+  if (argv[0] === 'hook') process.stderr.write(UNCHECKED);
   process.exit(decision.exitCode);
 }
 if (decision.run === 'self') {
@@ -53,7 +61,7 @@ if (decision.run === 'self') {
     sealed = sealedCopy({ root: process.cwd(), env, storeDir: decision.storeDir, commit: decision.commit, files: decision.files });
   } catch (err) {
     process.stderr.write(`mirai: ${err.message}\n${err.hint ? `${err.hint}\n` : ''}`);
-    if (argv[0] === 'hook') process.stderr.write('mirai: the push wasn\'t checked, so it\'s refused; to push anyway: git push --no-verify\n');
+    if (argv[0] === 'hook') process.stderr.write(UNCHECKED);
     process.exit(err.exitCode ?? 1);
   }
   // The child shares the terminal, so Ctrl-C reaches it directly: the launcher waits for it to

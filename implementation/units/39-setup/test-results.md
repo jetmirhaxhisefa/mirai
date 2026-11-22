@@ -54,6 +54,13 @@ a script the skill calls, `_bmad/agents/pm.md`, `docs/prd.md`, an MCP server in 
   imports it; with MIRAI's hooks folder installed, a real `git commit` adding
   `.claude/skills/x/SKILL.md` is refused, printing `mirai custom add .claude/skills/x`; adding back
   MIRAI's rendered `/mirai` command passes; committed with `--no-verify`, doctor's new item lists it.
+  The hook runs the launcher (sealed copy): with the work tree's `.mirai/framework` check edited to
+  pass everything, the commit is still refused, never skipped. A new repo's install commit (MIRAI
+  not on main yet) goes through with `mirai pre-commit: skipped: main (…) has no MIRAI copy MIRAI
+  can run; MIRAI isn't committed on the integration branch yet …`, and the next commit adding a
+  skill by hand is refused by the sealed copy. With a copy on main from before this unit (no
+  pre-commit check in it), the next commit (a refresh's) goes through with `mirai pre-commit:
+  skipped: the copy committed at <commit> has no pre-commit check; …`.
 - **T7 Checklist:** eight lines, each with its command, what you see and its default (managed
   settings: off; the token's line names `claude setup-token` and the 30-day warning); doctor's items
   fill the states (ok: done, yellow: check, red: open), the lines doctor can't check take your mark,
@@ -131,11 +138,19 @@ project's checkout, in your terminal:
   13c merges the denies: each listed in the lock as an entry (`hook:<event>:<hash>`,
   `mcp:<name>:<hash>`), the file's other content left alone; `settingsHash` checks them. A project
   skill's rendered files are found for removal by their `from` (`.mirai/custom/project-skills/`).
-- **The pre-commit hook runs the installed MIRAI's own copy** (`bin/mirai.js` beside the launcher
-  the hooks record), not the integration branch's sealed copy as the pre-push does: the commit
-  that installs MIRAI has no sealed copy yet, so the sealed rule refused it (12c T2 and the
-  launcher's T3 caught this). It's a reminder, not a gate (`--no-verify` skips it); with no store
-  on the machine it only checks, forwarding nothing.
+- **The pre-commit hook runs the sealed copy, and is skipped only where nothing is sealed yet**
+  (coordinator's review, 2026-11-22). It goes through the launcher like the pre-push, so the
+  integration branch's sealed copy runs and the work tree's `.mirai/framework` never does. The
+  launcher skips it, with one line naming the case (`mirai pre-commit: skipped: <why>`), only when
+  there is no committed MIRAI to seal: the integration branch has no MIRAI copy yet (the commit
+  that installs MIRAI; 12c T2 and the launcher's T3 hit this), the branch has no commit here, or
+  the machine has no store to say which branch that is. It is also skipped when the sealed copy
+  is from before this unit (it has no `src/setup/pre-commit.js`): `mirai init --refresh` writes the
+  pre-commit into the hooks folder, so without this the refresh's own commit (yours, or the build
+  runner's on the sample app) would be refused by the old copy it replaces ("pre-commit isn't a
+  hook MIRAI runs"). Every other refusal stays a refusal, and
+  the launcher's refusal line for a commit says `git commit --no-verify`. `mirai which hook
+  pre-commit` shows the skip.
 - **The pre-commit hook** is in MIRAI's hooks folder only after `mirai init --refresh` for a folder
   written before this unit (its record gains `pre_commit: true`); doctor's Hook item is yellow until
   then, so existing pushes don't break.
@@ -161,6 +176,10 @@ project's checkout, in your terminal:
    we see Thudos (default); (B) you name them now.
 
 ## For later units
+
+- 38b (naming): 39 adds no role name in its code (roles are read from the registry). The launch
+  test in `test/setup/setup.test.js` launches Kai under the role `author`, and the rule sentence
+  of decision 10 says "merge requests" as the spec words it; 38b's rename covers both.
 
 - 44: its human-only status check goes into `mirai hook pre-commit` (`src/cli/commands/hook.js`,
   `preCommit`).
@@ -189,5 +208,6 @@ project's checkout, in your terminal:
 failure and nothing skipped. The run before it, 761/768, failed on pins this unit moves (the
 bundle's and the registry's skill lists, the command list, 17a's instruction-file list), on two
 words the system-check guard (30a) caught, and on the pre-commit hook refusing the commit that
-installs MIRAI (fixed: it runs the installed copy, see "Changed from the spec"). The runner runs
+installs MIRAI (fixed: the launcher skips it only where nothing is sealed yet, see "Changed from
+the spec"). The runner runs
 as u39-tests-1.

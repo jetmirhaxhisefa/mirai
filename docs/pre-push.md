@@ -95,6 +95,8 @@ The same folder holds MIRAI's `pre-commit` (`mirai hook pre-commit`). It refuses
 adds a file under `.claude/`, `.cursor/` or `.codex/` that `.mirai/mirai.lock` doesn't mark
 `rendered`, and prints `mirai custom add <path>` for each: new skills, agents, hooks and scripts
 go in `.mirai/custom/` (docs/setup.md). A repo's own `pre-commit` runs first, as for the pre-push.
+Like the pre-push, it runs the integration branch's sealed copy; where no MIRAI is committed there
+yet (the commit that installs MIRAI), it is skipped with one line saying so.
 `git commit --no-verify` skips it; `mirai doctor` then lists the file. A folder installed before
 unit 39 gets it with `mirai init --refresh`.
 

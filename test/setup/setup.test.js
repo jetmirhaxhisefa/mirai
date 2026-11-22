@@ -12,6 +12,8 @@ import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { writeToken } from '../../src/sign/token.js';
 import { openStore } from '../../src/store/home.js';
 import { installHooks } from '../../src/hooks/install.js';
+import { init as initRepo } from '../../src/install/init.js';
+import { frameworkDigest } from '../../src/install/lock.js';
 import { runAgent } from '../../src/agent/run.js';
 import { mintLaunchToken } from '../../src/agent/requests.js';
 import { runTest } from '../../src/tests/run.js';
@@ -32,7 +34,8 @@ import { needsTest } from '../helpers/needs.js';
 
 const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
 const TOKEN = `sk-ant-oat01-${'Ag3_-k'.repeat(16)}`;
-const LAUNCHER = fileURLToPath(new URL('../../bin/mirai.js', import.meta.url));
+// The hooks run the launcher, which runs the integration branch's sealed copy (26a).
+const LAUNCHER = fileURLToPath(new URL('../../bin/launch.js', import.meta.url));
 const INIT = '{"type":"system","subtype":"init","permissionMode":"dontAsk"}';
 const RESULT = '{"type":"result","subtype":"success","is_error":false,"result":"done","num_turns":2,"usage":{"input_tokens":5,"output_tokens":6}}';
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
@@ -369,6 +372,15 @@ test('39 T6: the rule sentences in the framework block; the pre-commit hook refu
   assert.notEqual(c.status, 0, 'refused');
   assert.match(c.stderr, /\.claude\/skills\/x\/SKILL\.md/);
   assert.match(c.stderr, /^ {2}mirai custom add \.claude\/skills\/x$/m);
+  // The work tree's framework copy never runs: with its check edited to pass everything, the
+  // sealed copy from main still refuses (or the launcher refuses the edited copy), never passes.
+  const check = join(f.root, '.mirai/framework/src/setup/pre-commit.js');
+  execFileSync('/bin/chmod', ['u+w', check]);
+  writeFileSync(check, `${readFileSync(check, 'utf8')}\nexport function preCommitCheckEdited() {}\n`.replace('export function preCommitCheck({ root, env }) {', 'export function preCommitCheck() {\n  return { ok: true, refused: [] };\n}\nfunction unused({ root, env }) {'));
+  c = commit();
+  assert.notEqual(c.status, 0, 'an edited work-tree copy does not let the commit through');
+  assert.ok(!/skipped/.test(c.stderr), c.stderr);
+  f.git('checkout', '--', '.mirai/framework');
   // A rendered file passes: MIRAI's /mirai command, taken out and put back.
   f.git('reset', '-q');
   f.git('rm', '-q', '--cached', '.claude/commands/mirai.md');
@@ -467,4 +479,45 @@ test('39 T9: the review lists every context file with its state, full path and l
   r = await cli(['setup', 'checklist'], f.io, { doctor: stubs });
   assert.match(r.out, / 9\. \[open\] Review and approve \.mirai\/context\/business\.md/);
   assert.match(r.out, /10\. \[open\] Review and approve \.mirai\/context\/journeys\.md/);
+});
+
+test('39 T6: the commit that installs MIRAI: nothing is committed to seal yet, so the pre-commit is skipped with one line, and the commit goes on', () => {
+  const root = join(tempDir('install'), 'r');
+  mkdirSync(root);
+  const home = tempDir('home');
+  const env = { PATH: '/usr/bin:/bin', HOME: home };
+  const git = (...a) => spawnSync('/usr/bin/git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { cwd: root, encoding: 'utf8', env: { ...env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'README.md'), '# r\n');
+  git('add', '-A');
+  git('commit', '-qm', 'first');
+  initRepo({ cwd: root, env, branch: 'main' });
+  installHooks({ store: openStore({ cwd: root, env }), env, node: process.execPath, launcher: LAUNCHER });
+  git('add', '-A');
+  const c = git('commit', '-qm', 'Install MIRAI');
+  assert.equal(c.status, 0, c.stderr);
+  assert.match(c.stderr, /^mirai pre-commit: skipped: main \([0-9a-f]{12}\) has no MIRAI copy MIRAI can run; MIRAI isn't committed on the integration branch yet/m);
+  // Once it is, the next commit runs the sealed copy: a hand-added skill is refused.
+  mkdirSync(join(root, '.claude/skills/y'), { recursive: true });
+  writeFileSync(join(root, '.claude/skills/y/SKILL.md'), '---\nname: y\ndescription: "y"\n---\n');
+  git('add', '-A');
+  const d = git('commit', '-qm', 'y');
+  assert.notEqual(d.status, 0);
+  assert.match(d.stderr, /mirai custom add \.claude\/skills\/y/);
+  // A copy on main from before unit 39 (no pre-commit check in it): the commit of a refresh isn't
+  // refused by the copy it replaces; it's skipped with one line until the refresh is on main.
+  git('restore', '--staged', '.claude/skills/y');
+  const check = '.mirai/framework/src/setup/pre-commit.js';
+  const lock = JSON.parse(readFileSync(join(root, '.mirai/mirai.lock'), 'utf8'));
+  lock.files = lock.files.filter((x) => x.path !== check);
+  lock.framework_sha256 = frameworkDigest(lock.files);
+  writeFileSync(join(root, '.mirai/mirai.lock'), `${JSON.stringify(lock, null, 2)}\n`);
+  git('rm', '-q', '-f', check);
+  git('add', '-A', '.mirai');
+  assert.equal(git('commit', '-q', '--no-verify', '-m', 'an older MIRAI').status, 0);
+  const old = git('rev-parse', 'HEAD').stdout.trim();
+  git('add', '-A');
+  const e = git('commit', '-qm', 'refresh');
+  assert.equal(e.status, 0, e.stderr);
+  assert.match(e.stderr, new RegExp(`^mirai pre-commit: skipped: the copy committed at ${old.slice(0, 12)} has no pre-commit check; the integration branch's MIRAI is older than its pre-commit check \\(unit 39\\)`, 'm'));
 });

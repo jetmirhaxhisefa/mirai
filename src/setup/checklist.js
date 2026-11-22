@@ -54,7 +54,7 @@ export const CHECKLIST = Object.freeze([
   {
     n: 7, title: 'CI required checks',
     command: 'in the host\'s branch settings, require your test levels\' CI jobs on the integration branch',
-    see: 'a merge request shows them as required; mirai setup checklist --done 7',
+    see: 'the host shows them as required on the integration branch; mirai setup checklist --done 7',
     default: 'every test level the baseline records; until unit 54, your merge is the gate (doctor\'s Merge gate item says so)',
     doctor: [], mark: true,
   },

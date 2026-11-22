@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import { StoreError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
@@ -39,16 +39,15 @@ export function hookScript({ node, launcher }) {
 }
 
 // Unit 39 (Scope 9): MIRAI's pre-commit, the safety net for items added by hand under .claude/,
-// .cursor/ or .codex/. It runs the repo's own pre-commit first when MIRAI forwards to one. It runs
-// the installed MIRAI's own copy (bin/mirai.js beside the launcher), not the integration branch's
-// sealed one: the very commit that installs MIRAI has no sealed copy yet, and the net is a
-// reminder (--no-verify skips it, doctor lists what got past it), not a gate.
+// .cursor/ or .codex/. It runs the repo's own pre-commit first when MIRAI forwards to one. Like the
+// pre-push, it runs the integration branch's sealed copy through the launcher; the launcher skips
+// it, with one line, only where no MIRAI is committed to seal yet (src/launch/launch.js).
 export function preCommitScript({ node, launcher }) {
   return [
     '#!/bin/sh',
     '# MIRAI pre-commit (unit 39). Written by mirai init; the folder is checked at every push. Don\'t',
     '# edit it: run `mirai init --refresh` instead. `git commit --no-verify` skips it (mirai doctor still lists what it would refuse).',
-    `exec ${shQuote(node)} ${shQuote(join(dirname(launcher), 'mirai.js'))} hook pre-commit "$@"`,
+    `exec ${shQuote(node)} ${shQuote(launcher)} hook pre-commit "$@"`,
     '',
   ].join('\n');
 }
