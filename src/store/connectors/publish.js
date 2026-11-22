@@ -6,6 +6,7 @@ import { MiraiError } from '../../cli/errors.js';
 import { REGISTRY_DIR } from '../../cli/commands/lint.js';
 import { EXIT } from '../../cli/exit-codes.js';
 import { identity } from '../../agent/commit.js';
+import { docsPushScan } from '../../hooks/pre-push.js';
 import { loadRegistry } from '../../config/registry.js';
 import { lintPaths, projectOf } from '../../lint/lint.js';
 import { cleanTitle, hostFor } from '../../ship/host.js';
@@ -137,6 +138,14 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
   const outside = outsideFolder(names, folder);
   if (!base || outside.length) {
     throw Object.assign(fail(`a docs merge request carries documents only, and ${branch} changes ${outside.length ? `${outside.length} path${outside.length === 1 ? '' : 's'} outside ${folder}/: ${outside.slice(0, 20).join(', ')}` : `no history shared with ${integration}`}; nothing was pushed`, 'not-docs-only', `take those changes off ${branch} (they belong on a code branch), then publish again`), { paths: outside });
+  }
+  // 26a's push check: the same secret scan a code push gets, over what this push adds. A hit names
+  // the pattern and the file, never the secret; nothing is pushed and the docs branch doesn't move.
+  if (remote !== head) {
+    const scan = docsPushScan({ cwd, env, head, remoteSha: remote });
+    if (scan.outcome !== 'pass') {
+      throw Object.assign(fail(`the push check refused ${branch}: ${scan.why}; nothing was pushed`, scan.outcome === 'secret' ? 'secret' : scan.outcome, scan.outcome === 'secret' ? 'take it out of the document (and replace it if it was real), then publish again' : 'publish fewer or smaller files at a time'), { findings: scan.findings });
+    }
   }
   if (!made.same) setDocsBranch(store.checkout, branch, head, local, store.gitEnv);
 

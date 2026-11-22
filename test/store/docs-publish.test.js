@@ -285,3 +285,26 @@ test('38 T6: GitLab: publish, update, the code-path refusal and the merge run th
   for (const c of calls) assert.equal(c.env.GLAB_CONFIG_DIR, personal, c.args.join(' '));
   assert.ok(calls.every((c) => !String(c.env.GLAB_CONFIG_DIR).includes('Library/Application Support/glab-cli')));
 });
+
+test('38 follow-up: publish runs 26a\'s push check: a canary-shaped secret in a document is refused, named by file and rule, never printed; nothing is pushed; a clean document passes', async () => {
+  const p = project('github');
+  // A GitHub-token shape, built here so this file holds no literal one.
+  const canary = `ghp_${'Canary0'.repeat(6)}`;
+  writeFileSync(p.at('notes-secret.md'), `---\nid: x\n---\n# Notes\n\nthe token is ${canary}\n`);
+  const err = await refused(() => p.publish(), 'secret');
+  assert.match(err.message, /^the push check refused docs\/due-dates: a secret \(github-token\) in docs\/mirai\/due-dates\/notes-secret\.md in [0-9a-f]{12}; nothing was pushed$/);
+  assert.ok(!err.message.includes(canary) && !String(err.hint).includes(canary) && !JSON.stringify(err.findings).includes(canary), 'the secret is never shown');
+  assert.deepEqual(err.findings.map((f) => [f.pattern, f.file]), [['github-token', `${D}/notes-secret.md`]]);
+  assert.throws(() => p.bareGit('rev-parse', '--verify', '-q', 'refs/heads/docs/due-dates'), 'nothing reached the host');
+  assert.throws(() => p.git('rev-parse', '--verify', '-q', 'refs/heads/docs/due-dates'), 'the docs branch wasn\'t made');
+  assert.equal(p.host.read().prs.length, 0);
+  // Through the CLI too: exit 4, no secret in the output.
+  const cli = await p.run(['docs', 'publish', 'due-dates']);
+  assert.equal(cli.code, EXIT.BLOCKED);
+  assert.ok(!`${cli.out}${cli.err}`.includes(canary));
+  // The document without it: the push check passes and the merge request opens.
+  execFileSync('/bin/rm', [p.at('notes-secret.md')]);
+  const ok = await p.publish();
+  assert.equal(ok.outcome, 'opened');
+  assert.equal(p.bareGit('rev-parse', 'refs/heads/docs/due-dates'), ok.head);
+});

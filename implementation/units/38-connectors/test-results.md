@@ -53,6 +53,11 @@
     `…/tree/docs/due-dates/…` link; GitLab's `…/-/blob/…` and `…/-/tree/…`; `mirai approve`'s last
     line is the PRD's path and its link once the docs branch holds those bytes; after the merge,
     `docs merge` and `mirai show due-dates` give the `…/blob/main/…` link. A local document has none.
+  - the follow-up (the push check): a document holding a GitHub-token-shaped canary is refused by
+    26a's secret scan (`secret`: "a secret (github-token) in docs/mirai/due-dates/notes-secret.md
+    in <commit>; nothing was pushed"); the secret appears in no message, hint, finding or CLI
+    output; the docs branch isn't made here or on the host, and no merge request opens. Without the
+    canary the same publish passes and opens the merge request.
 - **`test/ship/lone-ticket.test.js`** (T7, macOS only, as 27a's ship tests): PMT-31 (in
   `docs/mirai/tickets/`) is a lone ticket; its own file changed on its branch rides in its MR with
   the fix, and the proof still passes; a PRD of an initiative on the same branch is refused
@@ -78,6 +83,11 @@ pushes are yours. In the sample app's checkout, in your terminal:
 - **P2 (GitHub, the sample app from 27a):** the same steps, without `GLAB_CONFIG_DIR`.
 - **P3:** a bug ticket with no initiative, approved, planned, built and shipped (`mirai ship`), then
   `--check lone --ticket <key>`; `mirai merge <key>`; `--check lone-merged --ticket <key>`.
+- **The new git calls:** `docsCommit` (the docs commit on a private index: `read-tree`,
+  `rm --cached --force`, `hash-object -w --stdin`, `update-index --index-info`, `write-tree`,
+  `rev-parse`, `commit-tree`) and `setDocsBranch` (`update-ref`) are in `MIRAI_STEPS`, so they run
+  with `node test/probes/git-probes.js --yes --mirai` (and in the red team's git probes). Not run
+  yet.
 - **P4:** a throwaway project with `[docs] store = "local"` on main, a brief and PRD written there
   and approved, then `--check local --initiative <name>`.
 
@@ -100,6 +110,11 @@ pushes are yours. In the sample app's checkout, in your terminal:
   from `mirai show`.
 - **A non-Markdown file in the initiative's folder** (an image) is published, and blocks the merge
   as a gap ("isn't a document"): conservative, see Questions.
+- **The push check on a docs branch is 26a's secret scan** (`docsPushScan` in
+  `src/hooks/pre-push.js`: the same patterns from the integration branch, your token, the same
+  exclusions). 26a's scope and proof rules are for ticket branches: MIRAI's docs commit (MIRAI as
+  committer, no ticket trailer) would fail them by design. The docs-only check and your signed
+  approvals are the docs branch's own gate.
 - **The merge waits (exit 4) for anything the host holds**, including GitHub's `blocked` and
   GitLab's statuses; failed checks refuse it.
 
@@ -127,15 +142,8 @@ pushes are yours. In the sample app's checkout, in your terminal:
 - P07/P08: an external connector is a TOML file plus a module with the interface the fake store
   shows; its text goes through `agentText` (fenced) and its status through `statusView`.
 
-## Follow-up
-
-- The new git calls (the docs commit on a private index, `update-ref` of a docs branch) have no
-  entry in `test/probes/git-probes.js --mirai` yet.
-
 ## What I'm unsure about
 
-- Publish doesn't run 26a's push check (`prePushCheck`) on the docs branch; the docs-only check is
-  the guard. A secret in a document would be pushed.
 - The local store's hints (`mirai approve … --file docs/due-dates/prd.md`) print the path relative
   to the store, which doesn't resolve from the repo; the full path works.
 - A local run of the suite hung for about 3 hours in `test/launch/launch.test.js` with no test
@@ -145,4 +153,4 @@ pushes are yours. In the sample app's checkout, in your terminal:
 
 ## The full suite
 
-756/756 on the Mac (`caffeinate -i node --test --test-timeout=300000 "test/**/*.test.js"`), no flaky failure this run. The runner run is queued as u38-tests-1.
+757/757 on the Mac after the follow-up (`caffeinate -i node --test --test-timeout=300000 "test/**/*.test.js"`), no flaky failure this run (756/756 before it). The runner runs are queued as u38-tests-1 and u38-tests-2.

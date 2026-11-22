@@ -10,6 +10,10 @@ import { runGitProbes } from '../../src/redteam/probes/git.js';
 // and also run as part of the red team.
 //
 //   node test/probes/git-probes.js --yes [--mirai] [--workdir <dir>] [--only id,id] [--keep]
+//
+// Unit 38 adds two of MIRAI's calls to --mirai (MIRAI_STEPS): docsCommit (the docs commit on a
+// private index) and setDocsBranch; they run with every probe:
+//   node test/probes/git-probes.js --yes --mirai
 
 async function cli() {
   const { values } = parseArgs({ options: { yes: { type: 'boolean' }, mirai: { type: 'boolean' }, workdir: { type: 'string' }, only: { type: 'string' }, keep: { type: 'boolean' } } });
