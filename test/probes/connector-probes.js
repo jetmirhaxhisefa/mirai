@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -12,6 +13,8 @@ import { readJournal } from '../../src/store/journal.js';
 import { docsStoreFor } from '../../src/store/connectors/index.js';
 import { docsMerge } from '../../src/store/connectors/publish.js';
 import { snapshot, trustedConfig } from '../../src/trust/snapshot.js';
+import { REGISTRY_DIR } from '../../src/cli/commands/lint.js';
+import { BRIEF_READY, INTERVIEW, PRD_READY } from '../helpers/docs-fixtures.js';
 
 // Unit 38's probes P1–P4: checks you run between your own steps, in the project's checkout, in
 // your terminal. Each check reads what MIRAI and the host did and prints PASS or FAIL with why. The
@@ -23,7 +26,13 @@ import { snapshot, trustedConfig } from '../../src/trust/snapshot.js';
 // project without it.
 //
 // P1 (GitLab, the sample app's GitLab copy) and P2 (GitHub, the sample app from 27a), 33's example
-// initiative (brief, PRD, epic, tickets) in docs/mirai/<initiative>/:
+// initiative (brief, PRD, epic, tickets) in docs/mirai/<initiative>/. First, the setup writes it
+// into the work tree from MIRAI's registry/examples/ (the brief's Q-1 answered in the brief and the
+// PRD, so the pair can be approved). It's NOT committed on main: publish takes the folder from the
+// work tree, and the docs merge request is how it reaches main:
+//   node <mirai>/test/probes/connector-probes.js --setup github|gitlab --initiative due-dates
+//       writes docs/mirai/due-dates/ (brief, interview, prd, epic-due-dates, tickets/SAMPLE-51..57)
+//       and prints the ids you approve: due-dates-prd (with its brief) and SAMPLE-50 (the epic)
 //   mirai docs publish <initiative>
 //   node <mirai>/test/probes/connector-probes.js --check published --initiative <initiative>
 //       one merge request, and its diff holds only docs/mirai/<initiative>/
@@ -31,7 +40,8 @@ import { snapshot, trustedConfig } from '../../src/trust/snapshot.js';
 //   node <mirai>/test/probes/connector-probes.js --check refused --initiative <initiative>
 //       mirai docs merge refuses before the ticket-set approval, naming it; nothing merged
 //   mirai approve <epic-id> --file docs/mirai/<initiative>/epic-<…>.md  (your key)
-//   (edit the PRD: one word) then mirai docs publish <initiative>
+//   sed -i '' 's/the evening reminder/the nightly reminder/' docs/mirai/<initiative>/prd.md
+//       (a word outside the summary: the reader test still holds), then mirai docs publish <initiative>
 //   node <mirai>/test/probes/connector-probes.js --check stale --initiative <initiative>
 //       mirai show says the PRD "changed since approval", and the merge refuses it
 //   mirai approve <prd-id> --file docs/mirai/<initiative>/prd.md, then mirai docs publish <initiative>
@@ -156,9 +166,40 @@ async function check(name, { cwd, env, initiative, ticket, log }) {
   throw new Error(`unknown check ${name}`);
 }
 
+// --setup: 33's example initiative in the checkout's work tree, never committed by this script.
+// Refuses a folder that's already there, and a remote on the other host.
+function setup(host, { cwd, env, initiative, log }) {
+  if (!['github', 'gitlab'].includes(host)) throw new Error('--setup github or --setup gitlab');
+  if (initiative !== 'due-dates') throw new Error('the example initiative is due-dates (its PRD and epic link each other by that folder)');
+  const remote = execFileSync('/usr/bin/git', ['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' }).trim();
+  const on = /github\.com/.test(remote) ? 'github' : /gitlab/.test(remote) ? 'gitlab' : null;
+  if (on && on !== host) throw new Error(`the remote is on ${on}, not ${host}: ${remote}`);
+  if (!on) log(`note: the remote (${remote}) isn't on github.com or gitlab: fine for a dry run, not for the probe`);
+  if (host === 'gitlab' && !/glab-personal\/?$/.test(env.GLAB_CONFIG_DIR ?? '')) throw new Error('GitLab: run with GLAB_CONFIG_DIR=~/.config/glab-personal (your personal gitlab.com), never the work GitLab');
+  const store = openStore({ cwd, env });
+  const { conn } = docsStoreFor({ cwd, env, store });
+  if (conn.kind !== 'repo') throw new Error(`the project's store is ${conn.name}; P1/P2 need the repo store`);
+  const dir = conn.dir(initiative);
+  if (existsSync(dir)) throw new Error(`${dir} is already there: remove it (or use another checkout) first`);
+  const ex = (rel) => readFileSync(join(REGISTRY_DIR, 'examples', rel), 'utf8');
+  const files = { 'brief.md': BRIEF_READY, 'interview.md': INTERVIEW, 'prd.md': PRD_READY, 'epic-due-dates.md': ex('epic.md') };
+  for (const f of readdirSync(join(REGISTRY_DIR, 'examples', 'tickets')).sort()) files[`tickets/${f}`] = ex(`tickets/${f}`);
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(join(dir, rel, '..'), { recursive: true });
+    writeFileSync(join(dir, rel), text);
+    log(`wrote ${join(dir, rel)}`);
+  }
+  const rel = `${conn.docsRoot}/${initiative}`;
+  log(`\nnot committed, and don't commit it on main: mirai docs publish ${initiative} takes the folder from your work tree`);
+  log(`the ids you approve: due-dates-prd (one decision approves it with due-dates-brief) and SAMPLE-50 (the epic with its 7 tickets)`);
+  log(`next: mirai lint ${rel}   (0 problems), then mirai show ${initiative}`);
+  return true;
+}
+
 async function cli() {
-  const { values } = parseArgs({ options: { check: { type: 'string' }, initiative: { type: 'string' }, ticket: { type: 'string' } } });
+  const { values } = parseArgs({ options: { check: { type: 'string' }, setup: { type: 'string' }, initiative: { type: 'string' }, ticket: { type: 'string' } } });
   const log = (l) => process.stdout.write(`${l}\n`);
+  if (values.setup) return setup(values.setup, { cwd: process.cwd(), env: process.env, initiative: values.initiative, log }) ? 0 : 1;
   const needs = { published: 'initiative', refused: 'initiative', stale: 'initiative', merged: 'initiative', local: 'initiative', lone: 'ticket', 'lone-merged': 'ticket' };
   if (!needs[values.check] || !values[needs[values.check]]) {
     process.stderr.write(`--check ${Object.keys(needs).join('|')} with --initiative <name> or --ticket <key>: see the comment at the top of ${join('test', 'probes', 'connector-probes.js')}\n`);

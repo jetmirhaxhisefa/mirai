@@ -71,13 +71,25 @@
 Not run yet. `test/probes/connector-probes.js` holds the checks; the steps with your key and the
 pushes are yours. In the sample app's checkout, in your terminal:
 
+- **The setup** (added after the approval): `node <mirai>/test/probes/connector-probes.js --setup
+  github|gitlab --initiative due-dates` writes 33's example initiative into the checkout's
+  `docs/mirai/due-dates/` from MIRAI's `registry/examples/` (the brief's Q-1 answered in the brief
+  and the PRD), not committed: publish takes the folder from the work tree. The ids you approve:
+  `due-dates-prd` (with `due-dates-brief`) and `SAMPLE-50`. Proven on a throwaway clone of the
+  sample app (a temp HOME, no remote): the setup wrote 11 files, `mirai lint docs/mirai/due-dates`
+  gave 0 problems, `mirai show due-dates` listed the four documents (epic with 7 tickets), and the
+  lint as at approval was clean for the brief, the PRD, the epic and every ticket, before and after
+  the probe's PRD edit (`the evening reminder` → `the nightly reminder`, outside the summary).
+- **The GitLab copy:** `jettmir.h/mirai-sample-app` on your personal gitlab.com
+  (`GLAB_CONFIG_DIR=~/.config/glab-personal glab repo list`). Its main is at afdbc23 (2026-11-11,
+  "Refresh MIRAI: mirai ship (unit 27a)"), an ancestor of the sample app's main (8454cbd, MIRAI at
+  38): a fast-forward push brings it up to date.
 - **P1 (GitLab, personal gitlab.com only):** every command with
   `GLAB_CONFIG_DIR=~/.config/glab-personal` (the checks refuse a GitLab project without it):
   1. `mirai docs publish due-dates`, then
      `node <mirai>/test/probes/connector-probes.js --check published --initiative due-dates`
   2. `mirai approve due-dates-prd --file docs/mirai/due-dates/prd.md`, then `--check refused`
-  3. `mirai approve SAMPLE-50 --file docs/mirai/due-dates/epic-due-dates.md`; edit one word of the
-     PRD; `mirai docs publish due-dates`; then `--check stale`
+  3. `mirai approve SAMPLE-50 --file docs/mirai/due-dates/epic-due-dates.md`; the PRD edit above; `mirai docs publish due-dates`; then `--check stale`
   4. `mirai approve due-dates-prd --file docs/mirai/due-dates/prd.md`; `mirai docs publish
      due-dates`; `mirai docs merge due-dates` (again if it says "waiting for"); then `--check merged`
 - **P2 (GitHub, the sample app from 27a):** the same steps, without `GLAB_CONFIG_DIR`.
