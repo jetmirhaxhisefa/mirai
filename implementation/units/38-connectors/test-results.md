@@ -69,8 +69,17 @@
 ## Probes (real)
 
 P1 and P2 passed with Jet (2026-11-22): GitLab MR 5 merged as 0dc820f, GitHub PR #16 merged as
-00c4d0f; the sample app's main is level at 00c4d0f. P3 and P4 are prepared and proven runnable on
-throwaway clones, not run yet. `test/probes/connector-probes.js` holds the setup and the checks; the
+00c4d0f; the sample app's main is level at 00c4d0f. P3 passed with Jet (2026-11-22): SAMPLE-60 (a
+lone bug ticket) planned, built test-first, reviewed by Rex (who used his approved Bash overlay),
+proofs recorded, PR #17 opened; its diff held the fix and MIRAI's records and no document (the
+ticket file was on main already, D-54); `mirai merge` took it in as 5805b2d, SAMPLE-60 done. P4 passed
+with Jet (2026-11-22) in ~/Projects/mirai-p4-local: brief and PRD in MIRAI's store, approved,
+`git status` clean, `mirai show` paths in the store, doctor's "teammates can't see these documents".
+`git-probes.js --yes --mirai` passed (every probe, the two new docs calls inside each). Found on P3/P4:
+(d) P4's written steps ran `mirai key new` before committing `.mirai/framework`, so the launcher's
+seal refused it (correctly); commit first, then `key new`, then commit the public key; (e) both of
+Kai's plan launches on SAMPLE-60 began with a Read/Glob "outside the project" (refused by the cage;
+the run went on): worth a look at why the sample app gives Kai a reason to look outside. `test/probes/connector-probes.js` holds the setup and the checks; the
 steps with your key and the pushes are yours.
 
 Found on P1/P2 (to fix):
