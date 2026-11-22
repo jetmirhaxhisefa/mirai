@@ -1,7 +1,7 @@
 ---
 unit: "38b"
 name: naming
-status: draft (Jet, 2026-11-22: "naming: yes"; built after 38 is merged, before 39)
+status: approved (Jet, 2026-11-22: "naming: yes", then "approve 38b"; built after 38 is merged, before 39 is finished)
 roadmap: new, from unit 38's P2 finding ("merge request 16" printed for a GitHub pull request) and Jet's naming review (2026-11-22); D-37 (roles and agents as data); units 19b (roles), 21a/21b (Kai), 24a (Rex), 27b (hosts), 37 (overlays), 38 (docs publish)
 depends_on: ["37", "38"]
 ---
