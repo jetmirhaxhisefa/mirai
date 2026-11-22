@@ -114,6 +114,45 @@ are never touched.
   deleted, it's refused (`identity-changed`); store 43/43, and the setup, launch, install and
   doctor files pass. The scratch scan before P1 used a temp HOME, so it never met the pilot's store.
 
+- **F2, P1 step 4 (cosmetic): `mirai init`'s summary names only the pre-push.** It prints
+  `hooks: pre-push in … (core.hooksPath)`, but the pre-commit was installed too and ran at the
+  install commit ("mirai pre-commit: skipped: … isn't committed on the integration branch yet").
+  **Draft fix (not applied; batched after P1):** `hooksLine` in `src/cli/commands/init.js` names
+  the hooks the folder holds, from the record `installHooks` returns (`pre-push` and, with
+  `pre_commit: true`, `pre-commit`): `hooks: pre-push, pre-commit in … (core.hooksPath)`; a test in
+  `test/setup/setup.test.js` (T6) pins the line.
+- **F3, P1 step 8: `mirai session-server install` registered in the wrong Claude Code config,
+  and said nothing about which.** It calls `claude mcp add` at local scope with the terminal's
+  environment, so it went into the default `~/.claude.json` (Jet's work account). Jet runs MIRAI
+  only under his private account (`claude-priv`, `CLAUDE_CONFIG_DIR=~/.claude-private`), so
+  `/mirai setup` there found no `mcp__mirai__` tools. The output said "registered … (Claude Code,
+  local scope)" only. **Draft fix (not applied; batched after P1):**
+  - `install`, `remove` and `status` (`src/cli/commands/session-server.js`, `src/mcp/session.js`)
+    say which config they used: `CLAUDE_CONFIG_DIR` when it's set (its path), else
+    "the default config (~/.claude.json)"; for example `registered … (Claude Code, local scope, in
+    ~/.claude-private)`.
+  - Doctor's Session server item and the setup skill's first step (`registry/skills/mirai-setup/SKILL.md`,
+    "Where to start"; the same in `/mirai`'s command file): when the `mcp__mirai__` tools aren't in
+    the session, say "MIRAI's tools aren't connected in this session: in your terminal, run
+    `CLAUDE_CONFIG_DIR=<the dir this session uses> mirai session-server install`, then start a new
+    session", and stop there instead of going on without them. Doctor can't see which config a
+    session uses, so its line names the one it checked.
+  - `session-server remove` and `install` share `.claude/settings.local.json` (the ask rules), so
+    moving a registration from one config to another is `remove` with the old config's env, then
+    `install` with the new one's; the docs (`docs/agent-safety.md`, the session server's section)
+    say so.
+  - Tests: `install` with `CLAUDE_CONFIG_DIR` set names that dir and passes it to `claude` (fake
+    `claude`); without it, names the default.
+  - For Jet now: `mirai session-server remove` (default config), then
+    `CLAUDE_CONFIG_DIR=~/.claude-private mirai session-server install`, then `claude-priv`.
+- **Known flake, u39-tests-4 (at `d6afc48`): `test/launch/strict.test.js` T5/T6** failed once with
+  "a failed launch left its scratch folder" (`mirai-3d44597f`). The check lists every
+  `/private/tmp/mirai-*` folder before and after a refused launch, so another test file (or any
+  MIRAI run on the Mac) making one in between reads as a leak. The commit touched only the
+  store; the file passes 14/14 alone, and u39-tests-5 at the same commit passed 771/771. A later
+  fix: compare against the folder the refused launch would have used (or a private TMPDIR per
+  test), not the whole of `/private/tmp`.
+
 ### Before P1 and P2 (once, in Terminal)
 
 1. `git -C ~/Projects/mirai fetch origin unit/39-build`
@@ -301,12 +340,12 @@ The new case `c-custom-hook` runs in `redteam-full` on the sample app (runner jo
 
 **Through the build runner** (the authoritative runs, a clean export each):
 - `u39-tests-1` at `f94a975` (before main's 38 was merged in): **pass, 768/768**, 24 minutes.
-- `u39-tests-2` at `127dfc7` (main merged in, the pre-commit on the sealed copy): see the
-  coordinator's report.
-- `u39-tests-3` at this unit's last commit (the ledger fixes and these results): see the
-  coordinator's report; then `u39-baseline-1` and `u39-redteam-1` (`redteam-full`) on the sample
-  app at the same commit, since this unit changes the framework (the red team gains
-  `c-custom-hook`, and the launcher's hook rule changed).
+- `u39-tests-2` at `127dfc7` (main merged in, the pre-commit on the sealed copy): **pass, 769/769**.
+- `u39-tests-3` at `15ff50c`: **pass, 770/770**; `u39-baseline-1` there: **pass** (3.9 min; the
+  runner's refresh commit went through the new pre-commit); `u39-redteam-1` (`redteam-full`)
+  there: **pass** (13.9 min; the red team gains `c-custom-hook`).
+- `u39-tests-4` at `d6afc48` (the P1 store fix): 770/771, the known flake above; `u39-tests-5` at
+  the same commit: **pass, 771/771**.
 
 **On the Mac** before them: 768/768 at `f94a975`
 (`caffeinate -i node --test --test-timeout=300000 "test/**/*.test.js"`); after the last changes,
