@@ -83,7 +83,11 @@ approved PRD.
      and stops;
    - the run is recorded as paused, with the question;
    - after you answer (in a session resuming the interview), a new Nora run continues from the
-     documents as they are.
+     documents as they are;
+   - *(changed by 44's interview, Jet 2026-11-22):* the pause also carries Vera's `decision`
+     findings, asked at once and using no round. Nora never answers a decision herself: she
+     writes 36's `(open)` with the question (`Tax rules apply for (open) — EU only, or EU and
+     US? Asked in interview.md Q-7.`), and approval refuses it. See 44's decisions 3–6.
 6. **Template gaps:** her output schema has a `template_gaps` list (`type`, `what didn't fit`,
    `where it went`). MIRAI writes each one as a `template_gap` journal event. `mirai show
    <initiative>` lists them.

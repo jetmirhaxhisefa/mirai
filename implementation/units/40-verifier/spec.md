@@ -29,6 +29,11 @@ the document reaches you.
    type has one), then you. The author fixes Vera's must-fix findings. If any are still open
    after the last fix round, the document reaches you marked "Vera: N findings open", each one
    listed.
+
+   *(changed by 44's interview, Jet 2026-11-22):* each finding is `writing` or `decision`
+   (Scope 2). A decision goes to you at once, in any round, as an interview question, and uses
+   no round. After the last round, what only you can decide becomes an interview; the rest
+   reaches you as "Vera: N findings open". Approve anyway stays (decision 5's signed line).
 2. **Fix rounds are settings** (Jet: "two fix rounds are configurable"). `[docs]
    verify_fix_rounds = 2` for Vera, and `[docs] reader_fix_rounds = 2` for the reader test, which
    34 fixed in the code (`ROUNDS = 3`: the first run plus 2). Project file only; a range of 0–5.
@@ -70,7 +75,12 @@ the document reaches you.
    - `layer` (`checklist`, `top-vs-detail`, `context`);
    - `where` (the file, the line and the exact quoted text);
    - for a context finding, `against` (the context file and its line or source ID);
-   - `what` (one sentence) and `fix` (one sentence).
+   - `what` (one sentence) and `fix` (one sentence);
+   - *(changed by 44's interview, Jet 2026-11-22):* `kind` (`writing` or `decision`) with
+     `kind_reason` (one line), and for a decision a `decision_type` (`scope`, `audience`,
+     `money-legal`, `number`, `conflict`, `trade-off`, `other`, `invented`). A claim added since
+     her last check that no source holds is an `invented-decision` finding: always must-fix,
+     always a decision. The rule and the lists are in 44's decision 3.
    
    MIRAI checks every quote by text match, as 34 does: a finding whose quote isn't in the file is
    dropped and logged, never shown. A reply that isn't the schema records nothing.
