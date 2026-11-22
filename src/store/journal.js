@@ -48,7 +48,7 @@ export const EVENT_TYPES = Object.freeze({
   // `note` is in the line, so a signed move's note is signed too (unit 06).
   status_written: { privileged: true, human: true, fields: { ticket: f.ticket, state: f.state, park_reason: f.park_reason, note: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' } }, required: ['ticket', 'state'] },
   pushed: { privileged: true, fields: { ticket: f.ticket, branch: f.branch, sha: f.sha, proofs: { type: 'enum', values: ['pass'] } }, required: ['ticket', 'branch', 'sha'] },
-  mr_opened: { privileged: true, fields: { ticket: f.ticket, head: f.sha, target: f.branch, number: { type: 'integer', min: 1 }, url: { type: 'string', pattern: /^https:\/\/[^\s"'<>\\]{1,500}$/, patternHint: 'the MR\'s https URL' } }, required: ['ticket', 'head', 'target'] },
+  mr_opened: { privileged: true, fields: { ticket: f.ticket, head: f.sha, target: f.branch, number: { type: 'integer', min: 1 }, url: { type: 'string', pattern: /^https:\/\/[^\s"'<>\\]{1,500}$/, patternHint: 'an https URL' } }, required: ['ticket', 'head', 'target'] },
   // A merge into feature/<epic> names the epic, so `done` can be derived once the epic merges.
   // Unit 29a: the MR's final head and the commit the host merged it as (merge or squash), when
   // the host names them, so M1 can compare the code you merged with MIRAI's last push.
@@ -149,7 +149,7 @@ export const EVENT_TYPES = Object.freeze({
   docs_published: {
     privileged: true,
     fields: {
-      branch: f.branch, head: f.sha, number: { type: 'integer', min: 1 }, url: { type: 'string', pattern: /^https:\/\/[^\s"'<>\\]{1,500}$/, patternHint: 'the MR\'s https URL' },
+      branch: f.branch, head: f.sha, number: { type: 'integer', min: 1 }, url: { type: 'string', pattern: /^https:\/\/[^\s"'<>\\]{1,500}$/, patternHint: 'an https URL' },
       files: { type: 'array', items: { type: 'table', fields: { path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo' }, content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' } }, required: ['path', 'content_hash'] }, uniqueBy: 'path' },
     },
     required: ['item', 'branch', 'head', 'number', 'files'],

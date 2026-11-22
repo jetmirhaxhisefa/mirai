@@ -29,6 +29,7 @@ import { protectionRules } from '../trust/protected.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { codeHash, codePathsHide } from './hash.js';
 import { PROOF_NAME, PROOF_SCHEMA, RECORDS_DIR, proofPath, proofText, signProof } from './records.js';
+import { fullName } from '../agent/names.js';
 
 // `mirai gate record <ticket>` (unit 25a; D-16, AR3-15; Jet's decisions 2–7): at ship, MIRAI mints
 // the ticket's proofs for its branch's HEAD, in one go:
@@ -101,7 +102,7 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
   const store = openStore({ cwd, env });
   const status = readTicketStatus(store, ticket)?.status ?? null;
   if (!status) throw fail(`${ticket} has no status in MIRAI`, 'unknown-ticket', EXIT.USAGE);
-  if (status.state !== 'in-review') throw fail(`${ticket} is ${status.state}, not in-review: its proofs are minted after Rex's review passes`, 'not-reviewed', EXIT.BLOCKED, `mirai review ${ticket}`);
+  if (status.state !== 'in-review') throw fail(`${ticket} is ${status.state}, not in-review: its proofs are minted after ${fullName('mirai-reviewer')}'s review passes`, 'not-reviewed', EXIT.BLOCKED, `mirai review ${ticket}`);
   // Decision 7: signed from your terminal only until row 29b's machine key.
   if (unattended) {
     parkTicket(store, ticket, { reason: 'sign-proofs' });
@@ -143,12 +144,12 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
   const reviews = reviewsOf(store, ticket);
   const review = reviews.at(-1) ?? null;
   if (!review || review.record.outcome !== 'pass' || review.record.complete !== true) {
-    throw fail(`${ticket}'s latest review ${review ? `(${review.n}) is ${review.record.incomplete ? 'incomplete' : review.record.outcome}` : 'is missing'}: a proof needs Rex's pass`, 'no-review', EXIT.BLOCKED, `mirai review ${ticket}`);
+    throw fail(`${ticket}'s latest review ${review ? `(${review.n}) is ${review.record.incomplete ? 'incomplete' : review.record.outcome}` : 'is missing'}: a proof needs ${fullName('mirai-reviewer')}'s pass`, 'no-review', EXIT.BLOCKED, `mirai review ${ticket}`);
   }
   const reviewed = commitOf(store.checkout, review.record.commit, store.gitEnv);
   const reviewBase = reviewed ? mergeBase(store.checkout, trust.baseSha, reviewed, store.gitEnv) : null;
   const reviewedHash = reviewBase ? codeHash({ root: store.checkout, env: store.gitEnv, base: reviewBase, head: reviewed, codePaths }).hash : null;
-  if (reviewedHash !== code.hash) throw fail(`the code changed since Rex reviewed it (review ${review.n} at ${String(review.record.commit).slice(0, 12)})`, 'review-stale', EXIT.BLOCKED, `mirai review ${ticket}`);
+  if (reviewedHash !== code.hash) throw fail(`the code changed since ${fullName('mirai-reviewer')} reviewed it (review ${review.n} at ${String(review.record.commit).slice(0, 12)})`, 'review-stale', EXIT.BLOCKED, `mirai review ${ticket}`);
 
   // 4. The merge-base's baseline (decision 3).
   try {

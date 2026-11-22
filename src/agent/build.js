@@ -36,21 +36,22 @@ import { installDependencies, releaseInstalls } from './install.js';
 import { keepLineEndings } from './line-endings.js';
 import { newDependencies } from './deps.js';
 import { planInputs } from './inputs.js';
-import { AGENT, AGENT_LABEL, declaredChanges, LAUNCH_OPTIONS, planApproval, ticketRecord } from './plan.js';
+import { AGENT, declaredChanges, LAUNCH_OPTIONS, namerOf, planApproval, ticketRecord } from './plan.js';
+import { fullName } from './names.js';
 import { checkLaunchToken } from './requests.js';
 import { inRun, launchInRun, preGate } from './run.js';
 import { checkNothingHidden } from './scope.js';
 import { trustedAdapters } from '../tests/adapters.js';
 import { floorGuard, markersOf, MAX_RED_ROUNDS, redCheck, redProblems, redRows, rowCounts, tddOf, testFilesOf, testRows } from './tdd.js';
 
-// The build step (unit 21b; design/01 §7, R-M4, R3-C2, R3-M2). Kai, as author, works from the plan
+// The build step (unit 21b; design/01 §7, R-M4, R3-C2, R3-M2). Kai, as developer, works from the plan
 // you approved, on the ticket's own branch, and runs the tests and checks itself through MIRAI's
 // server before it hands over: what fails inside its session costs no round. Then MIRAI checks
 // what it did: the launch's own checks (19a, 19b), protected paths against the plan's declared
 // ones, new dependencies against the plan's, and a test run of its own, judged against your
 // baseline. Nothing is committed (unit 22); a refused run's files stay for you.
 
-export const BUILD_ROLE = 'author';
+export const BUILD_ROLE = 'developer';
 export const BUILD_MAX_TURNS = 150;
 export const BUILD_TIMEOUT_MS = 60 * 60_000;
 const handoverSchema = (statuses) => Object.freeze({
@@ -431,9 +432,10 @@ export function preflight({ cwd, env, store, ticket, unattended, state = 'in-pro
 export async function runBuild({ cwd, env, ticket, launchToken = null, nextToken = null, recheck = false, unattended = false, launchOptions = {}, launch = launchInRun, tests = testsAfter, testRun = undefined, run: outerRun = null, install = installDependencies, now = () => new Date() }) {
   if (!recheck) checkLaunchToken(launchToken);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
+  const who = namerOf(watch);
   // The first sign of life (unit 21e), before MIRAI's own checks.
   try {
-    if (!recheck) watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
+    if (!recheck) watch.onProgress?.({ kind: 'preparing', agent: who(AGENT), model: null, turns: 0, minutes: 0 });
   } catch {
     // a display only
   }
@@ -498,7 +500,7 @@ export async function runBuild({ cwd, env, ticket, launchToken = null, nextToken
         let r;
         try {
           r = await launch({
-            ...watch, cwd, env, store, runId, startRun: !outer && resumeFrom === null && base === stepBase, ownsRun: false, launchToken: token, agent: AGENT, progressLabel: AGENT_LABEL, role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
+            ...watch, cwd, env, store, runId, startRun: !outer && resumeFrom === null && base === stepBase, ownsRun: false, launchToken: token, agent: AGENT, progressLabel: who(AGENT), role: BUILD_ROLE, step: 'build', risk, size, expectBase: trust.baseSha,
             prompt, item: ticket, maxTurns: BUILD_MAX_TURNS, timeoutMs: watch.timeoutMs ?? BUILD_TIMEOUT_MS, inputs, jsonSchema: schema, now,
             // Kept for the next half or a fix round to resume (units 21c, 23); a new build starts a new session.
             session: { keep: true, ...(resumeFrom ? { resumeFrom } : {}) },
@@ -581,7 +583,7 @@ export async function afterLaunch({ r, cwd, env, store, runId, trust, config, re
     return { outcome: 'agent-failed', why: handover.problem };
   }
   if (handover.status === 'blocked') {
-    const why = handover.blocked_reason ?? 'Kai stopped without a reason';
+    const why = handover.blocked_reason ?? `${fullName(AGENT)} stopped without a reason`;
     record({ outcome: 'blocked', why, handover });
     return { outcome: 'blocked', why, handover };
   }
@@ -641,10 +643,10 @@ async function recheckBuild({ cwd, env, store, runId, fm = {}, ticket, keys, pla
   const branch = symbolicBranch(store.checkout, 'HEAD', store.gitEnv);
   if (branch !== last.branch || commitOf(store.checkout, 'HEAD', store.gitEnv) !== last.head) throw fail(`the checkout isn't where ${ticket}'s build left it (${last.branch} at ${String(last.head).slice(0, 12)})`, 'build-moved', EXIT.BLOCKED, `git switch ${last.branch}`);
   // The plan Kai built from, and nothing git is told to look past (as every launch: 19b).
-  if (last.plan_sha256 !== contentHash(Buffer.from(plan))) throw fail(`${ticket}'s approved plan changed since its build; a recheck judges only what Kai built from`, 'plan-changed', EXIT.BLOCKED, `build it again: mirai build ${ticket}`);
+  if (last.plan_sha256 !== contentHash(Buffer.from(plan))) throw fail(`${ticket}'s approved plan changed since its build; a recheck judges only what ${fullName(AGENT)} built from`, 'plan-changed', EXIT.BLOCKED, `build it again: mirai build ${ticket}`);
   checkNothingHidden(store.checkout, store.gitEnv);
   const seen = observe({ store, base: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null });
-  if (seen.fingerprint !== last.fingerprint) throw fail(`the tree changed since ${ticket}'s build; only Kai's work is checked again`, 'tree-changed', EXIT.BLOCKED, 'put it back as the build left it, or start the ticket again');
+  if (seen.fingerprint !== last.fingerprint) throw fail(`the tree changed since ${ticket}'s build; only ${fullName(AGENT)}'s work is checked again`, 'tree-changed', EXIT.BLOCKED, 'put it back as the build left it, or start the ticket again');
   // A recheck runs no launch and no run state, so no heartbeat is shown for it: its checks print only.
   const checked = await checkAfter({ onCheck: watch.onCheck ?? null, cwd, env, store, trust, config, registry, keys, plan, branchBase: last.base, stepBase: last.step_base ?? last.base, rules, ignoredBefore: last.ignored_before ?? null, tests, testRun, signal: watch.signal ?? null, seen });
   // A tree that wasn't committed (stopped before the safety checks passed, under older rules) and

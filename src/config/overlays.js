@@ -9,7 +9,7 @@ import { deepFreeze } from '../util/freeze.js';
 import { verifySigned } from '../sign/sign.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { scanMarkdown } from '../lint/markdown.js';
-import { BUILT_IN_CHECKS, CHECK_READS, FLOOR_DENY_TOOLS, SUMMARY_PARTS, checkDocumentTypeDef, loadCustomRoles } from './registry.js';
+import { BUILT_IN_CHECKS, CHECK_READS, FLOOR_DENY_TOOLS, SUMMARY_PARTS, checkDocumentTypeDef, loadCustomRoles, renamedRoleMessage } from './registry.js';
 
 // Overlays (unit 37; D-37, R2-M12): a project's own changes to MIRAI's document types, templates,
 // agents and skills, kept in .mirai/custom/ beside MIRAI's files. Each is approved by you (signed,
@@ -103,6 +103,8 @@ const AGENT_OVERLAY = {
     // Not taken: an agent's own write scope isn't applied by MIRAI (unit 21a). It's refused with
     // the way that works: a role of its own.
     may_write: { type: 'table', fields: { paths: { type: 'array', items: { type: 'string' } } } },
+    // Not taken either (unit 38b): the persona is MIRAI's, the name its output gives the agent.
+    persona: { type: 'string' },
     instructions: INSTRUCTIONS,
   },
   required: ['kind', 'schema_version', 'name'],
@@ -547,9 +549,12 @@ function applyAgent(o, registry, roles) {
   if (!core) return o.problems.push(`there's no agent "${v.name}" (agents: ${Object.keys(registry.agents).sort().join(', ')}); a new agent comes with its own unit`);
   const problems = o.problems;
   if (v.may_write !== undefined) problems.push('may_write: an agent\'s own write scope isn\'t applied by MIRAI; give it a role of its own in .mirai/custom/roles/ and name it in role');
+  if (v.persona !== undefined) problems.push(`persona: an agent's persona is MIRAI's (${core.persona ?? v.name}); an overlay can't change it`);
   const role = v.role ?? core.role;
-  const roleDef = Object.hasOwn(roles, role) ? roles[role] : null;
-  if (!roleDef) problems.push(`role "${role}" isn't a role (roles: ${Object.keys(roles).sort().join(', ')})`);
+  const renamed = renamedRoleMessage(role);
+  const roleDef = !renamed && Object.hasOwn(roles, role) ? roles[role] : null;
+  if (renamed) problems.push(renamed);
+  else if (!roleDef) problems.push(`role "${role}" isn't a role (roles: ${Object.keys(roles).sort().join(', ')})`);
   const profile = Object.values(registry.adapters ?? {}).find((a) => a.strict)?.strict ?? null;
   const floor = new Set([...FLOOR_DENY_TOOLS, ...(profile?.deny_tools ?? [])]);
   const tools = v.tools?.allowed ?? core.tools.allowed;

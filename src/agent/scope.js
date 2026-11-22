@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { ConfigError, MiraiError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
-import { loadCustomRoles } from '../config/registry.js';
+import { loadCustomRoles, renamedRoleMessage, staleRoleCopy } from '../config/registry.js';
 import { configValue, hiddenFromStatus, ignoredNames, workTreeChanges } from '../store/git.js';
 import { trustedRegistry } from '../trust/snapshot.js';
 import { included } from '../util/glob.js';
@@ -30,8 +30,14 @@ export function trustedRoles(trust) {
   }
 }
 
+// A renamed role (unit 38b: `author` is `developer`) is refused with its new name, never mapped;
+// a trust root that still has the old name and not the new one is a framework copy from before it.
 export function findRole(roles, name) {
+  const renamed = renamedRoleMessage(name);
+  if (renamed) throw Object.assign(new MiraiError(renamed, EXIT.USAGE), { code: 'renamed-role' });
   if (Object.hasOwn(roles, name)) return roles[name];
+  const stale = staleRoleCopy(roles);
+  if (stale) throw Object.assign(new MiraiError(`this project's MIRAI copy is from before unit 38b (it has the role "${stale[0]}", now "${stale[1]}"): run mirai init --refresh, and commit it`, EXIT.CONFIG), { code: 'old-framework-copy' });
   throw Object.assign(new MiraiError(`there's no role ${JSON.stringify(String(name).slice(0, 40))}; roles: ${Object.keys(roles).sort().join(', ')}`, EXIT.USAGE), { code: 'unknown-role' });
 }
 

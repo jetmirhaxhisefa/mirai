@@ -4,6 +4,7 @@ import { buildRecordPath } from '../agent/build.js';
 import { codeHash } from '../proofs/hash.js';
 import { checkProofs } from '../proofs/check.js';
 import { hostFor } from '../ship/host.js';
+import { projectWords, wordsOfHost } from '../ship/words.js';
 import { branchKeys } from '../sign/keys.js';
 import { commitOf, fetchBranch, isAncestor, mergeBase, remotes, resetTo, switchBranch, symbolicBranch, workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
@@ -31,30 +32,32 @@ export function mergeChecks({ cwd, env, ticket, hostOf = hostFor }) {
   const store = openStore({ cwd, env });
   const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
   const facts = ticketFacts(readJournal(store, { keys }).events, ticket);
-  if (facts.mr === 'merged') throw fail(`${ticket}'s MR is merged already`, 'mr-merged', 'nothing to merge: it\'s done');
-  if (facts.mr === 'closed') throw fail(`${ticket}'s MR is closed`, 'mr-closed', `reopen it on the host and run mirai ship ${ticket}, or drop the ticket: mirai drop ${ticket}`);
-  if (facts.mr !== 'open' || !facts.number) throw fail(`${ticket} has no MR MIRAI opened`, 'no-mr', `mirai run ${ticket} (or mirai ship ${ticket})`);
+  const pw = () => projectWords({ cwd, env, store });
+  if (facts.mr === 'merged') throw fail(`${ticket}'s ${pw().long} is merged already`, 'mr-merged', 'nothing to merge: it\'s done');
+  if (facts.mr === 'closed') throw fail(`${ticket}'s ${pw().long} is closed`, 'mr-closed', `reopen it on the host and run mirai ship ${ticket}, or drop the ticket: mirai drop ${ticket}`);
+  if (facts.mr !== 'open' || !facts.number) throw fail(`${ticket} has no ${pw().long} MIRAI opened`, 'no-mr', `mirai run ${ticket} (or mirai ship ${ticket})`);
   const trust = snapshot({ cwd, env });
   const config = trustedConfig(trust);
   const host = hostOf({ config, remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null, store, env, root: store.checkout });
+  const w = wordsOfHost(host);
   host.checkAuth();
   const live = host.mrState(facts.number);
   if (live.state === 'merged') {
     appendEvent(store, { type: 'mr_merged', by: 'script', ticket, target: 'integration', head: live.head });
-    throw fail(`${ticket}'s MR ${facts.url ?? ''} was merged on the host`, 'mr-merged', 'nothing to merge: it\'s done');
+    throw fail(`${ticket}'s ${w.short} ${facts.url ?? ''} was merged on the host`, 'mr-merged', 'nothing to merge: it\'s done');
   }
   if (live.state !== 'open') {
     appendEvent(store, { type: 'mr_closed', by: 'script', ticket });
-    throw fail(`${ticket}'s MR ${facts.url ?? ''} is ${live.state}`, 'mr-closed', `reopen it on the host and run mirai ship ${ticket}, or mirai drop ${ticket}`);
+    throw fail(`${ticket}'s ${w.short} ${facts.url ?? ''} is ${live.state}`, 'mr-closed', `reopen it on the host and run mirai ship ${ticket}, or mirai drop ${ticket}`);
   }
   const head = live.head;
-  if (head !== facts.lastPush) throw fail(`the MR's head ${head.slice(0, 7)} isn't what MIRAI pushed (${String(facts.lastPush).slice(0, 7)}): someone pushed after MIRAI`, 'mr-head-moved', `look at it: mirai review-mr ${ticket}; MIRAI merges only what it pushed and you reviewed`);
+  if (head !== facts.lastPush) throw fail(`the ${w.long}'s head ${head.slice(0, 7)} isn't what MIRAI pushed (${String(facts.lastPush).slice(0, 7)}): someone pushed after MIRAI`, 'mr-head-moved', `look at it: mirai review-mr ${ticket}; MIRAI merges only what it pushed and you reviewed`);
   if (!commitOf(store.checkout, head, store.gitEnv)) throw fail(`${head.slice(0, 7)} isn't in this clone`, 'not-in-clone', 'git fetch origin, then run it again');
   const codePaths = config.gate?.code_paths ?? ['**'];
   const proofs = checkProofs({ root: store.checkout, env: store.gitEnv, ticket, commit: head, integration: trust.baseSha, codePaths, keys, repoId: store.repoId, rules: protectionRules(trustedRegistry(trust), config).rules, docsRoot: config.docs?.root });
   if (proofs.outcome !== 'pass') throw fail(`${ticket}: the proofs are ${proofs.outcome} at ${head.slice(0, 7)}`, 'proofs', `mirai gate record ${ticket}, after the review`);
-  if (live.mergeable === null) throw fail(`the host is still working out whether it can merge ${ticket}'s MR`, 'mr-checking', 'run it again in a minute');
-  if (live.mergeable !== true) throw fail(`the host can't merge ${ticket}'s MR${live.why ? `: ${live.why}` : ''}`, 'mr-not-mergeable', 'see the MR on the host');
+  if (live.mergeable === null) throw fail(`the host is still working out whether it can merge ${ticket}'s ${w.long}`, 'mr-checking', 'run it again in a minute');
+  if (live.mergeable !== true) throw fail(`the host can't merge ${ticket}'s ${w.long}${live.why ? `: ${live.why}` : ''}`, 'mr-not-mergeable', `see the ${w.long} on the host`);
   if (live.ci.state === 'failed') throw fail(`CI failed on ${head.slice(0, 7)} (${live.ci.checks.filter((c) => c.state === 'failed').map((c) => c.name).join(', ')})`, 'ci-failed', 'see the checks on the host');
   if (live.ci.state === 'pending') throw fail(`CI is still running on ${head.slice(0, 7)}`, 'ci-pending', 'run it again when it\'s done');
   const base = mergeBase(store.checkout, head, trust.baseSha, store.gitEnv);
@@ -65,7 +68,7 @@ export function mergeChecks({ cwd, env, ticket, hostOf = hostFor }) {
   } catch {
     branch = null;
   }
-  return { store, host, facts, live, head, branch, codeHash: hash, integration: config.git?.integration_branch ?? store.branch };
+  return { store, host, words: w, facts, live, head, branch, codeHash: hash, integration: config.git?.integration_branch ?? store.branch };
 }
 
 // The merge, after the checks and your typed key. `signer`: your key; `answeredAfterS`: how long

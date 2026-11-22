@@ -16,6 +16,7 @@ import { readTicketStatus } from '../store/tickets.js';
 import { deriveTicketState } from '../status/derive.js';
 import { plain } from '../status/text.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
+import { hostWords } from '../ship/words.js';
 
 // `mirai show <ticket>` (unit 28, decision 7; D-29, Q9): one ticket's page from the store, never
 // committed, never written. Every value an agent or a file could have written is escaped (`plain`).
@@ -105,10 +106,10 @@ export function showData({ cwd, env, ticket }) {
 const ago = (iso) => (iso ? String(iso).replace('T', ' ').slice(0, 16) : '');
 
 // The page as text. `full`: every finding's text, the plan, and the parking note whole.
-export function showText(d, { full = false } = {}) {
+export function showText(d, { full = false, words = hostWords(null) } = {}) {
   const out = [];
   const built = d.mr?.state === 'open' && d.mr.proofs_at_head;
-  out.push(`${d.ticket}: ${plain(d.title ?? '(no title)')}          ${built ? 'built' : d.state ?? 'unknown'}${d.mr?.url ? ` · MR ${plain(d.mr.url)}` : ''}`);
+  out.push(`${d.ticket}: ${plain(d.title ?? '(no title)')}          ${built ? 'built' : d.state ?? 'unknown'}${d.mr?.url ? ` · ${words.short} ${plain(d.mr.url)}` : ''}`);
   // A merged MR: the proofs did their job; "not at head" would read like a problem.
   out.push(`  ${d.branch ? `branch ${plain(d.branch)}${d.head ? ` at ${d.head.slice(0, 7)}` : ''}` : 'no branch yet'}${d.mr?.state === 'open' ? ` · proofs ${d.mr.proofs_at_head ? 'valid at head' : 'not at head'}` : ''} · ${d.risk ?? 'normal'} risk`);
   out.push('');
@@ -121,7 +122,7 @@ export function showText(d, { full = false } = {}) {
     if (full) for (const f of r.findings.filter((x) => x.severity !== 'blocking')) out.push(`  ${plain(f.id)} ${f.severity}  ${plain(f.file ?? '')}${f.line ? `:${f.line}` : ''}  ${plain(f.claim ?? '')}`);
   }
   if (d.disputes.length) row('Disputes', `${d.disputes.length}`);
-  row('MR', d.mr ? `${d.mr.state}${d.mr.url ? ` ${plain(d.mr.url)}` : ''}` : 'not yet');
+  row(words.short, d.mr ? `${d.mr.state}${d.mr.url ? ` ${plain(d.mr.url)}` : ''}` : 'not yet');
   row('Rounds', `${d.rounds.used} of ${d.rounds.of} used · re-plans ${d.rounds.replans} of ${d.rounds.replans_of}${d.parks.length ? ` · parks: ${d.parks.map((p) => `${plain(p.reason)} ×${p.count}`).join(', ')}` : ' · no parks'}`);
   row('Usage', `${d.usage.turns} turns · ${d.usage.tokens >= 1e6 ? `${(d.usage.tokens / 1e6).toFixed(1)} M` : `${Math.round(d.usage.tokens / 1000)} k`} tokens · ${d.usage.minutes} min`);
   row('Parked', d.state === 'blocked' ? `${plain(d.park_reason ?? '')}${d.note ? `: ${plain(d.note).slice(0, full ? 2000 : 200)}` : ''} · then: ${unparkCommand(d.ticket, d.park_reason)}` : '—');

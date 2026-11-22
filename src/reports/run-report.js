@@ -15,6 +15,9 @@ import { buildRecordPath } from '../agent/build.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
 import { classifyTicket } from './m1.js';
 import { renderRunReport } from './render.js';
+import { personaOf } from '../agent/names.js';
+import { wordsFor } from '../ship/words.js';
+import { remotes } from '../store/git.js';
 
 // The run report (unit 29a, Jet's decision 4; PM2-17; the Milestone A exit evidence): one run's
 // tickets, each with its whole path so far (an earlier run's steps marked), its rounds of the cap,
@@ -36,9 +39,10 @@ const iso = (ts) => (typeof ts === 'string' ? ts : undefined);
 const tokensOf = (l) => (l.tokens_in ?? 0) + (l.tokens_out ?? 0) + (l.tokens_cached ?? 0);
 const VERDICT_TEXT = { pass: 'pass', fail: 'fail', blocked: 'blocked', 'needs-human': 'needs you', error: 'error' };
 
-// The step's name as you read it: Kai's plan, Kai's build, Rex's review, …
+// The step's name as you read it: Kai's plan, Kai's build, Rex's review, … (the persona from the
+// registry, unit 38b; the renderer names the agent in full the first time).
 function launchText(l) {
-  const who = l.agent === 'mirai-reviewer' ? 'Rex' : l.agent === 'mirai-developer' ? 'Kai' : l.role ?? 'an agent';
+  const who = personaOf(l.agent) ?? l.agent ?? l.role ?? 'an agent';
   const what = { plan: 'plan', replan: 're-plan', build: 'build', fix: 'fix', review: 'review', 'review-high-risk': 'high-risk review', verify: 'check', qa: 'QA' }[l.step] ?? l.step ?? 'launch';
   return `${who}'s ${what}`;
 }
@@ -71,6 +75,9 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
   const keys = branchKeys(store.checkout, store.branch, store.gitEnv);
   const events = readJournal(store, { keys }).events;
   const facts = allTicketFacts(events);
+  // The host's word (unit 38b): "pull request" on GitHub.
+  const words = wordsFor({ config, remoteUrl: remotes(store.checkout, store.gitEnv).get('origin') ?? null });
+
   // Every run's launch lines, for each ticket's whole path (earlier runs' marked).
   const launches = [];
   for (const rid of ids) {
@@ -100,7 +107,7 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
     const steps = [];
     for (const l of launches.filter((x) => x.item === ticket)) {
       steps.push({
-        seq: l.seq, kind: 'launch', earlier: l.run !== id, ...(iso(l.ts) ? { at: l.ts } : {}), text: launchText(l), ...(l.step ? { step: l.step } : {}),
+        seq: l.seq, kind: 'launch', earlier: l.run !== id, ...(iso(l.ts) ? { at: l.ts } : {}), text: launchText(l), ...(typeof l.agent === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(l.agent) ? { agent: l.agent } : {}), ...(l.step ? { step: l.step } : {}),
         ...(Number.isInteger(l.round) ? { round: l.round } : {}), ...(l.model ? { model: l.model } : {}), ...(l.model_used ? { model_used: l.model_used } : {}),
         turns: l.turns ?? 0, tokens: tokensOf(l), minutes: round1(l.minutes ?? 0), ...(typeof l.limit_share === 'number' ? { limit_share: l.limit_share } : {}),
         ...(l.verdict ? { verdict: VERDICT_TEXT[l.verdict] ?? l.verdict } : l.outcome && l.outcome !== 'ok' ? { verdict: l.outcome } : {}),
@@ -111,17 +118,17 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
       const at = iso(e.ts) ? { at: e.ts } : {};
       const earlier = e.seq < startSeq;
       const later = e.seq > endSeq ? { later: true } : {};
-      if (e.type === 'approval') steps.push({ seq: e.seq, kind: 'approval', earlier, ...later, ...at, text: e.kind === 'merge' ? `MR merged by you from MIRAI${e.by === 'human' ? ', signed' : ''}` : `${e.kind === 'plan' ? 'plan' : 'ticket'} ${e.decision === 'accepted' ? 'approved' : e.decision} by you${e.by === 'human' ? ', signed' : ''}` });
+      if (e.type === 'approval') steps.push({ seq: e.seq, kind: 'approval', earlier, ...later, ...at, text: e.kind === 'merge' ? `${words.short} merged by you from MIRAI${e.by === 'human' ? ', signed' : ''}` : `${e.kind === 'plan' ? 'plan' : 'ticket'} ${e.decision === 'accepted' ? 'approved' : e.decision} by you${e.by === 'human' ? ', signed' : ''}` });
       else if (e.type === 'pushed') steps.push({ seq: e.seq, kind: 'push', earlier, ...later, ...at, text: `${e.proofs === 'pass' ? 'proofs checked, ' : ''}pushed ${e.sha.slice(0, 7)}` });
-      else if (e.type === 'mr_opened') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: `MR ${e.number ? `#${e.number} ` : ''}opened` });
-      else if (e.type === 'mr_merged') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: `MR merged into ${e.target === 'epic' ? `feature/${e.epic}` : 'the integration branch'}` });
-      else if (e.type === 'mr_closed') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: 'MR closed without merge' });
+      else if (e.type === 'mr_opened') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: `${words.short} ${e.number ? `${words.ref(e.number)} ` : ''}opened` });
+      else if (e.type === 'mr_merged') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: `${words.short} merged into ${e.target === 'epic' ? `feature/${e.epic}` : 'the integration branch'}` });
+      else if (e.type === 'mr_closed') steps.push({ seq: e.seq, kind: 'mr', earlier, ...later, ...at, text: `${words.short} closed without merge` });
     }
     steps.sort((a, b) => a.seq - b.seq);
     const f = facts.get(ticket) ?? { mr: 'none' };
     let mr;
     if (f.mr !== 'none') {
-      const cls = config.gate?.code_paths && config.git?.integration_branch ? classifyTicket({ root: store.checkout, env: store.gitEnv, ticket, facts: f, codePaths: config.gate.code_paths, integration: config.git.integration_branch, host }) : null;
+      const cls = config.gate?.code_paths && config.git?.integration_branch ? classifyTicket({ root: store.checkout, env: store.gitEnv, ticket, facts: f, codePaths: config.gate.code_paths, integration: config.git.integration_branch, host, words }) : null;
       mr = { state: f.mr, ...(f.url ? { url: f.url } : {}), ...(cls ? { m1: cls.class, ...(cls.why ? { m1_why: cls.why.slice(0, 300) } : {}) } : {}) };
     }
     const feedback = events.filter((e) => e.type === 'feedback' && e.ticket === ticket).map((e) => ({ by: e.by === 'human' ? 'you' : e.by === 'script' ? 'your terminal' : 'your session', ...(iso(e.ts) ? { at: e.ts } : {}), text: e.text }));
@@ -182,7 +189,7 @@ export async function runReportData({ cwd, env, runId = null, host = null, redTe
   const templateGaps = events.filter((e) => e.type === 'template_gap' && e.seq >= startSeq).map((e) => ({ template: e.template.slice(0, 80), section: e.section.slice(0, 120), message: e.message.slice(0, 300) }));
   return {
     run: { id, date: `${id.slice(2, 6)}-${id.slice(6, 8)}-${id.slice(8, 10)}`, preset: started?.preset ?? 'supervised', state },
-    tickets, done, parked, paused: [], followups: followups.slice(0, 500), usage, inbox, template_gaps: templateGaps.slice(0, 100), known_failures: known.slice(0, 200), branch_warnings: [], clean_due: false, red_team: red,
+    tickets, done, parked, paused: [], followups: followups.slice(0, 500), usage, inbox, template_gaps: templateGaps.slice(0, 100), known_failures: known.slice(0, 200), branch_warnings: [], clean_due: false, red_team: red, ...(words.host ? { host: words.host } : {}),
   };
 }
 

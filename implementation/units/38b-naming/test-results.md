@@ -1,0 +1,74 @@
+# Unit 38b: test results (2026-11-22)
+
+## Tests
+
+- **`test/agent/naming.test.js`** (new):
+  - T1: MIRAI's registry has the role `developer` (read-write, step `build`, `may_write` `["**"]`,
+    only the name changed) and no `author`; Kai's definition names it; `BUILD_ROLE` is
+    `developer`; `RENAMED_ROLES` is `{ author: 'developer' }`;
+  - T2: refused, each with `the role "author" is now "developer" (MIRAI 38b): write role =
+    "developer"`: an agent overlay with `role = "author"` (not applied); `findRole` for `author`
+    (what `mirai agent run --role` and the broker's `start_agent` use), even on a copy that still
+    has it; `.mirai/custom/roles/author.toml` (`renamed-role`); and `mirai agent run --role author`
+    through the CLI, before anything launches;
+  - T3: a role set with `author` and no `developer` (a framework copy from before 38b) refuses the
+    build role with `this project's MIRAI copy is from before unit 38b (it has the role "author",
+    now "developer"): run mirai init --refresh, and commit it` (`old-framework-copy`); a set with
+    neither is a plain `unknown-role`; an old copy's agents (no persona) are named by id;
+  - T4: an `agent_run` line with `"role": "author"` still validates (`buildRunLine`); the run
+    report still says "Kai's build"; a report saved before 38b (no `agent` on its steps) renders as
+    it did;
+  - T5: the sample app's approved Rex overlay (tools only, Bash added) is a `widening` with
+    `overlayHash` `sha256:a0d673c4…5e08`, the same hash `main` before 38b (6a56e7a) computes from
+    the same bytes, so its signed approval stays valid; the persona carries through;
+  - T6: every agent in MIRAI's registry has a persona (Kai, Rex); the namer gives
+    "Kai (mirai-developer)" once, then "Kai", and the same for Rex; Markdown gives
+    ``Kai (`mirai-developer`)``; an id with no persona is its id; the reviewer refusals read
+    `Kai (mirai-developer) never runs under the reviewer role: who writes a change never reviews
+    it` (code `author-reviews` unchanged) and `only Rex (mirai-reviewer) reviews; …`; an overlay
+    with `persona` is refused (`persona: an agent's persona is MIRAI's (Rex); an overlay can't
+    change it`); a registry whose persona isn't one capitalised word is refused;
+  - T7: `hostWords('github')` is pull request / PR / `#16`, `('gitlab')` merge request / MR / `!16`,
+    `(null)` GitLab's words with no host; `wordsFor` from the config and remote (github.com,
+    gitlab.com, a self-hosted GitLab named in config, no remote, a host it can't tell); a host
+    object's words; the run report's ticket line says "PR open …" for a GitHub report;
+  - T8: a source check over `src/`: no string outside `src/ship/words.js`, `src/ship/gitlab.js`
+    and the lint's acronym list says "merge request" or "MR"; no string says Kai or Rex (comments
+    and the two sentences of Kai's fix prompt that talk to the agent are left out, as the spec says).
+- **`test/run/run.test.js`:** T6 end to end: `mirai run` (driveTicket, stand-in claude, one namer as
+  the CLI passes it): the plan run's progress names "Kai (mirai-developer)" once; after your
+  approval, the build-and-review run's first Kai line is `Kai (mirai-developer): preparing the
+  launch …`, every later one "Kai (Sonnet) …"; Rex the same; the run log's launches are
+  `mirai-developer`/`developer`/`build` and `mirai-reviewer`/`reviewer`/`review`. 29a's report
+  test: the saved Markdown says ``Kai (`mirai-developer`)'s plan`` (earlier run), then "Kai's
+  build", and ``Rex (`mirai-reviewer`)'s review``; with no origin remote the step reads "MR !7
+  opened" (an unknown host takes GitLab's words).
+- **T7 through the commands** (stand-in gh and glab):
+  - `test/store/docs-publish.test.js`: `mirai docs publish` prints `pull request #1: https://github.com/…`
+    on GitHub (38's P2 printed "merge request 16") and `merge request !1: https://gitlab.com/…` on
+    GitLab; GitHub's refusals and waits say "docs pull request";
+  - `test/ship/ship.test.js` and `gitlab.test.js`: ship's line is `PR #1` on GitHub and `MR !1` on
+    GitLab;
+  - `test/review/review-mr.test.js`: the packet's head line is `PMT-31 · PR #1 open · …` (the host's
+    words), and `mirai merge` says `merge PMT-31's pull request #1 …` and `merged: PMT-31's pull
+    request …`.
+- **Changed pins:** the role list (`developer`), the cage's root `registry/roles/developer.toml`,
+  `mirai status`'s "why" (MR in the fixtures, which have no origin remote), the lone ticket's
+  refusal ("a ticket's code merge request"), and every test launch's `role: 'author'`.
+- **T9:** the docs check (`test/docs/coverage.test.js`, 14/14) passes; the full suite: see below.
+
+## The full suite
+
+Through the build runner: see the report of `u38b-tests-1`.
+
+## The red team
+
+The cage changes: `registry/roles/author.toml` → `developer.toml`, `src/agent/run.js`, and two new
+cage files, `src/agent/persona.js` (the pure full-name helper `run.js` uses, so the registry folder
+stays out of the cage) and `src/ship/words.js` (reached through `src/status/derive.js`). The
+sample app's red-team pass goes stale with the refresh; a `redteam-full` run is due before
+approval.
+
+## Probes (real)
+
+Not run: P1 needs you.

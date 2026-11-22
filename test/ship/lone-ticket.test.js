@@ -60,7 +60,7 @@ launchTest('38 T7: a lone ticket\'s own file rides in its code MR with the proof
   assert.equal(f.check(f.git('rev-parse', 'HEAD')).outcome, 'pass');
   await assert.rejects(f.ship(), (err) => {
     assert.equal(err.code, 'docs-in-code-mr');
-    assert.match(err.message, /changes 1 document under docs\/mirai\/ \(docs\/mirai\/due-dates\/prd\.md\): a ticket's code MR doesn't carry documents/);
+    assert.match(err.message, /changes 1 document under docs\/mirai\/ \(docs\/mirai\/due-dates\/prd\.md\): a ticket's code merge request doesn't carry documents/);
     assert.match(err.hint, /mirai docs publish <initiative>/);
     return true;
   });

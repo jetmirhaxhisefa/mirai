@@ -64,17 +64,17 @@ launchTest('T1: a reviewer that changes a tracked, a new or an ignored file is r
 
 launchTest('T2: an author inside its scope is ok, but not in ignored files; a project role can\'t widen the core ones', async () => {
   const f = repo();
-  const ok = await run(f, 'author', 'echo x > src-new.txt');
+  const ok = await run(f, 'developer', 'echo x > src-new.txt');
   assert.equal(ok.outcome, 'ok');
   f.git('add', '-A');
   f.git('commit', '-qm', 'the author\'s change');
-  const planted = await run(f, 'author', 'mkdir -p node_modules/.bin; echo y > node_modules/.bin/b1-tool');
+  const planted = await run(f, 'developer', 'mkdir -p node_modules/.bin; echo y > node_modules/.bin/b1-tool');
   assert.equal(planted.outcome, 'refused', 'an ignored file, which runs later, needs the role to allow it');
   assert.match(planted.why, /node_modules\/\.bin\/b1-tool/);
-  await assert.rejects(run(f, 'author', 'true'), (e) => e.code === 'ignored-pending', 'the planted file refuses the next launch');
+  await assert.rejects(run(f, 'developer', 'true'), (e) => e.code === 'ignored-pending', 'the planted file refuses the next launch');
   rmSync(join(f.root, 'node_modules', '.bin', 'b1-tool'));
-  assert.equal((await run(f, 'author', 'true')).outcome, 'ok', 'and once it\'s gone, the next goes');
-  assert.equal(ok.line.role, 'author');
+  assert.equal((await run(f, 'developer', 'true')).outcome, 'ok', 'and once it\'s gone, the next goes');
+  assert.equal(ok.line.role, 'developer');
   assert.equal(ok.line.step, 'build');
   // A project's own role named like a core one is refused, so it can't loosen it.
   const g = installed({ files: { '.mirai/custom/roles/reviewer.toml': 'kind = "role"\nschema_version = 1\nname = "reviewer"\ndescription = "x"\nmode = "read-write"\nstep = "review"\n\n[may_write]\npaths = ["**"]\n' } });
@@ -122,7 +122,7 @@ test('T3: renames, odd names and links can\'t hide a change', () => {
 
 launchTest('T6: the log line carries role, step, tier, reason, rung and model; a verifier of the same model is rung 3; a role only in the work tree counts for nothing', async () => {
   const f = repo();
-  const author = await run(f, 'author', 'true');
+  const author = await run(f, 'developer', 'true');
   const verify = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'verifier', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
   assert.equal(verify.outcome, 'ok');
   assert.equal(verify.line.step, 'verify');
@@ -133,7 +133,7 @@ launchTest('T6: the log line carries role, step, tier, reason, rung and model; a
   const high = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'reviewer', risk: 'high', prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] });
   assert.equal(high.line.tier, 'deep', 'a high-risk review is deep');
   assert.equal(high.line.step, 'review-high-risk');
-  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'author', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), /changes it/);
+  await assert.rejects(runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'developer', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: async () => ({ state: 'green', blocker_seen: null, changed: [] }), check: () => [] }), /changes it/);
   // A role added on a branch, not on the integration branch, isn't known.
   mkdirSync(join(f.root, '.mirai', 'custom', 'roles'), { recursive: true });
   writeFileSync(join(f.root, '.mirai', 'custom', 'roles', 'anything.toml'), 'kind = "role"\nschema_version = 1\nname = "anything"\ndescription = "x"\nmode = "read-write"\nstep = "build"\n\n[may_write]\npaths = ["**"]\n');

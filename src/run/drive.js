@@ -31,6 +31,7 @@ import { readRunLog } from '../store/run-log.js';
 import { readTicketStatus } from '../store/tickets.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { waitForReset } from './pause.js';
+import { fullName } from '../agent/names.js';
 
 // A path as one shell word, for a command you copy (the plan's folder has a space on macOS).
 const shellQuote = (p) => `'${String(p).replace(/'/g, "'\\''")}'`;
@@ -104,7 +105,7 @@ export function nextStep({ store, ticket, trust, config, keys }) {
     const latest = reviewsOf(store, ticket).at(-1)?.record ?? null;
     const onBranch = latest?.commit && head && (latest.commit === head || isAncestor(store.checkout, latest.commit, head, store.gitEnv));
     if (latest && onBranch && latest.complete === true && latest.outcome === 'pass') return { step: 'proofs', branch };
-    if (latest && latest.commit === head && latest.outcome === 'needs-you') return { stop: { kind: 'needs-you', why: `Rex's review of ${ticket} stopped for you: ${latest.why ?? 'a protected path'}`, next: `mirai show ${ticket}` } };
+    if (latest && latest.commit === head && latest.outcome === 'needs-you') return { stop: { kind: 'needs-you', why: `${fullName('mirai-reviewer')}'s review of ${ticket} stopped for you: ${latest.why ?? 'a protected path'}`, next: `mirai show ${ticket}` } };
     return { step: 'review', branch };
   }
   return { stop: { kind: 'needs-you', why: `${ticket} is ${status.state}`, next: `mirai show ${ticket}` } };

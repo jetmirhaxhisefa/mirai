@@ -8,6 +8,7 @@ import { readJournal } from '../journal.js';
 import { readTicketFolder } from '../../lint/lint.js';
 import { ticketsOf } from '../../lint/graph.js';
 import { fieldsOf } from './common.js';
+import { hostWords } from '../../ship/words.js';
 
 // The state of a store's documents (unit 38): for `query`, `mirai show <initiative>` and a docs
 // merge request's description, from your signed approvals in the journal (D-34), and the gaps that
@@ -69,7 +70,7 @@ export const storeStateOf = (state) => (state === 'approved' ? 'approved' : stat
 // the folder at the docs merge request's head) and your signed approvals: [{ path, gap, hint }].
 // Empty means every document is approved as it is, and the epic's approval covers the ticket set
 // (Scope 4; decision 1). Only your signed lines count (readJournal verifies them).
-export function approvalGaps({ store, docs, events = null }) {
+export function approvalGaps({ store, docs, events = null, words = hostWords(null) }) {
   const all = (events ?? readJournal(store).events).filter((e) => e.type === 'approval' && e.by === 'human');
   const last = (kind, id) => all.filter((e) => e.kind === kind && e.item === id).at(-1) ?? null;
   const byRel = new Map(docs.map((d) => [d.rel, d]));
@@ -80,7 +81,7 @@ export function approvalGaps({ store, docs, events = null }) {
   const epics = parsed.filter((d) => d.fm?.type === 'epic');
   for (const d of parsed) {
     if (!d.fm) {
-      gaps.push({ path: d.rel, gap: 'isn\'t a document: a docs merge request carries the initiative\'s Markdown documents only', hint: 'remove it from the folder, then publish again' });
+      gaps.push({ path: d.rel, gap: `isn't a document: a docs ${words.long} carries the initiative's Markdown documents only`, hint: 'remove it from the folder, then publish again' });
       continue;
     }
     const { type } = d.fm;
@@ -119,7 +120,7 @@ export function approvalGaps({ store, docs, events = null }) {
     if (epic && gaps.some((g) => g.path === epic.rel || g.path === d.rel)) continue;
     gaps.push({ path: d.rel, gap: `no ticket-set approval: the ticket ${d.fm.id ?? ''} isn't covered by an epic's signed approval`.replace('  ', ' '), hint: epic ? `mirai approve ${epic.fm.id} --file ${epic.rel}` : 'its epic, approved with its tickets (mirai approve <epic-id> --file <epic.md>)' });
   }
-  if (!epics.length) gaps.unshift({ path: '(the initiative)', gap: 'no ticket-set approval: the initiative has no epic approved with its tickets yet, and the docs merge request merges after it (decision 1)', hint: 'write the epic and its tickets, publish again, then mirai approve <epic-id> --file <epic.md>' });
+  if (!epics.length) gaps.unshift({ path: '(the initiative)', gap: `no ticket-set approval: the initiative has no epic approved with its tickets yet, and the docs ${words.long} merges after it (decision 1)`, hint: 'write the epic and its tickets, publish again, then mirai approve <epic-id> --file <epic.md>' });
   return gaps;
 }
 

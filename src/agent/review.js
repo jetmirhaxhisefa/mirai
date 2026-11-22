@@ -23,7 +23,7 @@ import { readTicketStatus, writeTicketStatus } from '../store/tickets.js';
 import { buildRecordPath, preflight } from './build.js';
 import { baselineRevision } from './checkpoints.js';
 import { ticketAcs } from './inputs.js';
-import { declaredChanges, LAUNCH_OPTIONS } from './plan.js';
+import { declaredChanges, LAUNCH_OPTIONS, namerOf } from './plan.js';
 import { checkLaunchToken } from './requests.js';
 import { inRun, launchInRun, REVIEW_AGENT } from './run.js';
 import { agentSessionDir, forgetSession } from './session.js';
@@ -42,7 +42,6 @@ export const REVIEW_ROLE = 'reviewer';
 export const REVIEW_STEP = 'review';
 export const REVIEW_MAX_TURNS = 80;
 export const REVIEW_TIMEOUT_MS = 30 * 60_000;
-export const AGENT_LABEL = 'Rex';
 const DIFF_CONTEXT = 3;
 // The one pass of a normal review, and of a high-risk review from round 2 (24b).
 export const COMBINED = 'combined';
@@ -233,8 +232,9 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
     return nextToken();
   };
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
+  const who = namerOf(watch);
   try {
-    watch.onProgress?.({ kind: 'preparing', agent: AGENT_LABEL, model: null, turns: 0, minutes: 0 });
+    watch.onProgress?.({ kind: 'preparing', agent: who(REVIEW_AGENT), model: null, turns: 0, minutes: 0 });
   } catch {
     // a display only
   }
@@ -376,7 +376,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
         if (state.passes[name]?.state === 'returned') continue;
         const lens = name !== COMBINED;
         const got = await once({
-          label: lens ? `${AGENT_LABEL} (${name})` : AGENT_LABEL,
+          label: lens ? `${who(REVIEW_AGENT)} (${name})` : who(REVIEW_AGENT),
           prompt: lens ? lensPrompt(name, { ticket }) : reviewPrompt({ ticket, round, testChanges: testChanges.length > 0 }),
           files: lens ? lensInputs(name, inputs, { plan }) : inputs,
           schema: REVIEW_SCHEMA,
@@ -406,7 +406,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
       if (risk === 'high' && toCheck.length) {
         const ids = toCheck.map((f) => f.id);
         const got = await once({
-          label: `${AGENT_LABEL} (check)`,
+          label: `${who(REVIEW_AGENT)} (check)`,
           prompt: checkPrompt({ ticket, round }),
           files: { ...pick(inputs, ['review.diff', 'review-files.json', 'plan.md', 'ticket.md']), 'findings-to-check.json': `${JSON.stringify(findingsToCheck(toCheck), null, 2)}\n`, 'index.json': `${JSON.stringify({ schema: 'mirai-inputs/1', check: true, files: ['findings-to-check.json', 'review.diff', 'review-files.json', 'plan.md', 'ticket.md'] }, null, 2)}\n` },
           schema: CHECK_SCHEMA,

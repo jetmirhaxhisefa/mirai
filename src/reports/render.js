@@ -7,6 +7,8 @@ import { checkQaVerdict } from '../findings/verdicts.js';
 import { scanMarkdown } from '../lint/markdown.js';
 import { linkHasCredential, hasTokenShape, tokenShapes } from '../config/credentials.js';
 import { escapeInvisible } from '../status/text.js';
+import { agentNamer, personaOf } from '../agent/names.js';
+import { hostWords } from '../ship/words.js';
 
 // The report renderers (unit 09b): the QA report and the run report (in the store), and the MR
 // description (on the git host). A template's ## headings are its sections, in order; the
@@ -200,6 +202,8 @@ const RUN_INPUT = compileSchema(obj({
     parks: arr(obj({ reason: text(64), count: count(100) }, ['reason', 'count']), 20),
     steps: arr(obj({
       kind: { enum: ['launch', 'approval', 'push', 'mr'] }, earlier: { type: 'boolean' }, later: { type: 'boolean' }, at: isoTime, text: text(200),
+      // Unit 38b: the launch's agent id, so the report names it "Kai (`mirai-developer`)" the first time.
+      agent: { type: 'string', maxLength: 64, pattern: '^[a-z][a-z0-9-]{0,63}$' },
       step: text(40), round: count(100), model: model, model_used: model, turns: count(1e6), tokens: count(1e12), minutes: { type: 'number', minimum: 0, maximum: 1e6 }, limit_share: share, verdict: text(40),
     }, ['kind', 'earlier', 'text']), 200),
     mr: obj({ url, state: { enum: ['open', 'merged', 'closed'] }, m1: { enum: ['as-is', 'edited', 'closed', 'unknown'] }, m1_why: text(300) }, ['state']),
@@ -213,6 +217,8 @@ const RUN_INPUT = compileSchema(obj({
   known_failures: arr(text(256), 200),
   branch_warnings: arr(obj({ branch: text(200), files: arr(text(256), 50, 1) }), 100),
   clean_due: { type: 'boolean' },
+  // Unit 38b: the host, for its word ("pull request" on GitHub); absent when it can't be told.
+  host: { enum: ['github', 'gitlab'] },
 }, ['run', 'done', 'parked', 'paused', 'followups', 'usage', 'inbox', 'template_gaps', 'known_failures', 'branch_warnings', 'clean_due']));
 
 // Checks the data against its input schema, and refuses any text with a token shape before it
@@ -243,7 +249,8 @@ export const CITES_CODE = /\S+\.[A-Za-z0-9]{1,8}:\d+|[A-Za-z0-9_.-]+\/[A-Za-z0-9
 // `options`: { host: "github" | "gitlab", root, home } (root and home for redaction).
 // Unknown keys are refused, so a findings list can't be passed in.
 export function renderMrDescription(data, { host = 'github', root, home } = {}) {
-  checked(MR_INPUT, data, 'MR description', { except: ['command', 'output'] });
+  const w = hostWords(host);
+  checked(MR_INPUT, data, `${w.short} description`, { except: ['command', 'output'] });
   const h = HOSTS[host];
   if (!h) throw new ReportError(`unknown host "${host}"`);
   if (data.risk.level === 'high' && !data.risk.reason) throw new ReportError('a high risk needs its reason', [{ path: '/risk/reason', code: 'required' }]);
@@ -256,10 +263,10 @@ export function renderMrDescription(data, { host = 'github', root, home } = {}) 
   // Tries the full form first, then shorter ones, until the body fits the host's limit.
   for (const keep of [{ output: true, tests: true }, { output: false, tests: true }, { output: false, tests: false }]) {
     const body = mrBody(data, h, keep, { root, home });
-    if (hasTokenShape(body)) throw new ReportError('the MR description would carry a token; redaction missed it', [{ path: '/', code: 'credential' }]);
+    if (hasTokenShape(body)) throw new ReportError(`the ${w.short} description would carry a token; redaction missed it`, [{ path: '/', code: 'credential' }]);
     if (body.length <= h.budget) return body;
   }
-  throw new ReportError(`the MR description is longer than ${h.budget} characters, even without command output and test names`);
+  throw new ReportError(`the ${w.short} description is longer than ${h.budget} characters, even without command output and test names`);
 }
 
 function mrBody(data, h, keep, where) {
@@ -321,18 +328,29 @@ const localTime = (at) => {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
+// A launch step's text with its agent named (unit 38b): "Kai's build" becomes "Kai (`mirai-developer`)'s
+// build" the first time the report names Kai. The id goes in a code span in Markdown.
+function named(s, { t, md, who }) {
+  const persona = personaOf(s.agent);
+  if (!persona || !s.text.startsWith(`${persona}'s `)) return t(s.text);
+  const name = who(s.agent);
+  const rest = s.text.slice(persona.length);
+  if (name === persona || name === `\`${s.agent}\``) return t(s.text);
+  return md ? `${t(persona)} (${codeSpan(s.agent)})${t(rest)}` : `${persona} (${s.agent})${t(rest)}`;
+}
 const M1_TEXT = { 'as-is': 'merged as is', edited: 'edited before the merge', closed: 'closed without merge', unknown: 'M1 unknown' };
-function ticketBlock(k, { t, md, pct }) {
+function ticketBlock(k, { t, md, pct, words, who }) {
   const head = `${t(k.ticket)}: ${t(k.title)}, ${t(k.state)}, ${k.risk ?? 'normal'} risk; rounds ${k.rounds.used} of ${k.rounds.of}, re-plans ${k.rounds.replans} of ${k.rounds.replans_of}${k.plan_launches ? `; plan launches ${k.plan_launches}` : ''}${k.parks?.length ? `; parks: ${k.parks.map((p) => `${t(p.reason)} ×${p.count}`).join(', ')}` : '; no parks'}`;
   const lines = k.steps.map((s) => {
     const when = s.at ? `${localTime(s.at)} ` : '';
     const mark = s.earlier ? ' (earlier run)' : s.later ? ' (later run)' : '';
     if (s.kind !== 'launch') return `- ${when}${t(s.text)}${mark}`;
+    const text = s.agent ? named(s, { t, md, who }) : t(s.text);
     const model = s.model_used && s.model && s.model_used !== s.model ? `${t(s.model)} (ran ${t(s.model_used)})` : t(s.model_used ?? s.model ?? 'model unknown');
     const nums = [s.round ? `round ${s.round}` : null, `${number(s.turns ?? 0)} turns`, `${number(s.tokens ?? 0)} tokens`, `${number(s.minutes ?? 0)} min`, `${pct(s.limit_share)} of your limit`].filter(Boolean).join(', ');
-    return `- ${when}${t(s.text)}: ${model}, ${nums}${s.verdict ? `, ${t(s.verdict)}` : ''}${mark}`;
+    return `- ${when}${text}: ${model}, ${nums}${s.verdict ? `, ${t(s.verdict)}` : ''}${mark}`;
   });
-  if (k.mr) lines.push(`- MR ${k.mr.state}${k.mr.url ? ` ${k.mr.url}` : ''}${k.mr.m1 ? `: ${M1_TEXT[k.mr.m1]}${k.mr.m1_why ? ` (${t(k.mr.m1_why)})` : ''}` : ''}`);
+  if (k.mr) lines.push(`- ${words.short} ${k.mr.state}${k.mr.url ? ` ${k.mr.url}` : ''}${k.mr.m1 ? `: ${M1_TEXT[k.mr.m1]}${k.mr.m1_why ? ` (${t(k.mr.m1_why)})` : ''}` : ''}`);
   if (k.tdd) lines.push(`- Test-first: ${k.tdd.red} red, ${k.tdd.characterization} characterization, ${k.tdd.after} after${k.tdd.no_test ? `, ${k.tdd.no_test} no-test` : ''}; ${k.tdd.confirmed ? `red confirmed by MIRAI's run${k.tdd.rounds ? ` after ${k.tdd.rounds} red round(s)` : ''}` : k.tdd.red + k.tdd.characterization ? 'red not confirmed' : 'no red check'}`);
   for (const f of k.feedback) lines.push(`- Feedback from ${f.by}${f.at ? `, ${localTime(f.at)}` : ''}: ${t(f.text)}`);
   return md ? `### ${head}\n\n${lines.join('\n')}` : `${head}\n${lines.map((l) => `  ${l}`).join('\n')}`;
@@ -340,16 +358,20 @@ function ticketBlock(k, { t, md, pct }) {
 
 // `options.format`: "markdown" (the stored file, every value escaped) or "text" (the terminal:
 // no escapes, only control and invisible characters made visible).
-export function renderRunReport(data, { format = 'markdown' } = {}) {
+// `options.words`: the host's (unit 38b); else the data's host's, else "MR".
+export function renderRunReport(data, { format = 'markdown', words = null } = {}) {
   checked(RUN_INPUT, data, 'run report');
+  const w = words ?? hostWords(data.host ?? null);
+  // One namer for the report: an agent's first step names it in full (unit 38b).
+  const who = agentNamer(null, { markdown: format === 'markdown' });
   // Unit 29a's two parts, optional for data from before them: none, and a red team not known.
   data = { tickets: [], red_team: { state: 'unknown' }, ...data };
   if (format !== 'markdown' && format !== 'text') throw new ReportError(`unknown format "${format}"`);
   for (const [i, d] of data.done.entries()) {
-    if (linkHasCredential(d.mr)) throw new ReportError('an MR link looks like it contains a credential', [{ path: `/done/${i}/mr`, code: 'credential' }]);
+    if (linkHasCredential(d.mr)) throw new ReportError(`a ${w.long} link looks like it contains a credential`, [{ path: `/done/${i}/mr`, code: 'credential' }]);
   }
   for (const [i, k] of data.tickets.entries()) {
-    if (k.mr?.url && linkHasCredential(k.mr.url)) throw new ReportError('an MR link looks like it contains a credential', [{ path: `/tickets/${i}/mr/url`, code: 'credential' }]);
+    if (k.mr?.url && linkHasCredential(k.mr.url)) throw new ReportError(`a ${w.long} link looks like it contains a credential`, [{ path: `/tickets/${i}/mr/url`, code: 'credential' }]);
   }
   const md = format === 'markdown';
   // Every bullet below begins with the ticket or a fixed word, so values never start a line.
@@ -371,7 +393,7 @@ export function renderRunReport(data, { format = 'markdown' } = {}) {
     'Branch warnings': none(data.branch_warnings, (w) => bullets(w.map((x) => `${t(x.branch)} touches files that run by themselves: ${x.files.map(t).join(', ')}. Read them on the host before you open the branch in your IDE.`))),
     // The MR link is checked by its pattern (https, no markup, quote or control characters) and
     // for credentials, so it's shown as it is, to stay clickable in a terminal.
-    Tickets: none(data.tickets, (ts) => ts.map((k) => ticketBlock(k, { t, md, pct })).join('\n\n')),
+    Tickets: none(data.tickets, (ts) => ts.map((k) => ticketBlock(k, { t, md, pct, words: w, who })).join('\n\n')),
     Done: none(data.done, (d) => bullets(d.map((x) => `${t(x.ticket)}: ${t(x.title)}, ${x.mr}${x.stacked_on ? ` (stacked on ${t(x.stacked_on)})` : ''}`))),
     Parked: none([...data.parked, ...data.paused], () => bullets([
       ...data.parked.map((p) => `${t(p.ticket)}: ${t(p.reason)}. ${t(p.note)}`),
