@@ -155,6 +155,17 @@ are never touched.
   run's folder read as a leak (u39-tests-5 at the same commit passed 771/771). **Fixed:** a refused
   launch's error names the scratch folder it made (`scratchDir`, not enumerable), and the test
   checks only that one is gone.
+- **F6, P1's red team in `thudos-setup` (copy from `10c615e`, 2026-11-22): RED on `pr-test-run`
+  alone** (0/3: "3 guards held; … c1-exec failed; … c21-nested-swap failed"). It ran while the
+  runner's `u39-baseline-3` ran the sample app's tests on the same Docker (load 16.8). The probe
+  (`src/redteam/probes/test-run.js`) counts as a scenario's leftovers every container, network and
+  volume labelled `mirai.repo`, from any repo, so the baseline's own test containers failed each
+  scenario. Not a gap in the guards, and not Thudos-specific: the probe runs its own fixture, never
+  Thudos's compose. The sample app's runs passed it (u39-redteam-1/-2) because nothing else ran.
+  **Fixed:** leftovers are the fixture's own repo id only (`leftoverFilter`, `label=mirai.repo=<id>`);
+  a test pins it. `h-timeout-link` and `l-cd` failed as always: informational (the known limits
+  accepted 2026-11-07), never part of the state, in every repo; `adv-linger` inconclusive 2/3 (timed
+  out under the load) and `w-claude-config` inconclusive runs (3/3 in the end) don't make it red.
 - **What passed on P1 (Jet, 2026-11-22, on `thudos-setup` with MIRAI from `d6afc48`):** every stage
   but finish done (finish blocked by F4); doctor 21 ok, 1 yellow (Merge gate), 0 red; the P1 check
   all PASS but finish and "doctor green" (both F4). Jet: resuming after Ctrl-D in stage 2 went on

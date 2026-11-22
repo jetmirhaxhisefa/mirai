@@ -4,6 +4,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, sy
 import { join } from 'node:path';
 
 import { init } from '../../install/init.js';
+import { openStore } from '../../store/home.js';
 import { keyIdOf } from '../../sign/keys.js';
 import { runTest } from '../../tests/run.js';
 import { DOCKER } from '../../tests/docker.js';
@@ -127,6 +128,9 @@ function configText(s) {
   return `\n[compose]\nfiles = ["compose.yml"]\nenv_file = ".env.test"\n${s.allow ? `allow = ${toml(s.allow)}\n` : ''}\n${levels}\n`;
 }
 
+// The Docker filter for a scenario's leftovers: this fixture's label value, not any MIRAI repo's.
+export const leftoverFilter = (repoId) => `label=mirai.repo=${repoId}`;
+
 export async function runTestProbes({ workdir, only = null, keep = false, socket = join(process.env.HOME, '.docker', 'run', 'docker.sock'), realHome = process.env.HOME, log = () => {} }) {
   mkdirSync(workdir, { recursive: true });
   const root = join(workdir, 'repo');
@@ -143,6 +147,10 @@ export async function runTestProbes({ workdir, only = null, keep = false, socket
   git('commit', '-qm', 'first');
   const env = { PATH: '/usr/bin:/bin', HOME: home };
   init({ cwd: root, env, branch: 'main' });
+  // The fixture's own repo id: leftovers are its containers, networks and volumes only, never
+  // another project's MIRAI test run on the same Docker (Thudos's P1 red team ran beside the
+  // sample app's baseline and every scenario counted the baseline's containers as its leftovers).
+  const repoId = openStore({ cwd: root, env }).repoId;
   const cfgPath = join(root, '.mirai', 'config.toml');
   chmodSync(cfgPath, 0o644);
   const baseConfig = readFileSync(cfgPath, 'utf8');
@@ -192,7 +200,7 @@ export async function runTestProbes({ workdir, only = null, keep = false, socket
       } catch (err) {
         error = { code: err.code, message: err.message };
       }
-      const leftovers = ['ps', 'network', 'volume'].flatMap((k) => docker(...(k === 'ps' ? ['ps', '-aq'] : [k, 'ls', '-q']), '--filter', 'label=mirai.repo').stdout.split(/\s+/).filter(Boolean));
+      const leftovers = ['ps', 'network', 'volume'].flatMap((k) => docker(...(k === 'ps' ? ['ps', '-aq'] : [k, 'ls', '-q']), '--filter', leftoverFilter(repoId)).stdout.split(/\s+/).filter(Boolean));
       const leftoversByName = r ? ['network', 'volume'].flatMap((k) => docker(k, 'ls', '-q', '--filter', `name=${r.project}`).stdout.split(/\s+/).filter(Boolean)) : [];
       let pass;
       if (s.refused) pass = error?.code === s.refused;
