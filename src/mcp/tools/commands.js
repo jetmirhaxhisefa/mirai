@@ -17,6 +17,8 @@ import { startOf, workerGone } from './agents.js';
 const TICKET = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const CODE = /^[0-9a-f]{16}$/;
+// An initiative: a folder under the docs root (unit 38).
+const INITIATIVE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 // A Markdown file's path in the repo, relative to its top: no leading / or -, no .., no spaces
 // or control characters (the worker passes it to `mirai` as one argument).
 const FILE = /^(?![-/.])(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}\.md$/;
@@ -75,6 +77,10 @@ export const COMMANDS = Object.freeze({
   // Unit 34: the reader test of a document's summary; one short model run, recorded in the store.
   'reader-test': { needs: ['file'], argv: (a) => ['reader-test', a.file] },
   detect: { argv: () => ['detect'] },
+  // Unit 38: the docs merge request. Neither decides anything new: publish pushes the documents
+  // as they are, and merge needs your signed approvals, not a typed key.
+  'docs publish': { needs: ['initiative'], argv: (a) => ['docs', 'publish', a.initiative] },
+  'docs merge': { needs: ['initiative'], argv: (a) => ['docs', 'merge', a.initiative] },
 });
 
 // Jet's standing rule (2026-11-12): every command also runs from your session, unless it's a gate
@@ -119,7 +125,7 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'file', 'type', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff'].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'file', 'type', 'initiative', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff'].includes(k)) return { refused: `${k} isn't an argument here` };
   }
   // Unit 33: a document's path in the repo (`epic render`), relative, a Markdown file.
   if (args.file !== undefined) {
@@ -138,6 +144,10 @@ export function checkCommand(args) {
     if (typeof args.type !== 'string' || !NAME.test(args.type)) return { refused: 'type must be a document type\'s name, such as prd' };
     out.type = args.type;
   }
+  if (args.initiative !== undefined) {
+    if (typeof args.initiative !== 'string' || !INITIATIVE.test(args.initiative) || args.initiative === 'tickets') return { refused: 'initiative must be an initiative\'s folder name under the docs root, such as due-dates' };
+    out.initiative = args.initiative;
+  }
   if (args.confirm !== undefined) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
@@ -150,7 +160,7 @@ export function checkCommand(args) {
   }
   if (!Object.hasOwn(GATES, command)) {
     for (const need of spec.needs ?? []) if (out[need] === undefined) return { refused: `${command} needs ${need}` };
-    for (const k of ['ticket', 'level', 'file', 'type']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
+    for (const k of ['ticket', 'level', 'file', 'type', 'initiative']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
   }
   return { args: out };
 }
@@ -168,6 +178,7 @@ export const miraiCommand = Object.freeze({
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
       type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template and show checklist (unit 37)' },
+      initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38)' },
       file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },
