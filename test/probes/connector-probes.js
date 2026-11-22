@@ -48,15 +48,22 @@ import { BRIEF_READY, INTERVIEW, PRD_READY } from '../helpers/docs-fixtures.js';
 //   mirai docs merge <initiative>     (it may say "waiting for": run it again when the checks pass)
 //   node <mirai>/test/probes/connector-probes.js --check merged --initiative <initiative>
 //       the merge request is merged, and the host's main has every document as published
-// P3 (a lone bug ticket on the sample app): after mirai ship <ticket> and before mirai merge:
-//   node <mirai>/test/probes/connector-probes.js --check lone --ticket <ticket>
-//       the code MR's diff holds the fix and the ticket's own file, and nothing else under the
-//       docs root; then mirai merge <ticket> (your key), and --check lone-merged --ticket <ticket>
-// P4 (a throwaway project with [docs] store = "local" on its main, a brief and PRD written there
-// and approved with your key):
-//   node <mirai>/test/probes/connector-probes.js --check local --initiative <initiative>
-//       git status shows nothing new, mirai show gives paths in MIRAI's store, and doctor says
-//       teammates can't see them
+// P3 (a lone bug ticket on the sample app, SAMPLE-60: "Pressing Add twice quickly adds the task
+// twice", in frontend/src/components/AddTaskForm.tsx):
+//   node <mirai>/test/probes/connector-probes.js --setup bug --ticket SAMPLE-60
+//       writes docs/mirai/tickets/SAMPLE-60.md; you approve it and commit it on main (D-54: a
+//       ticket is planned from the integration branch), then mirai run it to its MR
+//   node <mirai>/test/probes/connector-probes.js --check lone --ticket SAMPLE-60
+//       the code MR's diff holds the fix and no document but the ticket's own file (which is
+//       already on main, so usually none); then mirai merge SAMPLE-60 (your key), and
+//       --check lone-merged --ticket SAMPLE-60
+// P4 (a throwaway project with [docs] store = "local" on its main):
+//   node <mirai>/test/probes/connector-probes.js --setup local --initiative due-dates
+//       writes the brief, its interview and the PRD through the local store (0700 folders)
+//   then mirai reader-test and mirai approve the PRD by its full path (quoted: it has a space)
+//   node <mirai>/test/probes/connector-probes.js --check local --initiative due-dates
+//       git status shows nothing new, mirai show gives paths in MIRAI's store with the brief and
+//       the PRD approved, and doctor says teammates can't see them
 
 const MIRAI = fileURLToPath(new URL('../../bin/launch.js', import.meta.url));
 
@@ -90,6 +97,7 @@ async function check(name, { cwd, env, initiative, ticket, log }) {
     const show = mirai(cwd, env, 'show', initiative);
     log(show.out.trimEnd());
     results.push(ok(show.code === 0 && show.out.includes(conn.dir(initiative)), `mirai show gives paths in ${conn.dir(initiative)}`));
+    results.push(ok(['brief', 'prd'].every((t) => new RegExp(`^ +${t}\\.md +${t} +\\S+ +approved +`, 'm').test(show.out)), 'the brief and the PRD show as approved'));
     const items = await runChecks({ cwd, env });
     const item = items.find((i) => i.id === 'docs-store');
     results.push(ok(/teammates can't see these documents/.test(item?.detail ?? ''), `doctor: ${item?.detail}`));
@@ -154,9 +162,12 @@ async function check(name, { cwd, env, initiative, ticket, log }) {
       const base = git(cwd, 'merge-base', config.git.integration_branch, pushed.sha);
       const names = git(cwd, 'diff', '--name-only', base, pushed.sha).split('\n').filter(Boolean);
       const docs = names.filter((n) => n.startsWith(`${config.docs.root}/`));
+      const own = `${config.docs.root}/tickets/${ticket}.md`;
       log(`its diff: ${names.join(', ')}`);
-      results.push(ok(docs.length === 1 && docs[0] === `${config.docs.root}/tickets/${ticket}.md`, 'the only document in it is the ticket\'s own file'));
-      results.push(ok(names.length > docs.length, 'and it holds the fix'));
+      // D-54: a ticket is planned from main, so its own file is there already and usually isn't in
+      // the diff; if the branch changed it, it may ride. No other document may.
+      results.push(ok(docs.every((n) => n === own), `no document in it but the ticket's own file (${docs.length ? docs.join(', ') : 'none: the ticket file is on main already'})`));
+      results.push(ok(names.some((n) => !n.startsWith(`${config.docs.root}/`)), 'and it holds the fix'));
     } else {
       const merged = events().filter((x) => x.type === 'mr_merged' && x.ticket === ticket).at(-1);
       results.push(ok(Boolean(merged), `mirai merge took it in as one change (${merged?.merge_sha ?? 'not merged'})`));
@@ -166,32 +177,112 @@ async function check(name, { cwd, env, initiative, ticket, log }) {
   throw new Error(`unknown check ${name}`);
 }
 
-// --setup: 33's example initiative in the checkout's work tree, never committed by this script.
-// Refuses a folder that's already there, and a remote on the other host.
-function setup(host, { cwd, env, initiative, log }) {
-  if (!['github', 'gitlab'].includes(host)) throw new Error('--setup github or --setup gitlab');
-  if (initiative !== 'due-dates') throw new Error('the example initiative is due-dates (its PRD and epic link each other by that folder)');
-  const remote = execFileSync('/usr/bin/git', ['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' }).trim();
-  const on = /github\.com/.test(remote) ? 'github' : /gitlab/.test(remote) ? 'gitlab' : null;
-  if (on && on !== host) throw new Error(`the remote is on ${on}, not ${host}: ${remote}`);
-  if (!on) log(`note: the remote (${remote}) isn't on github.com or gitlab: fine for a dry run, not for the probe`);
-  if (host === 'gitlab' && !/glab-personal\/?$/.test(env.GLAB_CONFIG_DIR ?? '')) throw new Error('GitLab: run with GLAB_CONFIG_DIR=~/.config/glab-personal (your personal gitlab.com), never the work GitLab');
+// A small real bug in the sample app (P3): a lone ticket, no initiative.
+export const BUG_TICKET = (key) => `---
+id: ${key}
+type: bug
+template: bug@v1
+repo: "."
+risk: normal
+size: S
+verify: "In frontend/, npm test passes, including a test that a second click on Add while the first save runs adds nothing."
+covers_fr: []
+covers_ac: []
+governed_by: []
+after: []
+files_likely: [frontend/src/components/AddTaskForm.tsx]
+e2e: false
+---
+# Pressing Add twice quickly adds the task twice
+
+## Description
+
+A user types a task and clicks Add twice before the first save finishes. The list then shows the
+task twice, and both copies are saved. The form should ignore a click while a save is running.
+
+## Reproduction
+
+1. The app, signed in, with the browser's network throttling set to "Slow 3G".
+2. Type "Buy milk" into New task and click Add twice, quickly.
+3. Actual: two "Buy milk" tasks. Expected: one.
+
+## Cause hypothesis
+
+The form calls its save on every submit, and nothing marks a save as running, so the Add button
+stays enabled until the save returns.
+
+## Acceptance criteria
+
+- AC-${key}.1: A second click while saving adds nothing
+  - Given a title typed into New task
+  - When the user clicks Add twice before the first save returns
+  - Then the task is saved once
+- AC-${key}.2: Add works again after the save
+  - Given a save that has returned, successfully or not
+  - When the user clicks Add again
+  - Then the form submits as before
+
+## References
+
+Not applicable — found by hand on the sample app.
+
+## Notes
+
+Not applicable — no notes.
+`;
+
+// --setup: what a probe needs, written in the checkout's work tree; never committed by this script.
+// - github | gitlab (P1/P2): 33's example initiative in docs/mirai/<initiative>/, NOT committed
+//   (publish takes the folder from the work tree);
+// - bug (P3): a lone bug ticket in docs/mirai/tickets/<ticket>.md, which you approve and commit on
+//   main (D-54: a ticket is planned from the integration branch);
+// - local (P4): the brief, its interview and the PRD, written through the local store.
+// A file or folder that's already there is refused.
+function setup(mode, { cwd, env, initiative, ticket, log }) {
+  if (!['github', 'gitlab', 'bug', 'local'].includes(mode)) throw new Error('--setup github|gitlab|bug|local');
   const store = openStore({ cwd, env });
   const { conn } = docsStoreFor({ cwd, env, store });
+  const write = (abs, text) => {
+    if (existsSync(abs)) throw new Error(`${abs} is already there: remove it (or use another checkout) first`);
+    mkdirSync(join(abs, '..'), { recursive: true });
+    writeFileSync(abs, text);
+    log(`wrote ${abs}`);
+  };
+  if (mode === 'bug') {
+    if (!/^[A-Z][A-Z0-9]*-[0-9]+$/.test(ticket ?? '')) throw new Error('--setup bug --ticket <key>, such as SAMPLE-60');
+    if (conn.kind !== 'repo') throw new Error(`the project's store is ${conn.name}; P3 needs the repo store`);
+    const abs = conn.pathOf('bug', null, `${ticket}.md`);
+    write(abs, BUG_TICKET(ticket));
+    const rel = conn.relOf(abs);
+    log(`\nnext: mirai lint ${rel}, mirai approve ${ticket} --file ${rel}, then commit it on main and push it (D-54)`);
+    return true;
+  }
+  if (initiative !== 'due-dates') throw new Error('the example initiative is due-dates (its PRD and epic link each other by that folder)');
+  if (mode === 'local') {
+    if (conn.kind !== 'local') throw new Error(`the project's store is ${conn.name}: set [docs] store = "local" in .mirai/config.toml and commit it on main first`);
+    // Through the store's own write: its folders are private (0700), as doctor checks.
+    for (const [type, text] of [['brief', BRIEF_READY], ['interview', INTERVIEW], ['prd', PRD_READY]]) {
+      if (existsSync(conn.pathOf(type, initiative))) throw new Error(`${conn.pathOf(type, initiative)} is already there: remove it first`);
+      log(`wrote ${conn.write(type, initiative, null, text)}`);
+    }
+    log(`\nthe id you approve: due-dates-prd (one decision approves it with due-dates-brief), with --file ${conn.pathOf('prd', initiative)}`);
+    return true;
+  }
+  const remote = execFileSync('/usr/bin/git', ['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' }).trim();
+  const on = /github\.com/.test(remote) ? 'github' : /gitlab/.test(remote) ? 'gitlab' : null;
+  if (on && on !== mode) throw new Error(`the remote is on ${on}, not ${mode}: ${remote}`);
+  if (!on) log(`note: the remote (${remote}) isn't on github.com or gitlab: fine for a dry run, not for the probe`);
+  if (mode === 'gitlab' && !/glab-personal\/?$/.test(env.GLAB_CONFIG_DIR ?? '')) throw new Error('GitLab: run with GLAB_CONFIG_DIR=~/.config/glab-personal (your personal gitlab.com), never the work GitLab');
   if (conn.kind !== 'repo') throw new Error(`the project's store is ${conn.name}; P1/P2 need the repo store`);
   const dir = conn.dir(initiative);
   if (existsSync(dir)) throw new Error(`${dir} is already there: remove it (or use another checkout) first`);
   const ex = (rel) => readFileSync(join(REGISTRY_DIR, 'examples', rel), 'utf8');
   const files = { 'brief.md': BRIEF_READY, 'interview.md': INTERVIEW, 'prd.md': PRD_READY, 'epic-due-dates.md': ex('epic.md') };
   for (const f of readdirSync(join(REGISTRY_DIR, 'examples', 'tickets')).sort()) files[`tickets/${f}`] = ex(`tickets/${f}`);
-  for (const [rel, text] of Object.entries(files)) {
-    mkdirSync(join(dir, rel, '..'), { recursive: true });
-    writeFileSync(join(dir, rel), text);
-    log(`wrote ${join(dir, rel)}`);
-  }
+  for (const [rel, text] of Object.entries(files)) write(join(dir, rel), text);
   const rel = `${conn.docsRoot}/${initiative}`;
   log(`\nnot committed, and don't commit it on main: mirai docs publish ${initiative} takes the folder from your work tree`);
-  log(`the ids you approve: due-dates-prd (one decision approves it with due-dates-brief) and SAMPLE-50 (the epic with its 7 tickets)`);
+  log('the ids you approve: due-dates-prd (one decision approves it with due-dates-brief) and SAMPLE-50 (the epic with its 7 tickets)');
   log(`next: mirai lint ${rel}   (0 problems), then mirai show ${initiative}`);
   return true;
 }
@@ -199,7 +290,7 @@ function setup(host, { cwd, env, initiative, log }) {
 async function cli() {
   const { values } = parseArgs({ options: { check: { type: 'string' }, setup: { type: 'string' }, initiative: { type: 'string' }, ticket: { type: 'string' } } });
   const log = (l) => process.stdout.write(`${l}\n`);
-  if (values.setup) return setup(values.setup, { cwd: process.cwd(), env: process.env, initiative: values.initiative, log }) ? 0 : 1;
+  if (values.setup) return setup(values.setup, { cwd: process.cwd(), env: process.env, initiative: values.initiative, ticket: values.ticket, log }) ? 0 : 1;
   const needs = { published: 'initiative', refused: 'initiative', stale: 'initiative', merged: 'initiative', local: 'initiative', lone: 'ticket', 'lone-merged': 'ticket' };
   if (!needs[values.check] || !values[needs[values.check]]) {
     process.stderr.write(`--check ${Object.keys(needs).join('|')} with --initiative <name> or --ticket <key>: see the comment at the top of ${join('test', 'probes', 'connector-probes.js')}\n`);

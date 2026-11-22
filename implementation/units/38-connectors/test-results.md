@@ -68,8 +68,20 @@
 
 ## Probes (real)
 
-Not run yet. `test/probes/connector-probes.js` holds the checks; the steps with your key and the
-pushes are yours. In the sample app's checkout, in your terminal:
+P1 and P2 passed with Jet (2026-11-22): GitLab MR 5 merged as 0dc820f, GitHub PR #16 merged as
+00c4d0f; the sample app's main is level at 00c4d0f. P3 and P4 are prepared and proven runnable on
+throwaway clones, not run yet. `test/probes/connector-probes.js` holds the setup and the checks; the
+steps with your key and the pushes are yours.
+
+Found on P1/P2 (to fix):
+- On GitHub, `mirai docs publish` says "merge request 16"; GitHub's word is "pull request".
+- In the GitLab checkout (another remote, so another repo id and store), the approved Rex overlay's
+  record shows "doesn't verify: the signature does not match". An approval record should survive a
+  second remote or a mirror: a 37 follow-up.
+- P1's step 7 needed a fresh `mirai reader-test` on the changed PRD before approving it again: the
+  steps given to Jet left it out.
+
+In the sample app's checkout, in your terminal:
 
 - **The setup** (added after the approval): `node <mirai>/test/probes/connector-probes.js --setup
   github|gitlab --initiative due-dates` writes 33's example initiative into the checkout's
@@ -93,8 +105,18 @@ pushes are yours. In the sample app's checkout, in your terminal:
   4. `mirai approve due-dates-prd --file docs/mirai/due-dates/prd.md`; `mirai docs publish
      due-dates`; `mirai docs merge due-dates` (again if it says "waiting for"); then `--check merged`
 - **P2 (GitHub, the sample app from 27a):** the same steps, without `GLAB_CONFIG_DIR`.
-- **P3:** a bug ticket with no initiative, approved, planned, built and shipped (`mirai ship`), then
-  `--check lone --ticket <key>`; `mirai merge <key>`; `--check lone-merged --ticket <key>`.
+- **P3:** `--setup bug --ticket SAMPLE-60` writes a small real bug in the sample app ("Pressing Add
+  twice quickly adds the task twice", `frontend/src/components/AddTaskForm.tsx`), approved and
+  committed on main (D-54), then `mirai run` to its MR, `--check lone --ticket SAMPLE-60`,
+  `mirai merge SAMPLE-60`, `--check lone-merged --ticket SAMPLE-60`. Proven on a throwaway clone at
+  00c4d0f: the file is written, `mirai lint` and the lint as at approval are clean. `--check lone`
+  now expects no document in the MR but the ticket's own file, which under D-54 is already on main.
+- **P4:** `--setup local --initiative due-dates` writes the brief, interview and PRD through the
+  local store; `--check local` also checks the brief and PRD show as approved. Proven on a throwaway
+  project (temp HOME): init, `store = "local"` committed, the setup, `mirai lint` (3 files, 0
+  problems), `mirai show due-dates`, and `--check local` passed every line but the approval (no key
+  there). Found on the way: the first setup wrote the folders 0755 (its own mkdir, not the store's
+  write), and doctor's store item went red, as it should; the setup now writes through the store.
 - **The new git calls:** `docsCommit` (the docs commit on a private index: `read-tree`,
   `rm --cached --force`, `hash-object -w --stdin`, `update-index --index-info`, `write-tree`,
   `rev-parse`, `commit-tree`) and `setDocsBranch` (`update-ref`) are in `MIRAI_STEPS`, so they run
