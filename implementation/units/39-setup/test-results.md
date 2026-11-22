@@ -93,27 +93,87 @@ a script the skill calls, `_bmad/agents/pm.md`, `docs/prd.md`, an MCP server in 
 ## Probes (real)
 
 Not run yet: each needs your session, your key or Thudos. `test/probes/setup-probes.js` holds the
-checks (read-only: no approval, commit or store write); its header has every step. In the
-project's checkout, in your terminal:
+checks (read-only: no approval, commit or store write). The steps below are the ones to follow.
 
-- **P1 Thudos, end to end** (a clone, never Thudos's main; an integration branch as in the pilot):
-  `/mirai setup` in a Claude Code session in the clone, all five stages, stopping once inside a
-  stage and resuming in a new session; then
-  `node <mirai>/test/probes/setup-probes.js --check p1`.
-  What the check can't see and you judge: each researched summary was right; after stage 3 you were
-  shown every context file with its path and link, asked each `(open)` line, and asked to review
-  the feature map and project files.
-- **P2 Pasted text only:** a fresh throwaway project after `mirai init`; `/mirai setup` to stage 3
-  with only a pasted description as the source; then
-  `node <mirai>/test/probes/setup-probes.js --check p2`.
-- **P3 A skill added later:** after P1, in a new session, ask "make a skill that lists the open
-  merge requests" (it must use `/mirai custom add`); approve and render it; then
-  `node <mirai>/test/probes/setup-probes.js --check p3 --skill <its name>`. Then by hand:
-  `cp -R .mirai/custom/project-skills/<name> .claude/skills/handmade`, set its SKILL.md's name to
-  `handmade`, `git add .claude/skills/handmade && git commit -m x`: pass when the commit is refused
-  and prints `mirai custom add .claude/skills/handmade`; then
-  `git restore --staged .claude/skills/handmade && rm -r .claude/skills/handmade`.
-- **The red team:** the new case `c-custom-hook` (below) runs with `mirai redteam run`; not run yet.
+**Why a local mirror for P1:** MIRAI keeps one store per repo on a machine, named from the
+remote and the first commits. A second clone of Thudos from GitHub gets the pilot's store id, and
+`mirai init` refuses it ("a store already exists"). A clone of a local bare mirror has its own
+remote, so its own store; nothing is pushed to GitHub, and `~/Projects/thudos` and `mirai/pilot`
+are never touched.
+
+### Before P1 and P2 (once, in Terminal)
+
+1. `git -C ~/Projects/mirai fetch origin unit/39-build`
+2. `git -C ~/Projects/mirai worktree add --detach ~/Projects/mirai-u39 origin/unit/39-build`
+   You see `HEAD is now at <commit> …`. Keep this folder until the probes are done: the clones'
+   git hooks run its launcher.
+
+### P1 Thudos, end to end
+
+1. `git clone --bare ~/Projects/thudos ~/Projects/thudos-setup.git`
+2. `git clone ~/Projects/thudos-setup.git ~/Projects/thudos-setup && cd ~/Projects/thudos-setup`
+3. `git switch -c mirai/setup origin/main` (Thudos's `main` with the council and `.claude/`; you see
+   `Switched to a new branch 'mirai/setup'`)
+4. `node ~/Projects/mirai-u39/bin/mirai.js init --branch mirai/setup` (this branch's MIRAI, not
+   the one on your PATH). It ends with `Next:` and four steps.
+5. `git add -A && git commit -m "Install MIRAI"`. You see one line:
+   `mirai pre-commit: skipped: mirai/setup (…) has no MIRAI copy MIRAI can run; MIRAI isn't committed on the integration branch yet …`
+   and the commit is made.
+6. `git push -u origin mirai/setup` (to the local mirror; MIRAI's pre-push prints `pass`).
+7. `mirai key new`. You have a key on this Mac, so it says `this machine's key is <id>; its public
+   key is in …/.mirai/keys/<id>.pub`. Commit it by itself:
+   `git add .mirai/keys && git commit -m "MIRAI key" && git push`.
+8. `mirai session-server install` (registers MIRAI's tools for your sessions in this folder).
+9. `claude` in this folder. Note: Thudos's council hooks are still in `.claude/settings.json`
+   until stage 2 moves or drops them, so they may run in this session as they did before MIRAI.
+10. Type `/mirai setup`. It says stage 1 (scan) is next and runs the scan: about 54 items (the
+    agents, skills, hooks, rules and templates under `.claude/`, the three `CLAUDE.md`,
+    `CLAUDE.local.md.example`, `docs/development-council.md`, and the scripts they call). Follow
+    it: it gives you each commit to make in Terminal and each `mirai approve --file …` command.
+11. In stage 2, after a few items, close the session (Ctrl-D). Start `claude` again and type
+    `/mirai setup`: it must go on at the next undecided item, with the earlier decisions kept.
+    For `scripts/quality-gate.sh` and `docker/php/entrypoint.sh` the right answer is "keep, in
+    place (the project's own)".
+12. Stage 3: give it your sources (`docs/`, the README, what you know). After it writes the files
+    you must see a list of every file in `.mirai/context/` with what it is, its state, its full
+    path and a link; then each `(open)` line as a question; then the approval command for
+    `business.md`, `journeys.md` and each conventions file; for the feature map and each project
+    file, "anything wrong or missing?".
+13. Stages 4 and 5: the connect steps and the checklist, until `mirai doctor` has no red line
+    (Merge gate stays yellow until unit 54; the red team needs `mirai redteam run --kept` here,
+    in your terminal).
+14. In Terminal, in `~/Projects/thudos-setup`:
+    `node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p1`. Pass when every line says
+    PASS. You judge the rest: each researched summary was right, and step 12 happened as written.
+
+### P2 Pasted text only
+
+1. `mkdir ~/Projects/u39-p2 && cd ~/Projects/u39-p2 && git init -b main && echo "# p2" > README.md && git add -A && git commit -m first`
+2. `node ~/Projects/mirai-u39/bin/mirai.js init --branch main`, then
+   `git add -A && git commit -m "Install MIRAI"` (the same one skipped line as in P1, step 5).
+3. `mirai session-server install`, then `claude`, then `/mirai setup`.
+4. Go through scan and migrate (nothing to migrate). In stage 3, when asked for sources, give no
+   links or files: paste a short description of a made-up product (5 to 10 sentences).
+5. Answer its `(open)` questions; stop after the review list (no approval needed).
+6. In Terminal: `node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p2`. Pass when
+   `business.md` lints clean and its Sources table lists only "you said" and the pasted text.
+
+### P3 A skill added later (after P1, in `~/Projects/thudos-setup`)
+
+1. `claude`, then ask: "make a skill that lists the open merge requests". Pass when it uses
+   `/mirai custom add` (or `mcp__mirai__mirai_command` with `custom add`) and doesn't write into
+   `.claude/` itself.
+2. In Terminal: the `mirai approve --file …` and `mirai render` it gives you; commit them.
+3. `node ~/Projects/mirai-u39/test/probes/setup-probes.js --check p3 --skill <its name>`: PASS.
+4. By hand: `cp -R .mirai/custom/project-skills/<its name> .claude/skills/handmade`, change the
+   `name:` line in `.claude/skills/handmade/SKILL.md` to `handmade`, then
+   `git add .claude/skills/handmade && git commit -m x`. Pass when the commit is refused and
+   prints `  mirai custom add .claude/skills/handmade`.
+5. Clean up: `git restore --staged .claude/skills/handmade && rm -r .claude/skills/handmade`.
+
+### The red team
+
+The new case `c-custom-hook` runs in `redteam-full` on the sample app (runner job below).
 
 ## Changed from the spec
 
@@ -226,10 +286,20 @@ project's checkout, in your terminal:
 
 ## The full suite
 
-768/768 on the Mac (`caffeinate -i node --test --test-timeout=300000 "test/**/*.test.js"`), no
-failure and nothing skipped. The run before it, 761/768, failed on pins this unit moves (the
-bundle's and the registry's skill lists, the command list, 17a's instruction-file list), on two
-words the system-check guard (30a) caught, and on the pre-commit hook refusing the commit that
-installs MIRAI (fixed: the launcher skips it only where nothing is sealed yet, see "Changed from
-the spec"). The runner runs
-as u39-tests-1.
+**Through the build runner** (the authoritative runs, a clean export each):
+- `u39-tests-1` at `f94a975` (before main's 38 was merged in): **pass, 768/768**, 24 minutes.
+- `u39-tests-2` at `127dfc7` (main merged in, the pre-commit on the sealed copy): see the
+  coordinator's report.
+- `u39-tests-3` at this unit's last commit (the ledger fixes and these results): see the
+  coordinator's report; then `u39-baseline-1` and `u39-redteam-1` (`redteam-full`) on the sample
+  app at the same commit, since this unit changes the framework (the red team gains
+  `c-custom-hook`, and the launcher's hook rule changed).
+
+**On the Mac** before them: 768/768 at `f94a975`
+(`caffeinate -i node --test --test-timeout=300000 "test/**/*.test.js"`); after the last changes,
+the files they touch (`test/setup`, `launch`, `hooks`, `install`, `docs`, `doctor`, `cli`,
+`detect`, `mcp`): 86/86 and 98/98, and `test/setup` 13/13 with the new test. The run before the
+first full one, 761/768, failed on pins this unit moves (the bundle's and the registry's skill
+lists, the command list, 17a's instruction-file list), on two words the system-check guard (30a)
+caught, and on the pre-commit hook refusing the commit that installs MIRAI (fixed, see "Changed
+from the spec").
