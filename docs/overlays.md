@@ -21,6 +21,21 @@ Overlays stay in their project. Which ones go back to MIRAI is `mirai promote`'s
 
 The `.toml` file is the overlay. You approve it, and its approval covers the `.md` beside it.
 
+**A project's own items (unit 39)** sit beside the overlays and are approved the same way, each
+with its own record (`approvals/<kind>-<name>.json`). They're for your sessions only; a MIRAI run
+never reads them. `mirai custom add <path>` puts them there (docs/setup.md):
+
+| File | What it is |
+|---|---|
+| `.mirai/custom/project-skills/<name>/SKILL.md` (and its files) | a skill of the project's own, rendered into `.claude/skills/<name>/` |
+| `.mirai/custom/hooks/<name>.toml` | an interactive-only hook (event, matcher, the script it runs), rendered into `.claude/settings.json` |
+| `.mirai/custom/scripts/<name>.<sh, bash, js, mjs, py>` | a script a hook, a check or a skill calls; a hook's approval covers its script |
+| `.mirai/custom/mcp/<name>.toml` | an MCP server for your sessions (`transport`, `command`/`args`/`env` or `url`/`headers`), rendered into `.mcp.json` |
+
+An agent kept from a project's own setup is an agent overlay of `mirai-developer` or
+`mirai-reviewer` (below), with its write scope a role of the project's own in
+`.mirai/custom/roles/`; a role that may write one of MIRAI's protected paths is refused.
+
 ## Two ways to change a document type
 
 ### 1. Section changes

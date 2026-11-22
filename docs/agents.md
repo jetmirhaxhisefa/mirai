@@ -198,6 +198,18 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai sandbox show
 /mirai version
 /mirai help
+
+# Setup (docs/setup.md)
+/mirai setup                  # the guided setup: the mirai-setup skill, from where it stopped
+/mirai setup status
+/mirai setup scan
+/mirai setup decide .claude/skills/deploy --keep .mirai/custom/project-skills/   # or --drop
+/mirai setup review
+/mirai setup defer .mirai/context/journeys.md
+/mirai setup checklist        # or: /mirai setup checklist --done 3
+/mirai setup start context
+/mirai setup done migrate
+/mirai custom add .claude/skills/deploy
 ```
 
 From a session, `protected`, `sandbox show`, `config show` and `redteam show` take no arguments: they show the default.

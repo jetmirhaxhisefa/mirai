@@ -6,6 +6,7 @@ fails until it has one.
 ## Start here
 
 - [install.md](install.md): install MIRAI, set up a repo with `mirai init`, see the version and the help.
+- [setup.md](setup.md): `/mirai setup`, the guided setup in your session: the ledger, migrating your AI items, the context files, the hand checklist, and `mirai custom add` for items added later.
 - [config.md](config.md): every config key, who may set it, its default and what it does.
 - [run.md](run.md): take a ticket to its merge request with `mirai run`, `mirai resume` and `mirai show`.
 - [doctor.md](doctor.md): check a repo's MIRAI setup with `mirai doctor`, and repair what's safe.
