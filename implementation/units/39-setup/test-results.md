@@ -101,6 +101,21 @@ remote and the first commits. A second clone of Thudos from GitHub gets the pilo
 remote, so its own store; nothing is pushed to GitHub, and `~/Projects/thudos` and `mirai/pilot`
 are never touched.
 
+### Results
+
+- **P1 Thudos, end to end: PASSED (Jet, 2026-11-22)** in `~/Projects/thudos-setup` (a clone of a
+  local mirror of Thudos's main, integration branch `mirai/setup`), on MIRAI's copy from `10c615e`,
+  with findings F1–F10 below (F1–F6 fixed on this branch; F7–F10 waiting on Jet's decision).
+  `mirai baseline` at 9342ab9: 5 checks and 3 levels pass (gap: no e2e level); then
+  `CLAUDE_CONFIG_DIR=~/.claude-private mirai setup done finish`: "finish: done at 9342ab9052fe /
+  setup is done". `setup-probes.js --check p1`: **12/12 PASS**: the five stages done; 54 items
+  decided, all researched; nothing left in its old place; 2 custom items approved; `business.md`,
+  `conventions-backend.md`, `conventions-frontend.md` and `journeys.md` approved; nothing under
+  `.claude/` that MIRAI didn't render; doctor green (nothing to fix; expected: the Merge gate
+  until unit 54). What the check can't see, Jet judged: the resume after Ctrl-D, stage 3's review,
+  the summaries ("generally ok"). The red team there: green on a quiet Mac (F6).
+- **P2, P3:** not run yet.
+
 ### Findings on the probes
 
 - **P1, step 4 (2026-11-22): `mirai init` in the mirror's clone was refused** ("this checkout has
