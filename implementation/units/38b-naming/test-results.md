@@ -59,7 +59,7 @@
 
 ## The full suite
 
-Through the build runner: see the report of `u38b-tests-1`.
+Through the build runner, `u38b-tests-2` on a635ee2: **767/767 pass** (13.1 min). (`u38b-tests-1` was withdrawn before it ran: its commit still had 24a's registry test checking `roles.author`.)
 
 ## The red team
 
