@@ -1,7 +1,7 @@
 ---
 unit: "44"
 name: prd-workflow
-status: draft (Jet's interview 2026-11-21/22: Q1 "A" + an interview on what blocks the document, Q2 "A", Q3 "A", Q4 "C" + never merged before approval, Q5 "A", Q6 "A", refinements 1–4 "yes", restatement "yes")
+status: approved (Jet, 2026-11-22: "approve 44"; interview Q1 "A" + an interview on what blocks the document, Q2 "A", Q3 "A", Q4 "C" + never merged before approval, Q5 "A", Q6 "A", refinements 1–4 "yes", restatement "yes"; built only after 43 is finished, and re-checked against 38–43 as built first)
 roadmap: design/07-implementation-roadmap.md, row 44 (and notes on rows 45, 46); design/01 §2 (intake), §3 (PRD steps 1–8); D-07 (one status vocabulary, the frozen approved version), D-08 (tracks), D-17 (signed human-only moves), D-18 (the loop guard); design/13 §2, §3 (what the MVP logs, the review data pack); PM-14 (`/mirai-new`), PM3-13 (`pre-commit` moved here); units 06 (signing), 20 (loop guard), 26a (hooks), 35 (interview), 36 (`(open)`), 38 (store, publish, links), 40 (Vera), 41 (Nora), 42 (Tess)
 depends_on: ["06", "20", "26a", "35", "36", "38", "40", "41", "42"]
 ---
@@ -352,3 +352,7 @@ existing ledger.
   note. Dated notes added.
 - **design/07 row 44:** points to this spec. **Row 46:** the note above.
 - **design/13 §2 and §3:** the "Decision questions" log row and its audit row.
+
+## Follow-up
+
+- **`pre-commit` and document approvals (from the spec review, 2026-11-22):** the hook's unsigned-approval check covers `.mirai/records/` only, because document approvals are journal lines in MIRAI's store, not repo files. If approvals are ever committed (38's committed-records idea, 37's `approvals/` pattern), the hook must check them too.
