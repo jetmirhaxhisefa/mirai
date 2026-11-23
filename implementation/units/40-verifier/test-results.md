@@ -194,6 +194,8 @@ already tests (as Rex does).
 
 ## Questions for Jet
 
+Answered (Jet, 2026-11-23): **1 A, 2 A, 3 A**, each as built.
+
 1. **Approval before the last round, with must-fix findings open.** Options: **A** refused (built:
    decision 1's gate; the author fixes first); **B** shown and allowed, as the reader test does at
    any round. Recommendation: **A**. Approving a document Vera has flagged while the author still
@@ -211,6 +213,8 @@ already tests (as Rex does).
    what the result's hash names.
 
 ## For later units
+
+- **Jet, 2026-11-23:** he wants `/mirai <command>` in Cursor and Codex sessions too, not only Claude Code (today rows 71 and 73; 73 is "only when you actually use Cursor"). A roadmap change: interview after unit 40.
 
 - **41 (Nora):** call `runVerify` with `authorLaunch` (her launch id), so the run log has the rung;
   pass `handoffText` to her next run; her role writes the document, then MIRAI commits it before
