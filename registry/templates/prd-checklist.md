@@ -21,6 +21,10 @@ reaches you (unit 40).
 
 - [vera] Is everything the brief, the intake note and the sources ask for here, and nothing replaced by a
   vaguer statement ("handle errors", "support large teams")? Name each gap and its source.
+- [vera] When the owner gave their own list (`upstream-requirements.md`), does every REQ-n it cites keep
+  the line's meaning and its numbers ("1 day before" stays "1 day before"), with no condition dropped
+  or added? A changed or weakened line is a must-fix, `against` the list's line. A line left out on
+  purpose under "Not in this", with its reason, is no finding.
 - [vera] Does every journey (UJ-n) have the requirements it needs, and every requirement a journey?
 - [vera] Is a length exception real: does the feature truly not split along its business requirements?
 

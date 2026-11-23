@@ -15,6 +15,7 @@ import { readFrontmatter } from '../lint/frontmatter.js';
 import { parseDocument } from '../lint/lint.js';
 import { aliased, linkLinesOf } from '../lint/rules.js';
 import { fixedParts } from '../lint/markdown.js';
+import { leftOutRequirements } from '../lint/requirements.js';
 import { baseForArg, docsStoreFor } from '../store/connectors/index.js';
 import { openStore } from '../store/home.js';
 import { nextVerifyRound, recordVerifyResult, subjectHash, verifyResultFor } from '../store/verify-results.js';
@@ -112,6 +113,21 @@ export function verifyInputs(subject) {
       } catch {
         // a link that doesn't resolve is the lint's to report
       }
+    }
+  }
+  // Unit 41 (decision 6, Scope 9): a PRD's fourth input, the owner's own requirements list beside it,
+  // when they gave one. MIRAI holds a finding against it to must-fix, and drops one about a line the
+  // PRD leaves out on purpose under "Not in this" with its reason (src/verify/findings.js).
+  if (def.name === 'prd') {
+    try {
+      const req = readApprovedFile(base, base, posix.join(posix.dirname(path), 'requirements.md'));
+      add('upstream-requirements.md', req.bytes.toString('utf8'), { path: req.path, why: 'the owner\'s own requirements list: every REQ-n is carried by an FR, NFR or AC with its meaning and numbers, or left out under "Not in this" with a reason' });
+      if (files['upstream-requirements.md']) {
+        files['upstream-requirements.md'].requirements = true;
+        files['document.md'].leftOut = doc ? [...leftOutRequirements(doc)] : [];
+      }
+    } catch {
+      // no list: nothing to cover
     }
   }
   // The context files (unit 36): the ones you approve, with whether each is approved as it is now,

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { lstatSync, mkdirSync, rmSync } from 'node:fs';
+import { lstatSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -34,6 +34,7 @@ import { trustedRoles } from '../../agent/scope.js';
 import { baseForArg, docsStoreFor } from '../../store/connectors/index.js';
 import { documentLine } from '../../store/connectors/links.js';
 import { agentNamer, fullName } from '../../agent/names.js';
+import { applyChanges, changesOf } from '../../lint/requirements.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -80,6 +81,8 @@ export default {
     if (file.path.startsWith(`${CONTEXT_DIR}/`)) return approveContext({ id: ticket, file, store, io, now, fileArg: args.values.file });
     // Unit 37: an overlay in .mirai/custom/.
     if (file.path.startsWith(`${CUSTOM_DIR}/`)) return approveOverlay({ id: ticket, file, store, io, now, fileArg: args.values.file });
+    // Unit 41: a proposal to change business.md, named by its path alone, as a context file is.
+    if (documentTypeOf(file.bytes) === 'business-change') return approveBusinessChange({ id: ticket, file, store, io, now, fileArg: args.values.file, base, conn });
     if (ticket === undefined) throw new UsageError(`name the ${documentTypeOf(file.bytes) ?? 'ticket'}'s key or id before --file`, `mirai approve <key-or-id> --file ${args.values.file}`);
     // Unit 31: a document (a brief; unit 32: a PRD), not a ticket.
     const docType = documentTypeOf(file.bytes);
@@ -267,6 +270,8 @@ async function approveDocument({ id, type, file, store, io, now, fileArg, base =
   if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, config, project: projectOfConfig(config), base, conn });
   if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project: projectOfConfig(config), base, conn });
   const text = file.bytes.toString('utf8');
+  // Unit 41 (Scope 4): a brief waits for the business.md proposal beside it.
+  if (type === 'brief') refuseOpenProposal(store, base, file.path);
   const { linked, files: bound } = type === 'brief' ? interviewOf(base, file.path, text, registry) : { linked: {}, files: [] };
   refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true, linked }) }]);
   // Unit 40: the lint, then Vera, then the reader test, then you.
@@ -410,7 +415,11 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   if (brief.value.type !== 'brief' || !briefId) throw Object.assign(new MiraiError(`${brief.file.path}, which ${file.path} links, is not a brief; nothing was written`, EXIT.BLOCKED), { hint: 'link the brief this PRD comes from' });
   const pair = fm.value.track !== 'full';
   const briefText = brief.file.bytes.toString('utf8');
-  const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [brief.link]: briefText } }) }];
+  // Unit 41: the brief waits for an open business.md proposal; the PRD is checked against the owner's
+  // own list beside it (requirements.md), as `mirai lint` checks it.
+  if (pair) refuseOpenProposal(store, base, brief.file.path);
+  const requirements = besideText(base, file.path, 'requirements.md');
+  const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [brief.link]: briefText, ...(requirements === null ? {} : { 'requirements.md': requirements }) } }) }];
   const interview = pair ? interviewOf(base, brief.file.path, briefText, registry) : { linked: {}, files: [] };
   if (pair) results.unshift({ path: brief.file.path, errors: lintText(briefText, { source: brief.file.path, registry, project, approving: true, linked: interview.linked }) });
   refuseOnLint(io, results);
@@ -832,6 +841,130 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
       const files = [o.path, ...o.bound.map((b) => b.path), recordFile];
       io.stdout.write(`record:  ${recordFile}\nnext:\n  1. mirai render       (your sessions' copy of ${o.name}, from the approved overlay)\n  2. git add ${files.join(' ')} ${o.kind === 'mcp' ? '.mcp.json' : '.claude/'} .mirai/mirai.lock\n  3. git commit, then merge it into ${store.branch}: the overlay, its record and the rendered files together\n`);
     }
+    return EXIT.OK;
+  } finally {
+    prompter.close();
+  }
+}
+
+// ---- business.md proposals (unit 41, Scope 4; Jet's decision 2, D-43) --------------------------
+
+// The text of a file beside `docPath` (in the same folder), read as approval reads files, or null.
+function besideText(base, docPath, name) {
+  try {
+    return readApprovedFile(base, base, posix.join(posix.dirname(docPath), name)).bytes.toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
+// Whether the business.md proposal beside a brief is still open: your last decision on it doesn't
+// cover it as it is now. Rejected or approved as it is: closed. null when there's no proposal.
+export function proposalState(store, base, docPath, events = null) {
+  const rel = posix.join(posix.dirname(docPath), 'business-change.md');
+  let read;
+  try {
+    read = readApprovedFile(base, base, rel);
+  } catch {
+    return null;
+  }
+  const last = (events ?? readJournal(store).events).filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'business-change' && e.path === read.path).at(-1);
+  const decided = Boolean(last) && last.content_hash === contentHash(read.bytes);
+  return { path: read.path, open: !decided, decision: decided ? last.decision : null };
+}
+
+function refuseOpenProposal(store, base, briefPath) {
+  const p = proposalState(store, base, briefPath);
+  if (!p?.open) return;
+  throw Object.assign(new MiraiError(`${plain(p.path)}, a proposal to change business.md, is still open, and the brief beside it depends on it; nothing was written`, EXIT.BLOCKED), { code: 'proposal-open', hint: `decide it first: mirai approve --file ${plain(p.path)}` });
+}
+
+// mirai approve --file docs/mirai/<initiative>/business-change.md: the proposal's changes, each
+// "Replace:" text found in business.md exactly once, and business.md as it would become, linted.
+// You approve or reject it. Approved: MIRAI writes business.md as it becomes, and signs two lines
+// in one step: the proposal (kind business-change, business.md's new hash in `files`) and
+// business.md's own approval (kind context, naming the proposal). Rejected: one signed line, and
+// business.md is left as it was. The verifier doesn't check business.md here: every changed line is
+// the text of a proposal you read line by line, from your own answer (the screen says so).
+async function approveBusinessChange({ id, file, store, io, now, fileArg, base = store.checkout, conn = null }) {
+  const value = readFrontmatter(file.bytes)?.value ?? {};
+  const docId = typeof value.id === 'string' ? value.id : null;
+  if (id !== undefined && docId !== null && id !== docId) throw new UsageError(`${plain(file.path)} is "${plain(docId)}", not "${id}"; nothing was written`, `run: mirai approve --file ${fileArg}`);
+  if (posix.basename(file.path) !== 'business-change.md') throw new UsageError(`${plain(file.path)} is a business change, but isn't named business-change.md in an initiative's folder; nothing was written`, 'docs/mirai/<initiative>/business-change.md');
+  const trust = snapshot({ cwd: io.cwd, env: io.env });
+  const config = trustedConfig(trust);
+  const registry = withOverlays(trust, store, io, ['business-change', 'business']);
+  const project = projectOfConfig(config);
+  const text = file.bytes.toString('utf8');
+  refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true }) }]);
+  if (docId === null) throw new MiraiError(`${plain(file.path)} has no id; nothing was written`, EXIT.BLOCKED);
+  const businessRel = `${CONTEXT_DIR}/business.md`;
+  let business;
+  try {
+    business = readApprovedFile(store.checkout, store.checkout, businessRel);
+  } catch {
+    throw Object.assign(new MiraiError(`${businessRel} isn't there, so there's nothing to change; nothing was written`, EXIT.BLOCKED), { code: 'no-business', hint: 'setup writes it (mirai setup start context)' });
+  }
+  const businessId = readFrontmatter(business.bytes)?.value?.id;
+  const changes = changesOf(parseDocument(text, file.path));
+  const applied = applyChanges(business.bytes.toString('utf8'), changes);
+  if (applied.problem) throw Object.assign(new MiraiError(`${applied.problem}; nothing was written`, EXIT.BLOCKED), { code: 'business-change-stale', hint: `business.md changed since the proposal was written: correct ${applied.change}'s "Replace:" text to match it, then approve again` });
+  const after = Buffer.from(applied.text, 'utf8');
+  refuseOnLint(io, [{ path: `${businessRel} (as the change would make it)`, errors: lintText(applied.text, { source: businessRel, registry, project, approving: true, repo: store.checkout }) }]);
+  const hash = contentHash(file.bytes);
+  const afterHash = contentHash(after);
+  const before = proposalState(store, base, file.path);
+  io.stdout.write(`business change: ${plain(docId)}${before && !before.open ? ` (${before.decision} before, as it is now)` : ''}
+file:   ${file.path}
+hash:   ${hash}
+it changes ${businessRel} (${plain(String(businessId ?? 'business'))}), and approving it approves business.md as it then is
+`);
+  for (const c of changes) {
+    io.stdout.write(`${c.id}: ${plain(c.title)}\n`);
+    for (const l of c.replace.split('\n')) io.stdout.write(`  - ${plain(l)}\n`);
+    for (const l of c.with.split('\n')) io.stdout.write(`  + ${plain(l)}\n`);
+    io.stdout.write(`  source: ${plain(c.source)}\n  why: ${plain(c.why)}\n`);
+  }
+  io.stdout.write(`${fullName('mirai-verifier')}: not run on this change: each changed line is the proposal's text, which you read above\n`);
+  const prompter = createPrompter(io);
+  try {
+    const asked = now().getTime();
+    const answer = (await prompter.ask('apply and approve, or reject? [a/r] ')).toLowerCase();
+    const decision = { a: 'accepted', r: 'rejected' }[answer];
+    if (!decision) throw new UsageError(`${JSON.stringify(answer.slice(0, 10))} is not a or r; nothing was written`, 'run it again');
+    const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
+    let reason;
+    if (decision === 'rejected') {
+      reason = await prompter.ask('reason (optional, one line): ');
+      if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
+      if (reason === '') reason = undefined;
+    }
+    const signer = await decisionSigner(io, store, { prompter, ticket: docId, confirm: confirmByTyping });
+    if (contentHash(readApprovedFile(base, io.cwd, fileArg).bytes) !== hash || contentHash(readApprovedFile(store.checkout, store.checkout, businessRel).bytes) !== contentHash(business.bytes)) {
+      throw new MiraiError(`${file.path} or ${businessRel} changed while you were answering; nothing was written`, EXIT.FAILURE);
+    }
+    const proposalLine = checkEvent({ type: 'approval', by: 'human', item: docId, kind: 'business-change', path: file.path, content_hash: hash, ...(decision === 'rejected' ? {} : { files: [{ path: businessRel, content_hash: afterHash }] }), decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
+    const businessLine = decision === 'rejected' ? null : checkEvent({ type: 'approval', by: 'human', item: String(businessId ?? 'business'), kind: 'context', file_type: 'business', path: businessRel, content_hash: afterHash, proposal: file.path, decision, answered_after_s: answeredAfter });
+    const abs = join(store.checkout, businessRel);
+    if (businessLine) writeFileSync(abs, after, { mode: statSync(abs).mode & 0o777 });
+    let seq;
+    try {
+      seq = withSeq(store, (ctx) => {
+        const n = ctx.take();
+        ctx.event(n, proposalLine, { signer });
+        if (businessLine) ctx.event(ctx.take(), businessLine, { signer });
+        return n;
+      });
+    } catch (err) {
+      // Nothing signed: business.md goes back to what it was.
+      if (businessLine) writeFileSync(abs, business.bytes);
+      throw err;
+    }
+    io.stdout.write(decision === 'rejected'
+      ? `recorded: ${file.path} rejected (signed with ${signer.keyId}, seq ${seq}); ${businessRel} is unchanged\n`
+      : `applied and approved: ${businessRel} now has ${changes.length} change${changes.length === 1 ? '' : 's'} from ${file.path}, and both are approved as they are now (signed with ${signer.keyId}, seq ${seq} and ${seq + 1}); commit both\n`);
+    if (businessLine) io.stdout.write(`${documentLine({ store, config, abs, rel: businessRel, bytes: after })}\n`);
+    io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: file.bytes })}\n`);
     return EXIT.OK;
   } finally {
     prompter.close();

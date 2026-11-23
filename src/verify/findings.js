@@ -147,6 +147,19 @@ export function findingsFrom(structured, files) {
       // A `context` finding is one against a context file; against anything else it's a checklist
       // finding (a contradiction inside the document, or with its upstream), her layer kept.
       if (f.layer === 'context' && !/^context-/.test(f.against.file)) Object.assign(out, { layer: 'checklist', vera_layer: 'context' });
+      // Unit 41 (decision 6): a finding against the owner's own list is a line lost or changed: a
+      // must-fix, whatever grade she gave. One about lines the PRD leaves out on purpose ("Not in
+      // this", with a reason) is no finding.
+      if (other.requirements) {
+        const ids = [...new Set(`${f.against.quote ?? ''} ${f.against.source ?? ''} ${f.where.quote}`.match(/\bREQ-[0-9]{1,4}\b/g) ?? [])].map((x) => `REQ-${Number(x.slice(4))}`);
+        const out_ = own.leftOut ?? [];
+        if (ids.length && ids.every((x) => out_.includes(x))) {
+          drop(f, `${ids.join(', ')} ${ids.length === 1 ? 'is' : 'are'} left out on purpose under "Not in this", with a reason`);
+          continue;
+        }
+        if (out.grade !== 'must-fix') Object.assign(out, { grade: 'must-fix', vera_grade: out.grade, graded_by: 'a line of the owner\'s requirements list' });
+        if (out.layer !== 'checklist') Object.assign(out, { vera_layer: out.vera_layer ?? out.layer, layer: 'checklist' });
+      }
     }
     findings.push(regraded(out));
   }
