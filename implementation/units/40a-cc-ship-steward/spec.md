@@ -63,7 +63,10 @@ Turn both off everywhere MIRAI controls. Outside MIRAI projects nothing changes.
      Turning one back on, or removing it, is a change `mirai render` puts back;
    - a value of yours for either skill is replaced, and your other entries stay;
    - a skill MIRAI turned off before and no longer does is taken out;
-   - a `skillOverrides` that isn't an object is refused, not overwritten.
+   - a `skillOverrides` that isn't an object is refused, not overwritten;
+   - the setup ledger (`src/setup/ledger.js`, unit 39) doesn't list a `skillOverrides` that holds
+     only MIRAI's entries as an item of yours. The runner's first full run caught this: 39 T1 and
+     T5 counted one item too many.
 4. **The red team** (`src/redteam/static.js`, `src/redteam/run.js`):
    - **S3:** a skill in `builtin_skills_off` is expected absent. One that's still listed is red
      ("… still loads them (skillOverrides didn't hold)"), apart from the "not listed" note;
