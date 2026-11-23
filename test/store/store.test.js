@@ -429,7 +429,7 @@ test('T10: facts from the journal: merged beats blocked, a closed MR waits for y
 
   assert.deepEqual(Object.keys(EVENT_TYPES), [
     'status_written', 'pushed', 'mr_opened', 'mr_merged', 'mr_closed', 'epic_merged', 'branch_registered',
-    'branch_cleared', 'checkout_moved', 'lock_broken', 'approval', 'run_resumed', 'feedback', 'docs_published', 'docs_merged', 'verifier_miss', 'note', 'template_gap',
+    'branch_cleared', 'checkout_moved', 'lock_broken', 'approval', 'run_resumed', 'feedback', 'docs_published', 'docs_merged', 'verifier_miss', 'nora_run', 'note', 'template_gap',
   ]);
   assert.deepEqual(Object.keys(EVENT_TYPES).filter((t) => !EVENT_TYPES[t].privileged), ['note', 'template_gap']);
   assert.throws(() => appendEvent(store, { type: 'note', by: 'human', message: 'x' }), /never a signed human line/);
