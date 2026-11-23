@@ -35,9 +35,7 @@ export const TIER_FAMILIES = Object.freeze({
 });
 
 // Each step's tier until calibration (unit 57) sets them, D-14's table; a project's [models.steps]
-// wins (unit 19b). Unit 40: `verify` (Vera) is `standard` by Jet's decision after P1 (2026-11-23,
-// "A"): neither tier met P1's strict rule; Sonnet caught about as many seeded defects as Opus
-// (10 and 11 of 13 on their layer) with far fewer must-fix findings on clean documents (6 and 14).
+// wins (unit 19b).
 export const STEP_DEFAULTS = Object.freeze({
   prd: 'deep', design: 'deep', tickets: 'standard', verify: 'standard', plan: 'standard', replan: 'deep', build: 'standard', review: 'standard',
   'review-high-risk': 'deep', qa: 'standard', 'commit-message': 'light', 'mr-description': 'light', 'report-summary': 'light', 'parking-note': 'light',

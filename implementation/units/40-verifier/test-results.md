@@ -203,8 +203,9 @@ a suggestion. Most must-fix findings on the clean documents were real gaps:
 **Jet's decision (2026-11-23, "A"): the default for `[models.steps] verify` is `standard`.** Sonnet
 caught about as many seeded defects as Opus and raised far fewer must-fix findings on clean
 documents, which means fewer rounds and less noise. Opus is one line away
-(`[models.steps] verify = "deep"`). `STEP_DEFAULTS` already had `standard`; its comment now cites
-this decision, and T1's assertion says so.
+(`[models.steps] verify = "deep"`). `STEP_DEFAULTS` in `defaults.js` already had `standard`,
+so nothing there changed (the file is in the red team's cage, so not even its comment was touched);
+T1's assertion names the decision.
 
 **Fixed in MIRAI's examples** (each still lints clean, and 32's and 33's tests pass):
 
