@@ -567,6 +567,22 @@ test('39 F8 + F10 (P1): a session server behind that still starts, and a missing
   assert.equal(checklistState(items.map((i) => (i.id === 'baseline' ? { ...base, advisory: undefined } : i)), marks)[7].state, 'check');
 });
 
+test('39 F12 (P3 day): an old or missing usage reading is advisory: the next run reads it first; line 8 skips it', async () => {
+  const f = project();
+  const items = await runChecks({ cwd: f.root, env: f.env, ...stubs });
+  const usage = items.find((i) => i.id === 'usage');
+  assert.equal(usage.state, 'yellow');
+  assert.equal(usage.advisory, true);
+  assert.match(usage.detail, /so the caps weren't checked/);
+  assert.match(usage.hint, /the next run reads your usage first/);
+  const marks = { 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'done' };
+  const only = items.map((i) => (['merge-gate', 'usage'].includes(i.id) ? i : { id: i.id, title: i.title, state: 'ok', detail: 'ok' }));
+  const line8 = checklistState(only, marks)[7];
+  assert.equal(line8.state, 'done', line8.why);
+  assert.match(line8.why, /advisory: Plan and week \(/);
+  assert.deepEqual(toFix(only), []);
+});
+
 test('39 F7 (P1): the session server records its Claude Code config; the steps it gives and the commands it runs carry it', async () => {
   const { withConfig } = await import('../../src/mcp/tools/commands.js');
   const { checkPolicy } = await import('../../src/mcp/server.js');

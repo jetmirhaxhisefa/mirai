@@ -287,6 +287,17 @@ are never touched.
   add`, `path` set to the folder), not Bash."; the setup skill says the same. The pre-commit still
   refuses a skill copied by hand under `.claude/` (P3 step 4). Test "39 F11". Nothing in the red
   team's cage changed.
+- **F12, after the refresh to `e69a73b` (Jet, 2026-11-23, `thudos-setup` at `3117147`): doctor's
+  "Plan and week" yellow blocked line 8.** The last usage reading was 23 h old (none since the
+  night before), so doctor gave "the last reading of your usage is out of date (23 h old), so the
+  caps weren't checked", a plain yellow: line 8 and `setup done finish` would refuse, though its
+  own hint says the next run reads your usage first (D-18's probe, `probe: true` in
+  `usageCheck`), and an unattended run refuses without a fresh one anyway. **Fixed:** an old or
+  missing reading (the `probe` case) is an advisory yellow (F10's class), with the same hint;
+  caps that can't be read stay red and a cap reached stays red. Test "39 F12". Nothing in the red
+  team's cage changed. (The same doctor, run without `CLAUDE_CONFIG_DIR`, showed the Session
+  server yellow for the default config with "current in CLAUDE_CONFIG_DIR=~/.claude-private":
+  right, since the checklist, run with that config, didn't count it.)
 - **What passed on P1 (Jet, 2026-11-22, on `thudos-setup` with MIRAI from `d6afc48`):** every stage
   but finish done (finish blocked by F4); doctor 21 ok, 1 yellow (Merge gate), 0 red; the P1 check
   all PASS but finish and "doctor green" (both F4). Jet: resuming after Ctrl-D in stage 2 went on

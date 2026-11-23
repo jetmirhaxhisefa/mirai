@@ -248,7 +248,9 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     const caps = usageCaps(env);
     if (caps.error) return red(`your usage caps can't be read (${caps.error})`, 'fix ~/.config/mirai/config.toml');
     const c = usageCheck({ env, unattended: false, caps, now: now().getTime() });
-    if (c.warn) return yellow(c.warn, 'the next run reads your usage first (a short Haiku launch)');
+    // F12 (P3 day): an old or missing reading is advisory: every run reads your usage first (D-18's
+    // probe) and checks the caps then, so it isn't a fault to fix before setup can finish.
+    if (c.warn) return (c.probe ? advisoryYellow : yellow)(c.warn, 'the next run reads your usage first (a short Haiku launch)');
     const n = c.numbers;
     if (!c.go) return red(c.why, 'wait for the week to reset, or raise usage.week_max in ~/.config/mirai/config.toml');
     return ok(`MIRAI ${n.week}% of your week so far (cap ${n.week_max}%), ${n.night}% in the last 12 hours (cap ${n.night_max}%); ${100 - n.used}% of the week left`);

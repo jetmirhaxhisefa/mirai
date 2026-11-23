@@ -61,7 +61,7 @@ export const CHECKLIST = Object.freeze([
   {
     n: 8, title: 'mirai doctor until it\'s green',
     command: 'mirai doctor',
-    see: 'no red item, and every yellow one is either fixed, one MIRAI expects until a later unit (today: Merge gate, local-only until unit 54), or advisory (a session server behind that still starts; no baseline yet at the head with one at an earlier commit); a yellow item names its fix on the line under it',
+    see: 'no red item, and every yellow one is either fixed, one MIRAI expects until a later unit (today: Merge gate, local-only until unit 54), or advisory (a session server behind that still starts; no baseline yet at the head with one at an earlier commit; an old reading of your usage, which the next run refreshes); a yellow item names its fix on the line under it',
     default: 'no choice to make',
     doctor: ['*'],
   },
