@@ -45,11 +45,12 @@ export function createWriteCommand({ launch = null, verifyLaunch = null, readerL
           progress.stop();
           io.stdout.write(`${line}\n`);
         };
+        const doc = (t) => (t === 'prd' ? 'the PRD' : `the ${t}`);
         const onStep = (e) => {
-          if (e.kind === 'launch') say(`${who(NORA_AGENT)}: ${e.step} the ${e.type} (round ${e.round}): ${e.outcome === 'ok' ? 'handed over' : e.outcome}`);
-          else if (e.kind === 'lint') say(`lint, the ${e.type}: ${e.errors ? `${e.errors} problem${e.errors === 1 ? '' : 's'}` : 'clean'}`);
-          else if (e.kind === 'verify') say(`${who(VERIFY_AGENT)}, the ${e.type}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (unchanged since that check)' : ''}`);
-          else if (e.kind === 'reader') say(`reader test, the ${e.type}: ${e.result}, round ${e.round}${e.reused ? ' (unchanged since that test)' : ''}`);
+          if (e.kind === 'launch') say(`${who(NORA_AGENT)}: ${e.step} ${doc(e.type)} (round ${e.round}): ${e.outcome === 'ok' ? 'handed over' : e.outcome}`);
+          else if (e.kind === 'lint') say(`lint, ${doc(e.type)}: ${e.errors ? `${e.errors} problem${e.errors === 1 ? '' : 's'}` : 'clean'}`);
+          else if (e.kind === 'verify') say(`${who(VERIFY_AGENT)}, ${doc(e.type)}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (unchanged since that check)' : ''}`);
+          else if (e.kind === 'reader') say(`reader test, ${doc(e.type)}: ${e.result}, round ${e.round}${e.reused ? ' (unchanged since that test)' : ''}`);
         };
         const r = await runNora({
           cwd: io.cwd, env: io.env, initiative, nextToken: () => mintLaunchToken(), launchOptions, onStep, now,

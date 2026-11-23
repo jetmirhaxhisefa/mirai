@@ -290,7 +290,7 @@ test('39 T2: refused, naming the check, nothing moved: a name clash, a role that
   assert.match(readFileSync(join(f.root, '.claude/settings.json'), 'utf8'), /example\.com\/check/);
   // An agent needs to say what it becomes; instruction text isn't an item.
   r = await cli(['custom', 'add', '.claude/agents/security.md'], f.io);
-  assert.match(r.err, /--as mirai-developer\|mirai-reviewer\|mirai-verifier --role/);
+  assert.match(r.err, /--as mirai-developer\|mirai-reviewer\|mirai-verifier\|mirai-product-manager --role/);
   r = await cli(['custom', 'add', 'CLAUDE.md'], f.io);
   assert.match(r.err, /instruction text/);
 });

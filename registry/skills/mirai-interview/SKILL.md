@@ -178,9 +178,9 @@ brief and the PRD in the background:
    `requirements.md` and `business-change.md` when there are any) on a branch for this feature,
    never on the integration branch: `git switch -c docs-<initiative>` when you're on it, then
    `git add docs/mirai/<initiative> && git commit -m "<initiative>: interview"`.
-2. **Start her** with `/mirai write <initiative>` (the `mirai_command` tool, command `write`).
-   Claude Code asks the owner to allow it.
-3. **Follow her** with `mirai_status` and the request id, now and then. Her run takes a while:
+2. **Start her** with `/mirai write <initiative>` (MIRAI's `mirai_command` tool, command `write`).
+   Your tool asks the owner to allow it.
+3. **Follow her** with MIRAI's `mirai_status` tool and the request id, now and then. Her run takes a while:
    several launches, with MIRAI's lint, the verifier and the reader test between them.
 4. **Tell the owner** when it ends, with the full path and the link of each document from its last
    lines:

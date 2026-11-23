@@ -257,7 +257,7 @@ export const miraiCommand = Object.freeze({
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
       path: { type: 'string', pattern: ITEM.source, description: 'an item\'s path in the repo, for custom add, setup decide and setup defer (unit 39)' },
       stage: { type: 'string', enum: ['scan', 'migrate', 'context', 'connect', 'finish'], description: 'a setup stage, for setup start and setup done' },
-      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer, mirai-verifier) or skill; a hook\'s form: interactive, check or both' },
+      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer, mirai-verifier, mirai-product-manager) or skill; a hook\'s form: interactive, check or both' },
       role: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent overlay\'s role' },
       event: { type: 'string', pattern: WORD.source, description: 'with custom add: a hook\'s event, such as PostToolUse' },
       matcher: { type: 'string', pattern: WORD.source, description: 'with custom add: the tools a hook matches, such as Edit|Write' },

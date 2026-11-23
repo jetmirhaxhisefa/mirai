@@ -244,7 +244,7 @@ async function noraLaunch(ctx, { type, step, extra = {} }) {
     appendEvent(s.store, { type: 'template_gap', by: 'script', item: s.initiative, template: g.type, section: oneLine(g.where, 200), message: oneLine(g.what) });
     ctx.gaps += 1;
   }
-  if (!local && changes.length) commitDocs(ctx, `the ${type}, round ${round}`, result.summary);
+  if (!local && changes.length) commitDocs(ctx, `the ${type === 'prd' ? 'PRD' : type}, round ${round}`, result.summary);
   if (result.outcome === 'paused') return { end: pausedEnd(ctx, type, result.question) };
   return { ok: true, result };
 }

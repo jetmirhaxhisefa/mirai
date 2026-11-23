@@ -130,8 +130,9 @@ export function requirementCitations(doc) {
   for (const l of doc.scan.lines) {
     if (l.kind === 'heading') {
       const level = /^ {0,3}(#+)/.exec(l.text)?.[1].length ?? 0;
-      if (level === 2) [h2, h3] = [l.visible.trim(), null];
-      else if (level === 3) h3 = l.visible.trim();
+      const title = (l.visible ?? l.text).replace(/^ {0,3}#+[ \t]*/, '').replace(/[ \t]+#+[ \t]*$/, '').trim();
+      if (level === 2) [h2, h3] = [title, null];
+      else if (level === 3) h3 = title;
       continue;
     }
     if (l.kind !== 'text') continue;

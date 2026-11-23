@@ -16,7 +16,7 @@ const shellWord = (w) => (/^[A-Za-z0-9_./~@%+=:,-]+$/.test(w) ? w : `'${String(w
 export default {
   name: 'custom',
   summary: 'Move a skill, agent, command, hook, script or MCP server into .mirai/custom/, for your approval',
-  usage: 'mirai custom add <path> [--as <skill|mirai-developer|mirai-reviewer|mirai-verifier|interactive|check|both>] [--role <role>] [--hook <event>] [--matcher <tools>] [--server <name>] [--service <service>]',
+  usage: 'mirai custom add <path> [--as <skill|mirai-developer|mirai-reviewer|mirai-verifier|mirai-product-manager|interactive|check|both>] [--role <role>] [--hook <event>] [--matcher <tools>] [--server <name>] [--service <service>]',
   positionals: { min: 2, max: 2 },
   options: {
     as: { type: 'string', description: 'an agent: the MIRAI agent it becomes an overlay of, or skill; a hook: interactive (default), check or both' },
