@@ -90,7 +90,9 @@ export function findingsFrom(structured, files) {
   if (list.length > 100) return { problem: 'the findings don\'t match MIRAI\'s schema: /findings has more than 100 items' };
   const findings = [];
   const dropped = [];
-  const drop = (f, why) => dropped.push({ id: typeof f?.id === 'string' ? f.id.slice(0, 64) : '?', why, quote: shown(f?.where?.quote) });
+  // P2's second run: a dropped finding keeps its `what`, so a lost must-fix is visible in the
+  // dropped list (never counted, never shown as a finding).
+  const drop = (f, why) => dropped.push({ id: typeof f?.id === 'string' ? f.id.slice(0, 64) : '?', why, quote: shown(f?.where?.quote), ...(typeof f?.what === 'string' ? { what: shown(f.what) } : {}) });
   const valid = [];
   const ids = new Set();
   list.forEach((raw, i) => {
@@ -100,6 +102,9 @@ export function findingsFrom(structured, files) {
       return;
     }
     const f = c.value.findings[0];
+    // `decision_type` is required, `none` for a writing finding (P2's second run: a decision without
+    // one was lost); the record keeps a type only for a decision.
+    if (f.decision_type === 'none') delete f.decision_type;
     if (ids.has(f.id)) {
       drop(f, 'its id is used by an earlier finding');
       return;
@@ -120,9 +125,11 @@ export function findingsFrom(structured, files) {
     }
     const out = { ...f, where: { ...f.where, line, path: own.path ?? f.where.file } };
     if (f.against) {
+      // Any file she was given: a context file, an upstream document, or the document itself (or an
+      // epic's ticket) for a contradiction inside it (P2's second run: `against: document.md`).
       const other = Object.hasOwn(files, f.against.file) ? files[f.against.file] : null;
-      if (!other || other.checked) {
-        drop(f, `${f.against.file} isn't an upstream document or context file she was given`);
+      if (!other) {
+        drop(f, `${f.against.file} isn't a file she was given`);
         continue;
       }
       if (f.against.quote !== undefined && quoteLine(other.text, f.against.quote, f.against.line ?? 1) === null) {
@@ -130,6 +137,9 @@ export function findingsFrom(structured, files) {
         continue;
       }
       out.against = { ...f.against, path: other.path ?? f.against.file };
+      // A `context` finding is one against a context file; against anything else it's a checklist
+      // finding (a contradiction inside the document, or with its upstream), her layer kept.
+      if (f.layer === 'context' && !/^context-/.test(f.against.file)) Object.assign(out, { layer: 'checklist', vera_layer: 'context' });
     }
     findings.push(regraded(out));
   }

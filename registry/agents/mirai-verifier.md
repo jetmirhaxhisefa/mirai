@@ -102,13 +102,15 @@ clean document has no findings, and that is a fine result.
 ## Each finding
 
 - `id`: short, unique in your output (`V-1`, `V-2`, …);
-- `layer`, `kind`, `kind_reason`, `decision_type` for a decision, and then `grade`, by the list above;
+- `layer`, `kind`, `kind_reason`, `decision_type` (always: `none` for a writing finding, the
+  decision's type for a decision), and then `grade`, by the list above;
 - `where`: `file` (`document.md`, or a `ticket-<key>.md` of an epic), `line` (the line number in
   that file) and `quote`: the exact words, copied character for character, at least three words
   from one place. MIRAI checks every quote by a text match: **a finding whose quote isn't in the
   file is dropped**, never shown;
-- `against`: **required on every `context` finding**, and on any finding that cites an upstream
-  document: `file` (the input file's name, `context-*.md` or `upstream-*.md`), and its `line` or
+- `against`: **required on every `context` finding**, and on any finding that cites another place:
+  `file` (the input file's name: `context-*.md`, `upstream-*.md`, or `document.md` itself for a
+  contradiction inside the document), and its `line` or
   `source` (a source ID such as `S-3`), and `quote` when you can;
 - `what`: the problem in one sentence; `fix`: the fix in one sentence.
 

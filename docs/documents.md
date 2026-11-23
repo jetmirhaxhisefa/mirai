@@ -171,7 +171,9 @@ document's own upstream (a PRD against its brief) is a `checklist` finding namin
 MIRAI checks every quote by a text match, as the reader test does: a finding whose quote isn't in
 its file is dropped and logged, never shown, and so is a finding that breaks a rule of the
 schema on its own (a context finding that names no context file, an unknown grade); the other
-findings count. A reply that isn't the schema's shape at all (no list of findings) records nothing.
+findings count. `mirai verify` lists each dropped finding apart, with why and what it said, so a
+lost must-fix is visible; it's never counted. A reply that isn't the schema's shape at all (no
+list of findings) records nothing.
 
 **Running it:**
 

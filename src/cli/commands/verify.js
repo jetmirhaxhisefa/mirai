@@ -71,7 +71,12 @@ export function createVerifyCommand({ launch = null } = {}) {
         out.push(r.reused
           ? `it hasn't changed since round ${e.round}: that result, with no new run (model ${plain(e.model)})`
           : `round ${e.round}${e.round <= runs ? ` of ${runs}` : ''}, model ${plain(e.model)}, tier ${plain(e.tier)}${e.rung ? `, rung ${e.rung}` : ''}`);
-        if (e.dropped?.length) out.push(`${e.dropped.length} finding${e.dropped.length === 1 ? '' : 's'} dropped: ${e.dropped.slice(0, 3).map((d) => `${plain(d.id)} (${plain(d.why)})`).join('; ')}`);
+        // Scope 2: a dropped finding is logged, never counted or shown as a finding; it's listed apart
+      // with what it said, so a lost must-fix is visible (P2's second run).
+      if (e.dropped?.length) {
+        out.push(`dropped, not counted: ${e.dropped.length} finding${e.dropped.length === 1 ? '' : 's'} MIRAI couldn't check`);
+        for (const d of e.dropped) out.push(`  dropped  ${plain(d.id)}  ${plain(d.why)}`, ...(d.what ? [`        ${plain(d.what)}`] : []));
+      }
         const state = resultState(e, s.config);
         if (state === 'pass') out.push(`result: passed (${e.suggestions} suggestion${e.suggestions === 1 ? '' : 's'}); recorded as ${e.hash}`);
         else {

@@ -78,7 +78,7 @@ function fakeVera(structured, { outcome = 'ok' } = {}) {
 }
 
 const finding = (o = {}) => ({
-  id: 'V-1', grade: 'must-fix', layer: 'checklist', kind: 'writing', kind_reason: 'The brief gives the time.',
+  id: 'V-1', grade: 'must-fix', layer: 'checklist', kind: 'writing', kind_reason: 'The brief gives the time.', decision_type: 'none',
   where: { file: 'document.md', line: 1, quote: 'An assignee gets one email the day before a task is due' }, what: 'FR-4 has no time of day.', fix: 'Say when the email is sent.', ...o,
 });
 // One finding per layer and grade, each quoting the PRD as it is.
@@ -208,12 +208,13 @@ test('40 T2: findings: one per layer and grade is recorded; a quote not in the f
   // Each kept finding's line is where MIRAI found its quote, and its path the document's.
   for (const x of e.findings) assert.equal(x.where.line, quoteLine(PRD_READY, x.where.quote), x.id);
   assert.equal(e.findings[0].where.path, PRD);
-  assert.deepEqual(e.dropped.map((x) => ({ ...x })), [{ id: 'V-9', why: 'its quote isn\'t in document.md', quote: 'Guests may comment on any task' }]);
+  assert.deepEqual(e.dropped.map((x) => ({ ...x })), [{ id: 'V-9', why: 'its quote isn\'t in document.md', quote: 'Guests may comment on any task', what: 'FR-4 has no time of day.' }]);
   // The output: the must-fix count, then each finding, then the full path.
   const lines = r.out.trimEnd().split('\n');
   // The launch's progress line named her in full first (38b's namer), so the result says "Vera".
   assert.match(r.out, /^Vera checked docs\/mirai\/due-dates\/prd\.md \(prd due-dates-prd\)\nround 1 of 3, model claude-sonnet-5-5, tier standard\n/);
-  assert.match(r.out, /^1 finding dropped: V-9 \(its quote isn't in document\.md\)$/m);
+  // Listed apart with what it said, not counted (P2's second run).
+  assert.match(r.out, /^dropped, not counted: 1 finding MIRAI couldn't check\n {2}dropped {2}V-9 {2}its quote isn't in document\.md\n {8}FR-4 has no time of day\.$/m);
   assert.match(r.out, /^result: 2 must-fix findings open; recorded as sha256:[0-9a-f]{64}$/m);
   const at = lines.indexOf('must-fix: 2');
   assert.ok(at > 0, r.out);
@@ -255,6 +256,14 @@ test('40 T2: findings: one per layer and grade is recorded; a quote not in the f
   assert.match(why(finding({ kind: 'decision' })), /decision_type/);
   assert.match(why(finding({ kind: 'decision', decision_type: 'invented', grade: 'suggestion' })), /invented decision is always must-fix/);
   assert.match(why(finding({ layer: 'context' })), /names the context file/);
+  assert.match(why({ ...finding(), decision_type: undefined }), /decision_type/);
+  // P2's second run: `against` may be the document itself (a contradiction inside it), mapped to its
+  // path; a `context` finding against it is a checklist finding, her layer kept.
+  const inside = findingsFrom({ findings: [finding({ layer: 'context', against: { file: 'document.md', line: 3, quote: 'Approve the due-dates brief and this PRD' } })] }, files);
+  assert.deepEqual(inside.dropped, []);
+  assert.deepEqual([inside.findings[0].layer, inside.findings[0].vera_layer, inside.findings[0].against.path], ['checklist', 'context', PRD]);
+  assert.equal(inside.findings[0].decision_type, undefined, 'none isn\'t recorded');
+  assert.match(findingsFrom({ findings: [finding({ against: { file: 'upstream-nothing.md', line: 1 } })] }, files).dropped[0].why, /isn't a file she was given/);
   // P2's first run: grade follows the type. A money-legal or scope decision, and a context
   // finding, graded suggestion, is held to must-fix, her grade kept beside it; a number stays hers.
   const graded = findingsFrom({ findings: [

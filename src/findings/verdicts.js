@@ -145,8 +145,8 @@ export function checkVerifyFindings(input) {
   return check('verify-findings', input, (v, add) => {
     unique(v.findings, 'id', '/findings', add);
     v.findings.forEach((f, i) => {
-      if (f.kind === 'decision' && f.decision_type === undefined) add(`/findings/${i}/decision_type`, 'required', 'a decision names its decision_type');
-      if (f.kind === 'writing' && f.decision_type !== undefined) add(`/findings/${i}/decision_type`, 'invalid', 'decision_type is for a decision only');
+      if (f.kind === 'decision' && f.decision_type === 'none') add(`/findings/${i}/decision_type`, 'required', 'a decision names its decision_type');
+      if (f.kind === 'writing' && f.decision_type !== 'none') add(`/findings/${i}/decision_type`, 'invalid', 'a writing finding\'s decision_type is none');
       if (f.decision_type === 'invented' && f.grade !== 'must-fix') add(`/findings/${i}/grade`, 'invented-must-fix', 'an invented decision is always must-fix');
       if (f.layer === 'context' && f.against === undefined) add(`/findings/${i}/against`, 'required', 'a context finding names the context file it contradicts');
       if (f.against !== undefined && f.against.line === undefined && f.against.source === undefined) add(`/findings/${i}/against`, 'required', 'against names a line or a source ID');

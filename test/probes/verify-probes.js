@@ -286,6 +286,8 @@ function table(result, log) {
 
 function findingsReport(entry) {
   const out = [];
+  // Dropped findings first, apart and not counted, each with what it said (P2's second run).
+  for (const d of entry.dropped ?? []) out.push(`- dropped, not counted: **${d.id}** (${d.why})${d.what ? `: ${d.what}` : ''}`);
   for (const f of entry.findings ?? []) {
     out.push(`- **${f.id}** ${f.grade}, ${f.layer}, ${f.kind}${f.decision_type ? ` (${f.decision_type})` : ''}, ${f.where.path}:${f.where.line}`);
     out.push(`  - quote: "${normal(f.where.quote)}"`);

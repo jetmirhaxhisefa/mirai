@@ -6,6 +6,7 @@
       "layer": "checklist",
       "kind": "writing",
       "kind_reason": "The brief's BR-2 gives the number.",
+      "decision_type": "none",
       "where": {
         "file": "document.md",
         "line": 12,
@@ -20,6 +21,7 @@
       "layer": "top-vs-detail",
       "kind": "writing",
       "kind_reason": "The brief's BR-2 gives the number.",
+      "decision_type": "none",
       "where": {
         "file": "document.md",
         "line": 40,
@@ -34,6 +36,7 @@
       "layer": "context",
       "kind": "decision",
       "kind_reason": "business.md says signed-in teams only; guests are a scope choice.",
+      "decision_type": "scope",
       "where": {
         "file": "document.md",
         "line": 52,
@@ -41,7 +44,6 @@
       },
       "what": "FR-3 has no number.",
       "fix": "Say under 60 seconds, from BR-2.",
-      "decision_type": "scope",
       "against": {
         "file": "context-business.md",
         "line": 14,
@@ -55,14 +57,14 @@
       "layer": "checklist",
       "kind": "decision",
       "kind_reason": "No source gives the rate.",
+      "decision_type": "invented",
       "where": {
         "file": "ticket-sample-12.md",
         "line": 9,
         "quote": "a 20% VAT rate\napplies"
       },
       "what": "FR-3 has no number.",
-      "fix": "Say under 60 seconds, from BR-2.",
-      "decision_type": "invented"
+      "fix": "Say under 60 seconds, from BR-2."
     }
   ]
 }

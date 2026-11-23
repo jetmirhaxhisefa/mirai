@@ -28,6 +28,7 @@
         "layer",
         "kind",
         "kind_reason",
+        "decision_type",
         "grade",
         "fix"
       ],
@@ -76,6 +77,7 @@
         },
         "decision_type": {
           "enum": [
+            "none",
             "scope",
             "audience",
             "money-legal",
@@ -85,7 +87,7 @@
             "other",
             "invented"
           ],
-          "description": "For a decision only. invented: a claim added since the last check that no source holds (only when an earlier version is given); always must-fix."
+          "description": "Always given: none for a writing finding; for a decision, its type (never none). invented: a claim added since the last check that no source holds (only when an earlier version is given); always must-fix."
         },
         "grade": {
           "enum": [

@@ -269,6 +269,44 @@ general toward suggestion.
 
 P2 can be re-run as it is (`--probe p2`) once the probe's worktree is at this unit's head.
 
+### P2's second run (Jet, 2026-11-23, at 1ce85bd): the read passed, the run lost a finding
+
+Output: `~/mirai-u40-p2.txt`. Vera (Sonnet) on 34's P3 PRD: 3 must-fix, 1 suggestion, 3 dropped.
+Jet's read:
+
+| Finding | Grade | Jet |
+|---|---|---|
+| V-1: the brief's rollout plan (one team first, the 1-month SM-1 check) and SM-1's 3-month window are dropped | must-fix | would have sent it back |
+| V-2: the appetite is dropped | must-fix | would have sent it back |
+| V-3: NG-1 to NG-4 cited but not in Non-goals | must-fix | would have sent it back |
+| the glossary's template rows | suggestion | — |
+
+None was "wrong". But **3 findings were dropped**:
+
+- `/findings/6/decision_type a decision names its decision_type`;
+- twice, `document.md isn't an upstream document or context file she was given`.
+
+**The GDPR finding** (FR-21 against `business.md:40`), which Jet called "back" in the first run, is
+missing, almost certainly one of the drops. So P2 waits on a third run, which should show it as
+must-fix with no drops.
+
+**Fixed:**
+
+- **`against: document.md`** (Vera cited the document itself for a contradiction inside it). MIRAI
+  now accepts any file she was given as `against`, the document and an epic's tickets included,
+  mapped to their paths. A `context` finding whose `against` isn't a `context-*.md` file is recorded
+  as a `checklist` finding, with `vera_layer: context` kept. I chose this over a prompt ban: a
+  contradiction inside the document is must-fix (rule 4), and it needs somewhere to point. The
+  prompt names `document.md` as an `against` target.
+- **A decision with no `decision_type`:** the schema now requires `decision_type` on every finding,
+  `none` for a writing finding, so Claude Code's own structured-output check refuses a reply
+  without it while Vera is still running, and she corrects it. MIRAI still drops a decision whose
+  type is `none` (Jet's "B"). I didn't record it as `other` instead: that would be MIRAI choosing a
+  type she didn't give. The record drops `none`, so a writing finding still has no type.
+- **Drops are visible:** each dropped finding keeps its `what`. `mirai verify` lists them apart,
+  under "dropped, not counted", with why and what each said, and the probe's report does the same.
+  They're still never counted or shown as findings (Scope 2).
+
 ### P3 The loop (a session of yours, then 1 Vera run per round and 1 reader test)
 
 1. `cd ~/Projects/mirai-u40 && node test/probes/verify-probes.js --probe p3-home`
@@ -406,6 +444,7 @@ After P1's first run (Jet, 2026-11-23):
 - `u40-tests-5` at `44443dd` (Jet's answer 4): **pass, 804/804**, 14.8 minutes.
 - `u40-tests-6` at `46cffac` (P1's second run: the examples' fixes): **pass, 804/804**, 15 minutes.
 - `u40-tests-7` at `1ce85bd` (P2's first run: the grading): **pass, 804/804**, 14.2 minutes.
+- `u40-tests-8` at the next commit (P2's second run: `against`, `decision_type`, the dropped list): see the report.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,

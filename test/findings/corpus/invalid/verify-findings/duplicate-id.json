@@ -6,6 +6,7 @@
       "layer": "checklist",
       "kind": "writing",
       "kind_reason": "The brief's BR-2 gives the number.",
+      "decision_type": "none",
       "where": {
         "file": "document.md",
         "line": 12,
@@ -20,6 +21,7 @@
       "layer": "checklist",
       "kind": "writing",
       "kind_reason": "The brief's BR-2 gives the number.",
+      "decision_type": "none",
       "where": {
         "file": "document.md",
         "line": 12,
