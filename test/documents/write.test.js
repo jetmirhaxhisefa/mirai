@@ -25,6 +25,7 @@ import { checkAnswers, needsReaderTest, QUESTIONS, readerPrompt, runReaderTest, 
 import { installed } from '../tests/run-fixture.js';
 import { FAKE_CLAUDE, FAKE_TOKEN, fakeReader, passReader, quotesFrom } from '../helpers/reader.js';
 import { writeToken } from '../../src/sign/token.js';
+import { passVera, veraBefore } from '../helpers/vera.js';
 
 // Unit 34: the mirai-write skill and the reader test. No model runs here: every reader is a fake
 // launcher, every home a temp folder.
@@ -191,7 +192,10 @@ function fixture({ config, files = {} } = {}) {
   return { ...f, io: { cwd: f.root, env: f.env }, at: (rel) => join(f.root, D, rel) };
 }
 
-async function tty(argv, { cwd, env }, answers) {
+// Unit 40: these approvals aren't about the verifier; her pass for the file as it is now first
+// (test/documents/verify.test.js tests the gate itself).
+async function tty(argv, { cwd, env }, answers, { vera = true } = {}) {
+  if (vera) veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);
@@ -202,6 +206,8 @@ async function tty(argv, { cwd, env }, answers) {
 
 // The command, as `mirai reader-test` runs it, with a fake launcher.
 async function readerCli(f, file, reader) {
+  // Unit 40: the reader test comes after the verifier's pass.
+  passVera(f, file);
   const cmd = createReaderTestCommand({ launch: reader.launch, claude: FAKE_CLAUDE });
   let out = '';
   const code = await cmd.run({ positionals: [file], values: {} }, { cwd: f.root, env: f.env, stdout: { write: (s) => (out += s) }, stderr: { write: () => {} } });
@@ -267,6 +273,7 @@ test('34 T4: mirai reader-test, with a fake launcher: only the summary, recorded
   assert.equal(readReaderTests(store, 'due-dates-prd').at(-1).round, 3);
   // A reader with tools, or one whose answer isn't the JSON, records nothing and uses no round.
   writeFileSync(f.at('prd.md'), swap(PRD_READY, 'Approve the due-dates brief and this PRD', 'Approve both the due-dates brief and this PRD'));
+  passVera(f, `${D}/prd.md`);
   await assert.rejects(runReaderTest({ cwd: f.root, env: f.env, file: `${D}/prd.md`, launch: fakeReader(quotesFrom, { tools: ['Read'] }).launch, claude: FAKE_CLAUDE }), /the reader started with tools \(Read\); nothing was recorded/);
   await assert.rejects(runReaderTest({ cwd: f.root, env: f.env, file: `${D}/prd.md`, launch: fakeReader(() => 'I think it is about due dates.').launch, claude: FAKE_CLAUDE }), /isn't the JSON it was asked for; nothing was recorded/);
   assert.equal(readReaderTests(store, 'due-dates-prd').length, 3);

@@ -441,8 +441,10 @@ function applyType(o, registry) {
   } catch {
     checklist = null;
   }
+  // Unit 40 (re-checked against 37): an added section's lines are the verifier's questions (the
+  // overlay's `checklist` key says so), so they're Vera's: rendered `- [vera] …`.
   if (checklist !== null && checklistAdds.length) {
-    checklist = `${checklist.replace(/\n+$/, '')}\n\n${checklistAdds.map((c) => `## ${c.name}\n\n${c.lines.map((l) => `- ${l}`).join('\n')}`).join('\n\n')}\n`;
+    checklist = `${checklist.replace(/\n+$/, '')}\n\n${checklistAdds.map((c) => `## ${c.name}\n\n${c.lines.map((l) => `- [vera] ${l}`).join('\n')}`).join('\n\n')}\n`;
   }
   o.result = { def: { ...def, renames: { ...rename }, template_text: template, ...(checklist !== null ? { checklist_text: checklist } : {}), overlay: { path: o.path, hash: o.hash, replace: v.replace === true } }, template, replace: v.replace === true, coreTemplate: { version: core.template_version ?? null, hash: sha256(Buffer.from(coreTemplate, 'utf8')) } };
   return undefined;

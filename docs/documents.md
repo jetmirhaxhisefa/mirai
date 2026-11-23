@@ -119,6 +119,132 @@ The banned words live in `src/lint/words.js`, which opens with its review date. 
 check the lists against the last 90 days' lint warnings and findings, change them, and update the
 date. `mirai doctor` shows a yellow "Banned words" item once the date is older than that.
 
+## Vera, the verifier
+
+Unit 40 (Jet's decisions 1–7). The lint checks a document's form, and the reader test checks its
+summary. Neither judges what it says. **Vera** (`mirai-verifier`) does: she reads a finished
+document the way a strict senior reviewer would, cites every finding to its line, and the author
+fixes the must-fix ones before the document reaches you.
+
+**The order** is the lint, then Vera, then the reader test (where the type has one), then you.
+
+**Which documents** (decision 6): the brief, the PRD, the epic with its tickets, and the context
+files you approve: `business.md`, `journeys.md` and each `conventions-<service>.md`. Not
+`feature-map.md` or `project-<service>.md` (the lint checks them against the code), and not plans
+(Kai's plan gate). A type she checks has `verifier = true`, and its checklist marks her lines
+`- [vera] …`; a checklist with none fails the registry check. Lines an overlay adds to a
+checklist (`docs/overlays.md`) are hers too.
+
+**The three layers** (decision 3):
+
+1. **the type's checklist:** its `[vera]` lines, the judgement a script can't make;
+2. **the top part against the detail:** every decision, requirement and boundary in the detail is
+   named in the top part, and nothing in the top part is missing below;
+3. **the project's context:** no contradiction with `business.md`, a critical journey in
+   `journeys.md`, or a conventions rule. A claim in a context file whose cited source doesn't say
+   it is a must-fix: it should be `(open)`, and asked. An `(open)` line itself isn't a finding.
+
+**Each finding** has a grade, a layer, where it is (the file, the line and the exact quote), what
+it contradicts for a context finding (the context file and its line or source ID), what is wrong
+and the fix, each in one sentence, and its kind:
+
+- **must-fix**, by a fixed list (she picks the kind and type first, then the grade): anything
+  that contradicts a context file; a `scope`, `audience`, `money-legal`, `conflict` or `invented`
+  decision you weren't shown; an upstream commitment (a business requirement, scope, a rollout,
+  the appetite or a budget, a success metric) dropped or changed without the summary saying so; a
+  contradiction inside the document or with an upstream one; a top part that hides or adds
+  something; a builder left asking. These block. MIRAI holds the first two and every top-vs-detail
+  finding itself: such a finding is must-fix whatever grade she gave (her own is kept beside it,
+  unit 40's P2);
+- **suggestion:** everything else, such as a number no source gives that a builder can build as
+  written. It doesn't block or use a round. It goes to the author and is listed for you;
+- **writing or decision** (unit 44's decision 3): `writing` when a source that exists gives the
+  fix; `decision` when it needs a new fact or a choice that no source holds (scope; users,
+  markets, countries; money and legal; a number no source gives; two sources that disagree; a
+  trade-off), with its `decision_type`. When in doubt, decision. A decision already under "Decisions for
+  you" is no finding: it's already yours. A claim **added since her last check** that no source
+  holds is an `invented` decision: always must-fix (the workflows give her the earlier version,
+  unit 44).
+
+Every `context` finding names the context file it contradicts; a contradiction with the
+document's own upstream (a PRD against its brief) is a `checklist` finding naming that document.
+
+MIRAI checks every quote by a text match, as the reader test does: a finding whose quote isn't in
+its file is dropped and logged, never shown, and so is a finding that breaks a rule of the
+schema on its own (a context finding that names no context file, an unknown grade); the other
+findings count. A finding on a part the template fixes word for word (a PRD's "ID prefixes") is
+dropped too: the author can't change it. `mirai verify` lists each dropped finding apart, with why and what it said, so a
+lost must-fix is visible; it's never counted. A reply that isn't the schema's shape at all (no
+list of findings) records nothing.
+
+**Running it:**
+
+```bash
+mirai verify docs/mirai/<initiative>/prd.md
+mirai verify .mirai/context/business.md
+```
+
+From your terminal or your session (`/mirai verify <file>`). Vera runs as every agent does: MIRAI's
+launcher, read-only (`Read`, `Glob`, `Grep`), the red-team-tested template, a fresh context, on the
+`verify` step's model. Everything she checks goes in as data: the document (an epic's tickets with
+it), its checklist as `mirai show checklist <type>` prints it, the documents it links in the line
+under its title, and the context files, each with whether it's approved as it is now. Like every
+launch, it needs a clean work tree: commit the document first (a document in the local store is
+outside the repo, so this never stops it).
+
+The output ends with the must-fix count, then each finding, then the document's full path:
+
+```
+Vera (mirai-verifier) checked docs/mirai/due-dates/prd.md (prd due-dates-prd)
+round 1 of 3, model claude-sonnet-5-5, tier standard
+result: 1 must-fix finding open; recorded as sha256:…
+fix them, then run mirai verify docs/mirai/due-dates/prd.md again (…)
+must-fix: 1
+  must-fix  V-1  checklist, writing  docs/mirai/due-dates/prd.md:58
+        "An assignee gets a reminder email"
+        FR-4 doesn't say when the email is sent.
+        fix: Say "the evening before the due date, at 18:00 in the assignee's time zone".
+/Users/you/Projects/app/docs/mirai/due-dates/prd.md
+```
+
+**Rounds** (decision 2): each result is kept in MIRAI's store by the document's exact bytes (an
+epic's with its tickets), with its round: 1 for the first version checked, one more for each
+changed version. A rerun on unchanged text shows the kept result and costs no run. The author has
+`[docs] verify_fix_rounds` fix rounds after the first check (default 2, 0–5, project file only);
+the reader test's are `[docs] reader_fix_rounds` (the same default; unit 34 had it fixed at 2).
+
+`mirai verify <file> --handoff` prints the must-fix findings of the result for the file as it is
+now, as the author's next run gets them: fenced as data, with "fix these, then run mirai verify
+again". The workflows (units 44 and 45) pass it to the author's run.
+
+**At approval** (Scope 5):
+
+- **no result** for the document as it is now: refused, with `run: mirai verify <file>, then
+  approve again`;
+- **must-fix findings with rounds left:** refused too: the author fixes them first;
+- **must-fix findings after the last round:** "Vera: N findings open", each listed. You can still
+  approve, reject with a note, or answer them yourself (fix the document, check it again);
+- **a pass:** "Vera: passed (N suggestions)".
+
+The signed approval line records the result's hash (`verifier`). The reader test, on a type that
+has both, needs Vera's pass or her last round first, so the summary it reads is the fixed one.
+
+**Misses** (decision 7): when you reject a document Vera passed, the reason you give is recorded
+against the type as her miss (a `verifier_miss` line in the journal, with the result's hash), for
+the review after the MVP. `mirai show <initiative>` marks the document: "missed by Vera".
+
+**The model** is the step `verify` in `[models.steps]` (decision 4). It's `standard` until unit
+40's P1 measures `standard` against `deep` on seeded documents; the cheapest tier that catches
+every seeded defect with no false must-fix becomes the default. Each run's log line has its tier
+and model, and its rung when MIRAI ran the author (`docs/model-tiers.md`).
+
+**Turning her off** (project file only; every approval then says so):
+
+```toml
+[docs]
+verify = false
+```
+
 ## The reader test
 
 Unit 34 (Jet's decisions 1–6). The lint checks the summary's form. The reader test checks that you
@@ -161,7 +287,8 @@ HLDs, ADRs and LLDs get it with their units: it applies to every type whose summ
 
 **Rounds:** each result is kept in MIRAI's store, keyed by the summary's exact text, with its round:
 1 for the first summary tested, then one more for each changed summary. A rerun on an unchanged
-summary shows the kept result and costs no run. Two fixing rounds follow a failure; from the
+summary shows the kept result and costs no run. Two fixing rounds follow a failure by default
+(`[docs] reader_fix_rounds`, 0–5, unit 40); from the
 workflow units on (35–36, 42, 45), the agent that writes the document gets the failed question back automatically.
 After the third failure the document still reaches you, marked.
 

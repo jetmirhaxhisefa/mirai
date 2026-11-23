@@ -27,7 +27,8 @@ Team leads keep deadlines in a spreadsheet beside the task app. Last month 4 of 
 Once this is built:
 
 - A task's creator or team lead can date it. Overdue tasks are marked in the list (FR-1, FR-5).
-- An assignee gets one email the day before a task is due, listing all of that day's tasks (FR-4).
+- An assignee gets one email the day before a task is due, with titles and dates only (FR-4, NFR-2).
+- Assignees can turn their reminders off, and people who leave a team get none (FR-3, FR-8).
 - A team lead sees every overdue task of the team on one page (FR-2).
 - A date in the past is refused, and a failed email is retried once (FR-6, FR-7).
 - Tasks without a date look and sort exactly as they do today (FR-9).
@@ -50,7 +51,7 @@ These are left out, from the brief and from this PRD:
 The journeys this feature changes:
 
 - UJ-1: On Monday morning a team lead dates the week's new tasks, then checks which of the team's tasks are overdue.
-- UJ-2: A team member reads the evening reminder, then finishes the tasks or asks the lead to move them.
+- UJ-2: A team member reads the nightly reminder, then finishes the tasks or asks the lead to move them.
 
 ## Functional requirements
 
@@ -142,5 +143,5 @@ Besides the brief's no-gos (NG-1, NG-2, NG-3):
 - Team lead: the one person per team, set in today's team settings, who assigns its tasks. Only a team lead opens the overdue page, for their own team.
 - Can see a task: is a member of the task's team, under today's access rules, which this PRD doesn't change.
 - Done: the task status the app has today. A reopened task counts as not done again.
-- Exists today: tasks, teams, team leads, the done status and email addresses. New: due dates, the overdue mark and page, and reminder emails.
+- Exists today: tasks, teams with their time zone, team leads, the done status and email addresses. New: due dates, the overdue mark and page, and reminder emails.
 - Day ends: midnight in the team's own time zone.

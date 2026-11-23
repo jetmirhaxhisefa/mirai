@@ -84,6 +84,12 @@ the document reaches you.
    
    MIRAI checks every quote by text match, as 34 does: a finding whose quote isn't in the file is
    dropped and logged, never shown. A reply that isn't the schema records nothing.
+
+   *(changed: Jet, 2026-11-23, P1):* "isn't the schema" means its shape: not an object, no
+   `findings` list, another key, more than 100 findings. A finding that breaks a rule of the schema
+   on its own (a `context` finding without `against`, a bad grade, an id used twice) is dropped and
+   logged, as one whose quote isn't in the file is, and the other findings count. P1's first run
+   lost three whole replies to one such finding each.
 3. **Checklists mark Vera's items:** each type's checklist gains a `[vera]` mark on the items she
    owns. The lint's items stay the lint's. A checklist with no `[vera]` item fails the registry
    check.
@@ -125,7 +131,8 @@ the document reaches you.
   only `Read`, `Glob` and `Grep`. A launch (fake launcher) gets the document, the checklist, the
   upstream documents and the context files as data, on the `verify` step's model.
 - **T2 Findings:** a fake Vera reply with one finding per layer and grade is recorded. A quote not
-  in the file is dropped and logged. A reply that isn't the schema records nothing.
+  in the file is dropped and logged, as is a finding that breaks a rule of the schema (changed:
+  Jet, 2026-11-23, P1). A reply that isn't the schema's shape records nothing.
 - **T3 The gate:** with no result, approval is refused, naming the command. Open must-fix findings
   after the last round show "Vera: N findings open" and still allow approval, and the line records
   the hash. A pass shows its suggestions count. `verify = false` approves without a result and
@@ -162,6 +169,17 @@ the document reaches you.
 
 - T1–T8 pass, and the full suite passes through the build runner and CI.
 - P1–P3 pass, and P1's default is set in `defaults.js`.
+  *(changed: Jet, 2026-11-23):* P1 didn't pass under its strict rule on either tier (standard
+  caught 10 of 13 seeds on their layer, deep 11; 6 and 14 must-fix findings on clean documents).
+  Jet chose `standard` as the default ("A"): about the same catch rate, far less noise. P1 counts
+  as done with that decision; P2 and P3 still have to pass.
+
+  *(changed: Jet, 2026-11-23, P3):* P2 passed (third run). P3's mechanics passed (the writer, Vera's
+  checks and hand-offs, the lint), but the loop didn't converge in five rounds: each raised new
+  must-fix findings. Jet chose "B": 40 ships with P3's two fixes (a result never reads as a fresh
+  check of changed text; no finding on the template's fixed text), and the incremental re-check
+  (her previous findings and the diff since her last check) moves to 44. P3 counts as done on
+  that decision.
 
 ## Checked against the queued units
 
@@ -191,3 +209,45 @@ the document reaches you.
   `store` (`src/agent/run.js`, `agentFor`). Added: an unapproved Vera overlay refuses her launch
   (`overlay-not-approved`), and a widening one needs a red-team result for
   `agent-mirai-verifier-read-only`.
+
+**Re-checked against 38, 38b and 39 (2026-11-23),** as built on `main` (780f856), before the
+build. Nothing here changes a decision of yours; each is how a decision is wired.
+
+- **38 (stores):** a document is read as the reader test and approval read it: `docsStoreFor`,
+  `baseForArg`, then `readApprovedFile` from the store's base, so a document in the `local` store
+  is checked where it lives. The context files come from the store's `pathOf` (they are the
+  repo's, whatever the store), as `mirai show context` finds them. Results are kept by document
+  id, so the store makes no difference to them. `mirai verify`'s last line is the document's full
+  path through 38's `documentLine` (its decision 8). No external store exists yet; when one does,
+  its text reaches Vera inside 38's untrusted fence (`agentText`).
+- **38b (naming):** `persona = "Vera"` in `mirai-verifier.toml`. Every line that names her goes
+  through the namer (`agentNamer`, `fullName`): "Vera (mirai-verifier)" the first time, then
+  "Vera". T8's source check now refuses a hard-coded "Vera" in `src/` too (three strings changed
+  to "the verifier"). She adds her row to the naming table. Her output names no merge request, so
+  `words.js` isn't needed. The role `verifier` (19b) already exists, unchanged.
+- **39 (setup):**
+  - `/mirai verify <file>` is on the session list (`COMMANDS.verify`, `tty: true`: an agent launch,
+    as `review` is). The worker carries `CLAUDE_CONFIG_DIR` for every command (F7), so nothing new.
+    The session's file pattern refused a leading "." and so `.mirai/context/business.md`: it now
+    takes `.mirai/context/` paths, and nothing else that starts with a dot.
+  - Vera's rendered agent (`.claude/agents/mirai-verifier.md`) comes from the bundle, which renders
+    every agent of the registry, so `mirai init --refresh` and `mirai render` write it and the lock
+    marks it: doctor's "Not rendered by MIRAI" never lists it.
+  - `mirai custom add --as` gains `mirai-verifier`: a project's own document checker becomes an
+    overlay of Vera, as one of Rex's does (the 37 re-check above covers her overlay).
+  - No doctor item is added, so no yellow class.
+  - The context files are approved with `mirai approve --file` (36), and three of them are Vera's
+    (decision 6), so setup's context stage now checks them before giving you the approval
+    command. A launch needs a clean work tree, so the guide (`guides/context.md`) commits each file
+    before `verify`.
+  - The pre-commit hook checks `.mirai/records/`; Vera's results live in MIRAI's store, not the
+    repo, so it is untouched.
+- **44's decision 3:** the findings schema has `kind` and `kind_reason` (required), and
+  `decision_type` for a decision (`scope`, `audience`, `money-legal`, `number`, `conflict`,
+  `trade-off`, `other`, `invented`); an `invented` one must be must-fix. A reply without `kind`
+  isn't the schema, so it records nothing. The PRD and brief checklists now carry 44's
+  `[vera]` line about claims with no source (44's Scope 2 asked for it).
+- **Wiring choices made in the build (in test-results, "Changed from the spec"):** the miss is the
+  journal event `verifier_miss` (the journal's names use `_`); a rejection's note is the reason you
+  type after `r` (there is no `--reject --note` flag); Vera's run logs its rung only when MIRAI
+  knows the author's launch (a document written in your session has none).

@@ -22,8 +22,12 @@ its full path and its link. Then take each file in turn:
 
 - **`business.md`, `journeys.md`, each conventions file:** ask each `(open)` line as a question,
   with options and your guess. Write the answer in as a "you said" source and take the `(open)`
-  away. Only when none is left, give the approval command for the owner's terminal:
-  `mirai approve --file .mirai/context/<file>`, and say to read the whole file first.
+  away. Only when none is left, commit the file (`git add` it, `git commit -m "MIRAI setup:
+  <file>"`: the verifier checks committed text), then call `verify` with its path (unit 40:
+  Vera checks it before the owner approves). Fix each must-fix finding she raises, commit, and
+  call `verify` again; ask the owner each finding of kind `decision`, as with `(open)`. Then give
+  the approval command for the owner's terminal: `mirai approve --file .mirai/context/<file>`,
+  and say to read the whole file first.
 - **`feature-map.md`, each `project-<service>.md`:** they're checked against the code, not
   approved. Still show each and ask "anything wrong or missing?"; write the correction in.
 

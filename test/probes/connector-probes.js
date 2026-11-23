@@ -40,7 +40,7 @@ import { BRIEF_READY, INTERVIEW, PRD_READY } from '../helpers/docs-fixtures.js';
 //   node <mirai>/test/probes/connector-probes.js --check refused --initiative <initiative>
 //       mirai docs merge refuses before the ticket-set approval, naming it; nothing merged
 //   mirai approve <epic-id> --file docs/mirai/<initiative>/epic-<…>.md  (your key)
-//   sed -i '' 's/the evening reminder/the nightly reminder/' docs/mirai/<initiative>/prd.md
+//   sed -i '' 's/the nightly reminder/the midnight reminder/' docs/mirai/<initiative>/prd.md
 //       (a word outside the summary: the reader test still holds), then mirai docs publish <initiative>
 //   node <mirai>/test/probes/connector-probes.js --check stale --initiative <initiative>
 //       mirai show says the PRD "changed since approval", and the merge refuses it

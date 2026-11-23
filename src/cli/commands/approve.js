@@ -26,13 +26,14 @@ import { lintText, parseDocument, projectOf as projectOfConfig, readTicketFolder
 import { ticketsOf } from '../../lint/graph.js';
 import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
 import { readerResultFor } from '../../store/reader-tests.js';
-import { ROUNDS, failedLabels, needsReaderTest, resultLines, summaryHash, summaryText } from '../../write/reader.js';
+import { failedLabels, needsReaderTest, readerRuns, resultLines, summaryHash, summaryText } from '../../write/reader.js';
+import { verifierField, verifierFor, verifierLines } from '../../verify/gate.js';
 import { CONTEXT_DIR, contextKindOf, isContextFile } from '../../lint/context.js';
 import { CUSTOM_DIR, CUSTOM_KINDS, RECORDS_FOLDER, overlayFilesIn, overlayRecord, overlayRecordContext, overlayState, readOverlays, recordPathOf, recordText, verifyRecords } from '../../config/overlays.js';
 import { trustedRoles } from '../../agent/scope.js';
 import { baseForArg, docsStoreFor } from '../../store/connectors/index.js';
 import { documentLine } from '../../store/connectors/links.js';
-import { fullName } from '../../agent/names.js';
+import { agentNamer, fullName } from '../../agent/names.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -268,12 +269,15 @@ async function approveDocument({ id, type, file, store, io, now, fileArg, base =
   const text = file.bytes.toString('utf8');
   const { linked, files: bound } = type === 'brief' ? interviewOf(base, file.path, text, registry) : { linked: {}, files: [] };
   refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true, linked }) }]);
+  // Unit 40: the lint, then Vera, then the reader test, then you.
+  const vera = verifierFor({ store, config, def: registry.documentTypes[type], id, path: file.path, bytes: file.bytes });
   const reader = readerFor({ store, config, def: registry.documentTypes[type], value: fm.value, id, path: file.path, text });
   const hash = contentHash(file.bytes);
   const files = fileHashes(bound);
   const before = documentApproval(store, id, file.bytes, bound);
   io.stdout.write(`${type}: ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it or its interview has changed since)' : ''}\nfile:   ${file.path}\nhash:   ${hash}\n`);
   for (const f of files) io.stdout.write(`interview: ${plain(f.path)}   ${f.content_hash}, signed with the brief\n`);
+  showVerifier(io, vera);
   showReader(io, reader);
   const prompter = createPrompter(io);
   try {
@@ -292,12 +296,15 @@ async function approveDocument({ id, type, file, store, io, now, fileArg, base =
     if (contentHash(readApprovedFile(base, io.cwd, fileArg).bytes) !== hash || signatureOf(fileHashes(briefFilesOf(base, type, file))) !== signatureOf(files)) {
       throw new MiraiError(`${file.path} or its interview changed while you were answering; nothing was written`, EXIT.FAILURE);
     }
-    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: type, path: file.path, content_hash: hash, ...(files.length ? { files } : {}), decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader) });
+    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: type, path: file.path, content_hash: hash, ...(files.length ? { files } : {}), decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader), ...verifierField(vera) });
+    const misses = decision === 'rejected' ? missesOf([{ item: id, kind: type, path: file.path, vera }], reason) : [];
     const seq = withSeq(store, (ctx) => {
       const n = ctx.take();
       ctx.event(n, approval, { signer });
+      for (const m of misses) ctx.event(ctx.take(), m);
       return n;
     });
+    showMisses(io, misses);
     io.stdout.write(decision === 'rejected'
       ? `recorded: the ${type} ${id} rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: the ${type} ${id}, as ${file.path} is now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to it needs a new approval\n`);
@@ -414,7 +421,11 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   if (!pair && !briefBefore.approved) {
     throw Object.assign(new MiraiError(`the brief ${briefId} isn't approved${briefBefore.stale ? ' as it is now (it or its interview changed since its approval)' : ''}; on the full track it's approved before its PRD; nothing was written`, EXIT.BLOCKED), { hint: `run: mirai approve ${briefId} --file ${brief.file.path}` });
   }
-  // Unit 34: the PRD's summary (on standard it covers the brief too) has its reader-test result.
+  // Unit 40: Vera's result for each document this decision approves (on standard, the brief too),
+  // before the reader test. Unit 34: the PRD's summary (on standard it covers the brief too) has its
+  // reader-test result.
+  const briefVera = pair ? verifierFor({ store, config, def: registry.documentTypes.brief, id: briefId, path: brief.file.path, bytes: brief.file.bytes }) : null;
+  const vera = verifierFor({ store, config, def, id, path: file.path, bytes: file.bytes });
   const reader = readerFor({ store, config, def, value: fm.value, id, path: file.path, text });
   const prdHash = contentHash(file.bytes);
   const briefHash = contentHash(brief.file.bytes);
@@ -424,6 +435,11 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   io.stdout.write(`brief:  ${briefId}${pair ? state(briefBefore) : ' (approved, as it is now)'}\nfile:   ${brief.file.path}\nhash:   ${briefHash}\n`);
   for (const f of briefBound) io.stdout.write(`interview: ${plain(f.path)}   ${f.content_hash}, signed with the brief\n`);
   if (pair) io.stdout.write(`one decision approves both: the brief and its PRD (track ${fm.value.track})\n`);
+  const who = agentNamer();
+  if (briefVera && !briefVera.off) io.stdout.write(`the brief ${briefId}:\n`);
+  showVerifier(io, briefVera, who);
+  if (briefVera && !briefVera.off) io.stdout.write(`the PRD ${id}:\n`);
+  showVerifier(io, briefVera?.off ? null : vera, who);
   showReader(io, reader);
   const prompter = createPrompter(io);
   try {
@@ -444,12 +460,18 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
       if (contentHash(readApprovedFile(base, base, path).bytes) !== hash) throw new MiraiError(`${path} changed while you were answering; nothing was written`, EXIT.FAILURE);
     }
     const line = (item, kind, path, hash, extra = {}) => checkEvent({ type: 'approval', by: 'human', item, kind, path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...extra });
-    const events = [...(pair ? [line(briefId, 'brief', brief.file.path, briefHash, briefBound.length ? { files: briefBound } : {})] : []), line(id, 'prd', file.path, prdHash, readerField(reader))];
-    const seqs = withSeq(store, (ctx) => events.map((ev) => {
-      const n = ctx.take();
-      ctx.event(n, ev, { signer });
-      return n;
-    }));
+    const events = [...(pair ? [line(briefId, 'brief', brief.file.path, briefHash, { ...(briefBound.length ? { files: briefBound } : {}), ...verifierField(briefVera) })] : []), line(id, 'prd', file.path, prdHash, { ...readerField(reader), ...verifierField(vera) })];
+    const misses = decision === 'rejected' ? missesOf([...(pair ? [{ item: briefId, kind: 'brief', path: brief.file.path, vera: briefVera }] : []), { item: id, kind: 'prd', path: file.path, vera }], reason) : [];
+    const seqs = withSeq(store, (ctx) => {
+      const out = events.map((ev) => {
+        const n = ctx.take();
+        ctx.event(n, ev, { signer });
+        return n;
+      });
+      for (const m of misses) ctx.event(ctx.take(), m);
+      return out;
+    });
+    showMisses(io, misses);
     const what = pair ? `the brief ${briefId} and the PRD ${id}, as ${brief.file.path} and ${file.path} are now` : `the PRD ${id}, as ${file.path} is now`;
     io.stdout.write(decision === 'rejected'
       ? `recorded: ${pair ? `the brief ${briefId} and the PRD ${id}` : `the PRD ${id}`} rejected (signed with ${signer.keyId}, seq ${seqs.join(', ')})\n`
@@ -474,7 +496,7 @@ function readerFor({ store, config, def, value, id, path, text }) {
   const summary = summaryText(text, def.renames);
   const entry = summary ? readerResultFor(store, id, summaryHash(summary)) : null;
   if (!entry) throw Object.assign(new MiraiError(`${path} has no reader-test result for its summary as it is now; nothing was written`, EXIT.BLOCKED), { code: 'no-reader-test', hint: `run: mirai reader-test ${path}, then approve again` });
-  return { entry };
+  return { entry, runs: readerRuns(config) };
 }
 
 function showReader(io, reader) {
@@ -486,12 +508,29 @@ function showReader(io, reader) {
   const e = reader.entry;
   const head = e.result === 'pass'
     ? `reader test: pass (round ${e.round}, model ${plain(e.model)})`
-    : `reader test failed (round ${e.round}${e.round <= ROUNDS ? ` of ${ROUNDS}` : ''}, model ${plain(e.model)}): ${failedLabels(e).join(', ')}`;
+    : `reader test failed (round ${e.round}${e.round <= reader.runs ? ` of ${reader.runs}` : ''}, model ${plain(e.model)}): ${failedLabels(e).join(', ')}`;
   io.stdout.write(`${[head, ...resultLines(e).map((l) => plain(l))].join('\n')}\n`);
   if (e.result !== 'pass') io.stdout.write('you can still decide: approve anyway (a), reject with a note (r), or answer the gap yourself: fix the summary, run mirai reader-test, then approve again\n');
 }
 
 const readerField = (reader) => (reader?.entry ? { reader_test: reader.entry.hash } : {});
+
+// ---- Vera at approval (unit 40, Scopes 5 and 8) ------------------------------------------------
+
+function showVerifier(io, vera, who = undefined) {
+  const lines = verifierLines(vera, who);
+  if (lines.length) io.stdout.write(`${lines.join('\n')}\n`);
+}
+
+// Decision 7: a rejection of a document whose Vera result passed is her miss, recorded against the
+// type with the problem you named (your reason) and the result's hash. MIRAI's lines, written with
+// your signed rejection. [{ item, kind, path, vera }] → the events.
+function missesOf(docs, reason) {
+  return docs.filter((d) => d.vera?.state === 'pass').map((d) => checkEvent({ type: 'verifier_miss', by: 'script', item: d.item, kind: d.kind, path: d.path, ...(reason ? { note: reason } : {}), verifier: d.vera.entry.hash }));
+}
+function showMisses(io, misses) {
+  for (const m of misses) io.stdout.write(`recorded as a miss of ${fullName('mirai-verifier')}: she passed ${plain(m.path)}, and you rejected it${m.note ? ` (${plain(m.note)})` : ''}\n`);
+}
 
 // Whether `bytes` are the document `id` as you last approved it: { approved, stale, seq }.
 // Only your signed lines count (readJournal verifies them); your last decision on the document
@@ -550,6 +589,7 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
   if (!prdBefore.approved) {
     throw Object.assign(new MiraiError(`the PRD ${prdId ?? input.prd.path} isn't approved${prdBefore.stale ? ' as it is now (it changed since its approval)' : ''}; its tickets are approved after it; nothing was written`, EXIT.BLOCKED), { hint: `run: mirai approve ${prdId ?? '<prd-id>'} --file ${input.prd.path}` });
   }
+  const vera = verifierFor({ store, config, def: registry.documentTypes.epic, id, path: file.path, bytes: file.bytes, files: input.tickets });
   const reader = readerFor({ store, config, def: registry.documentTypes.epic, value: input.doc.value, id, path: file.path, text });
   const hash = contentHash(file.bytes);
   const files = input.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }));
@@ -559,6 +599,7 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
   io.stdout.write(`epic:    ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it or a ticket has changed since)' : ''}\nfile:    ${file.path}\nhash:    ${hash}\nprd:     ${prdId} (approved, as it is now)\ntickets: ${n}, signed with the epic\n`);
   for (const f of files) io.stdout.write(`  ${plain(f.path)}   ${f.content_hash}\n`);
   io.stdout.write(`${plain(join(base, file.path))}\n`);
+  showVerifier(io, vera);
   showReader(io, reader);
   const prompter = createPrompter(io);
   try {
@@ -581,12 +622,15 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
     if (contentHash(nowBytes) !== hash || signature(again.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }))) !== signature(files)) {
       throw new MiraiError(`${file.path} or one of its tickets changed while you were answering; nothing was written`, EXIT.FAILURE);
     }
-    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader) });
+    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader), ...verifierField(vera) });
+    const misses = decision === 'rejected' ? missesOf([{ item: id, kind: 'epic', path: file.path, vera }], reason) : [];
     const seq = withSeq(store, (ctx) => {
       const k = ctx.take();
       ctx.event(k, approval, { signer });
+      for (const m of misses) ctx.event(ctx.take(), m);
       return k;
     });
+    showMisses(io, misses);
     io.stdout.write(decision === 'rejected'
       ? `recorded: the epic ${id} and its ${n} tickets rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: the epic ${id} and its ${n} tickets, as they are now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to any of them needs a new approval\n`);
@@ -646,6 +690,8 @@ async function approveContext({ id, file, store, io, now, fileArg }) {
   }
   refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOfConfig(config), approving: true, linked, repo: store.checkout }) }]);
   if (docId === null) throw new MiraiError(`${plain(file.path)} has no id; nothing was written`, EXIT.BLOCKED);
+  // Unit 40 (decision 6): business.md, journeys.md and each conventions file are Vera's too.
+  const vera = verifierFor({ store, config, def: registry.documentTypes[kind.type], id: docId, path: file.path, bytes: file.bytes });
   const hash = contentHash(file.bytes);
   const before = contextApproval(store, file.path, file.bytes);
   io.stdout.write(`context: ${name} (${kind.type}, ${plain(docId)})${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}
@@ -654,6 +700,7 @@ hash:    ${hash}
 ${plain(join(store.checkout, file.path))}
 you approve the whole file: read it all before you answer
 `);
+  showVerifier(io, vera);
   const prompter = createPrompter(io);
   try {
     const asked = now().getTime();
@@ -671,12 +718,15 @@ you approve the whole file: read it all before you answer
     if (contentHash(readApprovedFile(store.checkout, io.cwd, fileArg).bytes) !== hash) {
       throw new MiraiError(`${file.path} changed while you were answering; nothing was written`, EXIT.FAILURE);
     }
-    const approval = checkEvent({ type: 'approval', by: 'human', item: docId, kind: 'context', file_type: kind.type, path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter });
+    const approval = checkEvent({ type: 'approval', by: 'human', item: docId, kind: 'context', file_type: kind.type, path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...verifierField(vera) });
+    const misses = decision === 'rejected' ? missesOf([{ item: docId, kind: kind.type, path: file.path, vera }], reason) : [];
     const seq = withSeq(store, (ctx) => {
       const n = ctx.take();
       ctx.event(n, approval, { signer });
+      for (const m of misses) ctx.event(ctx.take(), m);
       return n;
     });
+    showMisses(io, misses);
     io.stdout.write(decision === 'rejected'
       ? `recorded: ${file.path} rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: ${file.path}, as it is now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to it needs a new approval\n`);

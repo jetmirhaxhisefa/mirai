@@ -1,0 +1,19 @@
+{
+  "findings": [
+    {
+      "id": "V-1",
+      "grade": "must-fix",
+      "layer": "checklist",
+      "kind": "writing",
+      "kind_reason": "The brief's BR-2 gives the number.",
+      "decision_type": "scope",
+      "where": {
+        "file": "document.md",
+        "line": 12,
+        "quote": "checkout is fast"
+      },
+      "what": "FR-3 has no number.",
+      "fix": "Say under 60 seconds, from BR-2."
+    }
+  ]
+}

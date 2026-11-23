@@ -157,6 +157,17 @@ existing ledger.
    - Vera's prompt carries the rule, the "always" lists and "when in doubt: decision";
    - the PRD and brief checklists gain one `[vera]` line: "every claim added since the last
      check cites a source; one that doesn't is an `invented-decision`".
+
+   *(added to 44's scope by unit 40's P3, Jet 2026-11-23, "B"):* **Vera's later rounds are
+   incremental.** In 40's P3 the loop didn't converge: each of five rounds raised must-fix findings
+   no earlier round had (r1 4, r2 3, r3 ≥1, r4 the glossary and summary limits, r5 2). So from the
+   second round, her input gets her previous findings and the diff since her last checked version,
+   and she checks the fixes and the changed text; the rest stands as checked. This is also what
+   "since her last check" (decision 3, the `invented` backstop) needs. This spec's "fixes within
+   the rounds" (decision 1) and P2's "fixed within the rounds" assume convergence, which 40 didn't
+   show with full re-checks: they hold only with this. Also from 40, as built: a finding that
+   breaks a schema rule (no `kind`, say) is dropped and logged, and the other findings count (Jet,
+   2026-11-23, P1); `decision_type` is always given, `none` for a writing finding.
 3. **The routing** (`src/docs/route.js`, new; used by 41's `verify` broker tool):
    - the tool's result to Nora is split: **"fix these"** (writing must-fix findings) and
      **"ask these"** (decision findings: write `(open)` with the question and add the question

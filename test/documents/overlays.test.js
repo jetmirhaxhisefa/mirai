@@ -21,6 +21,7 @@ import { snapshot } from '../../src/trust/snapshot.js';
 import { overlaysCheck } from '../../src/doctor/checks.js';
 import { installed } from '../tests/run-fixture.js';
 import { passReader, quotesFrom } from '../helpers/reader.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 37: the protected parts of each document type, section overlays, replacement templates,
 // their approval, and what reads them only from the trust root.
@@ -228,7 +229,10 @@ test('37 T4: a replacement template with every protected part passes; without "N
   assert.match(warned.hint, /mirai approve --file \.mirai\/custom\/document-types\/prd\.toml/);
 });
 
-async function tty(argv, { cwd, env }, answers) {
+// Unit 40: these approvals aren't about the verifier; her pass for the file as it is now first
+// (test/documents/verify.test.js tests the gate itself).
+async function tty(argv, { cwd, env }, answers, { vera = true } = {}) {
+  if (vera) veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);
@@ -321,8 +325,8 @@ test('37 T6: approval and the trust root: unapproved and changed overlays are sk
 });
 
 test('37 T7: every agent definition and role validates with and without overlays; doctor and mirai show overlays list each state', async () => {
-  // Without overlays: MIRAI's registry loads (Kai, Rex and every role pass the schema).
-  assert.deepEqual(Object.keys(REGISTRY.agents).sort(), ['mirai-developer', 'mirai-reviewer']);
+  // Without overlays: MIRAI's registry loads (Kai, Rex, Vera (unit 40) and every role pass the schema).
+  assert.deepEqual(Object.keys(REGISTRY.agents).sort(), ['mirai-developer', 'mirai-reviewer', 'mirai-verifier']);
   assert.deepEqual(Object.keys(REGISTRY.roles).sort(), ['developer', 'planner', 'qa', 'reviewer', 'verifier']);
   // With: an instruction-only, a narrowing and a widening overlay on each agent validate.
   const agent = (name, extra = '') => `kind = "agent-overlay"\nschema_version = 1\nname = "${name}"\n${extra}`;
@@ -356,18 +360,18 @@ test('37 T7: every agent definition and role validates with and without overlays
     'agents/mirai-developer.toml': agent('mirai-developer'), 'agents/mirai-developer.md': 'Name the AC each change serves.\n',
   });
   const check = () => overlaysCheck({ store: openStore(f.io), trust: snapshot(f.io), events: readJournal(openStore(f.io)).events });
-  assert.match(check().detail, /^agents: mirai-developer overlay \(not approved\), mirai-reviewer overlay \(not approved\)$/);
+  assert.match(check().detail, /^agents: mirai-developer overlay \(not approved\), mirai-reviewer overlay \(not approved\), mirai-verifier MIRAI's$/);
   assert.equal(check().state, 'yellow');
   assert.equal((await tty(['approve', '--file', '.mirai/custom/agents/mirai-developer.toml'], f.io, ['a', 'overlay-mirai-developer'])).code, EXIT.OK);
   const widen = await tty(['approve', '--file', '.mirai/custom/agents/mirai-reviewer.toml'], f.io, ['a', 'overlay-mirai-reviewer']);
   assert.equal(widen.code, EXIT.OK, widen.err);
   assert.match(widen.out, /it widens mirai-reviewer \(adds Bash\): its launches are refused until a red-team run covers this overlay \(mirai redteam run\)/);
   const now = check();
-  assert.match(now.detail, /^agents: mirai-developer overlay \(approved\), mirai-reviewer widened: red team needed$/);
+  assert.match(now.detail, /^agents: mirai-developer overlay \(approved\), mirai-reviewer widened: red team needed, mirai-verifier MIRAI's$/);
   assert.match(now.hint, /mirai redteam run/);
   // With no overlays at all, every agent is MIRAI's.
   const plain = fixture();
-  assert.deepEqual(overlaysCheck({ store: openStore(plain.io), trust: snapshot(plain.io), events: [] }), { state: 'ok', detail: 'agents: mirai-developer MIRAI\'s, mirai-reviewer MIRAI\'s; 0 overlays, each approved as it is now' });
+  assert.deepEqual(overlaysCheck({ store: openStore(plain.io), trust: snapshot(plain.io), events: [] }), { state: 'ok', detail: 'agents: mirai-developer MIRAI\'s, mirai-reviewer MIRAI\'s, mirai-verifier MIRAI\'s; 0 overlays, each approved as it is now' });
   // mirai show overlays: kind, name, state, full path; an invalid one with its problem.
   f.put('.mirai/custom/document-types/prd.toml', `${HEAD('prd')}lint_checks = ["summary"]\n`);
   const shown = await tty(['show', 'overlays'], f.io, []);

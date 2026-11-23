@@ -312,6 +312,14 @@ export const CONFIG_SCHEMA = {
         // for a project with no subscription to spare (not a quality switch). Team policy, so the
         // project layer only (LAYER_KEYS: personal files can't set docs.*).
         reader_test: { type: 'boolean' },
+        // Vera before approval (unit 40, Scope 5): on unless the project turns it off; every
+        // approval then says so. Team policy, so the project layer only.
+        verify: { type: 'boolean' },
+        // The author's fix rounds after the first check (unit 40, Jet's decision 2): Vera's, and
+        // the reader test's (34 fixed it at 2 in the code). Ranged, so a cap can't be switched off
+        // by setting it very high; project layer only.
+        verify_fix_rounds: { type: 'integer', min: 0, max: 5 },
+        reader_fix_rounds: { type: 'integer', min: 0, max: 5 },
         // Word caps and budgets (unit 32, Jet's decision 6): team policy, so the project layer
         // only (LAYER_KEYS). The registry's numbers are the defaults. Ranged, so a cap can't be
         // switched off by setting it very high.

@@ -5,13 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { compileSchema, parseJsonStrict, SchemaError, LIMITS } from '../../src/findings/schema.js';
-import { checkReviewVerdict, checkReplies, checkFindingCheck, checkQaVerdict, checkGateResult, SCHEMAS, SCHEMA_DIR } from '../../src/findings/verdicts.js';
+import { checkReviewVerdict, checkReplies, checkFindingCheck, checkQaVerdict, checkGateResult, checkVerifyFindings, SCHEMAS, SCHEMA_DIR } from '../../src/findings/verdicts.js';
 import { findingFingerprint, failureSignature, resolveBasis, triage, basisForLog } from '../../src/findings/findings.js';
 import { buildRunLine } from '../../src/store/run-log.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CORPUS = join(HERE, 'corpus');
-const CHECK = { 'review-verdict': checkReviewVerdict, 'finding-replies': checkReplies, 'finding-check': checkFindingCheck, 'qa-verdict': checkQaVerdict, 'gate-result': checkGateResult };
+const CHECK = { 'review-verdict': checkReviewVerdict, 'finding-replies': checkReplies, 'finding-check': checkFindingCheck, 'qa-verdict': checkQaVerdict, 'gate-result': checkGateResult, 'verify-findings': checkVerifyFindings };
 const files = (dir, ext) => readdirSync(dir).filter((f) => f.endsWith(ext)).map((f) => f.slice(0, -ext.length)).sort();
 const read = (...p) => readFileSync(join(CORPUS, ...p), 'utf8');
 

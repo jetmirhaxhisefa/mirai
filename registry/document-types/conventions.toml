@@ -12,6 +12,9 @@ status = "forbidden"
 required_sections = ["Rules"]
 optional_sections = []
 lint_checks = ["writing", "conventions"]
+# Unit 40 (decision 6): Vera checks this type before you approve it; its checklist marks her
+# lines with [vera], and a checklist with none fails the registry check.
+verifier = true
 
 # The service's name, as the file name has it (conventions-<service>.md).
 [frontmatter.fields.service]

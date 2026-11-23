@@ -25,6 +25,7 @@ import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { installed } from '../tests/run-fixture.js';
 import { passReader } from '../helpers/reader.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 33: the epic and the ticket graph lint, read with the PRD and the tickets.
 const REGISTRY = loadRegistry(REGISTRY_DIR);
@@ -415,7 +416,10 @@ const PRD_READY = swap(swap(PRD,
   'None — the reminder channel was settled in review: email only (A-1).\n'),
   'the recommendation for the brief\'s Q-1.', 'as settled in review.');
 
-async function tty(argv, { cwd, env }, answers) {
+// Unit 40: these approvals aren't about the verifier; her pass for the file as it is now first
+// (test/documents/verify.test.js tests the gate itself).
+async function tty(argv, { cwd, env }, answers, { vera = true } = {}) {
+  if (vera) veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);
