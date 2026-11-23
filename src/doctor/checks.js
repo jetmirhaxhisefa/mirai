@@ -384,7 +384,7 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
       if (prev && isAncestor(store.checkout, prev.baseline.sha, sha, store.gitEnv)) return advisoryYellow(`none for ${store.branch} at ${sha.slice(0, 12)} yet (one at ${prev.baseline.sha.slice(0, 12)}, an earlier commit): the next run records it first`, 'to record it now: mirai baseline');
       return yellow(`none for ${store.branch} at ${sha.slice(0, 12)}: the next run records it first`, 'to record it now: mirai baseline');
     }
-    return ok(`recorded for ${sha.slice(0, 12)}${b.complete ? '' : ' (incomplete)'}`);
+    return baselineItem(b, sha);
   });
   // Unit 30b: per-ticket images whose ticket no longer has an install record (done, dropped, or
   // released while Docker was down).
@@ -425,6 +425,20 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
 
 // Unit 34 (Scope 7): the banned-word list's review. src/lint/words.js opens with a dated line,
 // "// Reviewed: YYYY-MM-DD"; past 90 days it's yellow, with what a review is.
+// Unit 39 (Jet, 2026-11-23, "A"): an incomplete baseline (a level or check with an environment
+// fault, refused, or not run: 17b's `complete: false`) is a yellow to fix, not ok: a run can't
+// tell that level's known failures from new ones, so setup isn't done. `mirai baseline` completes
+// it (it runs only what's missing). A baseline written before `complete` existed reads as complete.
+export function baselineItem(b, sha) {
+  if (b.complete !== false) return ok(`recorded for ${sha.slice(0, 12)}`);
+  const names = [...(b.config?.checks ?? []), ...(b.config?.levels ?? [])];
+  const missed = (names.length ? names : Object.keys(b.levels ?? {}))
+    .map((n) => [n, b.levels?.[n]?.state])
+    .filter(([, state]) => state !== 'pass' && state !== 'fail')
+    .map(([n, state]) => `${n} (${state ?? 'not run'})`);
+  return yellow(`recorded for ${sha.slice(0, 12)}, but incomplete: ${missed.length ? missed.join(', ') : 'a level'} wasn't judged, so a run can't tell its old failures from new ones`, 'mirai baseline (it runs only what\'s missing)');
+}
+
 export const WORDS_FILE = fileURLToPath(new URL('../lint/words.js', import.meta.url));
 export const WORDS_REVIEW_DAYS = 90;
 export function wordListCheck(text, now) {

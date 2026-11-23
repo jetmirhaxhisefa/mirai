@@ -266,7 +266,11 @@ are never touched.
   can add it. Jet ran `mirai baseline` to get past it. **Fixed:** doctor's Baseline item, with no
   baseline at the head but one that verifies at an ancestor of it (`latestOther`, `isAncestor`),
   is advisory ("the next run records it first"; hint: `mirai baseline`); none at all, or one that
-  doesn't verify, stays to fix. Also (F7): Jet's default `~/.claude.json`
+  doesn't verify, stays to fix. **And an incomplete one (Jet, 2026-11-23, "A"):** doctor used to
+  give "ok … (incomplete)"; now it's a yellow to fix that names what wasn't judged ("recorded for
+  <sha>, but incomplete: integration (env-fault), e2e (not run) wasn't judged …", hint `mirai
+  baseline (it runs only what's missing)`), so line 8 and finish count it (`baselineItem`; test
+  "39 (Jet, "A")"). A baseline written before `complete` existed reads as complete. Also (F7): Jet's default `~/.claude.json`
   still holds the registration from `c64d307`; harmless while he uses the private config.
 - **F9: `setup decide --keep` took free text from the session as the place.** The ledger held
   places such as "source for conventions-*.md in stage 3, then deleted" (4 × `.claude/rules/*.md`)

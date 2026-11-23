@@ -24,7 +24,7 @@ import { runChecks } from '../../src/doctor/checks.js';
 import { renderAgents } from '../../src/install/render.js';
 import { hostWords } from '../../src/ship/words.js';
 import { committedNotRendered } from '../../src/setup/pre-commit.js';
-import { customCheck } from '../../src/doctor/checks.js';
+import { baselineItem, customCheck } from '../../src/doctor/checks.js';
 import { readOverlays } from '../../src/config/overlays.js';
 import { loadRegistry } from '../../src/config/registry.js';
 import { COMMANDS, checkCommand } from '../../src/mcp/tools/commands.js';
@@ -581,6 +581,21 @@ test('39 F12 (P3 day): an old or missing usage reading is advisory: the next run
   assert.equal(line8.state, 'done', line8.why);
   assert.match(line8.why, /advisory: Plan and week \(/);
   assert.deepEqual(toFix(only), []);
+});
+
+test('39 (Jet, "A"): an incomplete baseline is a yellow to fix, naming what wasn\'t judged; line 8 counts it', () => {
+  const sha = 'a'.repeat(40);
+  const config = { checks: ['lint'], levels: ['unit', 'integration', 'e2e'] };
+  const levels = { lint: { state: 'pass' }, unit: { state: 'fail', known_failures: [] }, integration: { state: 'env-fault' } };
+  const item = baselineItem({ complete: false, config, levels }, sha);
+  assert.equal(item.state, 'yellow');
+  assert.equal(item.advisory, undefined);
+  assert.equal(item.expected_until, undefined);
+  assert.match(item.detail, /incomplete: integration \(env-fault\), e2e \(not run\) wasn't judged/);
+  assert.match(item.hint, /^mirai baseline/);
+  assert.deepEqual(toFix([{ id: 'baseline', title: 'Baseline', ...item }]).map((i) => i.id), ['baseline']);
+  assert.equal(baselineItem({ complete: true, config, levels: { ...levels, integration: { state: 'pass' }, e2e: { state: 'pass' } } }, sha).state, 'ok');
+  assert.equal(baselineItem({ levels: {} }, sha).state, 'ok', 'one written before `complete` reads as complete');
 });
 
 test('39 F7 (P1): the session server records its Claude Code config; the steps it gives and the commands it runs carry it', async () => {
