@@ -201,8 +201,10 @@ test('40 T2: findings: one per layer and grade is recorded; a quote not in the f
   const r = await verifyCli(f, PRD, vera);
   assert.equal(r.code, EXIT.FAILURE, r.err);
   const [e] = readVerifyResults(f.store, 'due-dates-prd');
-  assert.deepEqual(e.findings.map((x) => [x.id, x.grade, x.layer, x.kind]), [['V-1', 'must-fix', 'checklist', 'writing'], ['V-2', 'suggestion', 'top-vs-detail', 'writing'], ['V-3', 'must-fix', 'context', 'decision'], ['V-4', 'suggestion', 'checklist', 'writing']]);
-  assert.deepEqual([e.must_fix, e.suggestions, e.result, e.round], [2, 2, 'open', 1]);
+  assert.deepEqual(e.findings.map((x) => [x.id, x.grade, x.layer, x.kind]), [['V-1', 'must-fix', 'checklist', 'writing'], ['V-2', 'must-fix', 'top-vs-detail', 'writing'], ['V-3', 'must-fix', 'context', 'decision'], ['V-4', 'suggestion', 'checklist', 'writing']]);
+  assert.deepEqual([e.must_fix, e.suggestions, e.result, e.round], [3, 1, 'open', 1]);
+  // Her suggestion on the top-vs-detail layer is held to must-fix (P2's third run).
+  assert.deepEqual([e.findings[1].vera_grade, e.findings[1].graded_by], ['suggestion', 'a top-vs-detail finding']);
   assert.equal(e.findings[2].decision_type, 'scope');
   assert.deepEqual([e.findings[2].against.path, e.findings[2].against.line], [BUSINESS, 12]);
   // Each kept finding's line is where MIRAI found its quote, and its path the document's.
@@ -215,8 +217,8 @@ test('40 T2: findings: one per layer and grade is recorded; a quote not in the f
   assert.match(r.out, /^Vera checked docs\/mirai\/due-dates\/prd\.md \(prd due-dates-prd\)\nround 1 of 3, model claude-sonnet-5-5, tier standard\n/);
   // Listed apart with what it said, not counted (P2's second run).
   assert.match(r.out, /^dropped, not counted: 1 finding MIRAI couldn't check\n {2}dropped {2}V-9 {2}its quote isn't in document\.md\n {8}FR-4 has no time of day\.$/m);
-  assert.match(r.out, /^result: 2 must-fix findings open; recorded as sha256:[0-9a-f]{64}$/m);
-  const at = lines.indexOf('must-fix: 2');
+  assert.match(r.out, /^result: 3 must-fix findings open; recorded as sha256:[0-9a-f]{64}$/m);
+  const at = lines.indexOf('must-fix: 3');
   assert.ok(at > 0, r.out);
   assert.match(lines[at + 1], /^ {2}must-fix {2}V-1 {2}checklist, writing {2}docs\/mirai\/due-dates\/prd\.md:\d+$/);
   assert.ok(lines.some((l) => /^ {2}must-fix {2}V-3 {2}context, decision: scope /.test(l)));
@@ -272,10 +274,11 @@ test('40 T2: findings: one per layer and grade is recorded; a quote not in the f
     finding({ id: 'V-7', grade: 'suggestion', layer: 'context', against: { file: 'context-business.md', line: 12 } }),
     finding({ id: 'V-8', grade: 'suggestion', kind: 'decision', decision_type: 'number' }),
     finding({ id: 'V-9', grade: 'suggestion' }),
+    finding({ id: 'V-10', grade: 'suggestion', layer: 'top-vs-detail' }),
   ] }, files).findings;
   assert.deepEqual(graded.map((x) => [x.id, x.grade, x.vera_grade ?? null, x.graded_by ?? null]), [
     ['V-5', 'must-fix', 'suggestion', 'a money-legal decision'], ['V-6', 'must-fix', 'suggestion', 'a scope decision'], ['V-7', 'must-fix', 'suggestion', 'a context finding'],
-    ['V-8', 'suggestion', null, null], ['V-9', 'suggestion', null, null],
+    ['V-8', 'suggestion', null, null], ['V-9', 'suggestion', null, null], ['V-10', 'must-fix', 'suggestion', 'a top-vs-detail finding'],
   ]);
   // Her prompt grades after the kind and type, by a fixed list; the schema asks in that order.
   const prompt = read('agents/mirai-verifier.md');

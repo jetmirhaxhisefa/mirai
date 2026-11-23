@@ -28,7 +28,8 @@ launcher stands in for MIRAI's launcher, and for T1's real launch a stand-in `cl
   unapproved overlay of Vera** refuses her launch (`overlay-not-approved`) before Claude Code runs.
 - **T2 Findings:** a fake reply with one finding per layer and grade (`checklist`/must-fix,
   `top-vs-detail`/suggestion, `context`/must-fix decision `scope` with `against`, `checklist`/
-  suggestion) is recorded: 2 must-fix, 2 suggestions, `open`, round 1, each finding's line where
+  suggestion) is recorded: 3 must-fix (the top-vs-detail one held to must-fix, P2's third run),
+  1 suggestion, `open`, round 1, each finding's line where
   MIRAI found its quote, `against` with the context file's path. A fifth finding whose quote isn't
   in the PRD is dropped and kept in the record's `dropped` list ("its quote isn't in
   document.md"), never shown as a finding; the output says "1 finding dropped". The output ends
@@ -307,6 +308,24 @@ must-fix with no drops.
   under "dropped, not counted", with why and what each said, and the probe's report does the same.
   They're still never counted or shown as findings (Scope 2).
 
+### P2's third run (Jet, 2026-11-23, at c6c87f9): PASSED
+
+Output: `~/mirai-u40-p2.txt` (earlier runs: `~/mirai-u40-p2-run1.txt`, `-run2.txt`). Vera (Sonnet) on
+34's P3 PRD: 5 must-fix, 5 suggestions, 0 dropped. The GDPR finding was must-fix (V-5,
+context/money-legal).
+
+Jet's read: **V-1, V-2, V-3, V-5 and V-6 would have sent it back; no must-fix is wrong, so P2
+passed.** Of the suggestions, **V-10 is ok, but V-4 would have sent it back**: an under-grade. V-4
+was a `top-vs-detail` finding: the summary says notices are "not in search or exports", but FR-36
+covers only the comments' text. V-3, the same kind of finding, was graded must-fix.
+
+**Fixed:** decision 5 makes "the top part hides or adds something" must-fix, and that is the
+`top-vs-detail` layer by definition. So MIRAI now holds **every `top-vs-detail` finding to
+must-fix** in `regraded`, as it does a context finding and the five decision types, with
+`vera_grade` kept and `graded_by: a top-vs-detail finding`. T2 has the case, and its
+one-per-layer reply now records the `top-vs-detail` suggestion as must-fix. The prompt says MIRAI
+applies rules 1, 2 and 5 itself, and `docs/documents.md` says the same.
+
 ### P3 The loop (a session of yours, then 1 Vera run per round and 1 reader test)
 
 1. `cd ~/Projects/mirai-u40 && node test/probes/verify-probes.js --probe p3-home`
@@ -445,6 +464,7 @@ After P1's first run (Jet, 2026-11-23):
 - `u40-tests-6` at `46cffac` (P1's second run: the examples' fixes): **pass, 804/804**, 15 minutes.
 - `u40-tests-7` at `1ce85bd` (P2's first run: the grading): **pass, 804/804**, 14.2 minutes.
 - `u40-tests-8` at `c6c87f9` (P2's second run: `against`, `decision_type`, the dropped list): **pass, 804/804**, 16.5 minutes.
+- `u40-tests-9` at the next commit (P2's third run: top-vs-detail is must-fix): see the report.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,

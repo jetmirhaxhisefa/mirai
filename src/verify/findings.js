@@ -67,7 +67,9 @@ export function quoteLine(text, quote, near = 1) {
 export const MUST_FIX_TYPES = Object.freeze(['scope', 'audience', 'money-legal', 'conflict', 'invented']);
 export function regraded(f) {
   if (f.grade === 'must-fix') return f;
-  const rule = f.layer === 'context' ? 'a context finding' : f.kind === 'decision' && MUST_FIX_TYPES.includes(f.decision_type) ? `a ${f.decision_type} decision` : null;
+  // P2's third run: a top-vs-detail finding graded suggestion (the summary claimed more than FR-36
+  // held); decision 5 makes a top part that hides or adds something must-fix, which is that layer.
+  const rule = f.layer === 'context' ? 'a context finding' : f.layer === 'top-vs-detail' ? 'a top-vs-detail finding' : f.kind === 'decision' && MUST_FIX_TYPES.includes(f.decision_type) ? `a ${f.decision_type} decision` : null;
   return rule ? { ...f, grade: 'must-fix', vera_grade: f.grade, graded_by: rule } : f;
 }
 

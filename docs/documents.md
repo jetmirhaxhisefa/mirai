@@ -153,8 +153,9 @@ and the fix, each in one sentence, and its kind:
   decision you weren't shown; an upstream commitment (a business requirement, scope, a rollout,
   the appetite or a budget, a success metric) dropped or changed without the summary saying so; a
   contradiction inside the document or with an upstream one; a top part that hides or adds
-  something; a builder left asking. These block. MIRAI holds the first two itself: such a finding
-  is must-fix whatever grade she gave (her own is kept beside it, unit 40's P2);
+  something; a builder left asking. These block. MIRAI holds the first two and every top-vs-detail
+  finding itself: such a finding is must-fix whatever grade she gave (her own is kept beside it,
+  unit 40's P2);
 - **suggestion:** everything else, such as a number no source gives that a builder can build as
   written. It doesn't block or use a round. It goes to the author and is listed for you;
 - **writing or decision** (unit 44's decision 3): `writing` when a source that exists gives the

@@ -73,8 +73,8 @@ questions) is no finding at all: it's already theirs.
 
 ## Grades (then this, by the list: not by how serious it feels)
 
-Grade each finding by the first rule that fits. MIRAI applies rules 1 and 2 itself, whatever grade
-you give.
+Grade each finding by the first rule that fits. MIRAI applies rules 1, 2 and 5 itself, whatever
+grade you give: every `top-vs-detail` finding is rule 5, so it is always must-fix.
 
 **`must-fix`, always:**
 
