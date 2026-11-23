@@ -252,6 +252,7 @@ with `ownTier` on standard at rung 2, and one without on deep); T2 asserts Vera'
 - `u41-tests-1` at `f75aaba`: 819/820; the one failure was 05a's T10 pin of the journal's event list
   (`nora_run` is new). Pin updated (`test/store/store.test.js`).
 - `u41-tests-2` at `3a71d60`: **pass, 820/820**, 15.3 minutes.
+- `u41-tests-3` at `73adc73` (Jet's answer 1, `ownTier`): **pass, 821/821**, 16.6 minutes.
 
 **On the Mac** before them: `test/documents` (with `nora.test.js`, 15), `lint`, `mcp`, `cli`,
 `adapters`, `docs`, `agent`, `setup`, `detect`, `store`, `findings`, `config`: 457/458 (the same pin);
