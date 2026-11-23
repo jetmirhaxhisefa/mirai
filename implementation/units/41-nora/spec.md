@@ -65,9 +65,24 @@ approved PRD.
    4. after each draft, run MIRAI's checks through the broker (lint, `verify`, `reader-test`);
    5. fix the must-fix findings within the rounds set in `[docs]`;
    6. stop.
+
+   *(changed: Jet, 2026-11-23, 41 re-check, Q1 "A1"):* she doesn't run the checks herself. MIRAI
+   runs them between her launches, in one MIRAI run ("Nora's run", one run lock): after each of
+   her launches MIRAI checks her changes against the initiative's folder, commits them (Q3), runs
+   the lint, Vera (`runVerify` with her launch as `authorLaunch`) and the reader test, and gives the
+   results to her next launch (her kept session, with Vera's hand-off), within the `[docs]` rounds.
+   *(changed: Jet, 2026-11-23, 41 re-check, Q2 "B1"):* on the repo store she writes the files
+   herself; on the local store (MIRAI's store, which no agent may open) she returns each document as
+   structured output and MIRAI writes it through the store's `write`.
 2. **The checks as broker tools** (19c's tool table): `lint(file)`, `verify(file)` (40) and
    `reader_test(file)` (34), so Nora runs them from the sandbox without a shell. Each returns the
    result as data, its findings fenced.
+
+   *(changed: Jet, 2026-11-23, 41 re-check, Q1 "A1"):* not built. A `verify` or `reader_test` tool on
+   Nora's headless server would be an agent starting an agent (D-53's recursion guard), and can't
+   hold the run lock, commit under her launch or mint a launch token. The checks run between her
+   launches (Scope 1's note); D-53 and the cage stay as they are. Each check's result still reaches
+   her as data, Vera's findings fenced (40's `handoffText`).
 3. **`business.md` at the interview:** 35's skill gains a step: before the first question, read
    `business.md` (and the journeys). Any contradiction with the request becomes the first
    question, with "propose a change to business.md" as one option.
@@ -99,6 +114,14 @@ approved PRD.
    - `mirai show <initiative>` shows Nora's state (running, paused with her question, done) and
      the documents' states;
    - the journal records each step, for the inbox (46).
+
+   *(changed: Jet, 2026-11-23, 41 re-check):* `start_agent` takes a role, not an agent, and Nora's
+   run is several launches; so the session starts her with `/mirai write <initiative>` (39's
+   session list; `mirai write <initiative>` in a terminal) and follows it with `mirai_status`.
+   *(Q3 "C1"):* before each check MIRAI commits her documents on your current branch, as a MIRAI
+   commit (you as author, MIRAI as committer, the trailer `Mirai-Initiative: <initiative>`), and
+   refuses to start on the integration branch. The session commits `interview.md` (and
+   `requirements.md`) first: every launch needs a clean tree.
 8. **The run record:** each Nora run logs its tier, model, rounds used per check, template gaps
    and outcome (done, paused, failed), as other agents' runs do.
 9. **Requirements sources** (decision 6):
@@ -129,8 +152,13 @@ approved PRD.
   (read-write, step `prd`). After the run, a write outside the initiative's `pathOf` folder is
   refused (fake launcher). She has the
   `mirai-write` skill.
-- **T2 Broker tools:** `lint`, `verify` and `reader_test` return results as data from a sandboxed
-  run, with findings fenced. A path outside the project is refused.
+- **T2 The checks between her launches** *(changed: Jet, 2026-11-23, 41 re-check, Q1 "A1"; was
+  "Broker tools")*: in one run (fake launchers), MIRAI commits her draft, runs the lint, Vera with
+  her launch as the author's and the reader test, and her next launch gets the lint problems or
+  Vera's must-fix findings fenced; a run on the integration branch, or with a dirty tree, is
+  refused before she starts. On the local store her structured output is written through the
+  store.
+- ~~T2 Broker tools~~ (replaced above).
 - **T3 `business.md` at the interview:** with a seeded contradiction (business.md "signed-in
   teams only", request "guests comment"), the skill's first question names it and offers "propose
   a change".
@@ -206,8 +234,9 @@ approved PRD.
   `test/lint/template-versions.json`.
 
 **Re-checked against 38, 38b, 39 and 40 (2026-11-23),** as built on `main` (d9b4a02), before the
-build. **One finding changes how Scope 2 was approved** (A below), so the build waits for your
-answer. The rest is wiring.
+build. **One finding changed how Scope 2 was approved** (A below). **Jet's answers (2026-11-23):
+A1, B1, C1** (C1 "go with your recommendation"); dated notes are in Scope 1, 2, 7 and T2, and in
+44's Scope 1 and 3. The rest is wiring.
 
 - **A. The checks as broker tools (Scope 2, T2) conflict with D-53 and with how a launch runs.**
   `lint` alone is fine (no model, changes nothing); it's offered to your session only today
