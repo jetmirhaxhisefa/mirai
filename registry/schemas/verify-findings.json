@@ -23,12 +23,12 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "grade",
+        "where",
+        "what",
         "layer",
         "kind",
         "kind_reason",
-        "where",
-        "what",
+        "grade",
         "fix"
       ],
       "properties": {
@@ -38,11 +38,19 @@
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
           "description": "A short id, unique in this output."
         },
-        "grade": {
-          "enum": [
-            "must-fix",
-            "suggestion"
-          ]
+        "where": {
+          "$ref": "#/$defs/where"
+        },
+        "against": {
+          "$ref": "#/$defs/against",
+          "description": "Required on every context finding: the context-*.md file it contradicts, with its line or source ID. Also for a finding that cites an upstream-*.md document."
+        },
+        "what": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*$",
+          "description": "The problem, in one sentence."
         },
         "layer": {
           "enum": [
@@ -79,19 +87,12 @@
           ],
           "description": "For a decision only. invented: a claim added since the last check that no source holds (only when an earlier version is given); always must-fix."
         },
-        "where": {
-          "$ref": "#/$defs/where"
-        },
-        "against": {
-          "$ref": "#/$defs/against",
-          "description": "Required on every context finding: the context-*.md file it contradicts, with its line or source ID. Also for a finding that cites an upstream-*.md document."
-        },
-        "what": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500,
-          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*$",
-          "description": "The problem, in one sentence."
+        "grade": {
+          "enum": [
+            "must-fix",
+            "suggestion"
+          ],
+          "description": "Chosen last, by the prompt's list: must-fix for every context finding, a scope, audience, money-legal, conflict or invented decision, an upstream commitment dropped without the summary saying so, a contradiction, a hidden or added top part, or a builder left asking; else suggestion."
         },
         "fix": {
           "type": "string",

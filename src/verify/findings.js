@@ -58,6 +58,19 @@ export function quoteLine(text, quote, near = 1) {
   return best;
 }
 
+// The grade MIRAI holds her to (P2's first run, 2026-11-23: Sonnet graded a money-legal decision
+// the approver wasn't shown, and a context contradiction, as suggestions). Decision 5's must-fix
+// covers anything that contradicts the context, and a decision the top part hides: so a `context`
+// finding, and a decision of these types, is a must-fix whatever grade she gave. Her own grade is
+// kept beside it (`vera_grade`). The other rules of her list (an upstream commitment dropped, a
+// builder left asking) need judgement, and stay hers.
+export const MUST_FIX_TYPES = Object.freeze(['scope', 'audience', 'money-legal', 'conflict', 'invented']);
+export function regraded(f) {
+  if (f.grade === 'must-fix') return f;
+  const rule = f.layer === 'context' ? 'a context finding' : f.kind === 'decision' && MUST_FIX_TYPES.includes(f.decision_type) ? `a ${f.decision_type} decision` : null;
+  return rule ? { ...f, grade: 'must-fix', vera_grade: f.grade, graded_by: rule } : f;
+}
+
 // Vera's result from the launch's structured output: { findings, dropped } or { problem }.
 // `files`: the input files by name, { name: { text, path?, checked } }. A finding's `where` must
 // be in a file she checks (the document, an epic's ticket), and `against` in one she was given
@@ -118,7 +131,7 @@ export function findingsFrom(structured, files) {
       }
       out.against = { ...f.against, path: other.path ?? f.against.file };
     }
-    findings.push(out);
+    findings.push(regraded(out));
   }
   return { findings, dropped };
 }

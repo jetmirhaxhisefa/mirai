@@ -49,22 +49,7 @@ On a context file, a line ending in `(open)` is a question not answered yet: it 
 finding (the lint warns, and approval refuses it). But **a claim whose cited source doesn't say
 it is a must-fix**: it should be `(open)`, and asked.
 
-## Grades
-
-- **`must-fix`:** a builder reading this would have to ask; something contradicts (inside the
-  document, with an upstream document, or with the context); or the top part hides or adds
-  something. These block the document until they're fixed.
-- **`suggestion`:** everything else worth saying. It doesn't block.
-
-A number or a choice the document states plainly (an NFR's 2 seconds, a retry after an hour)
-that no source gives is a `decision` for the approver, but it isn't a `must-fix` by itself: a
-builder can build it as written. It's a `suggestion` of kind `decision`, unless it contradicts
-something or leaves a builder asking.
-
-Raise a finding only for a real problem you can point to in the text. A clean document has no
-findings, and that is a fine result.
-
-## Writing or decision
+## Writing or decision (choose this first)
 
 Each finding is one of two kinds, with a one-line `kind_reason`:
 
@@ -79,15 +64,45 @@ Each finding is one of two kinds, with a one-line `kind_reason`:
   `trade-off` or `other`.
 - **When in doubt: `decision`.** The author never answers a decision; the approver does.
 - **An invented decision** (`decision_type: invented`) is a claim **added since your last check**
-  that no source holds, written as if it were settled. It is always `must-fix` and always a
-  `decision`. Use it only when `index.json` gives you an earlier version of the document to
-  compare with (the workflows do, unit 44). On a check with no earlier version, a claim no source
-  holds is a decision of its own type (`number`, `scope`, …), graded as above.
+  that no source holds, written as if it were settled. Use it only when `index.json` gives you an
+  earlier version of the document to compare with (the workflows do, unit 44). On a check with no
+  earlier version, a claim no source holds is a decision of its own type (`number`, `scope`, …).
+
+A decision the document already puts to the approver under "Decisions for you" (or its Open
+questions) is no finding at all: it's already theirs.
+
+## Grades (then this, by the list: not by how serious it feels)
+
+Grade each finding by the first rule that fits. MIRAI applies rules 1 and 2 itself, whatever grade
+you give.
+
+**`must-fix`, always:**
+
+1. a `context` finding: anything that contradicts a context file;
+2. a decision of type `scope`, `audience`, `money-legal`, `conflict` or `invented`: the approver
+   would decide it without being shown it;
+3. an upstream commitment dropped or changed without the summary saying so: a business
+   requirement, a scope line or no-go, a rollout or release plan, the appetite or a budget, a
+   success metric. "The brief's phased release appears nowhere in the PRD" is must-fix;
+4. a contradiction inside the document, or with an upstream document;
+5. the top part hides something the detail decides, or says something the detail doesn't hold;
+6. a builder would have to ask: no "when", no "who", a boundary or a state left open.
+
+**`suggestion`, otherwise.** In particular:
+
+- a number the document states plainly that no source gives (an NFR's 2 seconds, a retry after an
+  hour), which a builder can build as written: a `suggestion` of type `number`, unless rule 3
+  (it changes an upstream number) or rule 4 (it contradicts one) fits;
+- a `trade-off` or `other` decision none of rules 3 to 6 fits;
+- wording, structure, a journey that doesn't cite every FR, a template leftover.
+
+Suggestions don't block. Raise a finding only for a real problem you can point to in the text. A
+clean document has no findings, and that is a fine result.
 
 ## Each finding
 
 - `id`: short, unique in your output (`V-1`, `V-2`, …);
-- `grade`, `layer`, `kind`, `kind_reason`, and `decision_type` for a decision;
+- `layer`, `kind`, `kind_reason`, `decision_type` for a decision, and then `grade`, by the list above;
 - `where`: `file` (`document.md`, or a `ticket-<key>.md` of an epic), `line` (the line number in
   that file) and `quote`: the exact words, copied character for character, at least three words
   from one place. MIRAI checks every quote by a text match: **a finding whose quote isn't in the

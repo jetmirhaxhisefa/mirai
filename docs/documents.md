@@ -148,16 +148,20 @@ checklist (`docs/overlays.md`) are hers too.
 it contradicts for a context finding (the context file and its line or source ID), what is wrong
 and the fix, each in one sentence, and its kind:
 
-- **must-fix:** a builder would have to ask, something contradicts (inside the document, with an
-  upstream document or with the context), or the top part hides or adds something. These block;
-- **suggestion:** everything else. It doesn't block or use a round. It goes to the author and is
-  listed for you;
+- **must-fix**, by a fixed list (she picks the kind and type first, then the grade): anything
+  that contradicts a context file; a `scope`, `audience`, `money-legal`, `conflict` or `invented`
+  decision you weren't shown; an upstream commitment (a business requirement, scope, a rollout,
+  the appetite or a budget, a success metric) dropped or changed without the summary saying so; a
+  contradiction inside the document or with an upstream one; a top part that hides or adds
+  something; a builder left asking. These block. MIRAI holds the first two itself: such a finding
+  is must-fix whatever grade she gave (her own is kept beside it, unit 40's P2);
+- **suggestion:** everything else, such as a number no source gives that a builder can build as
+  written. It doesn't block or use a round. It goes to the author and is listed for you;
 - **writing or decision** (unit 44's decision 3): `writing` when a source that exists gives the
   fix; `decision` when it needs a new fact or a choice that no source holds (scope; users,
   markets, countries; money and legal; a number no source gives; two sources that disagree; a
-  trade-off), with its `decision_type`. When in doubt, decision. A number or choice the document
-  states plainly that no source gives is a decision, graded suggestion unless it contradicts
-  something or leaves a builder asking. A claim **added since her last check** that no source
+  trade-off), with its `decision_type`. When in doubt, decision. A decision already under "Decisions for
+  you" is no finding: it's already yours. A claim **added since her last check** that no source
   holds is an `invented` decision: always must-fix (the workflows give her the earlier version,
   unit 44).
 

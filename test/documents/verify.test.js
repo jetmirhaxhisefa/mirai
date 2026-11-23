@@ -255,6 +255,25 @@ test('40 T2: findings: one per layer and grade is recorded; a quote not in the f
   assert.match(why(finding({ kind: 'decision' })), /decision_type/);
   assert.match(why(finding({ kind: 'decision', decision_type: 'invented', grade: 'suggestion' })), /invented decision is always must-fix/);
   assert.match(why(finding({ layer: 'context' })), /names the context file/);
+  // P2's first run: grade follows the type. A money-legal or scope decision, and a context
+  // finding, graded suggestion, is held to must-fix, her grade kept beside it; a number stays hers.
+  const graded = findingsFrom({ findings: [
+    finding({ id: 'V-5', grade: 'suggestion', kind: 'decision', decision_type: 'money-legal' }),
+    finding({ id: 'V-6', grade: 'suggestion', kind: 'decision', decision_type: 'scope' }),
+    finding({ id: 'V-7', grade: 'suggestion', layer: 'context', against: { file: 'context-business.md', line: 12 } }),
+    finding({ id: 'V-8', grade: 'suggestion', kind: 'decision', decision_type: 'number' }),
+    finding({ id: 'V-9', grade: 'suggestion' }),
+  ] }, files).findings;
+  assert.deepEqual(graded.map((x) => [x.id, x.grade, x.vera_grade ?? null, x.graded_by ?? null]), [
+    ['V-5', 'must-fix', 'suggestion', 'a money-legal decision'], ['V-6', 'must-fix', 'suggestion', 'a scope decision'], ['V-7', 'must-fix', 'suggestion', 'a context finding'],
+    ['V-8', 'suggestion', null, null], ['V-9', 'suggestion', null, null],
+  ]);
+  // Her prompt grades after the kind and type, by a fixed list; the schema asks in that order.
+  const prompt = read('agents/mirai-verifier.md');
+  assert.ok(prompt.indexOf('## Writing or decision (choose this first)') < prompt.indexOf('## Grades (then this'), 'kind first, then grade');
+  assert.match(prompt, /an upstream commitment dropped or changed without the summary saying so/);
+  const props = Object.keys(VERIFY_SCHEMA.properties.findings.items.properties);
+  assert.ok(props.indexOf('decision_type') < props.indexOf('grade'));
   assert.deepEqual(findingsFrom({ findings: [finding({ where: { file: 'context-business.md', line: 1, quote: 'People log in and keep' } })] }, files).dropped.map((x) => x.id), ['V-1']);
   assert.deepEqual(findingsFrom({ findings: [finding({ layer: 'context', against: { file: 'context-business.md', line: 3, quote: 'Guests are welcome everywhere' } })] }, files).dropped[0].why, 'its quote of context-business.md isn\'t there');
   // Line breaks and spaces don't matter to the match.

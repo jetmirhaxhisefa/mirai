@@ -227,6 +227,48 @@ documents are left as they are (see "For later units").
 2. For each must-fix, reply with its id and your call. **Pass when** each must-fix is "would have
    sent it back" and none is "wrong".
 
+### P2's first run (Jet, 2026-11-23, at a95fc61): not passed
+
+Output: `~/mirai-u40-p2.txt`. Vera (Sonnet) on 34's P3 PRD: 0 must-fix, 4 suggestions. Jet's read:
+
+| Finding | Vera's grade | Jet |
+|---|---|---|
+| V-1 checklist, decision (scope): the brief's R-2 phased release and its four-week appetite appear nowhere in the PRD, and the approver isn't told | suggestion | would have sent it back |
+| V-2 checklist, decision (money-legal): a removed person's name is kept forever, maybe against GDPR erasure (business.md:40), and the approver isn't told | suggestion | would have sent it back |
+| V-3 checklist, writing: the glossary's examples are the template's | suggestion | ok |
+| V-4 checklist, writing: journeys that don't cite every FR | suggestion | ok |
+
+**Vera found the right problems and under-graded two of them.** Both were must-fix under decision 5
+as written: the top part hides something, and an upstream commitment is dropped. In P1's second run
+Sonnet graded V-2 and V-3 must-fix on this same PRD, so the grade also varied between runs. My P1
+prompt change ("an unsourced number a builder can build is a suggestion") had pushed decisions in
+general toward suggestion.
+
+**Fixed:**
+
+- **Vera's prompt** now has her choose the kind and `decision_type` first, then grade by a fixed list,
+  "not by how serious it feels". The list: must-fix, always, for
+  1. a context finding;
+  2. a `scope`, `audience`, `money-legal`, `conflict` or `invented` decision the approver isn't
+     shown;
+  3. an upstream commitment (a BR, scope or no-go, rollout, appetite or budget, success metric)
+     dropped or changed without the summary saying so; "the brief's phased release appears nowhere
+     in the PRD" is the prompt's own example;
+  4. a contradiction;
+  5. a top part that hides or adds something;
+  6. a builder left asking.
+
+  Otherwise suggestion; an unsourced number a builder can build as written stays a suggestion. A
+  decision already under "Decisions for you" is no finding.
+- **The schema** asks in that order: where, against, what, layer, kind, `kind_reason`,
+  `decision_type`, then grade (with the list in its description), then fix.
+- **MIRAI holds rules 1 and 2 itself** (`regraded`, `src/verify/findings.js`): a context finding, or a
+  decision of those types, is recorded must-fix whatever grade she gave, with hers kept as
+  `vera_grade` and the rule as `graded_by`. Rules 3 to 6 need judgement and stay hers. On P2's
+  first run this alone would have made V-2 must-fix; V-1 (`scope`) too.
+
+P2 can be re-run as it is (`--probe p2`) once the probe's worktree is at this unit's head.
+
 ### P3 The loop (a session of yours, then 1 Vera run per round and 1 reader test)
 
 1. `cd ~/Projects/mirai-u40 && node test/probes/verify-probes.js --probe p3-home`
@@ -362,7 +404,8 @@ After P1's first run (Jet, 2026-11-23):
 - `u40-tests-3` at `ccb437b`: **pass, 803/803**, 14.8 minutes.
 - `u40-tests-4` at `1cfdfd3` (P1's first-run fixes): **pass, 804/804**, 15.8 minutes.
 - `u40-tests-5` at `44443dd` (Jet's answer 4): **pass, 804/804**, 14.8 minutes.
-- `u40-tests-6` at the next commit (P1's second run: the default's note, the examples' fixes): see the report.
+- `u40-tests-6` at `46cffac` (P1's second run: the examples' fixes): see the report.
+- `u40-tests-7` at the next commit (P2's first run: the grading): see the report.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,
