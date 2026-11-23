@@ -339,6 +339,7 @@ with `ownTier` on standard at rung 2, and one without on deep); T2 asserts Vera'
 - `u41-tests-2` at `3a71d60`: **pass, 820/820**, 15.3 minutes.
 - `u41-tests-3` at `73adc73` (Jet's answer 1, `ownTier`): **pass, 821/821**, 16.6 minutes.
 - `u41-tests-4` at `ed34354` (P2's findings): **pass, 821/821**, 16 minutes.
+- `u41-tests-5` at `e77b52e` (A2 and the lint-fix bug, after P1): **pass, 823/823**, 15.5 minutes.
 
 **On the Mac** before them: `test/documents` (with `nora.test.js`, 15), `lint`, `mcp`, `cli`,
 `adapters`, `docs`, `agent`, `setup`, `detect`, `store`, `findings`, `config`: 457/458 (the same pin);
