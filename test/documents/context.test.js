@@ -20,6 +20,7 @@ import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { contextCheck } from '../../src/doctor/checks.js';
 import { CONFIG, installed } from '../tests/run-fixture.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 36: the five context files: their templates, examples, lints, approval, show and doctor.
 const REGISTRY = loadRegistry(REGISTRY_DIR);
@@ -231,7 +232,10 @@ async function lintRepo(root) {
   return { code, result: JSON.parse(out) };
 }
 
-async function tty(argv, { cwd, env }, answers) {
+// Unit 40: these approvals aren't about the verifier; her pass for the file as it is now first
+// (test/documents/verify.test.js tests the gate itself).
+async function tty(argv, { cwd, env }, answers, { vera = true } = {}) {
+  if (vera) veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);

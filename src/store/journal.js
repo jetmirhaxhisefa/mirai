@@ -111,6 +111,9 @@ export const EVENT_TYPES = Object.freeze({
       // Unit 34: the reader-test result you saw at approval (its hash in the store's record), on
       // the line of the document whose summary was tested: a brief on full, a PRD, an epic.
       reader_test: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
+      // Unit 40: the verifier's result you saw at approval (its hash in the store's record), on the
+      // line of a document she checks: a brief, a PRD, an epic, a context file you approve.
+      verifier: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
     },
     required: ['item', 'kind', 'path', 'content_hash', 'decision', 'answered_after_s'],
     check(e, report) {
@@ -120,6 +123,7 @@ export const EVENT_TYPES = Object.freeze({
       if ((e.template_version !== undefined || e.template_hash !== undefined) && e.kind !== 'overlay') report('template_hash', 'template_version and template_hash go with an overlay\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
+      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
     },
   },
   // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.
@@ -155,6 +159,20 @@ export const EVENT_TYPES = Object.freeze({
     required: ['item', 'branch', 'head', 'number', 'files'],
   },
   docs_merged: { privileged: true, fields: { number: { type: 'integer', min: 1 }, head: f.sha, merge_sha: f.sha }, required: ['item', 'number', 'head', 'merge_sha'] },
+  // Unit 40 (Scope 8; decision 7): you rejected a document whose verifier result passed. `item` is
+  // the document, `kind` its type, `path` its file, `note` the problem you named (your rejection's
+  // reason), `verifier` the passed result's hash. MIRAI's line, next to your signed rejection;
+  // recorded against the type for the review after the MVP (PM-06).
+  verifier_miss: {
+    privileged: true,
+    fields: {
+      kind: { type: 'enum', values: ['brief', 'prd', 'epic', 'business', 'journeys', 'conventions'] },
+      path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
+      note: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      verifier: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
+    },
+    required: ['item', 'kind', 'path', 'verifier'],
+  },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },
 });

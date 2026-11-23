@@ -19,6 +19,9 @@ document_words = 1000
 document_warn_words = 800
 uncounted_sections = ["Sources"]
 lint_checks = ["writing", "business"]
+# Unit 40 (decision 6): Vera checks this type before you approve it; its checklist marks her
+# lines with [vera], and a checklist with none fails the registry check.
+verifier = true
 
 # Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
 # through its map). Each names what reads it.

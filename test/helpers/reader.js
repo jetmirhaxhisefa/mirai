@@ -1,5 +1,6 @@
 import { writeToken } from '../../src/sign/token.js';
 import { runReaderTest } from '../../src/write/reader.js';
+import { passVera } from './vera.js';
 
 // Unit 34: a fake reader for the tests. No model ever runs: the "launcher" reads the summary out of
 // the prompt and answers as the test says. A stand-in token goes in the temp home.
@@ -57,6 +58,8 @@ export async function passReader(f, file, answer = quotesFrom) {
   } catch {
     // already there
   }
+  // Unit 40: the reader test comes after the verifier's pass.
+  passVera(f, file);
   const r = fakeReader(answer);
   const out = await runReaderTest({ cwd: f.root, env: f.env, file, launch: r.launch, claude: FAKE_CLAUDE });
   return { ...out, calls: r.calls };

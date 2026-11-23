@@ -18,6 +18,7 @@ import { gitIn, tempDir } from '../tests/run-fixture.js';
 import { passReader } from '../helpers/reader.js';
 import { fakeGh, fakeGlab } from '../helpers/fake-hosts.js';
 import { BRIEF_READY, INTERVIEW, PRD_READY } from '../helpers/docs-fixtures.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 38 T4–T6, T8: the docs merge request of the repo store, through stand-in gh and glab over a
 // local bare repo. Publish commits only the initiative's folder on docs/<initiative>, pushes it and
@@ -82,6 +83,7 @@ function project(hostName, { env: extraEnv = {} } = {}) {
   // Your approvals, signed: the PRD with its brief (one decision), then the epic with its tickets.
   const approvePrd = async () => {
     await passReader({ root, env }, `${D}/prd.md`);
+    veraBefore(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], { root, env });
     const r = await run(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], ['a', 'due-dates-prd']);
     assert.equal(r.code, EXIT.OK, r.err);
     return r;

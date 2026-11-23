@@ -107,6 +107,7 @@ stage 2; you use it for anything new after setup (also `/mirai custom add`).
 mirai custom add .claude/skills/deploy
 mirai custom add .claude/commands/release.md                 # becomes a project skill
 mirai custom add .claude/agents/security.md --as mirai-reviewer --role security-review
+mirai custom add .claude/agents/doc-check.md --as mirai-verifier   # an overlay of Vera (unit 40)
 mirai custom add .claude/agents/notes.md --as skill
 mirai custom add .claude/hooks/format.sh --hook PostToolUse --matcher "Edit|Write"
 mirai custom add ".claude/settings.json#hooks.PostToolUse.0"   # a hook as the ledger names it

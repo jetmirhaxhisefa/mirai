@@ -1,0 +1,16 @@
+# Vera, MIRAI's verifier agent (unit 40; D-13, D-14, PM-03). One job: check one finished document
+# (a brief, a PRD, an epic with its tickets, or a context file you approve) before it reaches you,
+# read-only, with a fresh context every time. Three layers: the type's checklist (its `[vera]`
+# lines), the top part against the detail, and the project's context. Her findings come back as
+# structured output, which MIRAI checks itself: every quote by a text match (src/verify/findings.js).
+kind = "agent"
+schema_version = 1
+name = "mirai-verifier"
+role = "verifier"
+persona = "Vera"
+description = "Vera: checks one document before you approve it, read-only, and cites every finding to its line"
+read_only = true
+prompt = "agents/mirai-verifier.md"
+
+[tools]
+allowed = ["Read", "Glob", "Grep"]

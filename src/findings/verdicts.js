@@ -13,7 +13,7 @@ import { compileSchema, parseJsonStrict, isStrictValue } from './schema.js';
 // The orchestrator decides from triage (findings.js), never from a verdict's own word.
 
 export const SCHEMA_DIR = fileURLToPath(new URL('../../registry/schemas/', import.meta.url));
-export const SCHEMAS = Object.freeze(['review-verdict', 'finding-replies', 'finding-check', 'qa-verdict', 'gate-result']);
+export const SCHEMAS = Object.freeze(['review-verdict', 'finding-replies', 'finding-check', 'qa-verdict', 'gate-result', 'verify-findings']);
 
 const STORE_REF = /^(?!\/)(?!(?:.*\/)?\.{1,2}(?:\/|$))[A-Za-z0-9._/-]{1,256}$/;
 
@@ -133,6 +133,23 @@ export function checkGateResult(input) {
     });
     v.checks.forEach((c, i) => {
       if (c.result === 'fail' && !v.failures.some((f) => f.check === c.name)) add(`/checks/${i}/result`, 'fail-without-cause', 'a failed check lists its failures');
+    });
+  });
+}
+
+// Vera's findings (unit 40, Scope 2; unit 44's decision 3). The rules a schema can't say: ids are
+// unique; a decision names its decision_type and a writing finding has none; an invented decision
+// is always a must-fix decision; a context finding names what it contradicts (`against`). The
+// quotes are checked against the files themselves in src/verify/findings.js.
+export function checkVerifyFindings(input) {
+  return check('verify-findings', input, (v, add) => {
+    unique(v.findings, 'id', '/findings', add);
+    v.findings.forEach((f, i) => {
+      if (f.kind === 'decision' && f.decision_type === undefined) add(`/findings/${i}/decision_type`, 'required', 'a decision names its decision_type');
+      if (f.kind === 'writing' && f.decision_type !== undefined) add(`/findings/${i}/decision_type`, 'invalid', 'decision_type is for a decision only');
+      if (f.decision_type === 'invented' && f.grade !== 'must-fix') add(`/findings/${i}/grade`, 'invented-must-fix', 'an invented decision is always must-fix');
+      if (f.layer === 'context' && f.against === undefined) add(`/findings/${i}/against`, 'required', 'a context finding names the context file it contradicts');
+      if (f.against !== undefined && f.against.line === undefined && f.against.source === undefined) add(`/findings/${i}/against`, 'required', 'against names a line or a source ID');
     });
   });
 }

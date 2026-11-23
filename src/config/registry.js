@@ -407,6 +407,9 @@ const DOCUMENT_TYPE = {
         },
       },
     },
+    // Unit 40 (decision 6): Vera checks this type before you approve it. Its checklist must mark
+    // her lines `- [vera] …` (VERA_LINE); one with none fails here, when the registry loads.
+    verifier: { type: 'boolean' },
     lint_checks: {
       type: 'array',
       items: { type: 'enum', values: BUILT_IN_CHECKS },
@@ -1133,6 +1136,10 @@ function loadFolder(dir, { folder, kind, schema, refs }, problems, taken = {}) {
       const reason = badReference(dir, target);
       if (reason) issues.push({ code: 'reference', ...locate(ref), path: ref, reason: `${ref} ${reason}`, hint: 'a relative path to a .md file inside the registry folder' });
     }
+    // Unit 40 (Scope 3, T7): a Vera-checked type's checklist marks the lines that are hers.
+    if (kind === 'document-type' && file.value.verifier === true && typeof file.value.checklist === 'string' && !issues.some((i) => i.path === 'checklist')) {
+      if (!VERA_LINE.test(readFileSync(join(dir, file.value.checklist), 'utf8'))) issues.push({ code: 'no-vera-items', ...locate('checklist'), path: 'checklist', reason: `checklist ${file.value.checklist} has no [vera] line, and the verifier checks this type (verifier = true)`, hint: 'mark the judgement lines the verifier owns as "- [vera] <question>"' });
+    }
     const name = file.value.name;
     if (typeof name === 'string' && names.has(name)) {
       issues.push({ code: 'duplicate', ...locate('name'), path: 'name', reason: `name is already used by another ${kind} definition` });
@@ -1257,6 +1264,9 @@ const SKILL = {
 };
 
 // Why a referenced .md path is not acceptable, or null.
+// A checklist line Vera owns (unit 40, Scope 3): a list item that starts with `[vera]`.
+export const VERA_LINE = /^[ \t]*[-*][ \t]+\[vera\][ \t]+\S/m;
+
 function badReference(dir, target) {
   if (isAbsolute(target) || target.includes('\\') || target.split('/').includes('..')) return 'must stay inside the registry folder';
   let info;

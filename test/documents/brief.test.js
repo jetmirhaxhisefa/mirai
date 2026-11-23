@@ -15,6 +15,7 @@ import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { installed } from '../tests/run-fixture.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 31: the summary for approval (PM-03), the writing rules and the business brief.
 const REGISTRY = loadRegistry(REGISTRY_DIR);
@@ -141,7 +142,10 @@ const READY = swap(swap(EXAMPLE,
   'None — the reminder channel was settled in review: email only (BR-2).\n'),
   '- Q-1: How should reminders reach people: email only, or email and an in-app notice? The approver answers; it blocks the PRD\'s notification requirements.\n', '');
 
-async function tty(argv, { cwd, env }, answers) {
+// Unit 40: these approvals aren't about the verifier; her pass for the file as it is now first
+// (test/documents/verify.test.js tests the gate itself).
+async function tty(argv, { cwd, env }, answers, { vera = true } = {}) {
+  if (vera) veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);

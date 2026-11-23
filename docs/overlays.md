@@ -50,7 +50,8 @@ name = "prd"
 
 # A section of your own, placed after one of MIRAI's. Required unless required = false.
 # `variants`: the variants that require it (a PRD's "lite" and "full"); every one by default.
-# `checklist`: the verifier's questions for it, added to the type's checklist.
+# `checklist`: the verifier's questions for it, added to the type's checklist as Vera's
+# `[vera]` lines (unit 40).
 [[add]]
 name = "Data privacy"
 after = "User journeys"
@@ -133,7 +134,8 @@ mirai show template prd
 
 It prints the type's template with the approved overlays applied. An agent writing a PRD starts
 from it. `mirai show checklist prd` prints its checklist the same way: MIRAI's questions under
-your names, then your sections' questions. From your session: `/mirai show template prd` and
+your names, then your sections' questions, each marked `[vera]` (Vera checks them, unit 40;
+`docs/documents.md`). From your session: `/mirai show template prd` and
 `/mirai show checklist prd`.
 
 ## What no overlay may drop

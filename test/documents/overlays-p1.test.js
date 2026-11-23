@@ -50,7 +50,8 @@ test('37 P1 findings: an added section needs a "done when:" comment, and may add
   const b = applied(withChecks);
   const list = checklistTextOf(b, b.documentTypes.brief);
   assert.ok(list.startsWith(read('templates/brief-checklist.md').replace(/\n+$/, '')));
-  assert.ok(list.endsWith('\n\n## Data privacy\n\n- Does every kind of personal data name who may see it?\n- Is the retention period stated?\n'), list.slice(-200));
+  // Unit 40: an overlay's added checklist lines are Vera's.
+  assert.ok(list.endsWith('\n\n## Data privacy\n\n- [vera] Does every kind of personal data name who may see it?\n- [vera] Is the retention period stated?\n'), list.slice(-200));
   assert.equal(checklistTextOf(REGISTRY, REGISTRY.documentTypes.brief), read('templates/brief-checklist.md'), 'no overlay: MIRAI\'s file');
 });
 

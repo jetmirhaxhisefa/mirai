@@ -10,6 +10,7 @@ Each of MIRAI's agents has a persona, the name its output gives it. **The first 
 |---|---|---|---|---|
 | Kai | `mirai-developer` | `developer` (build), `planner` (plan) | plans a ticket, then builds it | 21a, 21b |
 | Rex | `mirai-reviewer` | `reviewer` | reviews a ticket's change, read-only | 24a |
+| Vera | `mirai-verifier` | `verifier` | checks a document before you approve it, read-only (`docs/documents.md`, "Vera") | 40 |
 
 Each new agent adds its row when it's built.
 
@@ -184,6 +185,7 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 # Documents
 /mirai lint
 /mirai epic render docs/mirai/due-dates/epic-due-dates.md
+/mirai verify docs/mirai/due-dates/prd.md      # Vera checks it (docs/documents.md, "Vera")
 /mirai reader-test docs/mirai/due-dates/prd.md
 /mirai show overlays          # the project's overlays (docs/overlays.md)
 /mirai show template prd      # a type's template, with the approved overlays

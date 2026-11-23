@@ -16,6 +16,9 @@ section_order = ["Summary for approval", "Problem", "Who it is for", "Why now", 
 may_be_empty = ["Open questions"]
 summary_words = 400
 lint_checks = ["summary", "writing", "brief"]
+# Unit 40 (decision 6): Vera checks this type before you approve it; its checklist marks her
+# lines with [vera], and a checklist with none fails the registry check.
+verifier = true
 
 # Unit 35: the line under the title that links the interview the brief came from, when the
 # request was thin: "Interview: [<its title>](interview.md)". Optional; an interview.md beside

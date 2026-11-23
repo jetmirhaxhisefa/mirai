@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mirai/verify-findings/1",
+  "title": "Verifier findings",
+  "description": "Vera's structured output (unit 40; D-13, PM-03): her findings on one document. Captured by the launcher, never read from a file (R2-C1); MIRAI re-checks it, checks every quote by a text match, and drops a finding whose quote isn't in its file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "findings"
+  ],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "grade",
+        "layer",
+        "kind",
+        "kind_reason",
+        "where",
+        "what",
+        "fix"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "description": "A short id, unique in this output."
+        },
+        "grade": {
+          "enum": [
+            "must-fix",
+            "suggestion"
+          ]
+        },
+        "layer": {
+          "enum": [
+            "checklist",
+            "top-vs-detail",
+            "context"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "writing",
+            "decision"
+          ],
+          "description": "Unit 44, decision 3: writing when a source that exists gives the fix; decision when it needs a new fact or a choice; when in doubt, decision."
+        },
+        "kind_reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*$",
+          "description": "One line: why it is writing or a decision."
+        },
+        "decision_type": {
+          "enum": [
+            "scope",
+            "audience",
+            "money-legal",
+            "number",
+            "conflict",
+            "trade-off",
+            "other",
+            "invented"
+          ],
+          "description": "For a decision only. invented: a claim no source holds, always must-fix."
+        },
+        "where": {
+          "$ref": "#/$defs/where"
+        },
+        "against": {
+          "$ref": "#/$defs/against"
+        },
+        "what": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*$",
+          "description": "The problem, in one sentence."
+        },
+        "fix": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*[^\\s\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff][^\\u0000-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*$",
+          "description": "The fix, in one sentence."
+        }
+      }
+    },
+    "where": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line",
+        "quote"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "maxLength": 68,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}\\.md$",
+          "description": "An input file's name, as index.json lists it."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*[^\\s\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff][^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*$",
+          "description": "The exact words, copied character for character."
+        }
+      }
+    },
+    "against": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "maxLength": 68,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}\\.md$",
+          "description": "An input file's name, as index.json lists it."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[A-Z][A-Z0-9]{0,15}-[0-9]{1,6}$",
+          "description": "A source or other ID, such as S-3."
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*[^\\s\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff][^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]*$"
+        }
+      }
+    }
+  }
+}

@@ -19,6 +19,7 @@ import { contentHash } from '../../src/sign/sign.js';
 import { briefFiles, documentApproval } from '../../src/cli/commands/approve.js';
 import { installed } from '../tests/run-fixture.js';
 import { passReader } from '../helpers/reader.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 35: the mirai-interview skill, the interview record and its gate on the brief.
 const REGISTRY = loadRegistry(REGISTRY_DIR);
@@ -188,7 +189,10 @@ const PRD_READY = swap(swap(PRD,
 const FULL = 'docs/mirai/due-dates-full';
 const FULL_BRIEF = swap(swap(swap(BRIEF_READY, 'track: standard', 'track: full'), 'Track: standard, because', 'Track: full, because'), 'id: due-dates-brief', 'id: due-dates-full-brief');
 
-async function tty(argv, { cwd, env }, answers) {
+// Unit 40: these approvals aren't about the verifier; her pass for the file as it is now first
+// (test/documents/verify.test.js tests the gate itself).
+async function tty(argv, { cwd, env }, answers, { vera = true } = {}) {
+  if (vera) veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);

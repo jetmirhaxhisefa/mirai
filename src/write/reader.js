@@ -21,6 +21,7 @@ import { openStore } from '../store/home.js';
 import { nextRound, readerResultFor, recordReaderTest } from '../store/reader-tests.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
 import { effectiveRegistry } from '../trust/overlays.js';
+import { checkVeraFirst, epicTicketFiles, runsOf } from '../verify/gate.js';
 
 // The reader test (unit 34; PM-03, Jet's decisions 1–6). A fresh agent gets a document's
 // "## Summary for approval" and nothing else, and answers four questions: what is built, for whom,
@@ -37,7 +38,9 @@ import { effectiveRegistry } from '../trust/overlays.js';
 // and every "@" in it carries a zero-width space, so no file reference in it can be expanded.
 
 export const STEP = 'reader-test';
-export const ROUNDS = 3;
+// Unit 40 (Jet's decision 2): the author's rounds are a setting, `[docs] reader_fix_rounds`
+// (default 2), no longer fixed here: the runs a summary may have are the first and its fix rounds.
+export const readerRuns = (config) => runsOf(config, 'reader');
 export const QUOTE_MIN_WORDS = 3;
 export const TIMEOUT_MS = 180_000;
 const ZWSP = '\u200B';
@@ -204,8 +207,13 @@ export async function runReaderTest({ cwd, env, file, launch = runClaude, claude
   if (!summary) throw refuse(`${path} has no "## ${renames['Summary for approval'] ?? 'Summary for approval'}" to test`, 'no-summary', 'write the summary, run mirai lint, then the reader test');
   const sHash = summaryHash(summary);
   const document = { id, type: def.name, path };
+  const runs = readerRuns(config);
   const before = readerResultFor(store, id, sHash);
-  if (before) return { entry: before, reused: true, document, summary };
+  if (before) return { entry: before, reused: true, document, summary, runs };
+  // Unit 40 (Scope 6): on a type Vera checks, the reader test comes after her pass or her last
+  // round, so the summary it reads is the fixed one.
+  const base = baseForArg(conn, cwd, file);
+  checkVeraFirst({ store, config, def, id, path, bytes: read.bytes, files: def.name === 'epic' ? epicTicketFiles(base, path, id) : [] });
 
   const picked = pickTier({ config, step: STEP });
   const model = config.models?.[picked.tier];
@@ -241,7 +249,7 @@ export async function runReaderTest({ cwd, env, file, launch = runClaude, claude
     summary_hash: sHash, round, result: checked.pass ? 'pass' : 'fail', failed: checked.failed, answers: checked.answers,
     model: typeof stream.init.model === 'string' ? stream.init.model.slice(0, 128) : model, tier: picked.tier, path, at: now().toISOString(),
   });
-  return { entry, reused: false, document, summary };
+  return { entry, reused: false, document, summary, runs };
 }
 
 // The lines that show a result: each question with its answer and quote, or its gap.

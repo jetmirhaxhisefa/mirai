@@ -19,6 +19,9 @@ optional_sections = []
 summary_words = 400
 summary_warn_words = 300
 lint_checks = ["summary", "writing", "epic"]
+# Unit 40 (decision 6): Vera checks this type before you approve it; its checklist marks her
+# lines with [vera], and a checklist with none fails the registry check.
+verifier = true
 
 # "PRD: [<title>](prd.md)", always; then "Design: [HLD](hld.md), [LLD for reminders](lld-x.md)",
 # required on `full`, and on `standard` when a ticket names an ADR (the epic check says when).

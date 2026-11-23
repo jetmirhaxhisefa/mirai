@@ -1,0 +1,68 @@
+{
+  "findings": [
+    {
+      "id": "V-1",
+      "grade": "must-fix",
+      "layer": "checklist",
+      "kind": "writing",
+      "kind_reason": "The brief's BR-2 gives the number.",
+      "where": {
+        "file": "document.md",
+        "line": 12,
+        "quote": "checkout is fast"
+      },
+      "what": "FR-3 has no number.",
+      "fix": "Say under 60 seconds, from BR-2."
+    },
+    {
+      "id": "V-2",
+      "grade": "suggestion",
+      "layer": "top-vs-detail",
+      "kind": "writing",
+      "kind_reason": "The brief's BR-2 gives the number.",
+      "where": {
+        "file": "document.md",
+        "line": 40,
+        "quote": "a push notice the day before"
+      },
+      "what": "FR-3 has no number.",
+      "fix": "Say under 60 seconds, from BR-2."
+    },
+    {
+      "id": "V-3",
+      "grade": "must-fix",
+      "layer": "context",
+      "kind": "decision",
+      "kind_reason": "business.md says signed-in teams only; guests are a scope choice.",
+      "where": {
+        "file": "document.md",
+        "line": 52,
+        "quote": "guests may comment on a task"
+      },
+      "what": "FR-3 has no number.",
+      "fix": "Say under 60 seconds, from BR-2.",
+      "decision_type": "scope",
+      "against": {
+        "file": "context-business.md",
+        "line": 14,
+        "source": "S-2",
+        "quote": "signed-in teams only"
+      }
+    },
+    {
+      "id": "V-4",
+      "grade": "must-fix",
+      "layer": "checklist",
+      "kind": "decision",
+      "kind_reason": "No source gives the rate.",
+      "where": {
+        "file": "ticket-sample-12.md",
+        "line": 9,
+        "quote": "a 20% VAT rate\napplies"
+      },
+      "what": "FR-3 has no number.",
+      "fix": "Say under 60 seconds, from BR-2.",
+      "decision_type": "invented"
+    }
+  ]
+}

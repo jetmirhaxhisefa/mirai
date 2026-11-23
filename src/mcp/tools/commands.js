@@ -20,8 +20,9 @@ const CODE = /^[0-9a-f]{16}$/;
 // An initiative: a folder under the docs root (unit 38).
 const INITIATIVE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 // A Markdown file's path in the repo, relative to its top: no leading / or -, no .., no spaces
-// or control characters (the worker passes it to `mirai` as one argument).
-const FILE = /^(?![-/.])(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}\.md$/;
+// or control characters (the worker passes it to `mirai` as one argument). No leading "." either,
+// except the context files in .mirai/context/ (unit 40: the verifier checks three of them).
+const FILE = /^(?![-/])(?!\.(?!mirai\/context\/))(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}\.md$/;
 // Unit 39: an item's path in the repo (relative, no ".."), with an optional "#part" (a hook in a
 // settings file, a server in .mcp.json), as the ledger names it.
 const ITEM = /^(?![-/])(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}(?:#[A-Za-z0-9._-]{1,100})?$/;
@@ -85,6 +86,9 @@ export const COMMANDS = Object.freeze({
   'epic render': { quick: true, needs: ['file'], argv: (a) => ['epic', 'render', a.file] },
   // Unit 34: the reader test of a document's summary; one short model run, recorded in the store.
   'reader-test': { needs: ['file'], argv: (a) => ['reader-test', a.file] },
+  // Unit 40: the verifier's check of one document, an agent launch like review (21f's rule: what
+  // isn't a gate runs from your session). It signs nothing and changes no file.
+  verify: { needs: ['file'], tty: true, argv: (a) => ['verify', a.file] },
   detect: { argv: () => ['detect'] },
   // Unit 38: the docs merge request. Neither decides anything new: publish pushes the documents
   // as they are, and merge needs your signed approvals, not a typed key.
@@ -234,7 +238,7 @@ export const miraiCommand = Object.freeze({
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
       type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template and show checklist (unit 37)' },
       initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38)' },
-      file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34)' },
+      file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34) and verify (unit 40)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },
       confirm: { type: 'string', pattern: CODE.source, description: 'with redteam run: the one-time code its first answer gave, once the person agreed to the cost' },
@@ -247,7 +251,7 @@ export const miraiCommand = Object.freeze({
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
       path: { type: 'string', pattern: ITEM.source, description: 'an item\'s path in the repo, for custom add, setup decide and setup defer (unit 39)' },
       stage: { type: 'string', enum: ['scan', 'migrate', 'context', 'connect', 'finish'], description: 'a setup stage, for setup start and setup done' },
-      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer) or skill; a hook\'s form: interactive, check or both' },
+      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer, mirai-verifier) or skill; a hook\'s form: interactive, check or both' },
       role: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent overlay\'s role' },
       event: { type: 'string', pattern: WORD.source, description: 'with custom add: a hook\'s event, such as PostToolUse' },
       matcher: { type: 'string', pattern: WORD.source, description: 'with custom add: the tools a hook matches, such as Edit|Write' },

@@ -23,6 +23,7 @@ import { documentRows } from '../../store/connectors/state.js';
 import { documentLine } from '../../store/connectors/links.js';
 import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js';
 import { hostWords, projectWords } from '../../ship/words.js';
+import { agentNamer } from '../../agent/names.js';
 
 // mirai show <ticket> (unit 28, decision 7; design/03 "mirai show"): the ticket's page from the
 // store: its plan, build, review rounds with every blocking finding, the MR, rounds, usage and why
@@ -111,7 +112,9 @@ function initiativeOf({ cwd, env, name }) {
       } catch {
         bytes = null;
       }
-      return { ...d, line: documentLine({ store, config, conn, abs: d.path, rel: d.rel, bytes, events }) };
+      // Unit 40 (Scope 8): your rejections of a document the verifier had passed (her misses).
+      const misses = events.filter((e) => e.type === 'verifier_miss' && e.item === d.id && e.path === d.rel).map((e) => ({ note: e.note ?? null, at: e.ts ?? null }));
+      return { ...d, misses, line: documentLine({ store, config, conn, abs: d.path, rel: d.rel, bytes, events }) };
     });
   }
   return { exists, docsRoot: conn.docsRoot, shown: conn.kind === 'local' ? dir : shown, dir, name, docs, store: conn.name };
@@ -126,8 +129,10 @@ function initiativeText({ name, docs, shown }) {
   // An epic's type says how many tickets it holds (unit 33): "epic (7 tickets)".
   const rows = docs.map((d) => ({ ...d, type: d.tickets === undefined ? d.type : `${d.type} (${d.tickets} ticket${d.tickets === 1 ? '' : 's'})` }));
   const w = (k) => Math.max(...rows.map((d) => plain(String(d[k] ?? '—')).length));
+  const who = agentNamer();
   for (const d of rows) {
     out.push(`  ${plain(d.file).padEnd(w('file'))}   ${plain(d.type ?? '—').padEnd(w('type'))}   ${plain(d.id ?? '—').padEnd(w('id'))}   ${d.state.padEnd(22)}   ${d.line ?? plain(d.path)}`);
+    for (const m of d.misses ?? []) out.push(`    missed by ${who('mirai-verifier')}: she passed it and you rejected it${m.note ? ` (${plain(m.note)})` : ''}${m.at ? `, ${plain(String(m.at).slice(0, 10))}` : ''}`);
   }
   return `${out.join('\n')}\n`;
 }

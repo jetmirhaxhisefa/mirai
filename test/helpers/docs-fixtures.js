@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { REGISTRY_DIR } from '../../src/cli/commands/lint.js';
 import { main } from '../../src/cli/main.js';
+import { veraBefore } from './vera.js';
 
 // Unit 38: the documents the store tests write (33's example initiative, its brief's Q-1 answered
 // so the pair can be approved), and a terminal for `main`.
@@ -25,7 +26,9 @@ export const PRD_READY = swap(swap(read('examples/prd.md'),
 'the recommendation for the brief\'s Q-1.', 'as settled in review.');
 export const INTERVIEW = read('examples/interview.md');
 
-export async function tty(argv, { cwd, env }, answers = []) {
+// Unit 40: these approvals aren't about the verifier: her pass first (`vera: false` leaves it out).
+export async function tty(argv, { cwd, env }, answers = [], { vera = true } = {}) {
+  if (vera) veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);
