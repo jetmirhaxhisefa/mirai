@@ -10,7 +10,11 @@ Branch `fix/cc-ship-steward`, from `main` at `33b3066`.
   - `test/redteam/redteam.test.js`: 18/18 (18a T5 extended: S3 and S6). The full-run tests still
     reach `green`, since the fixture's committed `.claude/settings.json` carries the overrides;
   - docs, config, trust, install, launch and the other red-team files: 130/130.
-- **The full suite, through the runner's `tests` job:** RUNNER_RESULT.
+- **The full suite, through the runner's `tests` job:**
+  - `fix-ccss-tests-1` at `6e1aaba`: 806/808. 39 T1 and T5 failed: the setup ledger counted
+    MIRAI's own `skillOverrides` in `.claude/settings.json` as an item of yours. Fixed in
+    `src/setup/ledger.js`.
+  - `fix-ccss-tests-2` at `a4e1ede` (15.2 min): **808/808**.
 
 ## Probes
 
