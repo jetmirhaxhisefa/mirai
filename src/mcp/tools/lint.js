@@ -1,3 +1,4 @@
+import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { checkPathForm, PATH_MAX } from '../args.js';
@@ -22,11 +23,42 @@ export const MAX_PROBLEM_BYTES = 32 * 1024;
 
 const clean = (v) => (typeof v === 'string' ? escapeInvisible(v) : v);
 
+// An agent run's lint (unit 41, A2): the paths it may name, or why not. Each a .md file under the
+// docs root, no part starting with ".", a regular file reached through no link.
+export function headlessRefusal(paths, docsRoot, checkout) {
+  if (!paths.length) return 'name the documents to lint: an agent run lints files under the docs root, one by one';
+  const root = String(docsRoot ?? 'docs/mirai').replace(/\/+$/, '');
+  for (const p of paths) {
+    if (!p.startsWith(`${root}/`) || !p.endsWith('.md')) return `${p} isn't a document under ${root}/: an agent run lints only those`;
+    if (p.split('/').some((part) => part.startsWith('.'))) return `${p} has a part starting with ".": an agent run doesn't lint those`;
+    let at = checkout;
+    for (const part of p.split('/')) {
+      at = join(at, part);
+      let info;
+      try {
+        info = lstatSync(at);
+      } catch {
+        return `${p} doesn't exist`;
+      }
+      if (info.isSymbolicLink()) return `${p} leads through a symbolic link`;
+    }
+    if (!lstatSync(at).isFile()) return `${p} isn't a file`;
+  }
+  return null;
+}
+
 export default Object.freeze({
   name: 'lint',
-  description: 'Check the shape of MIRAI documents (frontmatter, sections, IDs, links) with the integration branch\'s rules. Give files or folders of the project, or nothing for the whole project. Returns the problems found; changes nothing.',
+  description: (policy) => (policy?.kind === 'headless'
+    ? 'Check the shape and wording of MIRAI documents you write (frontmatter, sections, IDs, links, the writing rules) with the integration branch\'s rules: the same lint MIRAI runs after your launch. Give the documents\' paths under the docs root, such as docs/mirai/<initiative>/prd.md. Returns the problems found; changes nothing.'
+    : 'Check the shape of MIRAI documents (frontmatter, sections, IDs, links) with the integration branch\'s rules. Give files or folders of the project, or nothing for the whole project. Returns the problems found; changes nothing.'),
   exclusive: false,
-  contexts: Object.freeze(['interactive']),
+  // Unit 41 (Jet, 2026-11-23, A2): an agent run's server offers it too (Nora lints her draft inside
+  // her launch). There it lints only Markdown files under the docs root, named one by one, with no
+  // part starting with "." and no folder: only documents the agent may read and write anyway, never
+  // a file the sandbox denies it (a `.env*` file is read-denied, and this server runs outside the
+  // sandbox).
+  contexts: Object.freeze(['headless', 'interactive']),
   enabled: (policy) => Boolean(policy.tools.lint),
   schema: () => ({
     type: 'object',
@@ -57,6 +89,10 @@ export default Object.freeze({
   async run({ paths }, ctx) {
     const { policy, trust } = ctx;
     const config = trustedConfig(trust);
+    if (policy.kind === 'headless') {
+      const refused = headlessRefusal(paths, config.docs.root, policy.checkout);
+      if (refused) return { body: { outcome: 'refused', code: 'bad-path', message: ctx.clean(escapeInvisible(refused)) }, isError: true };
+    }
     // Unit 37: with the project's overlays from the trust root, approved as they are now (your
     // journal, when this registration knows the store).
     let registry = trustedRegistry(trust);

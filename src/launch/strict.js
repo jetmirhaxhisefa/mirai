@@ -53,7 +53,7 @@ export const FILE_TOOL_BLOCKS = Object.freeze(['blockWritesOutsideWorkingDirecto
 export const MCP_TOOL_TIMEOUT_MS = 6 * 3600 * 1000;
 // MIRAI's MCP server (units 14d, 15a) and its tools, as Claude Code names them.
 export const MCP_SERVER = 'mirai';
-export const MCP_TOOLS = Object.freeze({ run_tests: 'mcp__mirai__run_tests', run_check: 'mcp__mirai__run_check', log_event: 'mcp__mirai__log_event' });
+export const MCP_TOOLS = Object.freeze({ run_tests: 'mcp__mirai__run_tests', run_check: 'mcp__mirai__run_check', log_event: 'mcp__mirai__log_event', lint: 'mcp__mirai__lint' });
 // log_event's caps per launch (unit 15a, open point 4); the server checks the same bounds.
 export const LOG_CAPS = Object.freeze({ max_events: 50, max_message: 4000 });
 // The input folder's files (unit 15a): what an agent is given to read, such as its plan.
@@ -117,7 +117,10 @@ export function strictTemplate({ registry, config, mode }) {
     // every template gets them, an agent's definition decides whether it uses them), and the
     // types log_event takes (unit 15a; every launch). In the template, so the trust root's
     // manifest and the canonical hash cover the wiring.
-    mcp: { tests: testTools(config), log: [...LOG_TYPES] },
+    // Unit 41 (Jet, 2026-11-23, A2): a read-write launch also gets `lint`, the same lint MIRAI runs
+    // between Nora's launches: no model, read-only, documents under the docs root only
+    // (src/mcp/tools/lint.js). A read-only agent writes no document, so it has none.
+    mcp: { tests: testTools(config), log: [...LOG_TYPES], ...(readOnly ? {} : { lint: true }) },
   };
 }
 
@@ -217,7 +220,7 @@ export function renderStrict(template, facts) {
   const m = template.mcp;
   const strings = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string' && x !== '');
   if (m === null || typeof m !== 'object' || !strings(m.log) || m.log.some((t) => !LOG_TYPES.includes(t))
-    || !(m.tests === null || (strings(m.tests?.levels) && strings(m.tests?.checks)))) {
+    || !(m.tests === null || (strings(m.tests?.levels) && strings(m.tests?.checks))) || !(m.lint === undefined || m.lint === true)) {
     throw new StrictError('the strict template\'s mcp field isn\'t one this MIRAI reads', { code: 'bad-template' });
   }
   const co = plain(facts.checkout, 'the checkout');
@@ -762,6 +765,7 @@ export function mcpPolicyTools(template) {
     ...(t?.levels.length ? { run_tests: { levels: [...t.levels] } } : {}),
     ...(t?.checks.length ? { run_check: { checks: [...t.checks] } } : {}),
     ...(log.length ? { log_event: { types: [...log], ...LOG_CAPS, secrets: (template.secrets ?? []).map((x) => ({ name: x.name, regex: x.regex })) } } : {}),
+    ...(template.mcp?.lint === true ? { lint: {} } : {}),
   };
 }
 

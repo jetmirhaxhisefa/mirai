@@ -119,6 +119,12 @@ launches, 2 Vera checks, 1 reader test; each fix round adds 1 Nora launch and 1 
 
 ### P1 From request to approval (a session of yours, then about 2–6 Opus launches, as many Vera checks, 1 reader test)
 
+**The rerun (after A2):** first bring the probe worktree to this unit's head, in Terminal:
+`cd ~/Projects/mirai-u41 && git fetch origin unit/41-build && git checkout --detach origin/unit/41-build`
+(you see `HEAD is now at <commit> Unit 41: …`), then `node test/probes/nora-probes.js --check`
+(four lines, each ending `tree clean, context lints clean`). Then the steps below, in a **fresh**
+home (step 1 makes one; the old `~/.mirai-probes-JVHqLr` is kept for the record).
+
 1. `cd ~/Projects/mirai-u41 && node test/probes/nora-probes.js --probe home --case p1`
    It prints the probe home's path and steps 1–5 with every path filled in. Keep that window open.
 2. Follow the printed steps: a new Terminal window, `cd <its repo> && claude`, paste the printed
@@ -162,6 +168,57 @@ and 2). Two findings:
 
 P1, P3 and P4 are still to run.
 
+### P1's run (Jet, 2026-11-23, home `~/.mirai-probes-JVHqLr`, output `~/mirai-u41-p1.txt`): not passed yet
+
+Request: team leads pin up to three tasks to the top of their team's list. Three runs, 13 Opus
+launches in all, about 6 of them only lint fixes:
+
+- **Run 1:** the brief: lint 15 → 1 → clean, then Vera 3 must-fix; Nora fixed them and **paused on
+  Q-9** (a reopened task's pin). The pause worked as designed.
+- **Run 2:** the brief: lint 1 → 1 → clean, Vera 0 must-fix (passed). The PRD: lint clean, Vera 2
+  must-fix; Nora fixed them and **paused on Q-10** (what the app keeps once a pin ends). As designed.
+- **Run 3:** the brief reused (unchanged). The PRD: lint 15 → 2 → clean, Vera 1 must-fix; Nora fixed
+  it, the lint found 1 problem (a 27-word sentence), and the run **stopped**: "the lint still finds
+  1 problem in the prd after 2 fixes".
+
+Two causes, both fixed (Jet's decisions, 2026-11-23):
+
+1. **Format slips cost a launch each.** Q1 is revised to **A2**: Nora's launch has MIRAI's `lint`
+   tool on its headless server, the same lint MIRAI runs, so she lints her draft before her launch
+   ends. Vera and the reader test still run only from MIRAI between her launches (D-53 stands).
+2. **A bug: `LINT_FIX_ROUNDS` was spent across the whole run.** Run 3's two lint fixes went on her
+   continue launch's draft, so the fix of Vera's finding had none left. The two lint fixes now
+   restart for each draft: after her write and after each fix of Vera's or the reader's findings.
+   A run still stops at 16 launches.
+
+P1 reruns in a fresh home (steps below). P3 and P4 are still to run.
+
+### A2: her own lint (Jet, 2026-11-23, after P1)
+
+- **The tool:** `lint` on the headless server of every read-write launch (the template's
+  `mcp.lint: true`; read-only templates have none: a read-only agent writes no document). Kai's
+  launches get it too; his prompt doesn't use it.
+- **What it reads, and why that's safe:** the server runs outside the sandbox, so in an agent run it
+  takes only Markdown files under the docs root (`[docs] root`, from the trust root), named one by
+  one: no folder, no whole-project lint, no part starting with "." (a `.env*` file is read-denied to
+  agents), no link anywhere along the path, nothing outside. That is a subset of what her launch may
+  read and write. It reads the trust root's rules and the project's approved overlays (from the
+  store, as `log_event`'s policy names it) and returns the problems only; it writes nothing. A
+  linked file the lint follows (the brief's interview, the PRD's brief) is read only inside the repo,
+  through no link (07b's rules, unchanged).
+- **The local store:** her documents aren't files there, so the tool has nothing to lint; MIRAI's lint
+  between her launches is the one check, as before.
+- **Tests:** `41 A2` (`nora.test.js`): the read-write template offers it, the read-only one doesn't;
+  the policy's tool; the headless description; `headlessRefusal` refuses no path, `.env`,
+  `docs/mirai/due-dates/.env.md`, `README.md`, a folder, a link and a missing file, and accepts the
+  brief. `41 (P1's run)`: write, two lint fixes, Vera's must-fix, her fix broken again, one more lint
+  fix, done (`rounds.lint: 3`; the old code stopped at the third). Pins updated: 13c's and 14d's
+  allow lists, 13c's init check, 15a's tool table, 15a T7's policy, 15b's "never has" list.
+- **A red-team case:** yes, an extension of an existing one. `m-server-direct` (MIRAI's server with no
+  model, forged and hostile calls) now sends seven `lint` calls when the launch's policy offers it
+  (none, `.env`, a dot file under the docs root, `README.md`, a folder, `../outside.md`,
+  `/etc/passwd`); each must be refused. It runs in `redteam-full` on the read-write template.
+
 ### P3 Contradiction while writing (a session of yours, 2 Nora runs)
 
 1. `--probe home --case p3`, then the printed steps. The request (delete a task for good) breaks a
@@ -184,13 +241,16 @@ P1, P3 and P4 are still to run.
 
 This unit touches the red team's cage (`cageOf`, computed on this branch): `registry/agents/
 mirai-product-manager.toml` and `registry/roles/product-manager.toml` (cage data: every agent
-definition and role), `src/mcp/tools/commands.js` (cage root `src/mcp/**`), and code the cage
-reaches: `src/agent/run.js` (a cage root: `ownTier`, Jet's answer 1), `src/config/registry.js` (two lint checks named), `src/lint/checks.js`, `src/lint/prd.js`,
+definition and role), `src/mcp/tools/commands.js` and `src/mcp/tools/lint.js` (cage root
+`src/mcp/**`; the headless lint, A2), `src/launch/strict.js` (cage root: the read-write template's
+`mcp.lint`, its policy and allow rule), `src/redteam/cases-agent.js` (cage root: `m-server-direct`'s
+lint calls), and code the cage reaches: `src/agent/run.js` (a cage root: `ownTier`, Jet's answer 1), `src/config/registry.js` (two lint checks named), `src/lint/checks.js`, `src/lint/prd.js`,
 `src/lint/requirements.js` (new), `src/store/connectors/common.js` (two default file names) and
 `src/store/journal.js` (`nora_run`, the business-change approval). So each project's red-team pass
 goes stale once its framework copy is refreshed with this unit: a `redteam-full` run is needed
-after the merge, before agents launch there again. No red-team case changes: Nora runs under the
-read-write template the red team already tests (as Kai does), and no broker tool is added (A1).
+after the merge, before agents launch there again. The read-write template changes (its tools gain `mcp__mirai__lint`), so its red-team result is new
+work, not only stale; `m-server-direct` gains the lint calls above. No other case changes: Nora runs
+under the read-write template (as Kai does), and Vera and the reader test never run from a server.
 
 ## Claude-only parts (Jet's standing rule, 2026-11-23)
 
@@ -226,8 +286,9 @@ Claude Code. What is Claude Code's today, each behind an existing seam:
   interview isn't `paused` with that question open ends the run `failed`.
 - **The business-change approval doesn't run Vera on business.md:** every changed line is the
   proposal's text, which you read line by line at that approval; the screen says so. See question 2.
-- **The lint gets two lint fixes per document per run** (`LINT_FIX_ROUNDS = 2`, in the code), before
-  Vera; a run stops after 16 launches whatever the settings.
+- **Two lint fixes per draft** (`LINT_FIX_ROUNDS = 2`, in the code; per draft since P1's run, it had
+  been per run), before Vera; a run stops after 16 launches whatever the settings.
+- **A2 (Jet, after P1):** a headless `lint` tool on every read-write launch's server.
 - **`mirai requirements <initiative> [--from <file>]`** is new: it numbers your list (Scope 9's
   "each line gets an ID").
 

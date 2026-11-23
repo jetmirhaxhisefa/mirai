@@ -17,6 +17,11 @@ checks on that document, in this order:
 3. **the reader test** (where the type has one): a fresh reader gets only the summary and must
    find what is built, for whom, what is left out and what the owner decides.
 
+**Lint your own draft first.** On the repo store you have MIRAI's `lint` tool (the same lint MIRAI
+runs after your launch): give it your document's path (`docs/mirai/<initiative>/prd.md`), fix what
+it reports, and run it again until it's clean, before you finish the launch. It reads only
+documents under the docs root, and changes nothing.
+
 Your next launch gets what they found, in the input folder: `lint.json` (the lint's problems),
 `findings.md` (Vera's must-fix findings) or `reader.json` (the reader's gaps). Fix them, and change
 nothing else. You never run `mirai` yourself, and you don't need to: MIRAI runs every check.

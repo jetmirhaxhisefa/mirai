@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { loadRegistry } from '../../src/config/registry.js';
@@ -14,6 +14,9 @@ import { frameworkDefaults } from '../../src/config/defaults.js';
 import { lintText } from '../../src/lint/lint.js';
 import { checkCommand, COMMANDS } from '../../src/mcp/tools/commands.js';
 import { installHooks } from '../../src/hooks/install.js';
+import { headlessRefusal } from '../../src/mcp/tools/lint.js';
+import { toolList } from '../../src/mcp/tools.js';
+import { mcpPolicyTools, strictTemplate } from '../../src/launch/strict.js';
 import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { writeToken } from '../../src/sign/token.js';
 import { docsStoreFor } from '../../src/store/connectors/index.js';
@@ -251,6 +254,42 @@ test('41 T2 (B1): on the local store she writes no file; MIRAI writes her return
   const h = fixture();
   const repo = await nora(h, { steps: [() => result({ documents: [{ name: 'brief.md', text: BRIEF_READY }] })] });
   assert.match(repo.r.why, /on the repo store she writes the files herself/);
+});
+
+// ---- A2 (Jet, 2026-11-23, after P1): her own lint, and lint fixes per draft -------------------
+
+test('41 A2: a read-write launch\'s server offers lint, for documents under the docs root only: never a dot file, a folder, the whole project, a link or anything outside', () => {
+  const f = fixture({ files: { [`${D}/brief.md`]: BRIEF_READY, [`${D}/.env.md`]: 'SECRET=1\n', 'docs/mirai/link-target.md': 'x\n' } });
+  symlinkSync(join(f.root, 'docs/mirai/link-target.md'), join(f.root, D, 'linked.md'));
+  const config = { compose: null, testing: { levels: [] }, checks: {}, sandbox: {} };
+  const rw = strictTemplate({ registry: REGISTRY, config, mode: 'read-write' });
+  const ro = strictTemplate({ registry: REGISTRY, config, mode: 'read-only' });
+  assert.deepEqual([rw.mcp.lint, ro.mcp.lint], [true, undefined], 'read-write only: a read-only agent writes no document');
+  assert.deepEqual(mcpPolicyTools(rw).lint, {});
+  assert.equal(mcpPolicyTools(ro).lint, undefined);
+  const listed = toolList({ kind: 'headless', tools: { lint: {} } });
+  assert.match(listed.find((t) => t.name === 'lint').description, /the same lint MIRAI runs after your launch/);
+  assert.equal(headlessRefusal([`${D}/brief.md`], 'docs/mirai', f.root), null);
+  for (const [paths, why] of [[[], /name the documents/], [['.env'], /isn't a document under docs\/mirai\//], [[`${D}/.env.md`], /a part starting with "\."/], [['README.md'], /isn't a document under/], [['docs/mirai/due-dates'], /isn't a document under/], [[`${D}/linked.md`], /symbolic link/], [[`${D}/nothing.md`], /doesn't exist/]]) {
+    assert.match(headlessRefusal(paths, 'docs/mirai', f.root) ?? '', why, JSON.stringify(paths));
+  }
+});
+
+test('41 (P1\'s run): the lint fixes restart for each draft: after a fix of Vera\'s findings she has two again', async () => {
+  const f = fixture();
+  const broken = PRD_READY.replace('## Glossary', '## Glossery');
+  // Her write and two lint fixes; Vera's must-fix; her fix of it, broken again, and one lint fix.
+  const plan = [broken, broken, PRD_READY, broken, `${PRD_READY}\n`];
+  let n = 0;
+  const vera = fakeVera((o) => (o.item === 'due-dates-prd' && readVerifyResults(openStore({ cwd: f.root, env: f.env }), 'due-dates-prd').length === 0
+    ? { findings: [{ id: 'V-1', grade: 'must-fix', layer: 'checklist', kind: 'writing', kind_reason: 'The brief gives it.', decision_type: 'none', where: { file: 'document.md', line: 72, quote: 'the system must email each assignee once' }, what: 'FR-4 has no time.', fix: 'Say when.' }] }
+    : { findings: [] }));
+  const { r } = await nora(f, { vera, steps: [byDocument({ brief: writes('brief'), prd: (o, fx) => {
+    put(fx, `${D}/prd.md`, plan[Math.min(n++, plan.length - 1)]);
+    return result();
+  } })] });
+  assert.equal(r.state, 'done', r.why);
+  assert.equal(r.rounds.lint, 3, 'two fixes of the first draft, one of the fixed one');
 });
 
 // ---- T3 business.md at the interview ---------------------------------------------------------

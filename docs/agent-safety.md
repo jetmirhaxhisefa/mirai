@@ -508,8 +508,11 @@ A headless agent run gets **MIRAI's MCP server** with two tools for tests:
   has the summary, the per-line data stays in MIRAI's store);
 - **`run_check(name)`**: one of its named checks (`lint`, …), always whole.
 
-Each one runs the steps above and returns the result in its reply. The server's only other tool
-is `log_event` (see "How agents talk to MIRAI" below), and it gives no shell or Docker access. Claude Code starts the server itself, outside the
+Each one runs the steps above and returns the result in its reply. The server's other tools are
+`log_event` (see "How agents talk to MIRAI" below) and, in a read-write launch, `lint` (unit 41: the
+same document lint MIRAI runs, read-only, no model, for Markdown files under the docs root named one
+by one; never a folder, the whole project, a part starting with "." such as a `.env*` file the
+sandbox denies, a link or anything outside), and it gives no shell or Docker access. Claude Code starts the server itself, outside the
 sandbox, with an empty environment but for `HOME` and a fixed `PATH`, as with the hook (so `NODE_OPTIONS` and the like never reach
 it). The server's code comes from the trust root, so a branch can't change it.
 

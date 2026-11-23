@@ -233,6 +233,16 @@ approved PRD.
   for the section where `R-n` is defined (read by `lint` and `trace`), and it gets an entry in
   `test/lint/template-versions.json`.
 
+**After P1 (Jet, 2026-11-23): Q1 revised to A2.** *(changed: Jet, 2026-11-23, 41's P1, "A2"):*
+Nora's own launch gets MIRAI's `lint` tool on its headless server (every read-write launch's: the
+template's `mcp.lint`), the same lint MIRAI runs between her launches: no model, read-only, for
+Markdown files under the docs root only, named one by one, never a part starting with "." or a link.
+She lints her draft inside her launch, so format slips no longer cost a launch each (P1: about 6 of
+13 Opus launches were lint fixes). Vera and the reader test still run only from MIRAI between her
+launches: D-53 stands (no `start_agent`, no verify tool). *(Bug fix, same day):* the two lint fixes
+restart for each draft (her write, and each fix of Vera's or the reader's findings); a run still
+stops at 16 launches.
+
 **Built (2026-11-23), Jet's answers to the build's questions:** *(changed: Jet, 2026-11-23, 41's
 Q1 "B"):* Vera checks Nora's documents on the `verify` step's own tier (standard, his unit 40
 choice), not raised to Nora's deep tier by the verifier ladder; the run log still gets the rung:

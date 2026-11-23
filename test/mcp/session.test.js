@@ -119,7 +119,7 @@ test('15b T1: the interactive kind: lint, log_event and the test tools; no launc
   assert.throws(() => checkPolicy({ ...policy, launch_id: '20261029120000-0123abcd' }), /isn't one this server reads/);
   assert.throws(() => checkPolicy({ ...policy, registration_id: 'nope' }), /isn't one this server reads/);
   const headless = { ...policy, kind: 'headless', registration_id: undefined, state_dir: undefined, repo_state: 'a'.repeat(64), launch_id: '20261029120000-0123abcd', launch_dir: r.root, item: null };
-  assert.throws(() => checkPolicy(headless), (err) => err instanceof PolicyError && /a headless server never has \(lint, agent_status, session_start, session_end, mirai_command, mirai_status\)/.test(err.message));
+  assert.throws(() => checkPolicy(headless), (err) => err instanceof PolicyError && /a headless server never has \(agent_status, session_start, session_end, mirai_command, mirai_status\)/.test(err.message));
   // .git changing (your commits) never stops it; a test run is your session's, unsigned.
   let seen;
   const h = harness(policy, { repoState: () => { throw new Error('no .git check in a session'); }, runTest: async (o) => { seen = o; return { id: 't-1', name: 'unit', kind: 'level', outcome: 'pass', exit_code: 0, duration_ms: 1, output: { tail: '' }, tree: { hash: 'f'.repeat(64) } }; } });
