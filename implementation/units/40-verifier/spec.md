@@ -169,6 +169,10 @@ the document reaches you.
 
 - T1–T8 pass, and the full suite passes through the build runner and CI.
 - P1–P3 pass, and P1's default is set in `defaults.js`.
+  *(changed: Jet, 2026-11-23):* P1 didn't pass under its strict rule on either tier (standard
+  caught 10 of 13 seeds on their layer, deep 11; 6 and 14 must-fix findings on clean documents).
+  Jet chose `standard` as the default ("A"): about the same catch rate, far less noise. P1 counts
+  as done with that decision; P2 and P3 still have to pass.
 
 ## Checked against the queued units
 

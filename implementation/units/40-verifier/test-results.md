@@ -173,6 +173,51 @@ Output: `~/mirai-u40-p1.txt`. Standard (Sonnet) ran all 18; deep (Opus) none.
    probe's table now also shows "caught on any layer" beside the spec's "on its layer"; the
    verdict still uses the spec's rule.
 
+### P1's second run (Jet, 2026-11-23, at a95fc61): not passed under the strict rule; the default chosen by Jet
+
+Output: `~/mirai-u40-p1.txt` (the first run's: `~/mirai-u40-p1-run1.txt`). Both tiers ran all 18.
+
+| | standard (Sonnet) | deep (Opus) |
+|---|---|---|
+| Seeded defects caught on their layer | 10 of 13 | 11 of 13 |
+| Caught on any layer | 11 of 13 | 12 of 13 |
+| Must-fix findings on the 5 clean documents | 6 (example-prd 2, p2-brief 1, p3-prd 3) | 14 (example-prd 3, epic 1, p2-brief 5, p3-prd 4, business 1) |
+
+Verdict: **FAIL** under the strict rule (each seed must-fix on its layer, no must-fix on a clean
+document). Both missed p3-prd/top-vs-detail (FR-14's summary bullet taken out). Standard also
+missed p2-brief/top-vs-detail, and raised the epic's push notice on another layer. Deep raised
+example-prd's on another layer, and graded business/checklist's seed (the price S-1 doesn't give)
+a suggestion. Most must-fix findings on the clean documents were real gaps:
+
+- the example PRD's "evening reminder" (UJ-2) against "day ends: midnight", and a team time zone
+  never said to exist or be new;
+- the example epic's AC-SAMPLE-55.2, which reassigned the leaver's task before checking she got
+  nothing (deep);
+- the example `business.md`'s "not this repo: sign-up, billing and email", which said they were
+  missing rather than elsewhere (deep);
+- in 34's P3 PRD: NG-1 to NG-4 cited but not defined there, the glossary's template rows, GDPR
+  erasure against FR-21 and FR-14;
+- in 31's P2 brief: the owner against the assignee. Deep's "internal, no outside customer" finding
+  came from the probe's own `business.md` (probe construction).
+
+**Jet's decision (2026-11-23, "A"): the default for `[models.steps] verify` is `standard`.** Sonnet
+caught about as many seeded defects as Opus and raised far fewer must-fix findings on clean
+documents, which means fewer rounds and less noise. Opus is one line away
+(`[models.steps] verify = "deep"`). `STEP_DEFAULTS` already had `standard`; its comment now cites
+this decision, and T1's assertion says so.
+
+**Fixed in MIRAI's examples** (each still lints clean, and 32's and 33's tests pass):
+
+- PRD: UJ-2 reads "the nightly reminder"; "Exists today" names the teams' time zone.
+- Epic: its summary line and SAMPLE-53's title say the reminder goes out at the day's end, not
+  "the evening before".
+- SAMPLE-55: AC .2 now checks a leaver's task still assigned to her (no reminder), and a new AC .3
+  checks the new assignee is reminded.
+- `business.md`: "Not in the product yet: sign-up, billing and email (S-2)."
+
+Not fixed (skipped as nitpicks): the overdue page's tie-break. 31's and 34's recorded probe
+documents are left as they are (see "For later units").
+
 ### P2 Your read (1 Sonnet run)
 
 1. `cd ~/Projects/mirai-u40 && node test/probes/verify-probes.js --yes --probe p2 | tee ~/mirai-u40-p2.txt`
@@ -289,6 +334,15 @@ After P1's first run (Jet, 2026-11-23):
   the default cap is 20 tickets, so it only bites a project that raised it; batching tickets is
   later work if it does.
 
+- **Summary omissions in long documents are Vera's weakest catch** (P1's second run): both tiers
+  missed a requirement whose summary bullet was taken out of 34's long P3 PRD, and Sonnet missed
+  the brief's. The misses log (`verifier_miss`, PM-06) should watch for rejections that name
+  something the summary hides.
+- **31's P2 brief and 34's P3 PRD** are records of those units' probes and stay as they are. P1
+  showed real gaps in them (the brief's owner against assignee; the PRD's undefined NG-1 to NG-4,
+  its glossary's template rows, GDPR erasure against FR-21 and FR-14). A later probe set should use
+  corrected copies, as P1 does for the brief's first-run gaps.
+
 ## What I'm unsure about
 
 - **Whether Vera reads the sources a context file cites.** Her prompt says to open a cited file in
@@ -307,6 +361,7 @@ After P1's first run (Jet, 2026-11-23):
 - `u40-tests-3` at `ccb437b`: **pass, 803/803**, 14.8 minutes.
 - `u40-tests-4` at `1cfdfd3` (P1's first-run fixes): **pass, 804/804**, 15.8 minutes.
 - `u40-tests-5` at `44443dd` (Jet's answer 4): **pass, 804/804**, 14.8 minutes.
+- `u40-tests-6` at the next commit (P1's second run: the default's note, the examples' fixes): see the report.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,

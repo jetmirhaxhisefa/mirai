@@ -27,7 +27,7 @@ updated: "2026-11-20"
 ## What this repo is responsible for
 
 - This repo holds the whole product: the web app in `frontend/`, the API in `backend/` and the browser tests in `e2e/` (S-1).
-- Not this repo: sign-up, billing and email. The product has none of them yet (S-2).
+- Not in the product yet: sign-up, billing and email (S-2).
 
 ## Business rules
 

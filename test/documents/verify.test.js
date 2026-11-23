@@ -110,7 +110,7 @@ test('40 T1: Vera\'s definition: the verifier role, read-only, only Read, Glob a
   assert.deepEqual([REGISTRY.roles.verifier.mode, REGISTRY.roles.verifier.step], ['read-only', 'verify']);
   assert.doesNotThrow(() => checkAgentRole(vera, REGISTRY.roles.verifier));
   assert.throws(() => checkAgentRole(vera, REGISTRY.roles.developer), (e) => e.code === 'agent-role' || e.code === 'agent-read-only');
-  assert.equal(pickTier({ config: frameworkDefaults(), step: 'verify' }).tier, 'standard', 'standard until P1 measures it');
+  assert.equal(pickTier({ config: frameworkDefaults(), step: 'verify' }).tier, 'standard', 'Jet\'s choice after P1 (2026-11-23)');
   // Her prompt carries the three layers, the grades and 44's writing-or-decision rule.
   const prompt = read('agents/mirai-verifier.md');
   for (const word of ['`checklist`', '`top-vs-detail`', '`context`', '`must-fix`', '`suggestion`', '`writing`', '`decision`', 'When in doubt: `decision`', '`decision_type: invented`', '(open)']) assert.ok(prompt.includes(word), word);

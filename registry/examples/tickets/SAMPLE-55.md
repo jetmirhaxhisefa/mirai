@@ -28,10 +28,14 @@ This decides who receives a reminder.
   - Given Ana has turned reminders off
   - When a task of hers is due tomorrow
   - Then she gets no email, and turning them on again brings them back
-- AC-SAMPLE-55.2: A leaver gets none, the new assignee does
+- AC-SAMPLE-55.2: A leaver gets none
   - Given Ana has left the team, and a task still assigned to her is due tomorrow
-  - When the task is then assigned to Ben
-  - Then Ana gets no reminder, and Ben is reminded
+  - When today ends
+  - Then no reminder is sent for it
+- AC-SAMPLE-55.3: The new assignee is reminded
+  - Given that task is then assigned to Ben, and is due tomorrow
+  - When today ends
+  - Then Ben is reminded
 
 These deliver AC-FR-3.1, AC-FR-8.1 and AC-FR-8.2 from the PRD.
 

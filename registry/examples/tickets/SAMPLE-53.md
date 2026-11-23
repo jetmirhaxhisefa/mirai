@@ -14,7 +14,7 @@ epic: SAMPLE-50
 files_likely: [app/Console/Commands/SendDueReminders.php, app/Mail/DueReminder.php, resources/views/emails/due-reminder.blade.php]
 e2e: true
 ---
-# Assignees get one reminder email the evening before
+# Assignees get one reminder email as the day before ends
 
 ## Description
 

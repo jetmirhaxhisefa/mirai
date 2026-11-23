@@ -25,7 +25,7 @@ The tickets build the whole due-dates PRD, and every requirement and acceptance 
 ### What changes
 
 - A task's creator or team lead can date it; a past date is refused (SAMPLE-51, SAMPLE-52; FR-1, FR-6).
-- Reminder emails go out the evening before, with title and date only, retried once (SAMPLE-53, SAMPLE-54; FR-4, FR-7, NFR-2).
+- Reminder emails go out at the day's end, with title and date only, retried once (SAMPLE-53, SAMPLE-54; FR-4, FR-7, NFR-2).
 - Assignees can turn reminders off, and people who leave a team get none (SAMPLE-55; FR-3, FR-8).
 - Overdue tasks are marked in the list, and team leads get an overdue page (SAMPLE-56, SAMPLE-57; FR-5, FR-2, NFR-1).
 - Tasks without a date look and sort as they do today (SAMPLE-51; FR-9).
@@ -62,7 +62,7 @@ These are left out of the set:
 |---|---|---|---|---|---|---|---|
 | [SAMPLE-51](tickets/SAMPLE-51.md) | A task can carry a due date | M | normal | — | FR-1, FR-9 | AC-FR-1.1, AC-FR-1.2, AC-FR-1.3, AC-FR-9.1 | — |
 | [SAMPLE-52](tickets/SAMPLE-52.md) | A due date in the past is refused | S | normal | SAMPLE-51 | FR-6 | AC-FR-6.1 | — |
-| [SAMPLE-53](tickets/SAMPLE-53.md) | Assignees get one reminder email the evening before | L | high | SAMPLE-51 | FR-4, NFR-2 | AC-FR-4.1, AC-FR-4.2, AC-FR-4.3, AC-FR-4.4, AC-FR-4.5, AC-NFR-2.1 | — |
+| [SAMPLE-53](tickets/SAMPLE-53.md) | Assignees get one reminder email as the day before ends | L | high | SAMPLE-51 | FR-4, NFR-2 | AC-FR-4.1, AC-FR-4.2, AC-FR-4.3, AC-FR-4.4, AC-FR-4.5, AC-NFR-2.1 | — |
 | [SAMPLE-54](tickets/SAMPLE-54.md) | A failed reminder is retried once | M | normal | SAMPLE-53 | FR-7 | AC-FR-7.1 | — |
 | [SAMPLE-55](tickets/SAMPLE-55.md) | Assignees can turn reminders off, and leavers get none | S | normal | SAMPLE-53 | FR-3, FR-8 | AC-FR-3.1, AC-FR-8.1, AC-FR-8.2 | — |
 | [SAMPLE-56](tickets/SAMPLE-56.md) | Overdue tasks are marked in the list | S | normal | SAMPLE-51 | FR-5 | AC-FR-5.1, AC-FR-5.2 | — |
