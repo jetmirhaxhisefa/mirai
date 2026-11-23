@@ -10,7 +10,8 @@ import { resolveClaude } from '../../src/redteam/key.js';
 import { readToken } from '../../src/sign/token.js';
 import { normal } from '../../src/verify/findings.js';
 import { handoffText } from '../../src/verify/gate.js';
-import { runVerify } from '../../src/verify/run.js';
+import { runVerify, verifySubject } from '../../src/verify/run.js';
+import { subjectHash, verifyResultFor } from '../../src/store/verify-results.js';
 import { render } from '../../src/install/render.js';
 import { runReaderTest } from '../../src/write/reader.js';
 import { setupHome } from './reader-probes.js';
@@ -240,7 +241,7 @@ const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 async function check(home, file) {
   try {
     const r = await runVerify({ cwd: home.root, env: home.env, file, launchToken: mintLaunchToken(), launchOptions: { status: green } });
-    return { entry: r.entry, outcome: r.outcome, why: r.why ?? null };
+    return { entry: r.entry, outcome: r.outcome, why: r.why ?? null, changed: Boolean(r.changed) };
   } catch (err) {
     return { entry: null, outcome: 'error', why: `${err.code ?? ''} ${err.message}${err.hint ? ` (${err.hint})` : ''}`.trim() };
   }
@@ -326,13 +327,24 @@ async function cli() {
     if (!existsSync(join(home.root, file))) throw new Error(`${join(home.root, file)} isn't there yet: the session writes it first`);
     commit(home, 'probe: the PRD as the agent left it');
     if (probe === 'p3-verify') {
+      const head = spawnSync('/usr/bin/git', ['rev-parse', '--short', 'HEAD'], { cwd: home.root, encoding: 'utf8' }).stdout.trim();
       const r = await check(home, file);
       if (!r.entry) throw new Error(`Vera didn't record a result: ${r.outcome}: ${r.why}`);
       const e = r.entry;
-      log(`round ${e.round}: ${e.must_fix} must-fix, ${e.suggestions} suggestions (model ${e.model})`);
+      // P3's run (2026-11-23): say which text was checked, whether it's a reused result, and whether
+      // the file changed while she read it (the session was still writing).
+      log(`checked: ${file} at commit ${head}${r.outcome === 'reused' ? ' (unchanged since that round: its result, no new run)' : ''}`);
+      log(`round ${e.round}${e.round > 3 ? ', after the last of 3 rounds' : ''}: ${e.must_fix} must-fix, ${e.suggestions} suggestions (model ${e.model})`);
+      if (r.changed) log('WARNING: the PRD changed while Vera checked it (the session is still writing?). This result is for the commit above, not the file now: wait until the session is done, then run p3-verify again.');
       log(findingsReport(e));
       log(e.must_fix ? `\nThe hand-off for the session (paste it in as it is):\n\n${handoffText(e, { file })}` : '\nNo must-fix finding: run p3-final.');
       return 0;
+    }
+    // P3's run: the reader test needs Vera's result for the PRD as it is now; say so before trying.
+    const sub = verifySubject({ cwd: home.root, env: home.env, file });
+    if (!verifyResultFor(sub.store, sub.id, subjectHash(sub.bytes, sub.files))) {
+      log(`Vera has no result for ${file} as it is now (it changed after her last check): run p3-verify first, then p3-final.`);
+      return 1;
     }
     const lint = spawnSync(process.execPath, [join(ROOT, 'bin', 'mirai.js'), 'lint', file], { cwd: home.root, env: home.env, encoding: 'utf8' });
     log(`lint (exit ${lint.status}):\n${lint.stdout}${lint.stderr}`);

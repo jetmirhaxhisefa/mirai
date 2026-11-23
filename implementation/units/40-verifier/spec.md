@@ -174,6 +174,13 @@ the document reaches you.
   Jet chose `standard` as the default ("A"): about the same catch rate, far less noise. P1 counts
   as done with that decision; P2 and P3 still have to pass.
 
+  *(changed: Jet, 2026-11-23, P3):* P2 passed (third run). P3's mechanics passed (the writer, Vera's
+  checks and hand-offs, the lint), but the loop didn't converge in five rounds: each raised new
+  must-fix findings. Jet chose "B": 40 ships with P3's two fixes (a result never reads as a fresh
+  check of changed text; no finding on the template's fixed text), and the incremental re-check
+  (her previous findings and the diff since her last check) moves to 44. P3 counts as done on
+  that decision.
+
 ## Checked against the queued units
 
 - **34:** its fixed `ROUNDS` becomes `reader_fix_rounds` (decision 2), and the reader test now

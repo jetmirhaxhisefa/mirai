@@ -502,3 +502,23 @@ test('40 P1\'s first run: the verify step\'s tier is the model in Vera\'s render
   f.git('commit', '-qm', 'render');
   assert.doesNotThrow(() => snapshot({ cwd: f.root, env: f.env }));
 });
+
+test('40 P3\'s run: a finding on the template\'s fixed text is dropped; a file that changes during the check, and a round past the last, say so', async () => {
+  const f = fixture({ config: '\n[docs]\nverify_fix_rounds = 0\n' });
+  const onFixed = finding({ id: 'V-7', grade: 'suggestion', where: { file: 'document.md', line: 1, quote: 'BR-2: people are reminded before a task is due' } });
+  // The file changes while she reads it (its author still writing).
+  const vera = fakeVera(() => {
+    writeFileSync(join(f.root, PRD), `${PRD_READY}\nA late edit.\n`);
+    return { findings: [finding(), onFixed] };
+  });
+  const r = await verifyCli(f, PRD, vera);
+  assert.equal(JSON.parse(vera.calls[0].inputs['index.json']).fixed_parts[0].part, 'ID prefixes');
+  const [e] = readVerifyResults(f.store, 'due-dates-prd');
+  assert.deepEqual(e.findings.map((x) => x.id), ['V-1']);
+  assert.equal(e.dropped[0].why, 'it\'s in "ID prefixes", which the template fixes word for word');
+  assert.match(r.out, /^the file changed while she checked it: this result is for the text as it was committed, not as it is now; run mirai verify docs\/mirai\/due-dates\/prd\.md again for the current text$/m);
+  // The next check is past the last round (no fix rounds here), and says so.
+  f.git('commit', '-qam', 'the late edit');
+  const again = await verifyCli(f, PRD, fakeVera({ findings: [] }));
+  assert.match(again.out, /^round 2, after the last of 1 rounds, model /m);
+});

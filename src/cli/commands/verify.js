@@ -68,9 +68,12 @@ export function createVerifyCommand({ launch = null } = {}) {
         const runs = runsOf(s.config, 'verify');
         const out = [];
         out.push(`${name} checked ${plain(s.path)} (${s.type} ${plain(s.id)})`);
+        // P3's run: a round past the last says so, and a result for text that changed during the check
+        // says it isn't the file's now (it never reads as a fresh check of the current text).
         out.push(r.reused
           ? `it hasn't changed since round ${e.round}: that result, with no new run (model ${plain(e.model)})`
-          : `round ${e.round}${e.round <= runs ? ` of ${runs}` : ''}, model ${plain(e.model)}, tier ${plain(e.tier)}${e.rung ? `, rung ${e.rung}` : ''}`);
+          : `round ${e.round}${e.round <= runs ? ` of ${runs}` : `, after the last of ${runs} rounds`}, model ${plain(e.model)}, tier ${plain(e.tier)}${e.rung ? `, rung ${e.rung}` : ''}`);
+        if (r.changed) out.push(`the file changed while she checked it: this result is for the text as it was committed, not as it is now; run mirai verify ${plain(s.path)} again for the current text`);
         // Scope 2: a dropped finding is logged, never counted or shown as a finding; it's listed apart
       // with what it said, so a lost must-fix is visible (P2's second run).
       if (e.dropped?.length) {

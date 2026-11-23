@@ -347,6 +347,67 @@ applies rules 1, 2 and 5 itself, and `docs/documents.md` says the same.
    default rounds, and the lint and the reader test pass after the fixes.
 7. Then delete the home: `rm -rf <the P3 home>`.
 
+### P3's run (Jet, 2026-11-23, at 61d7e5c): mechanics passed; convergence not met; moved to 44 by Jet's "B"
+
+Probe home: `~/.mirai-probes-bdjO88`. A fresh session wrote `docs/mirai/p3/prd.md` from 31's P2
+brief with the skill. Vera checked it five times, with the session fixing from each hand-off: the
+probe's commits are r1 `1df81c8` (18:54), r2 `e6665f2`, r3 `a568473`, r4 `9f8d455`, r5 `094522c`
+(19:38:37), then `cf76bcc` (19:40:50).
+
+- **Didn't converge:** every round raised must-fix findings no earlier round had: r1 4, r2 3, r3 at
+  least 1 (SM-2's counter-metrics), r4 (the glossary, the summary's limits), r5 2 (the PH-2 gate,
+  NFR numbers presented as facts). The 600-word summary cap squeezed the fixes.
+- **At the end:** the lint gave 0 problems and 17 warnings. The reader test wasn't run: refused,
+  since Vera had no result for the final text (below).
+- **Jet's decision ("B"):** 40 ships with the two fixes below. The incremental re-check (from the
+  second round, her previous findings and the diff since her last checked version; she checks the
+  fixes and the changed text) moves to 44, where "since her last check" already belongs. The note
+  is in 44's spec, Scope 2.
+
+**1. "round 5" after the last fixes, then "no result" (the cause).** It wasn't a stale reuse, and no
+round was refused: `runVerify` reuses only a result for the same bytes, and it never refuses a
+round past the cap (it records it as one more round after the last). The probe repo's history shows
+what happened:
+
+- `p3-verify` committed `094522c` at 19:38:37 and Vera checked that commit;
+- the session was still writing: the PRD's last change is 19:39:58, after that commit. `cf76bcc`'s
+  diff holds exactly the round-5 items (a new Q-6 for the PH-2 gate, the NFR numbers marked as
+  decisions);
+- `cf76bcc` at 19:40:50 is `p3-final`'s own commit (it commits the same way, with the same message);
+- so the "round 5" result was for `094522c`, and nothing had checked `cf76bcc` when `p3-final` asked.
+  Had `p3-verify` run on `cf76bcc`, `p3-final` would have found that result.
+
+Nothing said so: neither the probe nor `mirai verify` named the text checked, or noticed the file
+changing under the check. **Fixed:**
+
+- `runVerify` re-reads the document after the check. When it changed, `mirai verify` says: "the file
+  changed while she checked it: this result is for the text as it was committed, not as it is now;
+  run mirai verify <file> again". `p3-verify` prints the commit it checked, the same warning, and
+  "unchanged since that round" for a reused result.
+- A round past the cap says "round N, after the last of M rounds", never "round N of M".
+- `p3-final` checks first that Vera has a result for the PRD as it is now. When she hasn't, it says
+  so and names `p3-verify`.
+
+**What the reader test accepts after the last round.** The code wants Vera's result for the
+document's bytes as they are now: a pass, or one at or past the last round (open findings then
+reach you). A text changed after her last round has no result, so the reader test, and approval,
+are refused until `mirai verify` runs once more. That run is recorded as one more round, with its
+open findings shown as after the last round. I read this as Scope 6's intent ("the summary it reads
+is the fixed one"): every text you approve is one she checked. A result can't carry to a changed
+text without saying it's the same text. Unchanged.
+
+**2. The template's fixed text.** Rounds 2 to 5 raised the "ID prefixes" table's example rows as a
+suggestion. The template requires that table word for word, and the lint holds it. **Fixed:** the
+type's `fixed_parts` (the lint's own marker) are found in the document with their lines.
+`index.json` names them ("the template fixes this part word for word: never a finding"), the prompt
+says so, and MIRAI drops a finding whose quote is there ("it's in "ID prefixes", which the template
+fixes word for word"), listed apart like any drop.
+
+**For Jet:** the table's Example column holds IDs like "BR-2: people are reminded before a task is
+due", which read like the document's own IDs and contradict them (P1 and P2 both tripped on them).
+A template change could make the examples generic ("BR-n: an outcome the business needs, e.g. …")
+or move them out of the fixed table. That's a template version bump, so it's left for a later unit.
+
 ### The red team
 
 This unit touches the red team's cage (`cageOf`, computed on this branch): `registry/agents/
@@ -465,6 +526,7 @@ After P1's first run (Jet, 2026-11-23):
 - `u40-tests-7` at `1ce85bd` (P2's first run: the grading): **pass, 804/804**, 14.2 minutes.
 - `u40-tests-8` at `c6c87f9` (P2's second run: `against`, `decision_type`, the dropped list): **pass, 804/804**, 16.5 minutes.
 - `u40-tests-9` at `61d7e5c` (P2's third run: top-vs-detail is must-fix): **pass, 804/804**, 14.8 minutes.
+- `u40-tests-10` at the next commit (P3's fixes): see the report.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,

@@ -13,7 +13,8 @@ import { INPUT_LIMITS, INPUT_NAME } from '../launch/strict.js';
 import { CONTEXT_DIR, contextKindOf, isContextFile } from '../lint/context.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { parseDocument } from '../lint/lint.js';
-import { linkLinesOf } from '../lint/rules.js';
+import { aliased, linkLinesOf } from '../lint/rules.js';
+import { fixedParts } from '../lint/markdown.js';
 import { baseForArg, docsStoreFor } from '../store/connectors/index.js';
 import { openStore } from '../store/home.js';
 import { nextVerifyRound, recordVerifyResult, subjectHash, verifyResultFor } from '../store/verify-results.js';
@@ -97,6 +98,11 @@ export function verifyInputs(subject) {
   } catch {
     doc = null;
   }
+  // P3's run (2026-11-23): the template's fixed parts ("### ID prefixes"), which every document keeps
+  // word for word (the lint holds it), are no place for a finding: the author can't change them.
+  // Their lines go to the quote check, which drops a finding there, and to index.json.
+  const fixed = doc ? [...fixedParts(aliased(doc, def).scan, def)].map(([name, p]) => ({ name, start: p.start, end: p.end })) : [];
+  if (fixed.length) files['document.md'].fixed = fixed;
   for (const l of doc ? linkLinesOf(doc.scan, def) : []) {
     for (const target of l.targets) {
       const rel = posix.normalize(posix.join(posix.dirname(path), target.split('#')[0]));
@@ -134,7 +140,8 @@ export function verifyInputs(subject) {
   const bytes = Object.values(files).reduce((s, f) => s + Buffer.byteLength(f.text), 0);
   if (count > INPUT_LIMITS.files || bytes > INPUT_LIMITS.bytes * 0.9) throw refuse(`${path} and what it's checked against are ${count} files (${Math.round(bytes / 1024)} KiB): more than one check takes (${INPUT_LIMITS.files} files)`, 'verify-too-large', 'split the epic, or check the document yourself');
   const inputs = Object.fromEntries(Object.entries(files).map(([n, f]) => [n, f.text]));
-  inputs['index.json'] = `${JSON.stringify({ schema: 'mirai-inputs/1', verify: { type: def.name, id: subject.id, path }, files: index }, null, 2)}\n`;
+  const fixedNote = (files['document.md'].fixed ?? []).map((p) => ({ part: p.name, lines: `${p.start}-${Number.isFinite(p.end) ? p.end - 1 : 'end'}`, why: 'the template fixes this part word for word: never a finding' }));
+  inputs['index.json'] = `${JSON.stringify({ schema: 'mirai-inputs/1', verify: { type: def.name, id: subject.id, path }, files: index, ...(fixedNote.length ? { fixed_parts: fixedNote } : {}) }, null, 2)}\n`;
   return { inputs, files };
 }
 
@@ -185,6 +192,15 @@ export async function runVerify({ cwd, env, file, launchToken = null, launchOpti
       model: typeof line.model_used === 'string' ? line.model_used : typeof line.model === 'string' ? line.model : 'unknown', tier: typeof line.tier === 'string' ? line.tier : 'unknown',
       ...(Number.isInteger(line.rung) ? { rung: line.rung } : {}), launch_id: r.launchId, at: now().toISOString(),
     });
-    return { outcome: 'checked', entry, reused: false, subject, launch: launched };
+    // P3's run: the document can change while she reads it (its author still at work). The result is
+    // the committed text's; say so when the file is no longer that text.
+    let changed = false;
+    try {
+      const again = verifySubject({ cwd, env, file });
+      changed = subjectHash(again.bytes, again.files) !== subject_hash;
+    } catch {
+      changed = true;
+    }
+    return { outcome: 'checked', entry, reused: false, subject, launch: launched, changed };
   });
 }

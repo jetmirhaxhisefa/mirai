@@ -125,6 +125,11 @@ export function findingsFrom(structured, files) {
       drop(f, `its quote isn't in ${f.where.file}`);
       continue;
     }
+    const fixedPart = (own.fixed ?? []).find((p) => line >= p.start && line < p.end);
+    if (fixedPart) {
+      drop(f, `it's in "${fixedPart.name}", which the template fixes word for word`);
+      continue;
+    }
     const out = { ...f, where: { ...f.where, line, path: own.path ?? f.where.file } };
     if (f.against) {
       // Any file she was given: a context file, an upstream document, or the document itself (or an
