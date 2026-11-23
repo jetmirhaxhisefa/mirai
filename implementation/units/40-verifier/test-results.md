@@ -238,4 +238,13 @@ already tests (as Rex does).
 
 ## The full suite
 
-(Filled in when the build runner's job lands.)
+**Through the build runner** (a clean export each):
+- `u40-tests-2` at `a370534`: 802/803; the one failure was 17a's T8 pin of the instruction files
+  in `.claude/` (Vera's rendered agent is a new one). Pin updated (`test/detect/detect.test.js`).
+- `u40-tests-3` at the next commit: see the report.
+
+**On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
+`test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,
+`doctor`, `sign` 101/101, `test/redteam`, `trust`, `launch`, `lint`, `status`, `reports` 169/169,
+`test/agent`, `run`, `review`, `proofs`, `loop`, `hooks` 188/188, `test/findings` 5/5,
+`test/detect` 13/13.
