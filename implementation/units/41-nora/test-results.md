@@ -138,6 +138,30 @@ launches, 2 Vera checks, 1 reader test; each fix round adds 1 Nora launch and 1 
    shows the change and applies it (you may answer r instead: business.md stays as it was).
 3. Delete the home (the printed line).
 
+### P2's run (Jet, 2026-11-23, home `~/.mirai-probes-632gIR`): PASSED, two findings fixed
+
+The session's first question named the contradiction with business.md, quoting both sides, and
+offered A "propose a change to business.md". It wrote `business-change.md`; the approval command
+showed the change and Vera's "not run" line; Jet answered a, and it was applied and approved (seq 1
+and 2). Two findings:
+
+1. **The approval command came before business.md, as the change makes it, was checked.** The first
+   `mirai approve --file …/business-change.md` was refused with 2 lint problems in the result (a
+   44-word sentence, S-2's "Where" without backticks); nothing was written, so the gate held.
+   **Fixed:** `mirai lint` on a proposal now applies it to `.mirai/context/business.md` and lints
+   the result with business.md's own rules (`business-change-result`, "business.md as these changes
+   make it, line N: …"; a `Replace:` text no longer there is `business-change-stale`), without the
+   checks against the code, which approval still runs. A proposal the lint can't place beside the
+   repo's business.md (a text lint, the local store) is left to approval. The interview skill now
+   lints the proposal before handing over the command. T4 has the case (a 44-word "With:" fails
+   `mirai lint`).
+2. **The restatement and the proposal disagreed** (the restatement let the client see the whole
+   task and every comment; the first proposal only let them comment). Jet had the session fix it.
+   **Fixed:** the skill says the proposal covers everything the restatement says the change allows.
+   T3 checks the line.
+
+P1, P3 and P4 are still to run.
+
 ### P3 Contradiction while writing (a session of yours, 2 Nora runs)
 
 1. `--probe home --case p3`, then the printed steps. The request (delete a task for good) breaks a

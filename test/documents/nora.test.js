@@ -261,7 +261,10 @@ test('41 T3: the interview skill reads business.md first; a contradiction is the
   assert.match(skill, /business\.md says\s+"signed-in teams only", the request says "guests comment"\), that contradiction is your \*\*first\s+question\*\*/);
   assert.match(skill, /offer "propose a change to business\.md" as one of the\s+options/);
   assert.match(skill, /## When the owner chooses "propose a change to business\.md"/);
-  assert.match(skill, /mirai approve --file docs\/mirai\/<initiative>\/business-change\.md/);
+  assert.match(skill, /mirai approve --file\s+docs\/mirai\/<initiative>\/business-change\.md/);
+  // 41's P2: the proposal covers what the restatement allows, and is linted before it's handed over.
+  assert.match(skill, /\*\*Cover what the restatement allows\.\*\*/);
+  assert.match(skill, /\*\*Lint it before you hand it over:\*\*/);
   // The handover: commit, /mirai write, mirai_status, done or paused with paths.
   assert.match(skill, /## Handing over to Nora/);
   assert.match(skill, /\/mirai write <initiative>/);
@@ -307,6 +310,14 @@ test('41 T4: approving business-change.md applies it and signs both; rejecting l
   // Its lint: a well-formed proposal is clean; one without its "With:" is not.
   assert.deepEqual(lintText(PROPOSAL, { source: 'x.md', registry: REGISTRY }).filter((p) => p.severity === 'error'), []);
   assert.ok(lintText(PROPOSAL.replace(/With:[\s\S]*?Source/, 'Source'), { source: 'x.md', registry: REGISTRY }).some((p) => p.code === 'business-change-with'));
+  // 41's P2 (Jet, 2026-11-23): `mirai lint` on the proposal lints business.md as it would become.
+  assert.equal((await tty(['lint', `${D}/business-change.md`], f.io)).code, EXIT.OK);
+  const long = 'A login allows at most 10 tries a minute for every person on every team, whether they use the web app or the API, and whether they sign in from home, from the office or from a phone while they travel for work (S-2).';
+  writeFileSync(join(f.root, D, 'business-change.md'), PROPOSAL.replace('A login allows at most 10 tries a minute (S-2).', long));
+  const wordy = await tty(['lint', `${D}/business-change.md`], f.io);
+  assert.equal(wordy.code, EXIT.FAILURE, wordy.out);
+  assert.match(wordy.out, /business\.md as these changes make it, line 37: /);
+  writeFileSync(join(f.root, D, 'business-change.md'), PROPOSAL);
   // The brief waits for it.
   const waits = await tty(['approve', 'due-dates-brief', '--file', `${D}/brief.md`], f.io, ['a', 'due-dates-brief']);
   assert.equal(waits.code, EXIT.BLOCKED, waits.out);

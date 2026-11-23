@@ -1,3 +1,9 @@
+import { posix } from 'node:path';
+
+import { readFrontmatter } from './frontmatter.js';
+import { scanMarkdown } from './markdown.js';
+import { checkDocument } from './rules.js';
+
 // Unit 41: the two documents Nora's work adds beside the brief, and the PRD's check against the
 // first (Jet's decisions 2 and 6, 2026-11-20).
 //
@@ -98,6 +104,38 @@ export function checkBusinessChange(doc, def, ctx, add) {
     if (!c.source) add({ ...at, code: 'business-change-source', reason: `${c.id} has no "Source:": where the new text comes from ("you said, YYYY-MM-DD (interview.md Q-n)")` });
     if (!c.why) add({ ...at, code: 'business-change-why', reason: `${c.id} has no "Why:": the reason, in one sentence` });
   });
+  checkApplied(doc, changes, ctx, add);
+}
+
+// 41's P2 (Jet, 2026-11-23): the approval refused a proposal because business.md as it would become
+// had lint problems (a 44-word sentence, a source's "Where" without backticks), which nothing had
+// shown before. So the lint of a proposal applies it to business.md (the repo's
+// .mirai/context/business.md, beside the proposal's repo) and lints the result as business.md's own
+// lint does, without the checks against the code, which approval runs. A proposal the lint can't
+// place beside business.md (a text lint, the local store) is left to approval.
+function checkApplied(doc, changes, ctx, add) {
+  if (!changes.length || changes.some((c) => !c.id || !c.replace?.trim() || !c.with?.trim())) return;
+  if (!ctx.readDocument || typeof ctx.file !== 'string' || ctx.file.startsWith('/')) return;
+  const found = ctx.readDocument(posix.relative(posix.dirname(ctx.file), '.mirai/context/business.md'));
+  const bdef = ctx.registry?.documentTypes?.business;
+  if (found.problem || !bdef || typeof found.text !== 'string') return;
+  const applied = applyChanges(found.text, changes);
+  if (applied.problem) {
+    const c = changes.find((x) => x.id === applied.change);
+    add({ code: 'business-change-stale', line: c?.line ?? 1, column: 1, reason: applied.problem, hint: 'quote business.md\'s lines as they are now, word for word' });
+    return;
+  }
+  let result;
+  try {
+    const fm = readFrontmatter(applied.text, { source: '.mirai/context/business.md', positions: true });
+    if (fm === null) return;
+    result = { value: fm.value, positions: fm.positions, scan: scanMarkdown(fm.body, { firstLine: fm.bodyLine }), bodyLine: fm.bodyLine, text: applied.text };
+  } catch {
+    return;
+  }
+  const errors = checkDocument(result, bdef, { registry: ctx.registry, project: ctx.project, linkTarget: () => ({ slugs: null }), readDocument: () => ({ problem: 'unavailable' }) }).filter((p) => p.severity === 'error');
+  const at = { line: changes[0].line, column: 1 };
+  for (const p of errors.slice(0, 10)) add({ ...at, code: 'business-change-result', reason: `business.md as these changes make it, line ${p.line}: ${p.reason}`, hint: p.hint ? `fix the "With:" text: ${p.hint}` : 'fix the "With:" text' });
 }
 
 // What business.md becomes with every change applied: { text } or { problem, change }. Each

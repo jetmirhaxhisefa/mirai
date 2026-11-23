@@ -51,9 +51,19 @@ edits it. Write `docs/mirai/<initiative>/business-change.md` from its template
 (`/mirai show template business-change`): for each change, the lines of business.md as they are
 now under `Replace:`, the new text under `With:` (with its source ID, and a new row under
 "Sources" when the source is new), `Source: you said, <date> (interview.md Q-n)` and `Why:`.
-Record the answer in `interview.md` as usual. Then tell the owner the approval command, for their
-terminal: `mirai approve --file docs/mirai/<initiative>/business-change.md`. The brief can't be
-approved while the proposal is open.
+Record the answer in `interview.md` as usual.
+
+- **Cover what the restatement allows.** The proposal changes business.md for everything the
+  restatement says the request now allows, not only its headline: "guests see the whole task and
+  every comment" needs both seeing and commenting in business.md.
+- **Lint it before you hand it over:** `/mirai lint` (or `mirai lint
+  docs/mirai/<initiative>/business-change.md`). The lint applies the proposal and lints business.md
+  as it would become, with business.md's own rules (sentence length, the sources' form). Fix the
+  `With:` text until it's clean.
+
+Then tell the owner the approval command, for their terminal: `mirai approve --file
+docs/mirai/<initiative>/business-change.md`. The brief can't be approved while the proposal is
+open.
 
 ## Each question
 
