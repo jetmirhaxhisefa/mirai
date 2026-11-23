@@ -11,6 +11,7 @@ import { readToken } from '../../src/sign/token.js';
 import { normal } from '../../src/verify/findings.js';
 import { handoffText } from '../../src/verify/gate.js';
 import { runVerify } from '../../src/verify/run.js';
+import { render } from '../../src/install/render.js';
 import { runReaderTest } from '../../src/write/reader.js';
 import { setupHome } from './reader-probes.js';
 
@@ -55,13 +56,12 @@ updated: "2026-11-23"
 
 ## What the product does
 
-- Teams keep their tasks in one shared list. Members add tasks, assign them, date them and tick them off (S-1).
-- Members comment on a task to keep the reasons for it, and team leads see what is late (S-1).
+- Teams keep their tasks in one shared list. Members add tasks, assign them and tick them off (S-1).
 
 ## Who it's for
 
 - Users: the signed-in members of small teams (S-1).
-- Customers: the team leads, who set the app up for their team (S-1).
+- Customers: the team leads, who run their team's list (S-1).
 
 ## Business model and goals
 
@@ -74,13 +74,13 @@ updated: "2026-11-23"
 
 ## Business rules
 
-- Only signed-in members of a team see its tasks or comment on them. There are no guest accounts and no public links (S-1).
+- Only signed-in members of a team see its tasks, or anything added to them. There are no guest accounts and no public links (S-1).
 - A task belongs to one team, and to nobody outside it (S-1).
 
 ## Glossary
 
 - Team: the people who share one task list (S-1).
-- Team lead: the member who set the team up (S-1).
+- Team lead: the one person per team, set in the team's settings, who assigns its tasks (S-1).
 
 ## Constraints
 
@@ -109,16 +109,22 @@ const inSummary = (text, bullet) => appendTo(text, '### What changes', [bullet])
 
 // The three seeds, per kind of document. `in`: the file the seeded detail goes in (relative to the
 // document's folder); `summary`: a bullet added to the top part too, so the defect is the layer's
-// own and not also a hidden one. `layer`: where Vera must raise it.
+// own and not also a hidden one. `hide`: a summary bullet taken out instead, its detail lines
+// (`marks`, line prefixes) left in place: the top part hides them, and nothing else is wrong.
+// `layer`: where Vera must raise it.
+// P1's first run (2026-11-23): an added push notice contradicted each PRD's own channel decision
+// (the example's A-1 "email only", the P3 PRD's NG-6), so it was two defects in one, raised on
+// the checklist layer; a PRD's and a brief's top-vs-detail seed hides an existing requirement now.
+// The brief's BR-9 repeated its own BR-3 and an open Q-1; it's a requirement with no outcome now.
 const SEEDS = {
-  prd: (detail) => [
+  prd: (detail, d) => [
     { key: 'checklist', layer: 'checklist', what: 'an FR with no "when"', summary: '- The app reminds assignees about their dated tasks (FR-90).', detail: [detail, '- FR-90: The app sends the assignee a reminder about a dated task.'] },
-    { key: 'top-vs-detail', layer: 'top-vs-detail', what: 'a push notice in the detail, missing from the summary', detail: [detail, '- FR-91: When a task becomes overdue, the app sends its assignee a push notice on their phone.'] },
+    { key: 'top-vs-detail', layer: 'top-vs-detail', what: `a requirement in the detail, its summary bullet taken out (${d.hide.marks.join(', ')})`, hide: d.hide },
     { key: 'context', layer: 'context', what: 'guests may comment, against business.md\'s signed-in members only', summary: '- Guests without an account can comment on any task through a shared link (FR-92).', detail: [detail, '- FR-92: Guests without an account can comment on any task through a shared link.'] },
   ],
-  brief: () => [
-    { key: 'checklist', layer: 'checklist', what: 'a business requirement with no outcome or "when"', summary: '- Team members are told about new comments (BR-9).', detail: ['## Business requirements', '- BR-9: Team members are told about new comments.'] },
-    { key: 'top-vs-detail', layer: 'top-vs-detail', what: 'a push notice in the detail, missing from the summary', detail: ['## Business requirements', '- BR-10: When someone comments on a task, its assignee gets a push notice on their phone.'] },
+  brief: (_detail, d) => [
+    { key: 'checklist', layer: 'checklist', what: 'a business requirement with no outcome', summary: '- The discussion of a task works well for everyone (BR-9)', detail: ['## Business requirements', '- BR-9: The discussion of a task works well for everyone. Source: the request from the team, 2026-11-19.'] },
+    { key: 'top-vs-detail', layer: 'top-vs-detail', what: `a requirement in the detail, its summary bullet taken out (${d.hide.marks.join(', ')})`, hide: d.hide },
     { key: 'context', layer: 'context', what: 'guests may comment, against business.md\'s signed-in members only', summary: '- Guests without an account can read and add comments through a shared link (BR-11).', detail: ['## Business requirements', '- BR-11: Guests without an account can read and add comments through a shared link.'] },
   ],
   epic: () => [
@@ -136,10 +142,19 @@ const SEEDS = {
 // context, with the sample app's files its sources name; it is the context, so it has the checklist
 // seed only (it has no summary, and nothing else to contradict).
 export const DOCUMENTS = Object.freeze([
-  { key: 'example-prd', kind: 'prd', doc: 'prd.md', files: { 'prd.md': 'registry/examples/prd.md', 'brief.md': 'registry/examples/brief.md', 'interview.md': 'registry/examples/interview.md' }, detail: '### Triggers and states' },
+  { key: 'example-prd', kind: 'prd', doc: 'prd.md', files: { 'prd.md': 'registry/examples/prd.md', 'brief.md': 'registry/examples/brief.md', 'interview.md': 'registry/examples/interview.md' }, detail: '### Triggers and states', hide: { bullet: '- A team lead sees every overdue task of the team on one page (FR-2).', marks: ['- FR-2:'] } },
   { key: 'example-epic', kind: 'epic', doc: 'epic-due-dates.md', files: { 'epic-due-dates.md': 'registry/examples/epic.md', 'prd.md': 'registry/examples/prd.md', ...Object.fromEntries(['51', '52', '53', '54', '55', '56', '57'].map((n) => [`tickets/SAMPLE-${n}.md`, `registry/examples/tickets/SAMPLE-${n}.md`])) } },
-  { key: 'p2-brief', kind: 'brief', doc: 'brief.md', files: { 'brief.md': 'implementation/units/31-brief/p2-agent-brief.md' } },
-  { key: 'p3-prd', kind: 'prd', doc: 'prd.md', files: { 'prd.md': 'implementation/units/34-write/p3/prd.md', 'brief.md': 'implementation/units/34-write/p3/brief.md' }, detail: '### Triggers and states' },
+  // 31's P2 brief, an agent's draft, as P1's first run found it, with its real gaps fixed here (the
+  // file itself is 31's record): the ask stated its assumptions as settled, the summary and R-1
+  // answered the open Q-1, R-2 added a staged rollout nothing else named, and BR-4 was missing
+  // from the summary.
+  { key: 'p2-brief', kind: 'brief', doc: 'brief.md', files: { 'brief.md': 'implementation/units/31-brief/p2-agent-brief.md' }, fixes: [
+    ['Approve a four-week build of task comments, so that 60% of task changes carry a written reason in the app (SM-1).', 'Approve an assumed four-week build of task comments, aiming for 60% of task changes to carry a written reason within 3 months (SM-1).'],
+    ['- The owner and assignee of a task are told when someone comments (BR-3)\n', '- The people responsible for a task are told when someone comments; who exactly is decision 1 (BR-3, Q-1)\n- Only people who can already see a task can read or write its discussion (BR-4)\n'],
+    ['Handled by limiting alerts to the owner and assignee (Q-1).', 'Handled by the answer to Q-1, who is told.'],
+    ['Handled by a release to one team first, then a check of SM-1 after 1 month before wider release.', 'Handled by counting SM-1 from the app\'s own data.'],
+  ], hide: { bullet: '- Only people who can already see a task can read or write its discussion (BR-4)', marks: ['- BR-4:'] } },
+  { key: 'p3-prd', kind: 'prd', doc: 'prd.md', files: { 'prd.md': 'implementation/units/34-write/p3/prd.md', 'brief.md': 'implementation/units/34-write/p3/brief.md' }, detail: '### Triggers and states', hide: { bullet: '- Comments are permanent while the task exists. Nobody can edit or delete one (FR-14)', marks: ['- FR-14:'] } },
   { key: 'business', kind: 'business', context: true, doc: 'business.md', files: { 'business.md': 'registry/examples/context/business.md' } },
 ]);
 
@@ -152,18 +167,32 @@ export function buildSet() {
     const folder = d.context ? '.mirai/context' : `docs/mirai/${d.key}`;
     const base = Object.fromEntries(Object.entries(d.files).map(([n, src]) => [`${folder}/${n}`, read(src)]));
     const check = `${folder}/${d.doc}`;
+    for (const [from, to] of d.fixes ?? []) {
+      if (!base[check].includes(from)) throw new Error(`${d.key}: no ${JSON.stringify(from.slice(0, 60))} to fix`);
+      base[check] = base[check].replace(from, to);
+    }
     out.push({ name: d.key, kind: 'clean', type: d.kind, files: base, check, seed: null, layer: null, lines: {}, context: Boolean(d.context) });
-    for (const s of SEEDS[d.kind](d.detail)) {
+    for (const s of SEEDS[d.kind](d.detail, d)) {
       const files = { ...base };
-      const into = `${folder}/${s.in ?? d.doc}`;
-      const [heading, ...lines] = s.detail;
-      files[into] = appendTo(files[into], heading, lines);
-      if (s.summary) files[check] = inSummary(files[check], s.summary);
       const marks = {};
-      for (const [rel, text] of Object.entries(files)) {
-        const seeded = [...lines, ...(s.summary && rel === check ? [s.summary] : [])];
-        const at = text.split('\n').map((l, i) => (seeded.includes(l) ? i + 1 : 0)).filter(Boolean);
-        if (at.length) marks[rel] = at;
+      if (s.hide) {
+        const lines = files[check].split('\n');
+        const at = lines.indexOf(s.hide.bullet);
+        if (at < 0) throw new Error(`${d.key} ${s.key}: no summary bullet ${JSON.stringify(s.hide.bullet)}`);
+        lines.splice(at, 1);
+        files[check] = lines.join('\n');
+        const hit = files[check].split('\n').map((l, i) => (s.hide.marks.some((m) => l.startsWith(m)) ? i + 1 : 0)).filter(Boolean);
+        if (hit.length) marks[check] = hit;
+      } else {
+        const into = `${folder}/${s.in ?? d.doc}`;
+        const [heading, ...lines] = s.detail;
+        files[into] = appendTo(files[into], heading, lines);
+        if (s.summary) files[check] = inSummary(files[check], s.summary);
+        for (const [rel, text] of Object.entries(files)) {
+          const seeded = [...lines, ...(s.summary && rel === check ? [s.summary] : [])];
+          const at = text.split('\n').map((l, i) => (seeded.includes(l) ? i + 1 : 0)).filter(Boolean);
+          if (at.length) marks[rel] = at;
+        }
       }
       if (!Object.keys(marks).length || Object.entries(files).every(([rel, t]) => t === base[rel])) throw new Error(`${d.key} ${s.key}: the seeding changed nothing`);
       out.push({ name: `${d.key}/${s.key}`, kind: 'seeded', type: d.kind, files, check, seed: s.what, layer: s.layer, lines: marks, context: Boolean(d.context) });
@@ -181,6 +210,10 @@ async function verifyHome({ workdir, tier, claude, token }) {
   const text = readFileSync(cfg, 'utf8');
   if (!text.includes('\n[models.steps]\nreader-test = "standard"\n')) throw new Error('the probe home\'s config isn\'t as setupHome writes it');
   writeFileSync(cfg, text.replace('\n[models.steps]\nreader-test = "standard"\n', `\n[models.steps]\nreader-test = "standard"\nverify = "${tier}"\n`));
+  // The step's tier is the model in Vera's rendered agent file (.claude/agents/mirai-verifier.md),
+  // so a tier other than the default changes the bundle: render it, as `mirai render` does, and
+  // commit, or every launch is refused as stale-bundle (P1's first run, every deep check).
+  render({ cwd: home.root, env: home.env });
   put(home.root, '.mirai/context/business.md', PROBE_BUSINESS);
   commit(home, `probe: the sample app, the context, verify on ${tier}`);
   return home;
@@ -209,13 +242,14 @@ async function check(home, file) {
     const r = await runVerify({ cwd: home.root, env: home.env, file, launchToken: mintLaunchToken(), launchOptions: { status: green } });
     return { entry: r.entry, outcome: r.outcome, why: r.why ?? null };
   } catch (err) {
-    return { entry: null, outcome: 'error', why: `${err.code ?? ''} ${err.message}`.trim() };
+    return { entry: null, outcome: 'error', why: `${err.code ?? ''} ${err.message}${err.hint ? ` (${err.hint})` : ''}`.trim() };
   }
 }
 
-// Whether a seeded item was caught: a must-fix finding on its layer whose line is a seeded line.
-export function caught(item, entry) {
-  return (entry?.findings ?? []).some((f) => f.grade === 'must-fix' && f.layer === item.layer && (item.lines[f.where.path] ?? []).includes(f.where.line));
+// Whether a seeded item was caught: a must-fix finding on its layer whose line is a seeded line
+// (the spec's rule). `anyLayer`: on any layer, reported beside it.
+export function caught(item, entry, { anyLayer = false } = {}) {
+  return (entry?.findings ?? []).some((f) => f.grade === 'must-fix' && (anyLayer || f.layer === item.layer) && (item.lines[f.where.path] ?? []).includes(f.where.line));
 }
 export function judge(rows) {
   const misses = rows.filter((r) => (r.kind === 'clean' ? !(r.entry && r.entry.must_fix === 0) : !caught(r, r.entry)));
@@ -238,13 +272,14 @@ async function runTier({ home, tier, set, log }) {
 
 function table(result, log) {
   log(`\n${result.tier}: ${result.rows.find((r) => r.entry)?.entry.model ?? 'no model'}`);
-  log('| Document | Clean or seeded (what) | Must-fix | Suggestions | Caught on its layer |');
-  log('|---|---|---|---|---|');
-  for (const r of result.rows) log(`| ${r.name} | ${r.kind === 'clean' ? 'clean' : `seeded: ${r.seed}`} | ${r.entry?.must_fix ?? r.outcome} | ${r.entry?.suggestions ?? '—'} | ${r.kind === 'seeded' ? (caught(r, r.entry) ? 'yes' : 'no') : '—'} |`);
+  log('| Document | Clean or seeded (what) | Must-fix | Suggestions | Caught on its layer | On any layer |');
+  log('|---|---|---|---|---|---|');
+  for (const r of result.rows) log(`| ${r.name} | ${r.kind === 'clean' ? 'clean' : `seeded: ${r.seed}`} | ${r.entry?.must_fix ?? r.outcome} | ${r.entry?.suggestions ?? '—'} | ${r.kind === 'seeded' ? (caught(r, r.entry) ? 'yes' : 'no') : '—'} | ${r.kind === 'seeded' ? (caught(r, r.entry, { anyLayer: true }) ? 'yes' : 'no') : '—'} |`);
   const j = judge(result.rows);
   log(j.ok ? 'every seeded defect caught on its layer, no must-fix on a clean document' : `${j.misses.length} miss(es): ${j.misses.map((m) => m.name).join(', ')}`);
   // Each must-fix on a clean document, and what Vera said on each missed seed, for the write-up.
   for (const m of j.misses) {
+    if (!m.entry) log(`  ${m.name}: ${m.outcome}: ${m.why}`);
     for (const f of (m.entry?.findings ?? []).filter((x) => x.grade === 'must-fix' || m.kind === 'seeded')) log(`  ${m.name} ${f.id} ${f.grade} ${f.layer}/${f.kind}: "${normal(f.where.quote).slice(0, 120)}" — ${f.what}`);
   }
 }

@@ -155,8 +155,14 @@ and the fix, each in one sentence, and its kind:
 - **writing or decision** (unit 44's decision 3): `writing` when a source that exists gives the
   fix; `decision` when it needs a new fact or a choice that no source holds (scope; users,
   markets, countries; money and legal; a number no source gives; two sources that disagree; a
-  trade-off), with its `decision_type`. When in doubt, decision. A claim no source holds, written
-  as if settled, is an `invented` decision: always must-fix.
+  trade-off), with its `decision_type`. When in doubt, decision. A number or choice the document
+  states plainly that no source gives is a decision, graded suggestion unless it contradicts
+  something or leaves a builder asking. A claim **added since her last check** that no source
+  holds is an `invented` decision: always must-fix (the workflows give her the earlier version,
+  unit 44).
+
+Every `context` finding names the context file it contradicts; a contradiction with the
+document's own upstream (a PRD against its brief) is a `checklist` finding naming that document.
 
 MIRAI checks every quote by a text match, as the reader test does: a finding whose quote isn't in
 its file is dropped and logged, never shown. A reply that isn't the schema records nothing.

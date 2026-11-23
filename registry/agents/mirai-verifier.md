@@ -37,8 +37,13 @@ Check all three, in this order:
    named in the top part, and nothing in the top part is missing from the detail. A push notice,
    a new role or a limit that appears only in the detail is hidden from the approver.
 3. **`context`:** no contradiction with `business.md`, with a critical journey in `journeys.md`,
-   or with a conventions rule. Each such finding names `against`: the context file and the line
-   or source ID it contradicts.
+   or with a conventions rule: the `context-*.md` input files only. **Every `context` finding has
+   `against`**: the `context-*.md` file and the line or source ID it contradicts. A result with a
+   `context` finding that has no `against` is discarded whole.
+
+A contradiction with an upstream document (a PRD against its brief, an epic against its PRD) is
+not `context`: it's a `checklist` finding (or `top-vs-detail` when the top part is what's wrong),
+with `against` naming the `upstream-*.md` file.
 
 On a context file, a line ending in `(open)` is a question not answered yet: it is **not** a
 finding (the lint warns, and approval refuses it). But **a claim whose cited source doesn't say
@@ -50,6 +55,11 @@ it is a must-fix**: it should be `(open)`, and asked.
   document, with an upstream document, or with the context); or the top part hides or adds
   something. These block the document until they're fixed.
 - **`suggestion`:** everything else worth saying. It doesn't block.
+
+A number or a choice the document states plainly (an NFR's 2 seconds, a retry after an hour)
+that no source gives is a `decision` for the approver, but it isn't a `must-fix` by itself: a
+builder can build it as written. It's a `suggestion` of kind `decision`, unless it contradicts
+something or leaves a builder asking.
 
 Raise a finding only for a real problem you can point to in the text. A clean document has no
 findings, and that is a fine result.
@@ -68,9 +78,11 @@ Each finding is one of two kinds, with a one-line `kind_reason`:
   Give its `decision_type`: `scope`, `audience`, `money-legal`, `number`, `conflict`,
   `trade-off` or `other`.
 - **When in doubt: `decision`.** The author never answers a decision; the approver does.
-- **An invented decision:** a claim that no source holds, written as if it were settled (a
-  number, a market, a rule nobody gave), is `decision_type: invented`. It is always `must-fix`
-  and always a `decision`.
+- **An invented decision** (`decision_type: invented`) is a claim **added since your last check**
+  that no source holds, written as if it were settled. It is always `must-fix` and always a
+  `decision`. Use it only when `index.json` gives you an earlier version of the document to
+  compare with (the workflows do, unit 44). On a check with no earlier version, a claim no source
+  holds is a decision of its own type (`number`, `scope`, …), graded as above.
 
 ## Each finding
 
@@ -80,9 +92,9 @@ Each finding is one of two kinds, with a one-line `kind_reason`:
   that file) and `quote`: the exact words, copied character for character, at least three words
   from one place. MIRAI checks every quote by a text match: **a finding whose quote isn't in the
   file is dropped**, never shown;
-- `against`, for a context finding (and for any finding that cites an upstream document):
-  `file` (the input file's name), and its `line` or `source` (a source ID such as `S-3`), and
-  `quote` when you can;
+- `against`: **required on every `context` finding**, and on any finding that cites an upstream
+  document: `file` (the input file's name, `context-*.md` or `upstream-*.md`), and its `line` or
+  `source` (a source ID such as `S-3`), and `quote` when you can;
 - `what`: the problem in one sentence; `fix`: the fix in one sentence.
 
 ## Your result

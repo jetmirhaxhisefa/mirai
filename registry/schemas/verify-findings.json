@@ -49,7 +49,8 @@
             "checklist",
             "top-vs-detail",
             "context"
-          ]
+          ],
+          "description": "context: a contradiction with a context-*.md file only, and then against is required. A contradiction with an upstream-*.md document is checklist (or top-vs-detail), with against."
         },
         "kind": {
           "enum": [
@@ -76,13 +77,14 @@
             "other",
             "invented"
           ],
-          "description": "For a decision only. invented: a claim no source holds, always must-fix."
+          "description": "For a decision only. invented: a claim added since the last check that no source holds (only when an earlier version is given); always must-fix."
         },
         "where": {
           "$ref": "#/$defs/where"
         },
         "against": {
-          "$ref": "#/$defs/against"
+          "$ref": "#/$defs/against",
+          "description": "Required on every context finding: the context-*.md file it contradicts, with its line or source ID. Also for a finding that cites an upstream-*.md document."
         },
         "what": {
           "type": "string",

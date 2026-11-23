@@ -124,6 +124,54 @@ per tier.
 2. Send me `~/mirai-u40-p1.txt`. **Pass when** at least one tier says "every seeded defect caught on
    its layer, no must-fix on a clean document". I then set the default in `defaults.js`.
 
+### P1's first run (Jet, 2026-11-23, at 7c14b76): FAIL, three causes, each fixed
+
+Output: `~/mirai-u40-p1.txt`. Standard (Sonnet) ran all 18; deep (Opus) none.
+
+1. **Deep: every check refused, `stale-bundle`** (the probe's error). The step's tier is the model
+   written into Vera's rendered agent file, so `verify = "deep"` changed the bundle and the probe
+   home never re-rendered it. Standard didn't change it (the default). MIRAI behaved as designed:
+   the refusal's hint says `run mirai render (or mirai init --refresh), then commit`; the probe
+   printed the message without it. **Fixed:** the probe home renders and commits after setting the
+   tier, and prints refusal hints. A test now pins it (`40 P1's first run …`): a new tier is
+   `stale-bundle` with the render hint until `mirai render` and a commit.
+2. **3 standard replies "unreadable": a `context` finding with no `against`.** The prompt said
+   `against` was needed but never that a missing one discards the whole reply, and it named "an
+   upstream document" among the things to contradict, so Sonnet put PRD-vs-brief contradictions on
+   the `context` layer. **Fixed:** the prompt and the schema's descriptions say every `context`
+   finding has `against` (or the result is discarded); `context` means the `context-*.md` files
+   only; a contradiction with an upstream document is a `checklist` finding with `against` naming
+   it. Discarding one bad finding instead of the reply is a question for Jet (below).
+3. **Must-fix findings on the clean documents, and two misses.** Each must-fix on a clean document:
+
+   | Document, finding | What Vera said | Sort | Fix |
+   |---|---|---|---|
+   | example-prd V-1 | FR-3 (turn reminders off) isn't in the summary | (b) real | example PRD's summary now names FR-3 and FR-8 |
+   | example-prd V-2 | the PRD's team lead differs from business.md's | (a) the probe's business.md | its glossary now says the PRD's definition |
+   | example-prd V-3 | NFR-1's 2 s / 500 tasks, FR-7's 1-hour retry have no source | (c) too strict | prompt: an unsourced number a builder can build is a decision, graded suggestion |
+   | example-prd V-4 | the summary hides NFR-2 (title and date only) and FR-8 (leavers) | (b) real | the summary names them (FR-4, NFR-2; FR-3, FR-8) |
+   | p2-brief V-1 | the ask states the 60% and four weeks as settled; the detail calls them assumptions | (b) real | fixed in the probe's copy (31's file is its record) |
+   | p2-brief V-2 | R-2's staged rollout and 1-month check appear only in the detail | (b) real | fixed in the probe's copy |
+   | p2-brief V-3 | R-1 and the summary answer Q-1, still open | (b) real | fixed in the probe's copy |
+   | p2-brief V-4 | business.md says members already comment | (a) the probe's business.md | it no longer says so |
+   | business V-1 | "no single sign-on" cites S-1, the README, which doesn't say it | (b) real | example now cites S-2 (the owner) for it |
+
+   (c) also covered 44's invented rule firing on a first check: 44's decision 3 makes an
+   `invented` decision "a claim added since her last check"; the prompt had dropped "since her
+   last check". It now uses `invented` only when given an earlier version, which 44's workflow
+   provides; the docs say the same.
+
+   **The misses:** p2-brief/checklist's BR-9 ("team members are told about new comments")
+   repeated the brief's own BR-3 and answered its open Q-1, so Vera raised it as a conflict
+   (top-vs-detail, decision), on the seeded line: (a), a two-defect seed. p3-prd/top-vs-detail's
+   push notice contradicted the PRD's NG-6 ("no email or chat alerts"), and the example PRD's would
+   contradict its A-1 ("email only"), so Vera raised it on the checklist layer, on the seeded line:
+   (a) again. Now the brief's checklist seed is a requirement with no outcome, and a PRD's and the
+   brief's top-vs-detail seed takes one summary bullet out, leaving its requirement in the detail
+   (one defect, nothing else wrong). The epic keeps the push notice (caught on its layer). The
+   probe's table now also shows "caught on any layer" beside the spec's "on its layer"; the
+   verdict still uses the spec's rule.
+
 ### P2 Your read (1 Sonnet run)
 
 1. `cd ~/Projects/mirai-u40 && node test/probes/verify-probes.js --yes --probe p2 | tee ~/mirai-u40-p2.txt`

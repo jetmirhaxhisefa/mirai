@@ -81,7 +81,7 @@ const wordsOf = (text) => documentWords(parseDocument(text, 'b'), REGISTRY.docum
 test('36 T2: business: a claim with no source, an unknown source, an unused one, a "you said" with no date, and the word cap', () => {
   const B = EX.business;
   one(errors(swap(B, '- English only, for now (S-2).', '- English only, for now.'), 'business'), 'business-source', /^this bullet has no source: "English only, for now\." \| end it with the ID of its source/);
-  one(errors(swap(B, '- People log in with the app\'s own account. There\'s no single sign-on (S-1).', '\nPeople log in with the app\'s own account (S-1).'), 'business'), 'business-claim', /a claim that isn't a bullet/);
+  one(errors(swap(B, '- People log in with the app\'s own account (S-1). There\'s no single sign-on (S-2).', '\nPeople log in with the app\'s own account (S-1).'), 'business'), 'business-claim', /a claim that isn't a bullet/);
   const s9 = swap(B, 'at most 6 tries a minute (S-6).', 'at most 6 tries a minute (S-9).');
   one(errors(s9, 'business'), 'business-source', /^S-9 isn't in the Sources table \| add a row for S-9/);
   one(warnings(s9, 'business'), 'business-source', /^S-6 isn't cited anywhere/);

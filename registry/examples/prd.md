@@ -27,7 +27,8 @@ Team leads keep deadlines in a spreadsheet beside the task app. Last month 4 of 
 Once this is built:
 
 - A task's creator or team lead can date it. Overdue tasks are marked in the list (FR-1, FR-5).
-- An assignee gets one email the day before a task is due, listing all of that day's tasks (FR-4).
+- An assignee gets one email the day before a task is due, with titles and dates only (FR-4, NFR-2).
+- Assignees can turn their reminders off, and people who leave a team get none (FR-3, FR-8).
 - A team lead sees every overdue task of the team on one page (FR-2).
 - A date in the past is refused, and a failed email is retried once (FR-6, FR-7).
 - Tasks without a date look and sort exactly as they do today (FR-9).

@@ -442,3 +442,17 @@ test('40: the hand-off from the CLI: mirai verify <file> --handoff prints the re
   assert.equal(code, EXIT.FAILURE);
   assert.match(out, /^Vera, the verifier, checked docs\/mirai\/due-dates\/prd\.md \(round 1\) and found 1 must-fix finding\./);
 });
+
+test('40 P1\'s first run: the verify step\'s tier is the model in Vera\'s rendered file, so a new tier makes the bundle stale (with the render hint) until mirai render and a commit', async () => {
+  const { render } = await import('../../src/install/render.js');
+  const { snapshot } = await import('../../src/trust/snapshot.js');
+  const f = installed();
+  writeFileSync(join(f.root, '.mirai/config.toml'), `${readFileSync(join(f.root, '.mirai/config.toml'), 'utf8')}\n[models.steps]\nverify = "deep"\n`);
+  f.git('commit', '-qam', 'verify on deep');
+  assert.throws(() => snapshot({ cwd: f.root, env: f.env }), (e) => e.code === 'stale-bundle' && /mirai render/.test(e.hint));
+  render({ cwd: f.root, env: f.env });
+  assert.match(readFileSync(join(f.root, '.claude/agents/mirai-verifier.md'), 'utf8'), /claude-opus/);
+  f.git('add', '-A');
+  f.git('commit', '-qm', 'render');
+  assert.doesNotThrow(() => snapshot({ cwd: f.root, env: f.env }));
+});

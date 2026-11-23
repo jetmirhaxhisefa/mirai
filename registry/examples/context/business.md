@@ -46,7 +46,7 @@ updated: "2026-11-20"
 
 - English only, for now (S-2).
 - Hosted in the EU. Personal data stays there, under GDPR (S-2).
-- People log in with the app's own account. There's no single sign-on (S-1).
+- People log in with the app's own account (S-1). There's no single sign-on (S-2).
 
 ## Stakeholders
 
