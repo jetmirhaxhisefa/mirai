@@ -306,7 +306,7 @@ After P1's first run (Jet, 2026-11-23):
   in `.claude/` (Vera's rendered agent is a new one). Pin updated (`test/detect/detect.test.js`).
 - `u40-tests-3` at `ccb437b`: **pass, 803/803**, 14.8 minutes.
 - `u40-tests-4` at `1cfdfd3` (P1's first-run fixes): **pass, 804/804**, 15.8 minutes.
-- `u40-tests-5` at the next commit (Jet's answer 4): see the report.
+- `u40-tests-5` at `44443dd` (Jet's answer 4): **pass, 804/804**, 14.8 minutes.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,
