@@ -120,6 +120,22 @@ test('T3: renames, odd names and links can\'t hide a change', () => {
   assert.ok(out.violations.some((p) => p.startsWith('node_modules')), JSON.stringify(out));
 });
 
+// Unit 41 (Jet, 2026-11-23, "B"): a document check (Vera's: `ownTier`) stays on the verify step's own
+// tier when the author ran deeper (Nora, on the prd step), and logs the honest rung: a different model
+// from the author's is rung 2. Any other check still rises to the author's tier (D-14).
+launchTest('41: a verifier with ownTier keeps its step\'s tier under a deep author, rung 2; without it the ladder raises it', async () => {
+  const f = repo();
+  const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
+  const author = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'developer', tier: 'deep', prompt: 'x', claude: claudeWith('true'), status: green, check: () => [] });
+  assert.equal(author.line.tier, 'deep');
+  const own = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'verifier', verifies: author.launchId, ownTier: true, prompt: 'x', claude: claudeWith('true'), status: green, check: () => [] });
+  assert.deepEqual([own.line.tier, own.line.rung], ['standard', 2]);
+  assert.notEqual(own.line.model, author.line.model);
+  const ladder = await runAgent({ launchToken: mintLaunchToken(), cwd: f.root, env: f.env, role: 'verifier', verifies: author.launchId, prompt: 'x', claude: claudeWith('true'), status: green, check: () => [] });
+  assert.equal(ladder.line.tier, 'deep', 'D-14: at least the author\'s tier');
+  assert.equal(ladder.line.model, author.line.model);
+});
+
 launchTest('T6: the log line carries role, step, tier, reason, rung and model; a verifier of the same model is rung 3; a role only in the work tree counts for nothing', async () => {
   const f = repo();
   const author = await run(f, 'developer', 'true');

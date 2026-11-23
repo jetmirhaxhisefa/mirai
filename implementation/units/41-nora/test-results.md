@@ -104,9 +104,9 @@ session's `/mirai write` → `mirai_status` path is T7's; the probes start her f
 folder): each case's home builds, sits on its feature branch with a clean tree, and its context
 files lint clean.
 
-**Cost:** Nora's launches run on the `prd` step's tier, deep (Opus). Vera checks each version, and
-with her launch as the author's the verifier ladder raises Vera to the author's tier: deep too
-(see "Questions for Jet", 1). The reader test is one Sonnet run. A run with no fixes: 2 Nora
+**Cost:** Nora's launches run on the `prd` step's tier, deep (Opus). Vera checks each version on
+the `verify` step's own tier, standard (Sonnet: Jet's answer 1, "B"). The reader test is one Sonnet
+run. A run with no fixes: 2 Nora
 launches, 2 Vera checks, 1 reader test; each fix round adds 1 Nora launch and 1 Vera check.
 
 ### Before the probes (once, in Terminal)
@@ -161,7 +161,7 @@ launches, 2 Vera checks, 1 reader test; each fix round adds 1 Nora launch and 1 
 This unit touches the red team's cage (`cageOf`, computed on this branch): `registry/agents/
 mirai-product-manager.toml` and `registry/roles/product-manager.toml` (cage data: every agent
 definition and role), `src/mcp/tools/commands.js` (cage root `src/mcp/**`), and code the cage
-reaches: `src/config/registry.js` (two lint checks named), `src/lint/checks.js`, `src/lint/prd.js`,
+reaches: `src/agent/run.js` (a cage root: `ownTier`, Jet's answer 1), `src/config/registry.js` (two lint checks named), `src/lint/checks.js`, `src/lint/prd.js`,
 `src/lint/requirements.js` (new), `src/store/connectors/common.js` (two default file names) and
 `src/store/journal.js` (`nora_run`, the business-change approval). So each project's red-team pass
 goes stale once its framework copy is refreshed with this unit: a `redteam-full` run is needed
@@ -207,7 +207,22 @@ Claude Code. What is Claude Code's today, each behind an existing seam:
 - **`mirai requirements <initiative> [--from <file>]`** is new: it numbers your list (Scope 9's
   "each line gets an ID").
 
-## Questions for Jet
+## Jet's answers (2026-11-23)
+
+**1: B.** Vera checks Nora's documents on the `verify` step's own tier, standard, as chosen in 40's
+P1, and isn't raised to Nora's deep tier. Built: `launchInRun` takes `ownTier` (with `verifies`),
+which keeps the step's tier and still runs the ladder's rung label; `runVerify` passes it whenever it
+has the author's launch. **The rung label:** D-14's rungs say how independent the checker is from the
+author. Rung 2 is "a different model"; rung 3 is "the same model in a fresh context". Nora runs on
+Opus and Vera on Sonnet, so the run log says rung 2: honest, even though Vera's tier is below the
+author's. Any other `--verifies` check (`mirai agent run --verifies`) still rises to the author's tier.
+Tests: `test/agent/scope.test.js` ("41: a verifier with ownTier …": a deep author, then a verifier
+with `ownTier` on standard at rung 2, and one without on deep); T2 asserts Vera's launches carry
+`ownTier`. Dated note in the spec's last section.
+
+**2: A,** as built.
+
+## Questions for Jet (answered above)
 
 1. **Vera's tier on Nora's documents.** With Nora's launch as the author's (40's Q2), the verifier
    ladder (D-14) runs Vera at least at the author's tier: Nora is deep (Opus), so Vera runs on Opus

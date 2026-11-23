@@ -275,8 +275,8 @@ The steps, in order:
    - her launch writes the document (on the local store she returns it and MIRAI writes it there);
    - MIRAI refuses any change outside the initiative's folder, and commits hers (you as author,
      MIRAI as committer, `Mirai-Initiative: <initiative>`);
-   - the lint, then Vera (with her launch as the author's, so the run log has the rung), then the
-     reader test where the type has one;
+   - the lint, then Vera (on the `verify` step's own tier, not raised to Nora's; her launch is the
+     author's, so the run log has the rung), then the reader test where the type has one;
    - what they find goes to her next launch: the lint's problems, Vera's must-fix findings (fenced),
      the reader's gaps. Within `[docs] verify_fix_rounds` and `reader_fix_rounds`, and two lint
      fixes.

@@ -193,7 +193,8 @@ export async function runVerify({ cwd, env, file, launchToken = null, launchOpti
   return await inRun({ cwd, env, run: outerRun }, async ({ store: runStore, runId, outer }) => {
     const r = await launch({
       ...watch, cwd, env, store: runStore, runId, startRun: !outer, ownsRun: !outer, launchToken, agent: VERIFY_AGENT, progressLabel: who(VERIFY_AGENT), role: VERIFY_ROLE, step: VERIFY_STEP,
-      ...(authorLaunch ? { verifies: authorLaunch } : {}),
+      // Unit 41 (Jet's "B"): on the verify step's own tier, whatever the author's; the rung is logged.
+      ...(authorLaunch ? { verifies: authorLaunch, ownTier: true } : {}),
       prompt: verifyPrompt({ type: def.name, id, path, round, runs }), item: id, round, maxTurns: VERIFY_MAX_TURNS, timeoutMs: watch.timeoutMs ?? VERIFY_TIMEOUT_MS, inputs, jsonSchema: VERIFY_SCHEMA, now,
     });
     const launched = { id: r.launchId, outcome: r.outcome, why: r.why, line: r.line };

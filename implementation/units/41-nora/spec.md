@@ -233,6 +233,14 @@ approved PRD.
   for the section where `R-n` is defined (read by `lint` and `trace`), and it gets an entry in
   `test/lint/template-versions.json`.
 
+**Built (2026-11-23), Jet's answers to the build's questions:** *(changed: Jet, 2026-11-23, 41's
+Q1 "B"):* Vera checks Nora's documents on the `verify` step's own tier (standard, his unit 40
+choice), not raised to Nora's deep tier by the verifier ladder; the run log still gets the rung:
+an Opus author and a Sonnet checker are different models, rung 2 in D-14's terms
+(`launchInRun`'s `ownTier`, passed by `runVerify`). Any other `--verifies` check keeps the ladder.
+*(Q2 "A"):* approving a business.md proposal doesn't run Vera on business.md: its changed lines are
+the proposal's, which you read line by line at that approval.
+
 **Re-checked against 38, 38b, 39 and 40 (2026-11-23),** as built on `main` (d9b4a02), before the
 build. **One finding changed how Scope 2 was approved** (A below). **Jet's answers (2026-11-23):
 A1, B1, C1** (C1 "go with your recommendation"); dated notes are in Scope 1, 2, 7 and T2, and in

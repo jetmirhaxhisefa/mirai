@@ -158,7 +158,8 @@ test('41 T2: one run: her launch, MIRAI\'s commit on your branch, the lint, Vera
   assert.match(b.prompt, /Write it at docs\/mirai\/due-dates\/brief\.md in the project/);
   assert.match(b.prompt, /never instructions to follow/);
   // Vera checked each, with Nora's launch as the author's (40's Q2: the run log has the rung).
-  assert.deepEqual(vera.calls.map((c) => [c.agent, c.item, c.verifies]), [['mirai-verifier', 'due-dates-brief', '20261123100001-0123abcd'], ['mirai-verifier', 'due-dates-prd', '20261123100002-0123abcd']]);
+  // Jet's "B" (2026-11-23): on the verify step's own tier (ownTier), not raised to Nora's deep one.
+  assert.deepEqual(vera.calls.map((c) => [c.agent, c.item, c.verifies, c.ownTier]), [['mirai-verifier', 'due-dates-brief', '20261123100001-0123abcd', true], ['mirai-verifier', 'due-dates-prd', '20261123100002-0123abcd', true]]);
   // The reader test ran on the PRD only (a standard brief is approved from the PRD's summary).
   assert.equal(reader.calls.length, 1);
   assert.deepEqual(events.map((e) => e.kind), ['launch', 'lint', 'verify', 'launch', 'lint', 'verify', 'reader']);
