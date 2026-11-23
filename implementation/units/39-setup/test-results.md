@@ -92,8 +92,8 @@ a script the skill calls, `_bmad/agents/pm.md`, `docs/prd.md`, an MCP server in 
 
 ## Probes (real)
 
-Not run yet: each needs your session, your key or Thudos. `test/probes/setup-probes.js` holds the
-checks (read-only: no approval, commit or store write). The steps below are the ones to follow.
+All three passed (results below). `test/probes/setup-probes.js` holds the checks (read-only: no
+approval, commit or store write). The steps below are the ones followed.
 
 **Why a local mirror for P1:** MIRAI keeps one store per repo on a machine, named from the
 remote and the first commits. A second clone of Thudos from GitHub gets the pilot's store id, and
@@ -105,7 +105,7 @@ are never touched.
 
 - **P1 Thudos, end to end: PASSED (Jet, 2026-11-22)** in `~/Projects/thudos-setup` (a clone of a
   local mirror of Thudos's main, integration branch `mirai/setup`), on MIRAI's copy from `10c615e`,
-  with findings F1–F10 below (F1–F6 fixed on this branch; F7–F10 waiting on Jet's decision).
+  with findings F1–F10 below (all fixed on this branch; F7–F10 by Jet's decision "A", 2026-11-22).
   `mirai baseline` at 9342ab9: 5 checks and 3 levels pass (gap: no e2e level); then
   `CLAUDE_CONFIG_DIR=~/.claude-private mirai setup done finish`: "finish: done at 9342ab9052fe /
   setup is done". `setup-probes.js --check p1`: **12/12 PASS**: the five stages done; 54 items
@@ -122,7 +122,21 @@ are never touched.
   their state and path; `business.md` was put off (its Measures line `(open)`: 36's decision 8 at
   work), the conventions put off (no code yet), and the project files and feature map left for the
   first ticket.
-- **P3:** not run yet (next, in `thudos-setup`, on the same copy).
+- **P3 A skill added later: PASSED (Jet, 2026-11-23)** in `thudos-setup`. The first try, on the
+  copy from `10c615e`, found F11. After the refresh to `e69a73b` (commit `3117147`): the red team
+  there **GREEN** (334 runs, 17 min 29 s, Claude Code 2.1.330), `mirai baseline` pass; doctor then
+  found F12; after the refresh to `bddced0` (commit `fb92160`): checklist line 8 done, doctor 19
+  ok, 3 yellow (Merge gate expected until 54; Plan and week and Baseline advisory), 0 red. In a
+  fresh `claude-priv` session in auto mode, "make a skill that lists the open merge requests":
+  the session drafted `drafts/list-open-mrs/SKILL.md`, added it through MIRAI's tool (no Bash, no
+  auto-mode block) and printed `CLAUDE_CONFIG_DIR=… mirai approve --file
+  .mirai/custom/project-skills/list-open-mrs/SKILL.md` and `… mirai render`. Jet approved,
+  rendered and committed (`fc534aa`; the pre-commit let it through). `--check p3 --skill
+  list-open-mrs`: **3/3 PASS** (a project skill in `.mirai/custom/`; approved; rendered, in the
+  lock). The hand copy `.claude/skills/handmade` was refused at commit: "1 file under an agent
+  folder that MIRAI didn't render … `mirai custom add .claude/skills/handmade`". One small slip in
+  the session's last message: it listed the removed draft folder among the files to commit
+  (nothing there to commit; harmless).
 
 ### Findings on the probes
 
@@ -535,6 +549,12 @@ The new case `c-custom-hook` runs in `redteam-full` on the sample app (runner jo
   there: **pass** (13.9 min; the red team gains `c-custom-hook`).
 - `u39-tests-4` at `d6afc48` (the P1 store fix): 770/771, the known flake above; `u39-tests-5` at
   the same commit: **pass, 771/771**.
+- Through F7–F11: `u39-tests-6` at `10c615e` **pass, 774/774**; `u39-tests-10` at `e69a73b` **pass,
+  790/790**; `u39-baseline-5` at `513bc95` **pass**; `u39-redteam-6` at `e69a73b` **pass** (17.8
+  min). The red-team runs between were incomplete on w-git-config or adv-linger (Haiku declining
+  about half the time, the known variance), never red.
+- `u39-tests-11` at `bddced0` (F12): **pass, 791/791**, 14.4 minutes. F12 touches doctor's usage
+  item only, outside the red team's cage, so no new red team.
 
 **On the Mac** before them: 768/768 at `f94a975`
 (`caffeinate -i node --test --test-timeout=300000 "test/**/*.test.js"`); after the last changes,
