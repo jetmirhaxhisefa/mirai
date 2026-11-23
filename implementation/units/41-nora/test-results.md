@@ -236,6 +236,7 @@ Claude Code. What is Claude Code's today, each behind an existing seam:
 **Through the build runner** (a clean export each):
 - `u41-tests-1` at `f75aaba`: 819/820; the one failure was 05a's T10 pin of the journal's event list
   (`nora_run` is new). Pin updated (`test/store/store.test.js`).
+- `u41-tests-2` at `3a71d60`: **pass, 820/820**, 15.3 minutes.
 
 **On the Mac** before them: `test/documents` (with `nora.test.js`, 15), `lint`, `mcp`, `cli`,
 `adapters`, `docs`, `agent`, `setup`, `detect`, `store`, `findings`, `config`: 457/458 (the same pin);
