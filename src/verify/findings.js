@@ -63,14 +63,38 @@ export function quoteLine(text, quote, near = 1) {
 // be in a file she checks (the document, an epic's ticket), and `against` in one she was given
 // as data (an upstream document or a context file). Each kept finding gets `where.path` (the
 // file in the project) and its line as MIRAI found the quote; each dropped one is listed with why.
+// Jet, 2026-11-23 (P1's first run, "B"): a reply that isn't the schema's shape (not an object, no
+// `findings` list, another key, more than the schema allows) records nothing; a finding that breaks
+// a rule of the schema on its own (a `context` finding without `against`, a bad grade, an id used
+// twice) is dropped and logged, as a finding whose quote isn't in its file is, and the others count.
+const shown = (v) => (typeof v === 'string' ? normal(v).slice(0, 200) : '');
 export function findingsFrom(structured, files) {
   if (structured === null || typeof structured !== 'object' || Array.isArray(structured)) return { problem: 'the run\'s structured output has no findings' };
-  const c = checkVerifyFindings(JSON.stringify(structured));
-  if (!c.ok) return { problem: `the findings don't match MIRAI's schema: ${c.problems.slice(0, 3).map((p) => `${p.path} ${p.reason}`).join('; ')}` };
+  const list = structured.findings;
+  if (!Array.isArray(list)) return { problem: 'the findings don\'t match MIRAI\'s schema: / has no findings list' };
+  const shape = checkVerifyFindings(JSON.stringify({ ...structured, findings: [] }));
+  if (!shape.ok) return { problem: `the findings don't match MIRAI's schema: ${shape.problems.slice(0, 3).map((p) => `${p.path} ${p.reason}`).join('; ')}` };
+  if (list.length > 100) return { problem: 'the findings don\'t match MIRAI\'s schema: /findings has more than 100 items' };
   const findings = [];
   const dropped = [];
-  const drop = (f, why) => dropped.push({ id: f.id, why, quote: normal(f.where.quote).slice(0, 200) });
-  for (const f of c.value.findings) {
+  const drop = (f, why) => dropped.push({ id: typeof f?.id === 'string' ? f.id.slice(0, 64) : '?', why, quote: shown(f?.where?.quote) });
+  const valid = [];
+  const ids = new Set();
+  list.forEach((raw, i) => {
+    const c = checkVerifyFindings(JSON.stringify({ findings: [raw] }));
+    if (!c.ok) {
+      drop(raw, `it breaks the schema: ${c.problems.slice(0, 2).map((p) => `${p.path.replace('/findings/0', `/findings/${i}`)} ${p.reason}`).join('; ')}`);
+      return;
+    }
+    const f = c.value.findings[0];
+    if (ids.has(f.id)) {
+      drop(f, 'its id is used by an earlier finding');
+      return;
+    }
+    ids.add(f.id);
+    valid.push(f);
+  });
+  for (const f of valid) {
     const own = Object.hasOwn(files, f.where.file) ? files[f.where.file] : null;
     if (!own?.checked) {
       drop(f, `${f.where.file} isn't a file the verifier checks here`);

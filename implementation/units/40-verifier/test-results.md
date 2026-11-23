@@ -141,7 +141,8 @@ Output: `~/mirai-u40-p1.txt`. Standard (Sonnet) ran all 18; deep (Opus) none.
    the `context` layer. **Fixed:** the prompt and the schema's descriptions say every `context`
    finding has `against` (or the result is discarded); `context` means the `context-*.md` files
    only; a contradiction with an upstream document is a `checklist` finding with `against` naming
-   it. Discarding one bad finding instead of the reply is a question for Jet (below).
+   it. Jet's answer (question 4 below, "B"): such a finding is now dropped and logged, and the
+   other findings count.
 3. **Must-fix findings on the clean documents, and two misses.** Each must-fix on a clean document:
 
    | Document, finding | What Vera said | Sort | Fix |
@@ -260,6 +261,16 @@ Answered (Jet, 2026-11-23): **1 A, 2 A, 3 A**, each as built.
    (a cage change, with its red team). Recommendation: **A**: the committed text is also exactly
    what the result's hash names.
 
+After P1's first run (Jet, 2026-11-23):
+
+4. **A reply with one finding that breaks a schema rule** (P1: a `context` finding without
+   `against`). **B**, as recommended: that finding is dropped and logged in `dropped` (as one whose
+   quote isn't in its file), the others count; a reply that isn't the schema's shape still records
+   nothing. Built in `findingsFrom` (`src/verify/findings.js`); T2 has the case; Scope 2 and T2 in
+   the spec carry the dated note; `docs/documents.md` and Vera's prompt say so.
+5. **P1's pass rule.** **A**: a must-fix on the seed's own layer, the default; the probe's "caught on
+   any layer" column stays beside it.
+
 ## For later units
 
 - **Jet, 2026-11-23:** he wants `/mirai <command>` in Cursor and Codex sessions too, not only Claude Code (today rows 71 and 73; 73 is "only when you actually use Cursor"). A roadmap change: interview after unit 40.
@@ -294,6 +305,8 @@ Answered (Jet, 2026-11-23): **1 A, 2 A, 3 A**, each as built.
 - `u40-tests-2` at `a370534`: 802/803; the one failure was 17a's T8 pin of the instruction files
   in `.claude/` (Vera's rendered agent is a new one). Pin updated (`test/detect/detect.test.js`).
 - `u40-tests-3` at `ccb437b`: **pass, 803/803**, 14.8 minutes.
+- `u40-tests-4` at `1cfdfd3` (P1's first-run fixes): **pass, 804/804**, 15.8 minutes.
+- `u40-tests-5` at the next commit (Jet's answer 4): see the report.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,

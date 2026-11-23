@@ -225,21 +225,36 @@ test('40 T2: findings: one per layer and grade is recorded; a quote not in the f
   const again = await verifyCli(f, PRD, vera);
   assert.match(again.out, /^Vera \(mirai-verifier\) checked .*\nit hasn't changed since round 1: that result, with no new run/);
   assert.equal(vera.calls.length, 1);
-  // Not the schema: nothing recorded, no round used.
+  // Not the schema's shape: nothing recorded, no round used.
   writeFileSync(join(f.root, PRD), PRD_READY.replace('Approve the due-dates brief and this PRD', 'Approve the due-dates brief and the PRD'));
   f.git('commit', '-qam', 'edit');
-  for (const bad of [{ findings: [{ ...finding(), kind: undefined }] }, { verdict: 'pass' }, null]) {
+  for (const bad of [{ verdict: 'pass' }, { findings: 'none' }, { findings: [], verdict: 'pass' }, null]) {
     const x = await runVerify({ cwd: f.root, env: f.env, file: PRD, launchToken: mintLaunchToken(), launch: fakeVera(bad).launch });
-    assert.equal(x.outcome, 'unreadable');
+    assert.equal(x.outcome, 'unreadable', JSON.stringify(bad));
     assert.match(x.why, /nothing was recorded \(no round was used\)/);
   }
   assert.equal(readVerifyResults(f.store, 'due-dates-prd').length, 1);
-  // The schema's own rules: a decision names its type, an invented one is must-fix, a context
-  // finding names what it contradicts; a quote of a file she wasn't given drops the finding.
+  // Jet, 2026-11-23 (P1, "B"): a finding that breaks a rule of the schema is dropped and logged,
+  // and the others count: P1's context finding with no `against`, one with no `kind`, an id twice.
+  const mixed = await runVerify({ cwd: f.root, env: f.env, file: PRD, launchToken: mintLaunchToken(), launch: fakeVera({ findings: [finding(), finding({ id: 'V-2', layer: 'context' }), { ...finding({ id: 'V-3' }), kind: undefined }, finding({ grade: 'suggestion' })] }).launch });
+  assert.equal(mixed.outcome, 'checked', mixed.why);
+  assert.deepEqual([mixed.entry.round, mixed.entry.must_fix, mixed.entry.findings.map((x) => x.id)], [2, 1, ['V-1']]);
+  assert.deepEqual(mixed.entry.dropped.map((x) => x.id), ['V-2', 'V-3', 'V-1']);
+  assert.match(mixed.entry.dropped[0].why, /^it breaks the schema: \/findings\/1\/against a context finding names the context file it contradicts$/);
+  assert.match(mixed.entry.dropped[1].why, /^it breaks the schema: \/findings\/2\/kind /);
+  assert.equal(mixed.entry.dropped[2].why, 'its id is used by an earlier finding');
+  // The schema's own rules, each dropping its finding: a decision names its type, an invented one
+  // is must-fix, a context finding names what it contradicts; a quote of a file she wasn't given
+  // drops the finding too.
   const files = { 'document.md': { text: PRD_READY, path: PRD, checked: true }, 'context-business.md': { text: BUSINESS_EX, path: BUSINESS, checked: false } };
-  assert.match(findingsFrom({ findings: [finding({ kind: 'decision' })] }, files).problem, /decision_type/);
-  assert.match(findingsFrom({ findings: [finding({ kind: 'decision', decision_type: 'invented', grade: 'suggestion' })] }, files).problem, /invented decision is always must-fix/);
-  assert.match(findingsFrom({ findings: [finding({ layer: 'context' })] }, files).problem, /names the context file/);
+  const why = (f) => {
+    const r = findingsFrom({ findings: [f] }, files);
+    assert.deepEqual(r.findings, []);
+    return r.dropped[0].why;
+  };
+  assert.match(why(finding({ kind: 'decision' })), /decision_type/);
+  assert.match(why(finding({ kind: 'decision', decision_type: 'invented', grade: 'suggestion' })), /invented decision is always must-fix/);
+  assert.match(why(finding({ layer: 'context' })), /names the context file/);
   assert.deepEqual(findingsFrom({ findings: [finding({ where: { file: 'context-business.md', line: 1, quote: 'People log in and keep' } })] }, files).dropped.map((x) => x.id), ['V-1']);
   assert.deepEqual(findingsFrom({ findings: [finding({ layer: 'context', against: { file: 'context-business.md', line: 3, quote: 'Guests are welcome everywhere' } })] }, files).dropped[0].why, 'its quote of context-business.md isn\'t there');
   // Line breaks and spaces don't matter to the match.

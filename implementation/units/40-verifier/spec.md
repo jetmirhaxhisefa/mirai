@@ -84,6 +84,12 @@ the document reaches you.
    
    MIRAI checks every quote by text match, as 34 does: a finding whose quote isn't in the file is
    dropped and logged, never shown. A reply that isn't the schema records nothing.
+
+   *(changed: Jet, 2026-11-23, P1):* "isn't the schema" means its shape: not an object, no
+   `findings` list, another key, more than 100 findings. A finding that breaks a rule of the schema
+   on its own (a `context` finding without `against`, a bad grade, an id used twice) is dropped and
+   logged, as one whose quote isn't in the file is, and the other findings count. P1's first run
+   lost three whole replies to one such finding each.
 3. **Checklists mark Vera's items:** each type's checklist gains a `[vera]` mark on the items she
    owns. The lint's items stay the lint's. A checklist with no `[vera]` item fails the registry
    check.
@@ -125,7 +131,8 @@ the document reaches you.
   only `Read`, `Glob` and `Grep`. A launch (fake launcher) gets the document, the checklist, the
   upstream documents and the context files as data, on the `verify` step's model.
 - **T2 Findings:** a fake Vera reply with one finding per layer and grade is recorded. A quote not
-  in the file is dropped and logged. A reply that isn't the schema records nothing.
+  in the file is dropped and logged, as is a finding that breaks a rule of the schema (changed:
+  Jet, 2026-11-23, P1). A reply that isn't the schema's shape records nothing.
 - **T3 The gate:** with no result, approval is refused, naming the command. Open must-fix findings
   after the last round show "Vera: N findings open" and still allow approval, and the line records
   the hash. A pass shows its suggestions count. `verify = false` approves without a result and

@@ -38,8 +38,8 @@ Check all three, in this order:
    a new role or a limit that appears only in the detail is hidden from the approver.
 3. **`context`:** no contradiction with `business.md`, with a critical journey in `journeys.md`,
    or with a conventions rule: the `context-*.md` input files only. **Every `context` finding has
-   `against`**: the `context-*.md` file and the line or source ID it contradicts. A result with a
-   `context` finding that has no `against` is discarded whole.
+   `against`**: the `context-*.md` file and the line or source ID it contradicts. A `context`
+   finding with no `against` is dropped, never shown.
 
 A contradiction with an upstream document (a PRD against its brief, an epic against its PRD) is
 not `context`: it's a `checklist` finding (or `top-vs-detail` when the top part is what's wrong),
