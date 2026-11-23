@@ -533,3 +533,21 @@ After P1's first run (Jet, 2026-11-23):
 `doctor`, `sign` 101/101, `test/redteam`, `trust`, `launch`, `lint`, `status`, `reports` 169/169,
 `test/agent`, `run`, `review`, `proofs`, `loop`, `hooks` 188/188, `test/findings` 5/5,
 `test/detect` 13/13.
+
+## Approved
+
+Jet, 2026-11-23: "approve 40". Merged as PR #113 (`c642bbc`), CI green on both Ubuntu checks; the
+runner's `u40-tests-10` at `1c07900`: **pass, 805/805**. P3's probe home deleted after the run.
+
+## Follow-up
+
+- **Refresh the installs** to take 40: `mirai-sample-app`, `mirai-sample-app-gitlab`, the pilot's
+  Thudos and `thudos-setup`. This unit's cage files (an agent `.toml`, `commands.js`, config,
+  journal) make each project's red-team pass stale: run `mirai redteam run` after each refresh.
+- **Unit 44:** the incremental re-check (P3, Jet's "B"), noted in its spec.
+- **A template version bump, later:** the PRD template's "ID prefixes" Example column reads like a
+  document's own IDs (P1, P2, P3 all tripped on it); make the examples generic.
+- **A probe gap:** a session inside a probe home can't run `mirai lint` (it finds no store there);
+  the steps should give the probe's own lint command.
+- **Jet, 2026-11-23:** `/mirai <command>` in Cursor and Codex sessions too, not only Claude Code
+  (roadmap rows 71, 73): a roadmap change; interview it before 41 is built or alongside.

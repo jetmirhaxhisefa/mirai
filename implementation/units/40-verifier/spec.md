@@ -1,7 +1,7 @@
 ---
 unit: "40"
 name: verifier
-status: approved (Jet, 2026-11-20: "approve 40"; decisions 1–7 from his interview the same day; built only after 39 is finished, and re-checked against 34b–39 first)
+status: done (unit approved 2026-11-23: "approve 40", merged as PR #113; spec approved Jet, 2026-11-20: "approve 40"; decisions 1–7 from his interview the same day; built only after 39 is finished, and re-checked against 34b–39 first)
 roadmap: design/07-implementation-roadmap.md, row 40; D-13 (one verifier, a checklist per type), D-14 (tiers and the verifier ladder), D-43; 09 PM-03, PM-06; 13 §2; units 19a–19c (launch, roles, broker), 31–34 (types, checklists, reader test), 36 (context files)
 depends_on: ["19a", "19b", "19c", "31", "32", "33", "34", "36"]
 ---
