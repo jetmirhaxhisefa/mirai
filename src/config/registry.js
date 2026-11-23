@@ -113,6 +113,9 @@ const ADAPTER = {
         builtin_plugins: NAME_LIST,
         builtin_skills: NAME_LIST,
         builtin_agents: NAME_LIST,
+        // Bundled skills MIRAI turns off with Claude Code's skillOverrides (2.1.330's ship-local and
+        // steward; Jet's "A", 2026-11-23). Never in builtin_skills, so a run that still loads one is red.
+        builtin_skills_off: NAME_LIST,
         // What the binary allows, as seen on `seen_on` (unit 18a): the red-team run reads both from
         // the installed binary and refuses anything new.
         binary: {
@@ -132,6 +135,8 @@ const ADAPTER = {
       check(value, path, report) {
         const writing = (value.read_only_tools ?? []).filter((t) => WRITE_TOOLS.includes(t));
         if (writing.length) report(`${path}.read_only_tools`, `read_only_tools can't include ${writing.join(', ')}`, undefined, 'read-only');
+        const both = (value.builtin_skills_off ?? []).filter((s) => (value.builtin_skills ?? []).includes(s));
+        if (both.length) report(`${path}.builtin_skills_off`, `a skill MIRAI turns off can't also be one a run may load (${both.join(', ')} is in builtin_skills too)`, undefined, 'skills-off');
       },
     },
   },

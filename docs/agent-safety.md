@@ -193,7 +193,30 @@ Claude's file tools outright, whatever a conversation asks. A shell command isn'
 - never write into `.git` or the committed keys and records under `.mirai/`;
 - never run the commands only you may run (`mirai approve`, `drop`, `key`, `token`);
 - never start MIRAI's agents as subagents: they always go through MIRAI, which logs them and
-  keeps them in their limits.
+  keeps them in their limits;
+- Claude Code's bundled `/ship` and `/steward` are off (below).
+
+### Claude Code's `/ship` and `/steward` are off (unit 40a)
+
+Claude Code 2.1.330 brought two bundled skills: `ship-local` (`/ship`) and `steward`
+(`/steward`). They commit, push, open and watch a GitHub pull request as you, merge the base
+branch into yours, and run some of their `git` and `gh` commands outside the sandbox. In a MIRAI
+project only MIRAI commits, pushes and opens the MR, behind its gates, so MIRAI turns both off
+(Jet's decision, 2026-11-23) with Claude Code's own setting:
+
+```json
+{ "skillOverrides": { "ship-local": "off", "steward": "off" } }
+```
+
+- **Agent runs:** every strict template's settings carry it.
+- **Your sessions:** `mirai render` merges it into the project's `.claude/settings.json`, like the
+  denies above. A value of yours for either skill is replaced; your other `skillOverrides`
+  entries stay. Turning one back on is noticed (`mirai doctor`, `mirai render`).
+- **The red team checks it:** S6 checks both settings carry it; S3 is red if a run still loads
+  either skill. Outside MIRAI projects nothing changes.
+
+The adapter lists them as `builtin_skills_off`, apart from `builtin_skills`, so the next new
+bundled skill still turns S3 red until someone reads what it does.
 
 MIRAI **merges** these into your `.claude/settings.json`: your own settings and rules stay as
 they are, and `mirai render` adds MIRAI's back if one goes missing. The lock records only

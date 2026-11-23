@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 
-import { FILE_TOOL_BLOCKS, looseKeys } from '../launch/strict.js';
+import { FILE_TOOL_BLOCKS, looseKeys, notTurnedOff } from '../launch/strict.js';
 
 // The red-team checks that need no model (unit 18a). Each returns { id, state, note, … } with
 // state `ok`, `red` (something new, or a floor rule missing) or `unknown` (couldn't be read: the
@@ -54,20 +54,61 @@ export function binaryCheck(facts, data) {
 }
 
 // S3: what Claude Code brought into each run (its init events), against the adapter's builtin_*
-// lists; checkInit at launch (unit 19) would refuse the same.
+// lists; checkInit at launch (unit 19) would refuse the same. A bundled skill MIRAI turns off
+// (builtin_skills_off, unit 40a) is expected absent: one that's still there means the settings'
+// skillOverrides didn't hold, and is red.
 export function builtinsCheck(inits, strict) {
   if (!inits.length) return { id: 'S3', state: 'unknown', note: 'no run reached its init event', extra: [] };
   const name = (x) => (typeof x === 'string' ? x : x?.name);
+  const off = strict.builtin_skills_off ?? [];
   const extra = new Set();
+  const stillOn = new Set();
   for (const init of inits) {
-    for (const s of init.skills ?? []) if (!strict.builtin_skills.includes(name(s))) extra.add(`skill ${name(s)}`);
+    for (const s of init.skills ?? []) {
+      if (off.includes(name(s))) stillOn.add(`skill ${name(s)}`);
+      else if (!strict.builtin_skills.includes(name(s))) extra.add(`skill ${name(s)}`);
+    }
     for (const p of init.plugins ?? []) if (!(p?.path === 'builtin' && strict.builtin_plugins.includes(p.name))) extra.add(`plugin ${name(p)}`);
     for (const a of init.agents ?? []) if (!strict.builtin_agents.includes(name(a))) extra.add(`agent ${name(a)}`);
   }
   const list = [...extra].sort();
-  return list.length
-    ? { id: 'S3', state: 'red', note: `Claude Code brings in what MIRAI's adapter data doesn't list (seen on ${strict.builtin_version}): ${list.join(', ')}`, extra: list }
-    : { id: 'S3', state: 'ok', note: `only Claude Code's own skills, agents and plugins (as listed for ${strict.builtin_version})`, extra: [] };
+  const on = [...stillOn].sort();
+  const notes = [
+    ...(on.length ? [`MIRAI's settings turn off ${on.join(', ')}, but Claude Code still loads ${on.length === 1 ? 'it' : 'them'} (skillOverrides didn't hold)`] : []),
+    ...(list.length ? [`Claude Code brings in what MIRAI's adapter data doesn't list (seen on ${strict.builtin_version}): ${list.join(', ')}`] : []),
+  ];
+  return notes.length
+    ? { id: 'S3', state: 'red', note: notes.join('; '), extra: [...on, ...list] }
+    : { id: 'S3', state: 'ok', note: `only Claude Code's own skills, agents and plugins (as listed for ${strict.builtin_version})${off.length ? `; ${off.join(', ')} turned off and absent` : ''}`, extra: [] };
+}
+
+// S6 (unit 40a): the settings turn off the bundled skills MIRAI keeps off (builtin_skills_off) with
+// skillOverrides: each strict template's rendered settings (`strict`: a Map of name -> settings),
+// and your sessions' .claude/settings.json as committed on the integration branch (`interactive`:
+// its text, or null when there's none). No model; S3 shows whether Claude Code honours them.
+export function skillsOffCheck({ strict, interactive }, off) {
+  if (!off?.length) return { id: 'S6', state: 'ok', note: 'MIRAI turns off no bundled skill', problems: [] };
+  const problems = [];
+  for (const [t, settings] of strict) {
+    const missing = notTurnedOff(settings, off);
+    if (missing.length) problems.push(`${t}: ${missing.join(', ')} not turned off`);
+  }
+  if (interactive === null) problems.push('.claude/settings.json isn\'t on the integration branch (mirai render writes it, then commit)');
+  else {
+    let value = null;
+    try {
+      value = JSON.parse(interactive.replace(/^﻿/, ''));
+    } catch {
+      problems.push('.claude/settings.json isn\'t valid JSON');
+    }
+    if (value !== null) {
+      const missing = notTurnedOff(value, off);
+      if (missing.length) problems.push(`.claude/settings.json: ${missing.join(', ')} not turned off (mirai render, then commit)`);
+    }
+  }
+  return problems.length
+    ? { id: 'S6', state: 'red', note: `the settings don't turn off every bundled skill MIRAI keeps off: ${problems.join('; ')}`, problems }
+    : { id: 'S6', state: 'ok', note: `${off.join(', ')} turned off in ${[...strict.keys()].join(', ')} and in .claude/settings.json`, problems: [] };
 }
 
 // Which rule wins for `p` in a deny and an allow list: the most specific (longest) entry that

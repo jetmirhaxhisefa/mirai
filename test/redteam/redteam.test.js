@@ -20,7 +20,7 @@ import { binaryHash, canonical, changedParts, keyOf, KEY_PARTS, resolveClaude, t
 import { callsMade, madeTheCall, promptFor } from '../../src/redteam/claude.js';
 import { finalLine, report } from '../../src/redteam/report.js';
 import { leakedNames, redTeamStatus, runRedTeam, stateOf, templateTested } from '../../src/redteam/run.js';
-import { baselineCheck, binaryCheck, builtinsCheck, floorCheck } from '../../src/redteam/static.js';
+import { baselineCheck, binaryCheck, builtinsCheck, floorCheck, skillsOffCheck } from '../../src/redteam/static.js';
 import { KEEP_RESULTS, listResults, readResult, resultPath, statusFor, writeResult } from '../../src/redteam/store.js';
 import { checkWorkdir, sweepLeftovers } from '../../src/redteam/workspace.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
@@ -341,6 +341,26 @@ test('18a T5: the no-model checks: the binary read once by anchor; new keys and 
   assert.equal(baselineCheck({ keychain: true, git: true, docker: true, ssh: true }, { credentialHelper: 'osxkeychain', dockerSocket: '/s', sshAuthSock: '/a' }).state, 'ok');
   assert.equal(baselineCheck({ keychain: true, git: false }, { credentialHelper: 'osxkeychain' }).state, 'unknown');
   assert.equal(baselineCheck({ keychain: true }, {}).state, 'ok', 'no helper, socket or agent here: only the keychain counts');
+  // Unit 40a, S3: ship-local and steward are expected absent; one still loaded is red as such; a
+  // new bundled skill in neither list is still red.
+  assert.match(builtinsCheck([{ skills: ['dataviz'], plugins: [], agents: [] }], STRICT).note, /ship-local, steward turned off and absent/);
+  const still = builtinsCheck([{ skills: ['dataviz', 'ship-local'], plugins: [], agents: [] }, { skills: [{ name: 'steward' }, 'new-bundled'], plugins: [], agents: [] }], STRICT);
+  assert.equal(still.state, 'red');
+  assert.deepEqual(still.extra, ['skill ship-local', 'skill steward', 'skill new-bundled']);
+  assert.match(still.note, /turn off skill ship-local, skill steward, but Claude Code still loads them \(skillOverrides didn't hold\)/);
+  assert.match(still.note, /doesn't list .*: skill new-bundled/);
+  // S6: the strict settings (a real render) and the committed interactive settings turn both off.
+  assert.deepEqual(settings.skillOverrides, { 'ship-local': 'off', steward: 'off' });
+  const off = STRICT.builtin_skills_off;
+  const sessionText = readFileSync(join(r.root, '.claude', 'settings.json'), 'utf8');
+  assert.equal(skillsOffCheck({ strict: new Map([['read-write', settings]]), interactive: sessionText }, off).state, 'ok');
+  const { skillOverrides: _gone, ...noOverrides } = settings;
+  const s6 = skillsOffCheck({ strict: new Map([['read-write', settings], ['read-only', noOverrides]]), interactive: JSON.stringify({ skillOverrides: { steward: 'off', 'ship-local': 'on' } }) }, off);
+  assert.equal(s6.state, 'red');
+  assert.deepEqual(s6.problems, ['read-only: ship-local, steward not turned off', '.claude/settings.json: ship-local not turned off (mirai render, then commit)']);
+  assert.match(skillsOffCheck({ strict: new Map(), interactive: null }, off).problems.join(), /isn't on the integration branch/);
+  assert.match(skillsOffCheck({ strict: new Map(), interactive: '{ no' }, off).problems.join(), /isn't valid JSON/);
+  assert.equal(skillsOffCheck({ strict: new Map(), interactive: null }, []).state, 'ok', 'nothing to turn off');
   // The work folder: not your home, not a temp folder, empty, not in a git tree.
   assert.throws(() => checkWorkdir(home, home), /home folder/);
   assert.throws(() => checkWorkdir('/private/tmp/x', home), /temp folder/);

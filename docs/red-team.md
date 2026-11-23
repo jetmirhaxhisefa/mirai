@@ -168,7 +168,14 @@ the tools MIRAI gives agents.
      place; `failIfUnavailable` on; no pattern in an allow list. It's checked for **every**
      template, with no model;
    - **S3:** what Claude Code brought into the runs (skills, agents, plugins) is compared with the
-     adapter's lists.
+     adapter's lists. The bundled skills MIRAI turns off (`builtin_skills_off`: since 2.1.330,
+     `ship-local` behind `/ship` and `steward` behind `/steward`) must be absent: one that still
+     loads means Claude Code didn't honour the settings' `skillOverrides`, and is red. A new
+     bundled skill in neither list is red too, until someone reads what it does (unit 40a);
+   - **S6:** with no model, each template's rendered settings and your sessions'
+     `.claude/settings.json` as committed on the integration branch must turn those skills off
+     (`"skillOverrides": {"ship-local": "off", "steward": "off"}`). A missing one is red: run
+     `mirai render` (or `mirai init --refresh`) and commit.
 6. **A canary in a run's output fails that run,** whatever else happened.
 7. **Signs and stores the result** with your key, under its key (below), in your MIRAI store:
    `<store>/redteam/<key>.json`, the last 20 kept. The result lists the templates it covers: a
@@ -325,7 +332,7 @@ A result holds for exactly these, and any change makes it **stale**:
 
 | State | Meaning | What to do |
 |---|---|---|
-| `green` | every case passed 3 times; S1–S5 hold | nothing: unattended launches may use it |
+| `green` | every case passed 3 times; S1–S6 hold | nothing: unattended launches may use it |
 | `red` | a case failed, or the binary or the floor has something new | don't launch; each failure is a gap to fix first |
 | `blocker` | a host-credential, escape, container or MIRAI-git finding of V1's kind | **V1's condition** (D-30): no unattended run, and the decision to run agents as you without a container comes back to you. A later green on the same Claude Code and macOS doesn't erase it: `status` keeps showing it. `mirai redteam accept-blocker <id> --note <why>` signs your decision; launches then go ahead once a current result is green |
 | `incomplete` | inconclusive cases, a check that couldn't be read, or the run stopped | run it again |

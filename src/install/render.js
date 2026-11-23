@@ -11,8 +11,8 @@ import { repoIdentity } from '../store/home.js';
 import { remotes, topLevel } from '../store/git.js';
 import { hostWords, wordsFor } from '../ship/words.js';
 import { buildBundle } from '../adapters/bundle.js';
-import { ADAPTER, commandPath, instructionBlock, interactiveDenies, interactivePath, isManaged, isMiraiName, MIRAI_COMMAND, renderAgent } from '../adapters/claude-code.js';
-import { LOCK_FILE, checkLock, entriesHash, filesUnder, hookEntry, mcpEntry, readLock, renderedHash, settingsHash, updateLock, replaceFile, noLinks, sha256 } from './lock.js';
+import { ADAPTER, commandPath, instructionBlock, interactiveDenies, interactivePath, interactiveSkillsOff, isManaged, isMiraiName, MIRAI_COMMAND, renderAgent } from '../adapters/claude-code.js';
+import { LOCK_FILE, checkLock, entriesHash, filesUnder, hookEntry, mcpEntry, readLock, renderedHash, settingsHash, skillOffEntry, skillOffName, updateLock, replaceFile, noLinks, sha256 } from './lock.js';
 import { AGENTS_WARN_BYTES, BlockError, blockOf, localInstructions, renderBlock, withBlock } from './agents-block.js';
 
 // The rendered files (units 10 and 11; D-37): made from the framework copy plus your own files,
@@ -207,7 +207,21 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
       }
       if (Object.keys(out).length || value.hooks !== undefined) next.hooks = out;
     }
-    const entries = [...denies, ...hookEntries];
+    // Unit 40a (Jet's "A", 2026-11-23): the bundled skills MIRAI turns off (2.1.330's ship-local and
+    // steward), as skillOverrides "off". A value of yours for one of them is replaced, like a deny
+    // MIRAI needs; one MIRAI turned off before and no longer does is taken out; your other entries stay.
+    if (value.skillOverrides !== undefined && (value.skillOverrides === null || typeof value.skillOverrides !== 'object' || Array.isArray(value.skillOverrides))) {
+      throw new BlockError(`${settingsPath}: skillOverrides isn't an object`, { code: 'bad-settings', hint: 'fix it, then run: mirai render' });
+    }
+    const off = interactiveSkillsOff(registry);
+    const offEntries = off.map(skillOffEntry);
+    const oldOff = before.map(skillOffName).filter((n) => n !== null && !off.includes(n));
+    if (value.skillOverrides !== undefined || off.length) {
+      const overrides = Object.fromEntries(Object.entries(value.skillOverrides ?? {}).filter(([n, v]) => !(oldOff.includes(n) && v === 'off')));
+      for (const n of off) overrides[n] = 'off';
+      if (Object.keys(overrides).length || value.skillOverrides !== undefined) next.skillOverrides = overrides;
+    }
+    const entries = [...denies, ...hookEntries, ...offEntries];
     const text = `${JSON.stringify(next, null, 2)}\n`;
     const same = existing !== null && JSON.stringify(value) === JSON.stringify(next);
     const from = sortByPath([inRegistry(registry.adapterFiles[ADAPTER]), ...Object.values(registry.agentFiles).map(inRegistry), ...hooks.flatMap(customFrom)]);

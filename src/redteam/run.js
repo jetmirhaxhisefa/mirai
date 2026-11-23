@@ -9,6 +9,7 @@ import { canonicalSha256, checkInit, finishLaunch, prepareLaunch, removeLaunch }
 import { loadRecordSigner } from '../sign/signer.js';
 import { readToken } from '../sign/token.js';
 import { acquireLock, ensurePrivateDir } from '../store/files.js';
+import { blobAt } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { snapshot, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
@@ -23,7 +24,7 @@ import { runInGroup } from '../agent/process.js';
 import { guardProbe } from './guard.js';
 import { cleanupOutside, hostBaseline, hostCanaries, sweepStale } from './host.js';
 import { binaryHash, frameworkHash, keyOf, keyParts, resolveClaude, templateNames } from './key.js';
-import { baselineCheck, binaryCheck, builtinsCheck, floorCheck } from './static.js';
+import { baselineCheck, binaryCheck, builtinsCheck, floorCheck, skillsOffCheck } from './static.js';
 import { RESULT_FOLDER, RESULT_SCHEMA_VERSION, statusFor, writeResult } from './store.js';
 import { buildWorkspace, CONTEXT_CANARIES, lateEscapes, removeWorkspace, resetWorker, sweepLeftovers } from './workspace.js';
 
@@ -38,7 +39,8 @@ import { buildWorkspace, CONTEXT_CANARIES, lateEscapes, removeWorkspace, resetWo
 //    model didn't make the call is retried, up to `maxAttempts` runs; one failing run fails it.
 //    After each run, `.git` must be as it was (finishLaunch, D-54) and the init event as MIRAI
 //    launched it (checkInit); the rendered settings of each template are checked against the floor
-//    (S4), and what Claude Code brought in against the adapter's lists (S3);
+//    (S4), and what Claude Code brought in against the adapter's lists (S3); the strict and your
+//    sessions' settings must turn off the bundled skills MIRAI keeps off (S6, unit 40a);
 // 5. signs and stores the result under the key (src/redteam/store.js). A partial run (`only`) or
 //    one you stopped is reported, never stored: it could replace a complete result for the key.
 // A blocker failure (G18, an escape) stops the run; the result says V1 comes back to you.
@@ -318,17 +320,21 @@ async function runUnit(unit, ctx, o) {
 
 // S4 for every template, with no model: each one's settings rendered through a real launch
 // preparation on the first worker, then the launch removed.
+// Also returns each template's rendered settings, for S6 (unit 40a).
 function floorAll(templates, ctx, env) {
   const floor = new Map();
+  const rendered = new Map();
   for (const [name, template] of templates) {
     const plan = prepareLaunch({ trust: ctx.trust, template, checkout: ctx.project, env, miraiHomeDir: ctx.miraiHome, probe: { home: env.HOME } });
     try {
-      floor.set(name, floorCheck(JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8')), { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid() }));
+      const settings = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8'));
+      rendered.set(name, settings);
+      floor.set(name, floorCheck(settings, { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid() }));
     } finally {
       finishLaunch(plan);
     }
   }
-  return floor;
+  return { floor, rendered };
 }
 
 // Runs the red team for the checkout at `cwd`. `env`: yours (the launches' HOME, PATH and token);
@@ -420,7 +426,11 @@ export async function runRedTeam({
       return k.blocker === true ? 0 : k.docker === true ? 1 : 2;
     };
     units.sort((a, b) => rank(a) - rank(b));
-    const floor = floorAll(templates, ws.workers[0], env);
+    const { floor, rendered } = floorAll(templates, ws.workers[0], env);
+    // S6: your sessions' settings as committed on the integration branch, which is what a session
+    // on it reads (a work tree's own edits aren't the team's).
+    const interactive = blobAt(store.checkout, trust.baseSha, '.claude/settings.json', store.gitEnv)?.toString('utf8') ?? null;
+    const s6 = skillsOffCheck({ strict: rendered, interactive }, strict.builtin_skills_off ?? []);
 
     canariesOn = true;
     host.canaries(ws.workers[0], true);
@@ -496,7 +506,7 @@ export async function runRedTeam({
     }
     const untested = Object.entries(covered).filter(([, v]) => v.cases === 0).map(([n]) => n);
     const coverage = { id: 'templates', state: untested.length ? 'unknown' : 'ok', note: untested.length ? `no case ran under ${untested.join(', ')} (a mode no case has)` : `cases ran under every template (${Object.keys(covered).join(', ')})` };
-    const allChecks = [...checks, builtinsCheck(o.inits, strict), s4, s5, coverage].map(({ baseline: _b, ...rest }) => rest);
+    const allChecks = [...checks, builtinsCheck(o.inits, strict), s4, s5, s6, coverage].map(({ baseline: _b, ...rest }) => rest);
     const order = new Map(all.map((k, i) => [k.id, i]));
     results.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0) || a.template.localeCompare(b.template));
     const result = {
