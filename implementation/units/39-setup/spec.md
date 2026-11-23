@@ -1,7 +1,7 @@
 ---
 unit: "39"
 name: setup
-status: approved (Jet, 2026-11-20: "approve 39"; decisions 1–8 from his interview the same day; built only after 38 is finished, and re-checked against 34b–38 first)
+status: done (unit approved 2026-11-23: "approve 39", merged as PR #111; spec approved Jet, 2026-11-20: "approve 39"; decisions 1–8 from his interview the same day; built only after 38 is finished, and re-checked against 34b–38 first)
 roadmap: design/07-implementation-roadmap.md, row 39; design/01 §"Setup" (steps 1–6, the ledger); D-37 (marks: framework, rendered, project); D-41, D-43; 08 Q3, Q4, Q6; PM3-10; units 17a (facts, instruction files), 17b (the baseline), 26a (the hooks folder), 35, 36, 37, 38
 depends_on: ["17a", "17b", "26a", "35", "36", "37", "38"]
 ---

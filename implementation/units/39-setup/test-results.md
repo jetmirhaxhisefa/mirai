@@ -568,3 +568,21 @@ first full one, 761/768, failed on pins this unit moves (the bundle's and the re
 lists, the command list, 17a's instruction-file list), on two words the system-check guard (30a)
 caught, and on the pre-commit hook refusing the commit that installs MIRAI (fixed, see "Changed
 from the spec").
+
+## Approved
+
+Jet, 2026-11-23: "approve 39", after his "A" on the incomplete baseline (a yellow to fix, `d01bdfd`).
+Merged as PR #111 (`6eead8e`), CI green on both Ubuntu checks; the runner's `u39-tests-12` at
+`d01bdfd`: **pass, 792/792**, 14.6 minutes.
+
+## Follow-up
+
+- **Refresh the installs** to take 39 (and 38b): `mirai-sample-app` (the runner refreshes it per
+  job), `mirai-sample-app-gitlab`, and the pilot's Thudos (`mirai/pilot`); `thudos-setup` is the
+  probe mirror, already on it.
+- **Questions for Jet 1–3** (project skills in sessions only; the key backup by hand; the council's
+  markers) stand at their defaults (A, A, A), as built; not asked separately.
+- **The red team's w-git-config and adv-linger** gave INCOMPLETE on two runs (Haiku declining about
+  half the time): rewrite those cases in a later unit.
+- **Jet's default `~/.claude.json`** still holds a `thudos-setup` registration from `c64d307`;
+  harmless while MIRAI runs only in `claude-priv` (`mirai session-server remove` there clears it).
