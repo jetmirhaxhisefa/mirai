@@ -295,13 +295,20 @@ launchTest('T5, T6: the launch: production layout, a private folder, read-only i
   removeLaunch(second.launchDir, second.scratchDir);
   const launchesDir = dirname(plan.launchDir);
   const before = readdirSync(launchesDir).length;
-  // By name, not a count: other test files run alongside and remove their own scratch folders in
-  // /private/tmp (the count once went 2 → 1 mid-test, unit 27b's suite run). A new name is a leak.
-  const scratches = () => new Set(readdirSync('/private/tmp').filter((n) => /^mirai-[0-9a-f]{8}$/.test(n)));
-  const scratchBefore = scratches();
-  assert.throws(() => prepareLaunch({ trust, template: { ...t, mode: 'admin' }, checkout: r.root, env }), /mode/);
+  // The refused launch's own scratch folder, by the error: scanning /private/tmp for new names
+  // raced other test files and runs (unit 27b's suite run; u39-tests-4).
+  let refusedErr = null;
+  assert.throws(() => {
+    try {
+      prepareLaunch({ trust, template: { ...t, mode: 'admin' }, checkout: r.root, env });
+    } catch (e) {
+      refusedErr = e;
+      throw e;
+    }
+  }, /mode/);
   assert.equal(readdirSync(launchesDir).length, before);
-  assert.deepEqual([...scratches()].filter((n) => !scratchBefore.has(n)), [], 'a failed launch left its scratch folder');
+  assert.ok(Object.hasOwn(refusedErr, 'scratchDir'), 'the error names the scratch folder it made, or null');
+  assert.ok(refusedErr.scratchDir === null || !existsSync(refusedErr.scratchDir), 'a failed launch left its scratch folder');
   removeLaunch(plan.launchDir, plan.scratchDir);
   assert.ok(!existsSync(plan.launchDir) && !existsSync(plan.scratchDir));
   // A hard link to a real .env file (unit 13c): the launch is refused, and leaves nothing.

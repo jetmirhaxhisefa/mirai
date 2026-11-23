@@ -76,6 +76,8 @@ export function checkPolicy(p) {
     throw new PolicyError('the policy file isn\'t one this server reads');
   }
   if (p.docker_socket !== undefined && p.docker_socket !== null && !abs(p.docker_socket)) throw new PolicyError('the policy\'s docker socket isn\'t an absolute path');
+  // Unit 39 (P1's F7): the Claude Code config the session server was registered in (interactive only).
+  if (p.claude_config !== undefined && p.claude_config !== null && (p.kind !== 'interactive' || !abs(p.claude_config))) throw new PolicyError('the policy\'s Claude Code config isn\'t an absolute path');
   const known = TOOLS.map((t) => t.name);
   const unknown = Object.keys(p.tools).filter((k) => !known.includes(k));
   if (unknown.length) throw new PolicyError(`the policy names tools this server doesn't have (${unknown.join(', ')})`);

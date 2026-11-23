@@ -319,6 +319,12 @@ test('15b T6: the commands, and mirai render: only a registration that\'s behind
   assert.equal(fake.entry(), null, 'render registered without install');
   assert.equal(await main(['session-server', 'install'], io()), EXIT.OK, err);
   assert.match(out, /registered MIRAI's server .* tools: log_event, lint/s);
+  // P1's F3: it names the Claude Code config it registered in.
+  assert.match(out, /local scope, in the default config \(~\/\.claude\.json; CLAUDE_CONFIG_DIR isn't set\)/);
+  assert.match(out, /CLAUDE_CONFIG_DIR=<its folder> mirai session-server install/);
+  out = '';
+  await main(['session-server', 'status'], { ...io(), env: { ...env, CLAUDE_CONFIG_DIR: join(env.HOME, '.claude-other') } });
+  assert.match(out, /Claude Code config: CLAUDE_CONFIG_DIR=~\/\.claude-other/);
   out = '';
   assert.equal(await main(['session-server', 'status'], io()), EXIT.OK, err);
   assert.match(out, /registered, for the current trust root/);

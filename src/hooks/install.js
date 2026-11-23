@@ -38,6 +38,20 @@ export function hookScript({ node, launcher }) {
   ].join('\n');
 }
 
+// Unit 39 (Scope 9): MIRAI's pre-commit, the safety net for items added by hand under .claude/,
+// .cursor/ or .codex/. It runs the repo's own pre-commit first when MIRAI forwards to one. Like the
+// pre-push, it runs the integration branch's sealed copy through the launcher; the launcher skips
+// it, with one line, only where no MIRAI is committed to seal yet (src/launch/launch.js).
+export function preCommitScript({ node, launcher }) {
+  return [
+    '#!/bin/sh',
+    '# MIRAI pre-commit (unit 39). Written by mirai init; the folder is checked at every push. Don\'t',
+    '# edit it: run `mirai init --refresh` instead. `git commit --no-verify` skips it (mirai doctor still lists what it would refuse).',
+    `exec ${shQuote(node)} ${shQuote(launcher)} hook pre-commit "$@"`,
+    '',
+  ].join('\n');
+}
+
 export function forwardScript(path) {
   return [
     '#!/bin/sh',
@@ -50,7 +64,9 @@ export function forwardScript(path) {
 // The files the folder should hold: Map(name -> text).
 export function plannedFiles(state) {
   const files = new Map([['pre-push', hookScript(state)]]);
-  for (const name of state.hooks ?? []) if (name !== 'pre-push') files.set(name, forwardScript(join(state.forwarded_from, name)));
+  // A folder written before unit 39 has no pre-commit until mirai init --refresh (doctor says so).
+  if (state.pre_commit === true) files.set('pre-commit', preCommitScript(state));
+  for (const name of state.hooks ?? []) if (!files.has(name)) files.set(name, forwardScript(join(state.forwarded_from, name)));
   return files;
 }
 
@@ -66,7 +82,7 @@ export function readHooksRecord(store) {
   }
   const ok = r && r.schema_version === SCHEMA_VERSION && typeof r.node === 'string' && isAbsolute(r.node) && typeof r.launcher === 'string' && isAbsolute(r.launcher)
     && Array.isArray(r.hooks) && r.hooks.every((h) => HOOK_NAMES.includes(h)) && (r.forwarded_from === null || (typeof r.forwarded_from === 'string' && isAbsolute(r.forwarded_from)))
-    && (r.hooks.length === 0 || r.forwarded_from !== null);
+    && (r.hooks.length === 0 || r.forwarded_from !== null) && (r.pre_commit === undefined || typeof r.pre_commit === 'boolean');
   if (!ok) throw new StoreError(`${statePath(store)}: not a valid hooks record`, { path: statePath(store), code: 'hooks-record', hint: 'run: mirai init --refresh' });
   return r;
 }
@@ -130,7 +146,7 @@ export const alreadyForwarded = (found) => Boolean(found.recorded) && found.name
 export function installHooks({ store, env, node, launcher, forward = null }) {
   if (!isAbsolute(node ?? '') || !isAbsolute(launcher ?? '')) throw new TypeError('node and launcher are absolute paths');
   const names = forward?.names ?? [];
-  const state = { schema_version: SCHEMA_VERSION, node, launcher, forwarded_from: names.length ? forward.from : null, hooks: [...names].sort() };
+  const state = { schema_version: SCHEMA_VERSION, node, launcher, forwarded_from: names.length ? forward.from : null, hooks: [...names].sort(), pre_commit: true };
   const files = plannedFiles(state);
   const dir = hooksDir(store);
   const tmp = join(store.repoHome, `.hooks-${process.pid}-${randomBytes(4).toString('hex')}`);

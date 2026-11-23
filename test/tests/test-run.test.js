@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { snapshot, trustedFile } from '../../src/trust/snapshot.js';
 import { copyTree, isEnvPath } from '../../src/tests/copy.js';
@@ -14,7 +15,7 @@ import { parseToml } from '../../src/config/toml.js';
 import { main } from '../../src/cli/main.js';
 import { COMMANDS } from '../../src/cli/commands/index.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
-import { guardScenario, scenarios } from '../../src/redteam/probes/test-run.js';
+import { guardScenario, leftoverFilter, scenarios } from '../../src/redteam/probes/test-run.js';
 import { COMPOSE, CONFIG, fakeDocker, gitIn, installed, resolvedApp, tempDir } from './run-fixture.js';
 
 // Unit 14c: the test executor, without Docker (a fake docker records every call). The real
@@ -582,4 +583,10 @@ test('14d review fixes: the gate is checked again after the copy and before sign
   // 3 s in all, plus at most one poll.
   assert.ok(waited < 4800, `waited ${waited} ms against a 3000 ms deadline`);
   assert.equal(told, 1);
+});
+
+test('39 P1 finding: pr-test-run counts only its own fixture\'s leftovers, never another repo\'s MIRAI test run on the same Docker', () => {
+  assert.equal(leftoverFilter('repo-0123456789ab'), 'label=mirai.repo=repo-0123456789ab');
+  const src = readFileSync(fileURLToPath(new URL('../../src/redteam/probes/test-run.js', import.meta.url)), 'utf8');
+  assert.ok(!src.includes("'label=mirai.repo')"), 'no unscoped label filter is left');
 });

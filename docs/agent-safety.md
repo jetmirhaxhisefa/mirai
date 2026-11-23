@@ -220,6 +220,13 @@ or removes a server named `mirai` that it didn't register.
 - **Keeping it current:** `mirai render`, run in your terminal, registers it again only when it's
   behind the integration branch. It never registers a project that hasn't been, so `remove` lasts.
   `mirai session-server status` says where it stands.
+- **Which Claude Code config:** the one your terminal's environment gives `claude`:
+  `CLAUDE_CONFIG_DIR` when it's set, else the default (`~/.claude.json`). `install`, `remove` and
+  `status` name it. A session started with another config doesn't see the registration (`/mirai`
+  then says MIRAI's tools aren't connected): run `CLAUDE_CONFIG_DIR=<its folder> mirai
+  session-server install`. Both configs share the project's `.claude/settings.local.json`, so to
+  move a registration, `remove` it with the old config's environment, then `install` with the new
+  one's.
 - **Taking it out:** `mirai session-server remove` removes the registration and the rules install added.
 - **A moved project folder** loses the entry (it's keyed by the folder's path): run install again.
 - **A failed or impossible install** (no `claude` on your PATH) leaves the registration that's

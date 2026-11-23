@@ -89,6 +89,17 @@ lefthook's), `mirai init` lists them and asks. On yes, MIRAI's folder gets a sma
 script for each, so they run as before; your own `pre-push` runs first, then MIRAI's check, and
 both must pass. On no, MIRAI's hook isn't installed (and MIRAI starts no agents until it is).
 
+## The pre-commit hook (unit 39)
+
+The same folder holds MIRAI's `pre-commit` (`mirai hook pre-commit`). It refuses a commit that
+adds a file under `.claude/`, `.cursor/` or `.codex/` that `.mirai/mirai.lock` doesn't mark
+`rendered`, and prints `mirai custom add <path>` for each: new skills, agents, hooks and scripts
+go in `.mirai/custom/` (docs/setup.md). A repo's own `pre-commit` runs first, as for the pre-push.
+Like the pre-push, it runs the integration branch's sealed copy; where no MIRAI is committed there
+yet (the commit that installs MIRAI), it is skipped with one line saying so.
+`git commit --no-verify` skips it; `mirai doctor` then lists the file. A folder installed before
+unit 39 gets it with `mirai init --refresh`.
+
 ## Pushing anyway
 
 `git push --no-verify` skips every pre-push hook, MIRAI's included. That is your choice to make,

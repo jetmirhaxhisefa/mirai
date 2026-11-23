@@ -10,6 +10,7 @@ import { verifySigned } from '../sign/sign.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { scanMarkdown } from '../lint/markdown.js';
 import { BUILT_IN_CHECKS, CHECK_READS, FLOOR_DENY_TOOLS, SUMMARY_PARTS, checkDocumentTypeDef, loadCustomRoles, renamedRoleMessage } from './registry.js';
+import { CUSTOM_FOLDERS, CUSTOM_KINDS, readCustomItems, roleProtectedWrites, strayCustomProblem } from './custom-items.js';
 
 // Overlays (unit 37; D-37, R2-M12): a project's own changes to MIRAI's document types, templates,
 // agents and skills, kept in .mirai/custom/ beside MIRAI's files. Each is approved by you (signed,
@@ -23,13 +24,18 @@ import { BUILT_IN_CHECKS, CHECK_READS, FLOOR_DENY_TOOLS, SUMMARY_PARTS, checkDoc
 //   agents/<name>.toml + .md     an agent's instructions and permissions
 //   skills/<name>/overlay.toml + overlay.md   a skill's instructions
 //
+// Unit 39 adds the project's own items beside them (src/config/custom-items.js): project-skills/,
+// hooks/, scripts/ and mcp/, each with its own schema and approval record, read and approved the
+// same way.
+//
 // Neither way may drop what MIRAI's machinery reads: each type's protected_sections and
 // protected_fields (registry.js). A rename goes through the map, and MIRAI's code reads the
 // project's name as MIRAI's.
 
 export const CUSTOM_DIR = '.mirai/custom';
-export const OVERLAY_FOLDERS = Object.freeze(['document-types', 'templates', 'agents', 'skills']);
-export const OVERLAY_KINDS = Object.freeze(['document-type', 'agent', 'skill']);
+export const OVERLAY_FOLDERS = Object.freeze(['document-types', 'templates', 'agents', 'skills', ...CUSTOM_FOLDERS]);
+export const OVERLAY_KINDS = Object.freeze(['document-type', 'agent', 'skill', ...CUSTOM_KINDS]);
+export { CUSTOM_KINDS };
 // Unit 37 (Jet's answer to Q3, "A"): each approval is also a signed record committed beside the
 // overlays, so it travels with the repo: .mirai/custom/approvals/<kind>-<name>.json.
 export const RECORDS_FOLDER = 'approvals';
@@ -170,7 +176,7 @@ export function overlayFilesFrom(entries) {
 // - `problems`: why it can't be used (empty when it validates);
 // - `result`: what it makes (see applyType, applyAgent, applySkill).
 // `roles`: the roles an agent overlay may name (MIRAI's and the project's).
-export function readOverlays(files, registry, { roles = registry.roles ?? {} } = {}) {
+export function readOverlays(files, registry, { roles = registry.roles ?? {}, flagScript = null } = {}) {
   const out = [];
   const used = new Set();
   const take = (rel) => {
@@ -191,10 +197,18 @@ export function readOverlays(files, registry, { roles = registry.roles ?? {} } =
       out.push(one({ kind: 'skill', name: m[1], rel, bytes: take(rel), boundRel: md, boundBytes: take(md), full }, (o) => applySkill(o, registry)));
     }
   }
+  // Unit 39: the project's own items.
+  out.push(...readCustomItems(files, registry, used, { flagScript }));
   // A file no overlay takes: a template or text with no .toml beside it, or something else. The
   // approval records are read on their own (verifyRecords).
   for (const rel of files.keys()) {
     if (used.has(rel) || rel.startsWith(`${RECORDS_FOLDER}/`)) continue;
+    const stray = strayCustomProblem(rel);
+    if (stray) {
+      const kind = { 'project-skills': 'project-skill', hooks: 'hook', scripts: 'script', mcp: 'mcp' }[rel.split('/')[0]];
+      out.push({ path: full(rel), kind, name: rel.split('/')[1]?.replace(/\.[a-z]+$/, '') ?? rel, main: files.get(rel), bound: [], hash: files.get(rel) ? sha256(files.get(rel)) : null, problems: [stray], result: null, flags: [] });
+      continue;
+    }
     const owner = /^templates\/([^/]+)\.md$/.exec(rel) ? `document-types/${rel.slice(10, -3)}.toml`
       : /^agents\/([^/]+)\.md$/.exec(rel) ? `${rel.slice(0, -3)}.toml`
         : /^skills\/[^/]+\/overlay\.md$/.test(rel) ? rel.replace(/\.md$/, '.toml') : null;
@@ -555,6 +569,10 @@ function applyAgent(o, registry, roles) {
   const roleDef = !renamed && Object.hasOwn(roles, role) ? roles[role] : null;
   if (renamed) problems.push(renamed);
   else if (!roleDef) problems.push(`role "${role}" isn't a role (roles: ${Object.keys(roles).sort().join(', ')})`);
+  // Unit 39 (decision 3): a project role's write scope stays out of MIRAI's protected paths.
+  if (roleDef && roleDef !== registry.roles?.[role]) {
+    for (const w of roleProtectedWrites(roleDef, registry)) problems.push(`role "${role}" may write ${w.pattern}, which MIRAI protects (${w.rule}: ${w.protected}); give the role a write scope outside it`);
+  }
   const profile = Object.values(registry.adapters ?? {}).find((a) => a.strict)?.strict ?? null;
   const floor = new Set([...FLOOR_DENY_TOOLS, ...(profile?.deny_tools ?? [])]);
   const tools = v.tools?.allowed ?? core.tools.allowed;
@@ -639,11 +657,22 @@ export function recordPathOf(o) {
   return `${CUSTOM_DIR}/${RECORDS_FOLDER}/${o.kind}-${o.name}.json`;
 }
 // The overlay a record file is for, from its name: its main file's path, or null.
-function overlayPathOfRecord(rel) {
-  const m = /^approvals\/(document-type|agent|skill)-([a-z][a-z0-9-]{0,80})\.json$/.exec(rel);
+// A script's path has its extension, which the record's name leaves out: `script:<name>` stands for
+// it until the record says which file it is.
+function overlayPathOfRecord(rel, record = null) {
+  const m = /^approvals\/(document-type|agent|skill|project-skill|hook|script|mcp)-([a-z][a-z0-9-]{0,80})\.json$/.exec(rel);
   if (!m) return null;
-  return m[1] === 'document-type' ? `${CUSTOM_DIR}/document-types/${m[2]}.toml` : m[1] === 'agent' ? `${CUSTOM_DIR}/agents/${m[2]}.toml` : `${CUSTOM_DIR}/skills/${m[2]}/overlay.toml`;
+  const [, kind, name] = m;
+  if (kind === 'script') {
+    const p = typeof record?.path === 'string' ? record.path : '';
+    const s = /^\.mirai\/custom\/scripts\/([a-z][a-z0-9-]{0,80})\.(sh|bash|js|mjs|py)$/.exec(p);
+    return s && s[1] === name ? p : `script:${name}`;
+  }
+  return { 'document-type': `${CUSTOM_DIR}/document-types/${name}.toml`, agent: `${CUSTOM_DIR}/agents/${name}.toml`, skill: `${CUSTOM_DIR}/skills/${name}/overlay.toml`, 'project-skill': `${CUSTOM_DIR}/project-skills/${name}/SKILL.md`, hook: `${CUSTOM_DIR}/hooks/${name}.toml`, mcp: `${CUSTOM_DIR}/mcp/${name}.toml` }[kind];
 }
+// The key a record is kept under in verifyRecords' map: the item's path (a script's own once its
+// record reads).
+const recordKeyOf = (o) => (o.kind === 'script' ? `script:${o.name}` : o.path);
 
 // The record `mirai approve --file` writes: the overlay's path, its bound hash (overlayHash: the
 // main file and every file it binds), your decision, and for a replacement template MIRAI's
@@ -664,14 +693,14 @@ export function verifyRecords(files, { keys, repoId, verify = verifySigned }) {
   const out = new Map();
   for (const [rel, bytes] of files) {
     if (!rel.startsWith(`${RECORDS_FOLDER}/`)) continue;
-    const path = overlayPathOfRecord(rel);
-    if (!path) continue;
+    if (!overlayPathOfRecord(rel)) continue;
     let record = null;
     try {
       record = bytes ? JSON.parse(bytes.toString('utf8')) : null;
     } catch {
       record = null;
     }
+    const path = overlayPathOfRecord(rel, record);
     if (!record || typeof record !== 'object' || record.schema !== OVERLAY_RECORD_SCHEMA) {
       out.set(path, { ok: false, reason: 'it isn\'t an approval record MIRAI reads' });
       continue;
@@ -693,7 +722,7 @@ export function verifyRecords(files, { keys, repoId, verify = verifySigned }) {
 // it decides: one that doesn't verify makes the overlay not approved, one for other bytes makes it
 // changed, whatever the local journal says. With none, your local journal (`events`) does.
 export function overlayState(o, events, records = null) {
-  const rec = records?.get(o.path) ?? null;
+  const rec = records?.get(o.path) ?? records?.get(recordKeyOf(o)) ?? null;
   const last = (events ?? []).filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'overlay' && e.path === o.path).at(-1) ?? null;
   if (o.problems.length) return { state: 'invalid', seq: last?.seq ?? null, line: rec?.record ?? last };
   if (rec) {
@@ -711,7 +740,13 @@ export const STATE_TEXT = Object.freeze({ approved: 'approved', changed: 'change
 
 // The one line a command prints for an overlay it skips, naming it and the way to use it.
 export function skipLine(o, state, reason = null) {
-  const what = o.kind === 'document-type' ? `MIRAI's ${o.name} type` : o.kind === 'agent' ? `MIRAI's ${o.name}` : `MIRAI's ${o.name} skill`;
+  const what = o.kind === 'document-type' ? `MIRAI's ${o.name} type` : o.kind === 'agent' ? `MIRAI's ${o.name}` : o.kind === 'skill' ? `MIRAI's ${o.name} skill` : null;
+  if (what === null) {
+    // Unit 39: a project's own item isn't used at all until it's approved.
+    if (state === 'invalid') return `note: ${o.path} doesn't validate (${o.problems[0]}), so it isn't used; mirai show overlays lists every problem`;
+    const why = state === 'changed' ? 'changed since its approval' : state === 'rejected' ? 'rejected' : reason ? `not approved (${reason})` : 'not approved';
+    return `note: ${o.path} is ${why}, so it isn't used; to use it: mirai approve --file ${o.path}`;
+  }
   if (state === 'invalid') return `note: ${o.path} doesn't validate (${o.problems[0]}), so ${what} is used; mirai show overlays lists every problem`;
   const why = state === 'changed' ? 'changed since its approval' : state === 'rejected' ? 'rejected' : reason ? `not approved (${reason})` : 'not approved';
   return `note: ${o.path} is ${why}, so ${what} is used; to use it: mirai approve --file ${o.path}`;
@@ -728,6 +763,12 @@ export function skipLine(o, state, reason = null) {
 export function applyOverlays(registry, files, events, { roles, keys = null, repoId = null, kinds = OVERLAY_KINDS } = {}) {
   const records = keys && repoId ? verifyRecords(files, { keys, repoId }) : null;
   const overlays = readOverlays(files, registry, { roles }).filter((o) => kinds.includes(o.kind)).map((o) => ({ ...o, ...overlayState(o, events, records) }));
+  // Unit 39: a script an approved hook binds is approved with it, as its bytes are now.
+  for (const s of overlays) {
+    if (s.kind !== 'script' || s.state === 'approved' || s.problems.length) continue;
+    const hook = overlays.find((h) => h.kind === 'hook' && h.state === 'approved' && h.bound.some((b) => b.path === s.path && b.content_hash === s.hash));
+    if (hook) Object.assign(s, { state: 'approved', via: 'hook', reason: undefined, line: hook.line });
+  }
   const documentTypes = { ...registry.documentTypes };
   const agents = { ...registry.agents };
   const agentPrompts = {};
@@ -746,7 +787,10 @@ export function applyOverlays(registry, files, events, { roles, keys = null, rep
   }
   const applied = overlays.filter((o) => o.state === 'approved' && o.result).map((o) => ({ path: o.path, kind: o.kind, name: o.name, hash: o.hash, files: [o.path, ...o.bound.map((b) => b.path)] }));
   const out = { ...registry, documentTypes, agents, agentPrompts, skillTexts, overlays: applied };
-  return { registry: deepFreeze(out), overlays, skipped };
+  // Unit 39: the project's own items approved as they are now, for your sessions' files (mirai
+  // render). Never part of what a launch reads.
+  const custom = overlays.filter((o) => CUSTOM_KINDS.includes(o.kind) && o.state === 'approved' && o.result).map((o) => ({ path: o.path, kind: o.kind, name: o.name, hash: o.hash, files: [o.path, ...o.bound.map((b) => b.path)], result: o.result }));
+  return { registry: deepFreeze(out), overlays, skipped, custom };
 }
 
 // The agent and skill overlays for your own sessions' files and the trust root's bundle (unit 37,
@@ -760,7 +804,7 @@ export function sessionOverlays(registry, { dir, keys, repoId }) {
   } catch {
     // a broken project role shows on the overlay that names it
   }
-  return applyOverlays(registry, overlayFilesIn(dir), [], { roles, keys, repoId, kinds: ['agent', 'skill'] });
+  return applyOverlays(registry, overlayFilesIn(dir), [], { roles, keys, repoId, kinds: ['agent', 'skill', ...CUSTOM_KINDS] });
 }
 
 // A type's template text as the project uses it: the overlay's rendering when one applies, else

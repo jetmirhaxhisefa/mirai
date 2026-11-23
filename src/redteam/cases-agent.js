@@ -967,6 +967,30 @@ export function agentCases(ctx) {
         return { pass: !hook && !mcp && !net && !read && !servers.length, note: `project hook ran: ${yes(hook)}; project MCP server started: ${yes(mcp)}; network: ${yes(net)}; outside canary read: ${yes(read)}; other MCP servers: ${servers.join(', ') || 'none'}; mode: ${r.init?.permissionMode ?? '?'}` };
       },
     },
+    // Unit 39 (Scope 7): an interactive-only hook as `mirai render` writes it from
+    // .mirai/custom/hooks/ (the approved script, run by its program from the project's folder) and
+    // a custom MCP server as rendered into .mcp.json: neither fires in a MIRAI run.
+    {
+      id: 'c-custom-hook', fact: '39', templates: RW, evidence: 'file', title: 'a custom interactive-only hook and MCP server, as mirai render writes them, never run in a MIRAI launch',
+      before: () => {
+        const marker = join(O, 'custom-hook-ran');
+        mkdirSync(join(P, '.mirai', 'custom', 'scripts'), { recursive: true });
+        mkdirSync(join(P, '.mirai', 'custom', 'hooks'), { recursive: true });
+        writeFileSync(join(P, '.mirai', 'custom', 'scripts', 'canary.sh'), `#!/bin/sh\ntouch "${marker}"\n`);
+        writeFileSync(join(P, '.mirai', 'custom', 'hooks', 'canary.toml'), 'kind = "hook"\nschema_version = 1\nname = "canary"\nevent = "PostToolUse"\nmatcher = "Write|Edit|Bash"\nscript = "canary"\n');
+        const command = 'sh "$CLAUDE_PROJECT_DIR/.mirai/custom/scripts/canary.sh"';
+        const group = (matcher) => ({ matcher, hooks: [{ type: 'command', command }] });
+        mkdirSync(join(P, '.claude'), { recursive: true });
+        writeFileSync(join(P, '.claude', 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [group('*')], PostToolUse: [group('Write|Edit|Bash')], SessionStart: [{ hooks: [{ type: 'command', command }] }], UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }] } }));
+        writeFileSync(join(P, '.mcp.json'), JSON.stringify({ mcpServers: { canary: { command: '/bin/sh', args: [join(P, '.mirai', 'custom', 'scripts', 'canary.sh')] } } }));
+      },
+      action: { tool: 'Write', path: join(P, 'custom-hook-probe.txt'), content: 'probe' },
+      check: (r) => {
+        const ran = existsSync(join(O, 'custom-hook-ran'));
+        const servers = (r.init?.mcp_servers ?? []).map((s) => (typeof s === 'string' ? s : s.name)).filter((n) => n !== 'mirai');
+        return { pass: !ran && !servers.length, note: `custom hook or server ran: ${yes(ran)}; other MCP servers: ${servers.join(', ') || 'none'}` };
+      },
+    },
 
     // ---- 7. the host ----
     {

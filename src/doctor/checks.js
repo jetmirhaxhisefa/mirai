@@ -3,12 +3,12 @@ import { fileURLToPath } from 'node:url';
 import { readInstall, ticketImages } from '../agent/install.js';
 import { join } from 'node:path';
 
-import { readBaseline } from '../baseline/store.js';
+import { latestOther, readBaseline } from '../baseline/store.js';
 import { readHooksRecord, hooksState } from '../hooks/install.js';
 import { checkLock, readLock } from '../install/lock.js';
 import { agentTemplate, canonicalSha256, MODES } from '../launch/strict.js';
 import { usageCaps, usageCheck } from '../loop/ledger.js';
-import { status as sessionStatus } from '../mcp/session.js';
+import { claudeConfigDir, otherConfigs, status as sessionStatus } from '../mcp/session.js';
 import { redTeamStatus } from '../redteam/run.js';
 import { readTested } from '../redteam/tested.js';
 import { gapNote } from '../redteam/move.js';
@@ -18,7 +18,7 @@ import { userSettings } from '../sign/denies.js';
 import { holderStatus } from '../sign/unlock.js';
 import { RENEW_AFTER_DAYS, readToken, tokenSetAt } from '../sign/token.js';
 import { readRegistry } from '../store/branches.js';
-import { blobAt, commitOf } from '../store/git.js';
+import { blobAt, commitOf, isAncestor } from '../store/git.js';
 import { runLockHolder, globalPaths } from '../store/global.js';
 import { checkPrivateDir, lockHolder } from '../store/files.js';
 import { openStore } from '../store/home.js';
@@ -34,6 +34,7 @@ import { loadRegistry } from '../config/registry.js';
 import { overlayKeys, projectInputs, renderPlan, REGISTRY_DIR as RENDER_REGISTRY_DIR } from '../install/render.js';
 import { contextApproval } from '../cli/commands/approve.js';
 import { readApprovedFile } from '../cli/human-move.js';
+import { committedNotRendered, itemRoot } from '../setup/pre-commit.js';
 import { docsStoreFor } from '../store/connectors/index.js';
 import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 
@@ -45,6 +46,14 @@ import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 export const STATES = Object.freeze(['ok', 'yellow', 'red']);
 const ok = (detail) => ({ state: 'ok', detail });
 const yellow = (detail, hint) => ({ state: 'yellow', detail, hint });
+// A yellow MIRAI itself expects until a later unit builds the missing part (unit 39, P1's F4): the
+// unit is named, so setup's last checklist line and its probe can tell it from a yellow to fix.
+const expectedYellow = (detail, hint, unit) => ({ ...yellow(detail, hint), expected_until: unit });
+// An advisory yellow (unit 39, P1's F8 and F10; Jet, 2026-11-22): a note that isn't a fault, as
+// the design means it (a session server behind still runs the rules it was registered with, 15b;
+// a baseline missing at the head is recorded by the next run first, 17b). Its hint says how to
+// clear it; setup's last checklist line and finish don't count it.
+const advisoryYellow = (detail, hint) => ({ ...yellow(detail, hint), advisory: true });
 const red = (detail, hint, fix) => ({ state: 'red', detail, hint, ...(fix ? { fix } : {}) });
 const DAY = 86_400_000;
 
@@ -234,12 +243,14 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (!same) return red(`the registry lists ${have.length} branch entr${have.length === 1 ? 'y' : 'ies'}, the journal and the signed records ${r.entries.length}${r.skipped.length ? ` (${r.skipped.length} that don't verify: ${r.skipped[0].why})` : ''}`, 'mirai doctor --fix rebuilds it from the branch records', 'registry');
     return ok(`${have.length} MIRAI branch entr${have.length === 1 ? 'y' : 'ies'}, as the journal and the signed records say${r.unchecked.length ? ` (${r.unchecked.length} can't be checked here: its commit isn't in this clone)` : ''}`);
   });
-  await check('merge-gate', 'Merge gate', () => yellow('local-only: no CI checks MIRAI\'s proofs yet, so your merge is the gate', 'CI comes with unit 54; until then merge only what mirai review-mr (29d) or the host shows you'));
+  await check('merge-gate', 'Merge gate', () => expectedYellow('local-only: no CI checks MIRAI\'s proofs yet, so your merge is the gate', 'CI comes with unit 54; until then merge only what mirai review-mr (29d) or the host shows you', '54'));
   await check('usage', 'Plan and week', () => {
     const caps = usageCaps(env);
     if (caps.error) return red(`your usage caps can't be read (${caps.error})`, 'fix ~/.config/mirai/config.toml');
     const c = usageCheck({ env, unattended: false, caps, now: now().getTime() });
-    if (c.warn) return yellow(c.warn, 'the next run reads your usage first (a short Haiku launch)');
+    // F12 (P3 day): an old or missing reading is advisory: every run reads your usage first (D-18's
+    // probe) and checks the caps then, so it isn't a fault to fix before setup can finish.
+    if (c.warn) return (c.probe ? advisoryYellow : yellow)(c.warn, 'the next run reads your usage first (a short Haiku launch)');
     const n = c.numbers;
     if (!c.go) return red(c.why, 'wait for the week to reset, or raise usage.week_max in ~/.config/mirai/config.toml');
     return ok(`MIRAI ${n.week}% of your week so far (cap ${n.week_max}%), ${n.night}% in the last 12 hours (cap ${n.night_max}%); ${100 - n.used}% of the week left`);
@@ -270,7 +281,9 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (!runnable(record.node)) return red(`the pre-push hook runs ${record.node}, which isn't there: every push fails`, 'mirai init --refresh (it records the Node you run now)');
     const s = hooksState({ store, env });
     if (s.state !== 'ok') return red(s.why, 'mirai init --refresh');
-    return ok(`the pre-push hook runs ${record.node}`);
+    // Unit 39: a folder written before the pre-commit hook was added.
+    if (!record.pre_commit) return yellow(`the pre-push hook runs ${record.node}; MIRAI's pre-commit (unit 39) isn't installed yet`, 'mirai init --refresh');
+    return ok(`the pre-push and pre-commit hooks run ${record.node}`);
   });
   await check('host-cli', 'Host CLIs', () => {
     let rec = null;
@@ -338,16 +351,40 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     const s = session({ store, env, trust });
     if (s.state === 'current') return ok('registered for the current trust root');
     if (s.state === 'unknown') return yellow('Claude Code didn\'t answer, so MIRAI can\'t tell', 'claude mcp list');
-    if (s.state === 'missing') return yellow('not registered for this project: /mirai in your sessions won\'t work', 'mirai session-server install, in your terminal');
+    // P1's F3: the registration is per Claude Code config; say which one was checked.
+    const config = env?.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${env.CLAUDE_CONFIG_DIR}` : 'the default Claude Code config (~/.claude.json)';
+    // F7: another config MIRAI registered this folder in, current there: said, so a stale default
+    // doesn't read as your sessions' problem.
+    const elsewhere = () => {
+      try {
+        const found = otherConfigs(store, claudeConfigDir(env)).filter((c) => {
+          const e = { ...env };
+          if (c) e.CLAUDE_CONFIG_DIR = c;
+          else delete e.CLAUDE_CONFIG_DIR;
+          return session({ store, env: e, trust }).state === 'current';
+        });
+        return found.length ? `; current in ${found.map((c) => (c ? `CLAUDE_CONFIG_DIR=${c}` : 'the default config')).join(', ')}` : '';
+      } catch {
+        return '';
+      }
+    };
+    if (s.state === 'missing') return yellow(`not registered for this project in ${config}${elsewhere()}: /mirai in sessions with this config won't work`, 'mirai session-server install, in your terminal; for sessions with another Claude Code config: CLAUDE_CONFIG_DIR=<its folder> mirai session-server install');
     if (s.state === 'foreign') return red('Claude Code has a server named mirai here that MIRAI didn\'t register', 'claude mcp get mirai; then mirai session-server install');
-    return yellow(`behind${s.behind ? ' (an older trust root)' : ''}${s.connected === false ? ', and it doesn\'t start' : ''}`, 'mirai session-server install, in your terminal');
+    // Behind and still starting: the pin (15b, D-53) by design; it runs the rules it was registered with.
+    if (s.behind && s.connected !== false) return advisoryYellow(`behind (registered at an older trust root, in ${config}); it still starts and runs the rules it was registered with`, 'to bring it up to date: mirai render, or mirai session-server install, in your terminal');
+    return yellow(`behind${s.behind ? ' (an older trust root)' : ''}${s.connected === false ? ', and it doesn\'t start' : ''} (in ${config})${elsewhere()}`, 'mirai session-server install, in your terminal (with the CLAUDE_CONFIG_DIR your sessions use)');
   });
   await check('baseline', 'Baseline', () => {
     const sha = trust?.baseSha ?? commitOf(store.checkout, `refs/heads/${store.branch}`, store.gitEnv);
     if (!sha) return yellow(`${store.branch} has no commit MIRAI can read`, `git switch ${store.branch}`);
     const b = readBaseline(store, sha, { keys });
-    if (!b) return yellow(`none for ${store.branch} at ${sha.slice(0, 12)}: the next run records it first`, 'to record it now: mirai baseline');
-    return ok(`recorded for ${sha.slice(0, 12)}${b.complete ? '' : ' (incomplete)'}`);
+    if (!b) {
+      // F10: one that verifies at an ancestor of the head: the next run records the head's first.
+      const prev = latestOther(store, sha);
+      if (prev && isAncestor(store.checkout, prev.baseline.sha, sha, store.gitEnv)) return advisoryYellow(`none for ${store.branch} at ${sha.slice(0, 12)} yet (one at ${prev.baseline.sha.slice(0, 12)}, an earlier commit): the next run records it first`, 'to record it now: mirai baseline');
+      return yellow(`none for ${store.branch} at ${sha.slice(0, 12)}: the next run records it first`, 'to record it now: mirai baseline');
+    }
+    return baselineItem(b, sha);
   });
   // Unit 30b: per-ticket images whose ticket no longer has an install record (done, dropped, or
   // released while Docker was down).
@@ -381,11 +418,27 @@ export async function runChecks({ cwd, env, now = () => new Date(), redTeam = re
     if (trustError) throw trustError;
     return overlaysCheck({ store, trust, events, redTeam: redTeamNow, env });
   });
+  // Unit 39 (Scope 9): what got past the pre-commit hook (git commit --no-verify).
+  await check('custom', 'Not rendered by MIRAI', () => customCheck({ store }));
   return items;
 }
 
 // Unit 34 (Scope 7): the banned-word list's review. src/lint/words.js opens with a dated line,
 // "// Reviewed: YYYY-MM-DD"; past 90 days it's yellow, with what a review is.
+// Unit 39 (Jet, 2026-11-23, "A"): an incomplete baseline (a level or check with an environment
+// fault, refused, or not run: 17b's `complete: false`) is a yellow to fix, not ok: a run can't
+// tell that level's known failures from new ones, so setup isn't done. `mirai baseline` completes
+// it (it runs only what's missing). A baseline written before `complete` existed reads as complete.
+export function baselineItem(b, sha) {
+  if (b.complete !== false) return ok(`recorded for ${sha.slice(0, 12)}`);
+  const names = [...(b.config?.checks ?? []), ...(b.config?.levels ?? [])];
+  const missed = (names.length ? names : Object.keys(b.levels ?? {}))
+    .map((n) => [n, b.levels?.[n]?.state])
+    .filter(([, state]) => state !== 'pass' && state !== 'fail')
+    .map(([n, state]) => `${n} (${state ?? 'not run'})`);
+  return yellow(`recorded for ${sha.slice(0, 12)}, but incomplete: ${missed.length ? missed.join(', ') : 'a level'} wasn't judged, so a run can't tell its old failures from new ones`, 'mirai baseline (it runs only what\'s missing)');
+}
+
 export const WORDS_FILE = fileURLToPath(new URL('../lint/words.js', import.meta.url));
 export const WORDS_REVIEW_DAYS = 90;
 export function wordListCheck(text, now) {
@@ -501,6 +554,15 @@ export function overlaysCheck({ store, trust, events, redTeam = null, registry =
   const agentLine = `agents: ${agents.join(', ')}`;
   const warn = notes.length || agents.some((a) => /not approved|red team needed/.test(a));
   return warn ? yellow([agentLine, ...notes].join('; '), hint) : ok(`${agentLine}; ${r.overlays.length} overlay${r.overlays.length === 1 ? '' : 's'}, each approved as it is now`);
+}
+
+// Unit 39 (Scope 9, decision 6): files committed under .claude/, .cursor/ or .codex/ that the lock
+// doesn't mark rendered: an item added by hand (or before setup), which nothing checked.
+export function customCheck({ store }) {
+  const left = committedNotRendered({ root: store.checkout, env: store.gitEnv });
+  if (!left.length) return ok('everything under .claude/, .cursor/ and .codex/ is rendered by MIRAI');
+  const roots = [...new Set(left.map(itemRoot))];
+  return yellow(`not rendered by MIRAI: ${left.slice(0, 5).join(', ')}${left.length > 5 ? ` and ${left.length - 5} more` : ''}`, `mirai custom add ${roots[0]}${roots.length > 1 ? ` (and the ${roots.length - 1} other${roots.length === 2 ? '' : 's'}; /mirai setup goes through them all)` : ''}`);
 }
 
 // The agent and skill files under your sessions' folders that mirai render would write

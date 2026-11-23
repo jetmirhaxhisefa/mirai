@@ -49,7 +49,22 @@ export function decide({ cwd, env, argv, packageRoot = PACKAGE_ROOT }) {
   // then refuse what isn't right, instead of offering a fresh init.
   const installed = top !== null && present(join(top, LOCK_FILE));
   if (SELF.has(first)) return { run: 'self', why: `${first} always runs this launcher's MIRAI` };
-  if (first === 'hook') return decideHook(top, env);
+  if (first === 'hook') {
+    const d = decideHook(top, env);
+    // Unit 39: MIRAI's pre-commit runs the sealed copy like every hook. Only where there is no
+    // committed MIRAI to seal yet (the commit that installs MIRAI, a branch without MIRAI on it)
+    // or no store to say which branch that is, it's skipped with one line saying which: refusing
+    // there would block the very commit that installs MIRAI. The work tree's copy never runs.
+    if (argv[1] === 'pre-commit' && d.refuse && PRE_COMMIT_SKIP[d.code]) return { run: 'skip', why: PRE_COMMIT_SKIP[d.code], note: `mirai pre-commit: skipped: ${d.refuse}; ${PRE_COMMIT_SKIP[d.code]}` };
+    // A sealed copy from before unit 39 has no pre-commit check: the commit of a refresh (`mirai
+    // init --refresh` writes the hook) would be refused by the very copy it replaces. Skipped until
+    // the refresh is committed on the integration branch.
+    if (argv[1] === 'pre-commit' && d.run === 'sealed' && !d.files.has(`${FRAMEWORK}/${PRE_COMMIT_CHECK}`)) {
+      const why = 'the integration branch\'s MIRAI is older than its pre-commit check (unit 39); it runs once this refresh is committed there';
+      return { run: 'skip', why, note: `mirai pre-commit: skipped: the copy committed at ${d.commit.slice(0, 12)} has no pre-commit check; ${why}` };
+    }
+    return d;
+  }
   if (!installed) {
     if (OUTSIDE.has(first)) return { run: 'self', why: top ? 'MIRAI isn\'t installed in this repo' : 'not inside a git repository' };
     return refuse(top ? 'MIRAI isn\'t installed in this repo' : 'this folder is not inside a git repository', 'not-installed', 'run: mirai init');
@@ -158,6 +173,16 @@ const present = (path) => {
     return false;
   }
 };
+
+// Unit 39: the file a sealed copy needs to run MIRAI's pre-commit (older copies don't have it).
+const PRE_COMMIT_CHECK = 'src/setup/pre-commit.js';
+
+// Unit 39: the cases where MIRAI's pre-commit is skipped, each with why.
+const PRE_COMMIT_SKIP = Object.freeze({
+  'no-trusted-copy': 'MIRAI isn\'t committed on the integration branch yet (this may be the commit that installs it), so there is no sealed copy to check with',
+  'no-base': 'the integration branch has no commit here yet, so there is no sealed copy to check with',
+  'no-store': 'without the store the integration branch is unknown, so there is no sealed copy to check with (mirai init --join sets it up)',
+});
 
 const refuse = (message, code, hint) => ({ refuse: message, code, hint, exitCode: EXIT.BLOCKED });
 

@@ -229,15 +229,27 @@ export function checkLock(root) {
 // removing one of MIRAI's denies is noticed and your own changes to the file aren't.
 export const entriesHash = (entries) => sha256(JSON.stringify(entries));
 export function settingsHash(text, entries) {
-  let deny = [];
+  let value;
   try {
-    const value = JSON.parse(text);
-    if (Array.isArray(value?.permissions?.deny)) deny = value.permissions.deny;
+    value = JSON.parse(text);
   } catch {
     return null;
   }
-  return entriesHash(entries.filter((e) => deny.includes(e)));
+  const deny = Array.isArray(value?.permissions?.deny) ? value.permissions.deny : [];
+  // Unit 39: a hook group or an MCP server MIRAI rendered counts as there when one with the same
+  // canonical hash is.
+  const table = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const hooks = new Set(Object.entries(table(value?.hooks)).flatMap(([event, groups]) => (Array.isArray(groups) ? groups.map((g) => hookEntry(event, g)) : [])));
+  const servers = new Set(Object.entries(table(value?.mcpServers)).map(([n, s]) => mcpEntry(n, s)));
+  return entriesHash(entries.filter((e) => (e.startsWith('hook:') ? hooks.has(e) : e.startsWith('mcp:') ? servers.has(e) : deny.includes(e))));
 }
+
+// A value as canonical JSON: object keys sorted, so the same hook or server always hashes the same.
+const canonicalJson = (v) => (Array.isArray(v) ? `[${v.map(canonicalJson).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(v[k])}`).join(',')}}` : JSON.stringify(v ?? null));
+// A rendered hook group's lock entry (unit 39): its event and its canonical hash.
+export const hookEntry = (event, group) => `hook:${String(event).slice(0, 40)}:${sha256(canonicalJson(group))}`;
+// A rendered MCP server's lock entry (unit 39): its name and its canonical hash.
+export const mcpEntry = (name, server) => `mcp:${String(name).slice(0, 64)}:${sha256(canonicalJson(server))}`;
 
 // The hash of a file's MIRAI block, or null when it has none.
 export function blockHash(text, file) {
