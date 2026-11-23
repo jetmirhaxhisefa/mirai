@@ -246,9 +246,8 @@ answer. The rest is wiring.
     cage with its own red team; not recommended.
 
 - **B. The local store (38).** Its documents live in MIRAI's store on this Mac, outside the repo,
-  which the sandbox denies to every agent. So Nora can't `Write` there. With A1, on the local
-  store MIRAI gives her the documents in her input folder, she writes into a scratch copy in the
-  checkout's `.mirai-draft/<initiative>/`… which dirties the repo. **Recommended instead (B1):**
+  which the sandbox denies to every agent. So Nora can't `Write` there, and a scratch copy in the
+  checkout would put the documents in the repo the local store keeps them out of. **Recommended (B1):**
   on the local store, Nora returns each document as structured output and MIRAI writes it through
   the store's `write` (its `pathOf`), so no store path is ever opened to an agent. On the repo store
   she writes the files herself (B2 would be structured output on both stores: one path, but every
