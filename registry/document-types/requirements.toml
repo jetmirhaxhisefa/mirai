@@ -1,0 +1,39 @@
+# Your own requirements list (unit 41; Jet's decision 6, 2026-11-20). When you give a list of
+# requirements (pasted, or a file), it's kept as a source of the initiative, at
+# docs/mirai/<initiative>/requirements.md: each line, as you gave it, with an ID (REQ-1, REQ-2 …)
+# so the PRD can cite it. `mirai requirements <initiative>` numbers a pasted list. The interview
+# asks only what it leaves open or contradicts; the PRD carries every line (its lint fails a REQ-n
+# no requirement cites, and one the list doesn't define), and Vera checks each keeps its meaning.
+# It's a source, not something you approve.
+kind = "document-type"
+schema_version = 1
+name = "requirements"
+template = "templates/requirements.md"
+template_version = 1
+checklist = "templates/requirements-checklist.md"
+status = "forbidden"
+required_sections = ["Requirements"]
+section_order = ["Requirements"]
+lint_checks = ["requirements"]
+
+# Where the list came from: "pasted in the interview, <date>", or the file it was copied from.
+[frontmatter.fields.source]
+type = "string"
+required = true
+
+[[ids]]
+prefix = "REQ"
+pattern = "REQ-[0-9]+"
+defined_by = "bullet"
+required = true
+section = "Requirements"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop.
+
+[[protected_sections]]
+name = "Requirements"
+read_by = ["lint"]
+
+[[protected_fields]]
+name = "source"
+read_by = ["lint"]

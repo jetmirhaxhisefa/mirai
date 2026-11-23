@@ -87,7 +87,11 @@ export const EVENT_TYPES = Object.freeze({
       // `overlay` (unit 37): a file in .mirai/custom/ you approved; `path` is its main file,
       // `files` the files it binds (a type overlay's template, an agent's text), and for a
       // replacement template `template_version` and `template_hash`, MIRAI's template then.
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay'] },
+      // `business-change` (unit 41): a proposal to change business.md you approved, which MIRAI
+      // applied; `files` holds business.md as it became, and the context line beside it, signed in
+      // the same step, names the proposal (`proposal`).
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay', 'business-change'] },
+      proposal: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
       template_version: { type: 'integer', min: 1 },
       template_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
       file_type: { type: 'enum', values: ['business', 'journeys', 'conventions'] },
@@ -119,7 +123,8 @@ export const EVENT_TYPES = Object.freeze({
     check(e, report) {
       if (e.reason !== undefined && e.decision === 'accepted') report('reason', 'a reason goes with edited or rejected only');
       if (e.kind === 'epic' && e.files === undefined) report('files', 'an epic\'s approval lists its ticket files');
-      if (e.files !== undefined && !['epic', 'brief', 'overlay'].includes(e.kind)) report('files', 'files goes with an epic\'s, a brief\'s or an overlay\'s approval only');
+      if (e.files !== undefined && !['epic', 'brief', 'overlay', 'business-change'].includes(e.kind)) report('files', 'files goes with an epic\'s, a brief\'s, an overlay\'s or a business change\'s approval only');
+      if (e.proposal !== undefined && e.kind !== 'context') report('proposal', 'proposal goes with a context file\'s approval only');
       if ((e.template_version !== undefined || e.template_hash !== undefined) && e.kind !== 'overlay') report('template_hash', 'template_version and template_hash go with an overlay\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
@@ -172,6 +177,32 @@ export const EVENT_TYPES = Object.freeze({
       verifier: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
     },
     required: ['item', 'kind', 'path', 'verifier'],
+  },
+  // Unit 41 (Scope 7, 8): one of Nora's runs on an initiative (`item`): `running` when it starts,
+  // then `done`, `paused` (her question in interview.md: `question_id` and `question`) or `failed`
+  // (`why`). The end line carries the record: the document she was on, the rounds each check used,
+  // her launches, the template gaps she logged, her tier and model. `mirai show <initiative>` reads
+  // the last one; the inbox (46) lists it.
+  nora_run: {
+    privileged: true,
+    fields: {
+      run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
+      state: { type: 'enum', values: ['running', 'done', 'paused', 'failed'] },
+      document: { type: 'enum', values: ['brief', 'prd'] },
+      question_id: { type: 'string', pattern: /^Q-[0-9]{1,4}$/, patternHint: 'Q-n' },
+      question: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      why: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      rounds: { type: 'table', fields: { lint: { type: 'integer', min: 0 }, verify: { type: 'integer', min: 0 }, reader: { type: 'integer', min: 0 } }, required: ['lint', 'verify', 'reader'] },
+      launches: { type: 'integer', min: 0 },
+      template_gaps: { type: 'integer', min: 0 },
+      tier: { type: 'string', pattern: /^[a-z]{1,20}$/, patternHint: 'a tier' },
+      model: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._:@/[\]-]{0,127}$/, patternHint: 'a model id' },
+    },
+    required: ['item', 'run_id', 'state'],
+    check(e, report) {
+      if ((e.state === 'paused') !== (e.question_id !== undefined)) report('question_id', 'a paused run names its question, and only a paused one');
+      if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
+    },
   },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },

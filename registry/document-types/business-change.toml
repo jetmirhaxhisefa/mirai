@@ -1,0 +1,30 @@
+# A proposal to change business.md (unit 41; Jet's decision 2, D-43). business.md changes only
+# through a proposal you approve on its own; Nora never edits it. When your request contradicts
+# it and you choose "propose a change" at the interview, the session writes
+# docs/mirai/<initiative>/business-change.md: each change quotes the lines of business.md as they
+# are now and the new text, with its source ("you said, <date>") and why.
+# `mirai approve --file …/business-change.md` applies it to business.md and signs both; a
+# rejection leaves business.md as it was. The brief beside it can't be approved while it's open.
+kind = "document-type"
+schema_version = 1
+name = "business-change"
+template = "templates/business-change.md"
+template_version = 1
+checklist = "templates/business-change-checklist.md"
+status = "forbidden"
+required_sections = ["Changes"]
+section_order = ["Changes"]
+lint_checks = ["business-change"]
+
+[[ids]]
+prefix = "C"
+pattern = "C-[0-9]+"
+defined_by = "heading"
+required = true
+section = "Changes"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop.
+
+[[protected_sections]]
+name = "Changes"
+read_by = ["lint", "approval"]

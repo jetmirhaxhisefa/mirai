@@ -26,7 +26,8 @@ export function checkInitiative(name) {
 // The file name a type has when none is given: a brief is brief.md, and so on (unit 31–35's
 // layout). An epic and a ticket are named by the caller.
 function defaultName(type, initiative) {
-  if (type === 'brief' || type === 'prd' || type === 'interview') return `${type}.md`;
+  // Unit 41: your requirements list and a business.md proposal sit beside them.
+  if (type === 'brief' || type === 'prd' || type === 'interview' || type === 'requirements' || type === 'business-change') return `${type}.md`;
   if (type === 'epic') return `epic-${initiative}.md`;
   return null;
 }

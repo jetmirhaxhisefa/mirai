@@ -1,0 +1,20 @@
+# Nora, MIRAI's product manager agent (unit 41; D-41, D-43, D-14). One job: turn a confirmed
+# interview into a brief and a PRD that are ready for your approval. She runs in the background,
+# in MIRAI's sandbox, on the deep tier, and MIRAI runs the lint, Vera and the reader test between
+# her launches, handing her each result (Jet, 2026-11-23, 41's re-check, A1: no agent starts an
+# agent, D-53). Her answer is structured output: what she did, the template gaps she met, and on
+# the local store the documents themselves (B1), which MIRAI writes through the store.
+kind = "agent"
+schema_version = 1
+name = "mirai-product-manager"
+role = "product-manager"
+persona = "Nora"
+description = "Nora: writes one initiative's brief and PRD from your confirmed interview, for your approval"
+read_only = false
+prompt = "agents/mirai-product-manager.md"
+
+# The read-write template's tools: MIRAI's registry holds every agent to its template's tools (a
+# narrower template of her own would be a new cage for the red team). Her prompt uses the file
+# tools only; `mirai` from Bash is denied in every launch (D-30).
+[tools]
+allowed = ["Bash", "Read", "Edit", "Write", "Glob", "Grep"]

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { readFrontmatter } from './frontmatter.js';
 import { scanMarkdown, fixedParts } from './markdown.js';
 import { summaryOf, clip } from './summary.js';
+import { checkPrdRequirements } from './requirements.js';
 
 // The PRD's own lint (unit 32; research/13 §7, §9d; Jet's decisions 2026-11-19). What the
 // generic rules can't say:
@@ -136,6 +137,11 @@ export function checkPrd(doc, def, ctx, add) {
       if (!served.has(br)) add({ code: 'prd-trace', ...top, reason: `the brief's ${br} isn't served by any FR or NFR`, hint: `add the requirement that delivers ${br}, ending with (${br}); if it's out of scope, the brief must change first` });
     }
   }
+
+  // ---- Your own requirements list (unit 41, decision 6) -------------------------------------
+  // With a requirements.md beside it: every REQ-n is carried by an FR, NFR or AC, or left out under
+  // "Not in this" with its reason; and every REQ-n cited is one the list defines.
+  checkPrdRequirements(doc, ctx, add);
 
   // ---- Variant and track -------------------------------------------------------------------
   const variant = def.variants?.[value.variant] ? value.variant : null;
