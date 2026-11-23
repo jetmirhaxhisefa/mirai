@@ -444,7 +444,7 @@ After P1's first run (Jet, 2026-11-23):
 - `u40-tests-5` at `44443dd` (Jet's answer 4): **pass, 804/804**, 14.8 minutes.
 - `u40-tests-6` at `46cffac` (P1's second run: the examples' fixes): **pass, 804/804**, 15 minutes.
 - `u40-tests-7` at `1ce85bd` (P2's first run: the grading): **pass, 804/804**, 14.2 minutes.
-- `u40-tests-8` at the next commit (P2's second run: `against`, `decision_type`, the dropped list): see the report.
+- `u40-tests-8` at `c6c87f9` (P2's second run: `against`, `decision_type`, the dropped list): **pass, 804/804**, 16.5 minutes.
 
 **On the Mac** before them, by folder: `test/documents` 70/70 (with `verify.test.js`, 11),
 `test/store`, `mcp`, `docs`, `config` 134/134, `test/setup`, `cli`, `install`, `adapters`,
