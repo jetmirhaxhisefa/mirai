@@ -191,3 +191,45 @@ the document reaches you.
   `store` (`src/agent/run.js`, `agentFor`). Added: an unapproved Vera overlay refuses her launch
   (`overlay-not-approved`), and a widening one needs a red-team result for
   `agent-mirai-verifier-read-only`.
+
+**Re-checked against 38, 38b and 39 (2026-11-23),** as built on `main` (780f856), before the
+build. Nothing here changes a decision of yours; each is how a decision is wired.
+
+- **38 (stores):** a document is read as the reader test and approval read it: `docsStoreFor`,
+  `baseForArg`, then `readApprovedFile` from the store's base, so a document in the `local` store
+  is checked where it lives. The context files come from the store's `pathOf` (they are the
+  repo's, whatever the store), as `mirai show context` finds them. Results are kept by document
+  id, so the store makes no difference to them. `mirai verify`'s last line is the document's full
+  path through 38's `documentLine` (its decision 8). No external store exists yet; when one does,
+  its text reaches Vera inside 38's untrusted fence (`agentText`).
+- **38b (naming):** `persona = "Vera"` in `mirai-verifier.toml`. Every line that names her goes
+  through the namer (`agentNamer`, `fullName`): "Vera (mirai-verifier)" the first time, then
+  "Vera". T8's source check now refuses a hard-coded "Vera" in `src/` too (three strings changed
+  to "the verifier"). She adds her row to the naming table. Her output names no merge request, so
+  `words.js` isn't needed. The role `verifier` (19b) already exists, unchanged.
+- **39 (setup):**
+  - `/mirai verify <file>` is on the session list (`COMMANDS.verify`, `tty: true`: an agent launch,
+    as `review` is). The worker carries `CLAUDE_CONFIG_DIR` for every command (F7), so nothing new.
+    The session's file pattern refused a leading "." and so `.mirai/context/business.md`: it now
+    takes `.mirai/context/` paths, and nothing else that starts with a dot.
+  - Vera's rendered agent (`.claude/agents/mirai-verifier.md`) comes from the bundle, which renders
+    every agent of the registry, so `mirai init --refresh` and `mirai render` write it and the lock
+    marks it: doctor's "Not rendered by MIRAI" never lists it.
+  - `mirai custom add --as` gains `mirai-verifier`: a project's own document checker becomes an
+    overlay of Vera, as one of Rex's does (the 37 re-check above covers her overlay).
+  - No doctor item is added, so no yellow class.
+  - The context files are approved with `mirai approve --file` (36), and three of them are Vera's
+    (decision 6), so setup's context stage now checks them before giving you the approval
+    command. A launch needs a clean work tree, so the guide (`guides/context.md`) commits each file
+    before `verify`.
+  - The pre-commit hook checks `.mirai/records/`; Vera's results live in MIRAI's store, not the
+    repo, so it is untouched.
+- **44's decision 3:** the findings schema has `kind` and `kind_reason` (required), and
+  `decision_type` for a decision (`scope`, `audience`, `money-legal`, `number`, `conflict`,
+  `trade-off`, `other`, `invented`); an `invented` one must be must-fix. A reply without `kind`
+  isn't the schema, so it records nothing. The PRD and brief checklists now carry 44's
+  `[vera]` line about claims with no source (44's Scope 2 asked for it).
+- **Wiring choices made in the build (in test-results, "Changed from the spec"):** the miss is the
+  journal event `verifier_miss` (the journal's names use `_`); a rejection's note is the reason you
+  type after `r` (there is no `--reject --note` flag); Vera's run logs its rung only when MIRAI
+  knows the author's launch (a document written in your session has none).
