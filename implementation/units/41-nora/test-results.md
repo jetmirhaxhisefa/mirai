@@ -84,7 +84,7 @@ into the checkout as she would on the repo store, or returns them on the local s
   requirements list`); one about REQ-2, left out on purpose, is dropped ("left out on purpose under
   "Not in this", with a reason").
 
-**Tests changed by this unit** (each pin, and why): the CLI command list (`requirements`,
+**Tests changed by this unit** (each pin, and why): the journal's event list (`nora_run`); the CLI command list (`requirements`,
 `write`); the launch-token minters (`cli/commands/write.js`); the document types (31's and 37's
 lists: `business-change`, `requirements`, which have no summary); the agents and roles in 37's T7
 and doctor's overlay line; the bundle file list (her rendered agent) and 17a's instruction-file pin;
@@ -233,4 +233,10 @@ Claude Code. What is Claude Code's today, each behind an existing seam:
 
 ## The full suite
 
-**On the Mac**, by folder: see below once the runner job is in.
+**Through the build runner** (a clean export each):
+- `u41-tests-1` at `f75aaba`: 819/820; the one failure was 05a's T10 pin of the journal's event list
+  (`nora_run` is new). Pin updated (`test/store/store.test.js`).
+
+**On the Mac** before them: `test/documents` (with `nora.test.js`, 15), `lint`, `mcp`, `cli`,
+`adapters`, `docs`, `agent`, `setup`, `detect`, `store`, `findings`, `config`: 457/458 (the same pin);
+`node test/probes/nora-probes.js --check`: four homes, each clean.
