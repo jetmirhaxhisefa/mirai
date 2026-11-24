@@ -168,10 +168,44 @@ second Tess run.
    `epic render: rendered from N ticket(s)`, `lint: …`, `Vera: round 1, N must-fix`), then her
    state, the epic's and each ticket's full path. Output goes to `~/mirai-u42-p1.txt`.
 4. **Pass when** it ends "done" after at most one fixing round, every FR, NFR and AC is in the
-   epic's Coverage table (nothing added or cut), only the reminder-email ticket has `e2e: true`,
-   and you'd approve the set (or your rejection names something the rules or Vera should have
+   epic's Coverage table (nothing added or cut), `e2e: true` is only on a ticket that changes a
+   critical journey in journeys.md (none in this PRD: J-1 log in and J-2 add a task and mark it
+   done don't change), a proposed new journey, if any, is under "New critical journeys", and you'd
+   approve the set (or your rejection names something the rules or Vera should have
    caught). Send me `~/mirai-u42-p1.txt`.
 5. Delete the home (the printed `chmod -R u+w <home> && rm -rf <home>`).
+
+### P1's run (Jet, 2026-11-24, home `~/.mirai-probes-QBKd53`, output `~/mirai-u42-p1.txt`): PASSED
+
+- **One run, 2 Sonnet launches,** lint 0 fix rounds. Vera round 1: 1 must-fix (business.md's
+  visibility rule against the team lead's access), which Tess put under "Decisions for you";
+  round 2: 0 must-fix. Done.
+- **The set:** 8 tickets, SAMPLE-2 to SAMPLE-9; all 30 PRD IDs covered, each exactly once.
+- **`e2e`:** no ticket has `e2e: true`, which is right: neither J-1 (log in) nor J-2 (add a task and
+  mark it done) changes in this PRD. (The probe's printed pass line said "only the reminder-email
+  ticket has e2e: true", which was wrong for these journeys: fixed, below.)
+- **Noted, not a must-fix:** SAMPLE-7 → 8 → 9 is a straight `after` chain where 8 and 9 may not need
+  7; Vera didn't raise it, and it costs only parallelism.
+- **PASSED** (Jet, 2026-11-24: "approve").
+
+**Three findings from the run, fixed:**
+
+1. **The pass line** (`tess-probes.js` and this file) now reads: `e2e: true` only on a ticket that
+   changes a critical journey in journeys.md (none in this PRD); a proposed new journey, if any,
+   under "New critical journeys".
+2. **Claude Code's empty write staging** (`.claude/.cc-writes/`, seen at
+   `docs/mirai/due-dates/tickets/.claude/.cc-writes`) was filtered in Kai's scope check only
+   (`src/agent/build.js`), not in Tess's or Nora's after-launch checks; it passed only because Jet's
+   global git ignore lists `**/.claude/.cc-writes/`. Kai's rule is now one helper,
+   `src/agent/staging.js` (`isWriteStaging`: only empty, only that name directly in a `.claude`
+   folder), used by Kai's check, and by Nora's and Tess's change checks, start checks and
+   after-commit checks. Test `42 (P1's run)`: with `GIT_CONFIG_GLOBAL=/dev/null`, an empty staging
+   folder beside her tickets leaves the run done; one with a file in it, or another file under
+   `.claude/`, fails it, naming the file. (git's status never lists an empty folder, so the case
+   that can reach her check is a non-empty one, which still fails; the helper keeps all three
+   agents on one rule.) Not a cage file: `staging.js` is outside the cage, and `build.js`,
+   `src/nora/run.js` and `src/tess/run.js` are too.
+3. **The probe's file list** printed `tickets/.claude`: it now lists only `.md` documents.
 
 ### P2 A gap (Tess, then Nora's continue, then Tess again)
 
