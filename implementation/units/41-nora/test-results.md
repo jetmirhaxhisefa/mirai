@@ -441,6 +441,34 @@ with `ownTier` on standard at rung 2, and one without on deep); T2 asserts Vera'
 - `u41-tests-4` at `ed34354` (P2's findings): **pass, 821/821**, 16 minutes.
 - `u41-tests-5` at `e77b52e` (A2 and the lint-fix bug, after P1): **pass, 823/823**, 15.5 minutes.
 
+- `u41-tests-6` at `8876d31` (main with 40a): **pass, 826/826**; `u41-baseline-1` pass;
+  `u41-redteam-1` GREEN.
+- `u41-tests-7` at `828a155` (the done line, a journal field): **pass, 827/827**; `u41-baseline-2`
+  pass; `u41-redteam-2` **GREEN** (Claude Code 2.1.331). No cage file changed after it.
+- `u41-tests-8` at `8a40305` (the brief brought in line): **pass, 828/828**.
+- `u41-tests-9` at `99ffacb` (Vera's cycles): **pass, 829/829**. After it: notes and test-results only.
+
 **On the Mac** before them: `test/documents` (with `nora.test.js`, 15), `lint`, `mcp`, `cli`,
 `adapters`, `docs`, `agent`, `setup`, `detect`, `store`, `findings`, `config`: 457/458 (the same pin);
 `node test/probes/nora-probes.js --check`: four homes, each clean.
+
+## Approved
+
+Jet, 2026-11-24: "approve 41". Merged as PR #119 (`263b802`), CI green on both Ubuntu checks; the
+runner's `u41-tests-9` at `99ffacb`: **pass, 829/829**; the sample app's red team GREEN at `828a155`.
+Probes P1–P4 passed; every probe home deleted.
+
+## Follow-up
+
+- **Refresh the installs** to take 41 (`thudos-setup`, `mirai-sample-app-gitlab`, the pilot's
+  Thudos): cage files changed (an agent `.toml`, its role, `strict.js`, `journal.js`, the lint, the
+  MCP tools), so a red team after each refresh.
+- **`--probe loop`** before 42's probes (Jet's "A"; test tooling only).
+- **Unit 44:** the interview looking ahead through the PRD's checklist, to interview (Jet's "A");
+  plus the notes under "For later units".
+- **Template version bump, later:** a Dependencies line and a Rollout line in the lite PRD (P3, P4's
+  template gaps); 40's generic ID-prefix examples.
+- **Small:** an end record the journal refuses is dropped without a word; `mirai token status` can
+  print "-1 days ago" when the file's time is a moment ahead (clamp at 0; seen in CI on PR #117).
+- **Reader-test rounds** still count over a document's life (Vera's restart with new answers); look
+  at it if a probe shows a reader test out of rounds after a pause.

@@ -1,7 +1,7 @@
 ---
 unit: "41"
 name: nora
-status: approved (Jet, 2026-11-20: "add it. approve 41"; decisions 1–6 from his interview the same day; built only after 40 is finished, and re-checked against 36–40 first)
+status: done (unit approved 2026-11-24: "approve 41", merged as PR #119; spec approved Jet, 2026-11-20: "add it. approve 41"; decisions 1–6 from his interview the same day; built only after 40 is finished, and re-checked against 36–40 first)
 roadmap: design/07-implementation-roadmap.md, row 41; D-41 (strict templates, the template-gap signal), D-43 (business context kept current), D-14 (PRD writing on deep); units 19a–19c (launch, roles, broker and `start_agent`), 31–35 (types, skills), 36 (business.md), 38 (store, links), 40 (Vera)
 depends_on: ["19c", "31", "32", "34", "35", "36", "38", "40"]
 ---
