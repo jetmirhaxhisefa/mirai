@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { mintLaunchToken } from '../../src/agent/requests.js';
+import { exitCodeOf, formatError, MiraiError } from '../../src/cli/errors.js';
 import { render } from '../../src/install/render.js';
 import { lintText, projectOf } from '../../src/lint/lint.js';
 import { runNora } from '../../src/nora/run.js';
@@ -273,6 +274,12 @@ async function cli() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   cli().then((code) => process.exit(code), (err) => {
+    // MIRAI's refusals print as mirai's own commands print them (Jet, P4: a stack trace read as a
+    // crash); anything else is a bug in the probe, with its stack.
+    if (err instanceof MiraiError) {
+      process.stderr.write(formatError(err, process.env));
+      process.exit(exitCodeOf(err));
+    }
     process.stderr.write(`${err.stack}\n`);
     process.exit(2);
   });
