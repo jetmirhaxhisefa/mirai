@@ -252,6 +252,26 @@ fix rounds throughout** (A2 holds: each draft came back clean):
 2. **Pass when** the first `--probe write` ends "paused" with her question in `interview.md`, your
    session resumes the interview at it, and after your answer the second `--probe write` ends "done".
 
+### P3's run (Jet, 2026-11-24, home `~/.mirai-probes-Uj847O`, output `~/mirai-u41-p3.txt`): PASSED
+
+Three `--probe write` runs, 7 Opus launches, lint 0 fix rounds throughout.
+
+- **The interview** already caught the request against the convention: it read that today's delete
+  (`TaskController::destroy`) erases the row, and the restatement keeps deleted tasks. The brief
+  quotes the convention and carries it (BR-3, R-2). So the first pause was on a gap, not the rule.
+- **Run 1:** the brief: Vera 1 must-fix, fixed, then 0. The PRD's first draft **paused on Q-9**
+  (a confirmation before a delete that can't be undone).
+- **Run 2:** the PRD: Vera 4 must-fix; her fix **paused on Q-10**, the case P3 is for: a
+  contradiction only the PRD's detail shows. Removing an account erases its tasks (the tasks
+  migration deletes them with their user), against the convention and BR-3. Answered: marked removed
+  and kept.
+- **Run 3:** the PRD: Vera 2, fixed, then **0 must-fix**; the reader test passed; **done**.
+- **Content:** Q-9 as FR-4, Q-10 as FR-13 and UJ-4; a GDPR erasure request out of scope (NG-4) as
+  its own feature. (The session's note: that feature must come before real teams join.)
+- **Template gaps (2, each logged, the template unchanged):** a lite PRD has no Dependencies section
+  (she put the teams feature under Assumptions) and no place for the appetite. **For a template
+  version bump, later:** a Dependencies line in the lite PRD.
+
 ### P4 Your own list (a session of yours, 1 Nora run, then 1 Vera run)
 
 1. `--probe home --case p4`, then the printed steps: the session first keeps
