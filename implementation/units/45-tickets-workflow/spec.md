@@ -152,8 +152,6 @@ needs your ticket decisions logged to judge whether Tess cuts well (PM-05).
 - **61–65, 62b (moved after 45):** each adds its type to `[tickets.inputs]`; 65's "→
   `mirai-tickets`" is decision 1's offer.
 
-## Questions for Jet
+## Questions for Jet (answered)
 
-1. **Where 45b goes.** You asked for `mirai models` (45b) "right after 44–45". The design units now
-   also go right after 45. **A (recommended):** 45 → 45b → 61–65 + 62b → 46 (45b is small and you
-   asked for it early). **B:** 45 → 61–65 + 62b → 45b → 46.
+1. **Where 45b goes: A** (Jet, 2026-11-24): 45 → 45b → 61–65 + 62b → 46.
