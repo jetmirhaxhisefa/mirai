@@ -1,7 +1,7 @@
 ---
 unit: "40a"
 name: cc-ship-steward
-status: built, waiting for the probes and Jet's approval (urgent fix; decisions "A", Jet, 2026-11-23 and 2026-11-24)
+status: done (unit approved 2026-11-24: "approve 40a", merged as PR #116; urgent fix; decisions "A", Jet, 2026-11-23 and 2026-11-24)
 roadmap: new, an urgent fix from the red team's S3 going red on Claude Code 2.1.330; units 13b (strict bundle), 13c (your sessions' settings), 18a (the red team's static checks)
 depends_on: ["13b", "13c", "18a", "40"]
 ---
