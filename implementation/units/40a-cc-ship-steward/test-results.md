@@ -74,6 +74,12 @@ Every `mirai` step runs with your private Claude Code config, typed in full as
    typing it gives `Skill "ship-local" is disabled via skillOverrides`, or Unknown command. In a
    session outside a MIRAI project, `/ship` is still there.
 
+**Result, Jet, 2026-11-24, after the merge:** refreshed to `9f4011b` (`thudos-setup` commit
+`b8ddd8b`); `skillOverrides` carries all three; baseline signed; red team **GREEN** on Claude Code
+2.1.331 (331 runs, 30 min 53 s; S3 "claude-approvals, ship-local, steward turned off and absent",
+S6 ok); doctor 20 ok, 2 yellow (merge gate, an old usage reading), 0 red; `/ship` in a `claude-priv`
+session there: `Skill "ship-local" is disabled via skillOverrides`.
+
 ## Approved
 
 Jet, 2026-11-24: "approve 40a". Merged as PR #116 (`9f4011b`), CI green on both Ubuntu checks; the
@@ -82,7 +88,6 @@ after it).
 
 ## Follow-up
 
-- **P2, Jet:** refresh `thudos-setup` to main and run its red team without `--kept` (the steps above).
-- **Unit 41** merges main to take this fix in; its sample-app baseline and red team run again.
+- **Unit 41** took this fix in (`8876d31`): u41-tests-6 826/826, u41-baseline-1 pass, u41-redteam-1 GREEN.
 - **Refresh the other installs** (`mirai-sample-app-gitlab`, the pilot's Thudos) with a red team each.
 - **A new bundled skill** in a later Claude Code turns S3 red again: it comes to Jet the same way.
