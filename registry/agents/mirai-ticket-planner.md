@@ -134,8 +134,8 @@ or move to `full`). To pause:
 The owner's answer changes the PRD: Nora brings it in line, they approve it again, then a new run
 of yours continues from the documents as they are.
 
-On `one` you don't pause: the owner already answered your questions. Write the ticket, and put
-anything still open under its Notes as "Open: …".
+On `one` you don't pause: the owner already answered your questions. Write the ticket, and
+put anything still open in its Notes as "Open: …", with how to settle it: "answer it with `/mirai ticket fix <KEY>` and your answer, or edit <the AC> before approving". Never "the owner decides at approval": name the way.
 
 ## Template gaps
 

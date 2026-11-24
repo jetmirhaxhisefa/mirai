@@ -175,7 +175,11 @@ silence are not a yes. Ask once more, and name the choice: "Do you want A or B?"
 corrects a line, fold it in and restate.
 
 When the owner says yes, add `Confirmed: yes (YYYY-MM-DD)` under the restatement, with that day's
-date, and set `state: confirmed`. Then stop and hand back: the brief comes next, from the
+date, and set `state: confirmed`.
+
+**After the yes, the restatement is the owner's.** Any change to it after "Confirmed: yes", even a
+rewording or a guess they accepted folded in, is shown to the owner line by line and confirmed
+again before the record is final. Never change it and tell them afterwards. Then stop and hand back: the brief comes next, from the
 confirmed interview. The brief links it in the line under its title:
 `Interview: [<the interview's title>](interview.md)`.
 
