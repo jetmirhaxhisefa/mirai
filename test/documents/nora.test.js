@@ -457,6 +457,28 @@ test('41 T5: a contradiction while writing: she asks in interview.md, sets it pa
   assert.equal(second.vera.calls.length, 1, 'the brief\'s check is reused (unchanged); the PRD is checked');
 });
 
+test('41 (P4\'s run, Jet\'s "A"): an answer that changes the brief while she continues the PRD: she brings the brief in line, and MIRAI checks it again', async () => {
+  const f = fixture();
+  const paused = (o, fx) => {
+    put(fx, `${D}/prd.md`, PRD_READY);
+    put(fx, `${D}/interview.md`, INTERVIEW.replace('state: confirmed', 'state: paused').replace('## Restatement', Q8));
+    return result({ outcome: 'paused', question: 'Q-8' });
+  };
+  await nora(f, { steps: [byDocument({ brief: writes('brief'), prd: paused })] });
+  writeFileSync(join(f.root, D, 'interview.md'), INTERVIEW.replace('## Restatement', Q8.replace('Answer:\n', 'Answer: A.\n')));
+  f.git('commit', '-qam', 'answered');
+  const second = await nora(f, { steps: [byDocument({ prd: (o, fx) => {
+    assert.match(o.prompt, /bring that document in line too/, 'her continue step names the brief');
+    put(fx, `${D}/prd.md`, `${PRD_READY}\n`);
+    put(fx, `${D}/brief.md`, `${BRIEF_READY}\n`);
+    return result();
+  } })] });
+  assert.equal(second.r.state, 'done', second.r.why);
+  assert.deepEqual(second.n.calls.map((c) => [indexOf(c).document, indexOf(c).step]), [['prd', 'continue']], 'no launch more: the changed brief passes');
+  assert.deepEqual(second.vera.calls.map((c) => c.item), ['due-dates-prd', 'due-dates-brief'], 'the brief\'s old result is reused, then the changed brief is checked after the PRD');
+  assert.deepEqual(second.events.filter((e) => e.kind === 'lint').map((e) => e.type), ['brief', 'prd', 'brief']);
+});
+
 test('41 T5: a pause her interview doesn\'t show is no pause: the run ends failed', async () => {
   const f = fixture();
   const { r } = await nora(f, { steps: [() => result({ outcome: 'paused', question: 'Q-9' })] });

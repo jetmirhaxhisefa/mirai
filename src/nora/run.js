@@ -189,7 +189,7 @@ const EXTRA_WHY = Object.freeze({
 });
 
 export function noraPrompt(s, { type, step, round }) {
-  const what = { write: `write the ${type}`, continue: `continue the ${type} from the owner's new answers in interview.md`, fix: `fix the ${type} from what MIRAI's checks found` }[step];
+  const what = { write: `write the ${type}`, continue: `continue the ${type} from the owner's new answers in interview.md${type === 'brief' ? '' : '; where an answer changes what a document you already wrote says (the brief), bring that document in line too, in this launch'}`, fix: `fix the ${type} from what MIRAI's checks found` }[step];
   return [
     `Your step: ${what}, for the initiative ${s.initiative} (round ${round}).`,
     'The input folder holds the interview, the documents as they are, the context files, the template, the checklist and the mirai-write skill, with index.json listing each; read index.json first.',
@@ -319,7 +319,9 @@ function doneWith(ctx, type, c) {
     ...(c.vera && (c.vera.must_fix ?? 0) > 0 ? { vera: c.vera.must_fix } : {}),
     ...(c.reader && c.reader.result !== 'pass' ? { reader: true } : {}),
   };
+  ctx.open = ctx.open.filter((o) => o.document !== type);
   if (Object.keys(open).length) ctx.open.push({ document: type, ...open });
+  ctx.checked[type] = readDoc(ctx.s, type)?.text ?? null;
   return { state: 'done' };
 }
 
@@ -367,7 +369,7 @@ export async function runNora({ cwd, env, initiative, nextToken, launch = launch
     s.store = store;
     const ctx = {
       s, cwd, env, runId, nextToken, launch, verify, verifyLaunch, reader, readerLaunch, readerClaude, watch, who: namerOf(watch), now, onStep,
-      started: false, launches: 0, lastLaunch: null, line: null, gaps: 0, docRounds: {}, commits: [], open: [], rounds: { lint: 0, verify: 0, reader: 0 },
+      started: false, launches: 0, lastLaunch: null, line: null, gaps: 0, docRounds: {}, commits: [], open: [], checked: {}, rounds: { lint: 0, verify: 0, reader: 0 },
       // A run after a pause continues the document she paused on, from your answers.
       pausedOn: before?.state === 'paused' ? before.document ?? null : null,
     };
@@ -379,6 +381,20 @@ export async function runNora({ cwd, env, initiative, nextToken, launch = launch
         if (r.state !== 'done') {
           end = r;
           break;
+        }
+      }
+      // P4's run (Jet's "A", 2026-11-24): an answer can change a document she wrote earlier (the
+      // brief, while she continues the PRD). One more pass checks each document that changed after
+      // its checks ran, as any other draft: the lint, Vera, the reader test, her fixes.
+      if (!end) {
+        ctx.pausedOn = null;
+        for (const type of DOCS) {
+          if ((readDoc(s, type)?.text ?? null) === (ctx.checked[type] ?? null)) continue;
+          const r = await documentLoop(ctx, type);
+          if (r.state !== 'done') {
+            end = r;
+            break;
+          }
         }
       }
       end ??= { state: 'done' };

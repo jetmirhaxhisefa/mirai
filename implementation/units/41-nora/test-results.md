@@ -272,6 +272,16 @@ Three `--probe write` runs, 7 Opus launches, lint 0 fix rounds throughout.
   (she put the teams feature under Assumptions) and no place for the appetite. **For a template
   version bump, later:** a Dependencies line in the lite PRD.
 
+### P4's run, a finding (Jet, 2026-11-24, "A")
+
+Your answer to Q-10 changed the brief's promise ("one email a day at most" became one per team).
+The PRD followed it and even said so; the brief kept the old line: a run after a pause continued
+only the document she paused on, and the brief's unchanged hash reused Vera's last result.
+**Fixed:** her continue step on the PRD now says to bring a document she already wrote in line with
+the new answers, in the same launch; after the last document, MIRAI checks again each document that
+changed after its checks ran (the lint, Vera, the reader test, her fixes, as any draft). `open`
+keeps one entry per document. Test `41 (P4's run, Jet's "A")`. Not a cage file.
+
 ### P4 Your own list (a session of yours, 1 Nora run, then 1 Vera run)
 
 1. `--probe home --case p4`, then the printed steps: the session first keeps
