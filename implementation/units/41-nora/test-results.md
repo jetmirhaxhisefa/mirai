@@ -282,6 +282,18 @@ the new answers, in the same launch; after the last document, MIRAI checks again
 changed after its checks ran (the lint, Vera, the reader test, her fixes, as any draft). `open`
 keeps one entry per document. Test `41 (P4's run, Jet's "A")`. Not a cage file.
 
+### P4's run, a second finding (Jet, 2026-11-24, "A")
+
+Vera's rounds were counted over the document's whole life, so each pause spent one: after Q-11 her
+last run ended done with 6 must-fix open (3 on the brief, 3 on the PRD) and no round to fix them.
+**Fixed:** a result records the cycle it belongs to; Nora's runs name one, her interview's content
+hash, so your new answers start a new cycle and each document gets its full rounds again. A kept
+result from an earlier cycle with must-fix open goes back to her first. A `mirai verify` of yours
+continues the last cycle. The 16-launch cap per run stands. Approval reads the round within its
+cycle, as before. Test `41 (P4's run, Jet's "A"): your new answers start a new cycle`. Not cage
+files (`src/store/verify-results.js`, `src/verify/run.js`, `src/nora/run.js`). Also: her done line
+lists what is open in document order.
+
 ### P4 Your own list (a session of yours, 1 Nora run, then 1 Vera run)
 
 1. `--probe home --case p4`, then the printed steps: the session first keeps

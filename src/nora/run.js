@@ -19,6 +19,7 @@ import { commitAll, symbolicBranch, workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { appendEvent, readJournal } from '../store/journal.js';
 import { readRunState, writeRunState } from '../store/run.js';
+import { contentHash } from '../sign/sign.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
 import { effectiveRegistry } from '../trust/overlays.js';
 import { handoffText, resultState, verifyOn } from '../verify/gate.js';
@@ -285,12 +286,15 @@ async function checks(ctx, type) {
   const d = readDoc(s, type);
   let vera = null;
   if (verifyOn(s.config)) {
-    const v = await ctx.verify({ cwd: ctx.cwd, env: ctx.env, file: d.abs, launchToken: ctx.nextToken(), launchOptions: ctx.watch, ...(ctx.verifyLaunch ? { launch: ctx.verifyLaunch } : {}), run: { store: s.store, runId: ctx.runId }, authorLaunch: ctx.lastLaunch, now: ctx.now });
+    const v = await ctx.verify({ cwd: ctx.cwd, env: ctx.env, file: d.abs, cycle: ctx.cycle, launchToken: ctx.nextToken(), launchOptions: ctx.watch, ...(ctx.verifyLaunch ? { launch: ctx.verifyLaunch } : {}), run: { store: s.store, runId: ctx.runId }, authorLaunch: ctx.lastLaunch, now: ctx.now });
     if (!v.entry) return { stage: 'error', why: `the verifier's check of ${d.shown} ended ${v.outcome}${v.why ? `: ${oneLine(v.why, 300)}` : ''}` };
     if (!v.reused) ctx.rounds.verify += 1;
     vera = v.entry;
     ctx.onStep({ kind: 'verify', type, round: vera.round, must_fix: vera.must_fix, reused: Boolean(v.reused) });
-    if (resultState(vera, s.config) === 'open') return { stage: 'vera', entry: vera, shown: d.shown };
+    // P4's run (Jet's "A"): your new answers start a new cycle of Vera's rounds. A result kept from
+    // an earlier cycle with must-fix findings goes back to her, even after that cycle's last round.
+    const earlier = v.reused && (vera.cycle ?? null) !== ctx.cycle && (vera.must_fix ?? 0) > 0;
+    if (earlier || resultState(vera, s.config) === 'open') return { stage: 'vera', entry: vera, shown: d.shown };
   }
   const def = s.registry.documentTypes[type];
   let reader = null;
@@ -354,6 +358,11 @@ async function documentLoop(ctx, type) {
   }
 }
 
+function interviewCycle(s) {
+  const i = readDoc(s, 'interview');
+  return i ? contentHash(Buffer.from(i.text, 'utf8')) : null;
+}
+
 // The last run's line for the initiative, from the journal: the `nora_run` event, or null.
 export function lastNoraRun(events, initiative) {
   return events.filter((e) => e.type === 'nora_run' && e.item === initiative).at(-1) ?? null;
@@ -370,7 +379,9 @@ export async function runNora({ cwd, env, initiative, nextToken, launch = launch
     s.store = store;
     const ctx = {
       s, cwd, env, runId, nextToken, launch, verify, verifyLaunch, reader, readerLaunch, readerClaude, watch, who: namerOf(watch), now, onStep,
-      started: false, launches: 0, lastLaunch: null, line: null, gaps: 0, docRounds: {}, commits: [], open: [], checked: {}, rounds: { lint: 0, verify: 0, reader: 0 },
+      started: false, launches: 0, lastLaunch: null, line: null, gaps: 0, docRounds: {}, commits: [], open: [], checked: {},
+      // The cycle of Vera's rounds: the interview as this run starts (your answers change it).
+      cycle: interviewCycle(s), rounds: { lint: 0, verify: 0, reader: 0 },
       // A run after a pause continues the document she paused on, from your answers.
       pausedOn: before?.state === 'paused' ? before.document ?? null : null,
     };

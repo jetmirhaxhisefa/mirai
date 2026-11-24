@@ -18,7 +18,7 @@ import { fixedParts } from '../lint/markdown.js';
 import { leftOutRequirements } from '../lint/requirements.js';
 import { baseForArg, docsStoreFor } from '../store/connectors/index.js';
 import { openStore } from '../store/home.js';
-import { nextVerifyRound, recordVerifyResult, subjectHash, verifyResultFor } from '../store/verify-results.js';
+import { cycleOf, nextVerifyRound, readVerifyResults, recordVerifyResult, subjectHash, verifyResultFor } from '../store/verify-results.js';
 import { contentHash } from '../sign/sign.js';
 import { snapshot, trustedConfig } from '../trust/snapshot.js';
 import { effectiveRegistry } from '../trust/overlays.js';
@@ -177,7 +177,7 @@ export function verifyPrompt({ type, id, path, round, runs }) {
 // isn't the schema records nothing either (`unreadable`), and uses no round.
 // `authorLaunch`: the launch that wrote the document, when MIRAI ran it (41's Nora): the verifier
 // ladder then picks her model against the author's (D-14), and the run log has the rung.
-export async function runVerify({ cwd, env, file, launchToken = null, launchOptions = {}, launch = launchInRun, run: outerRun = null, authorLaunch = null, now = () => new Date() }) {
+export async function runVerify({ cwd, env, file, launchToken = null, launchOptions = {}, launch = launchInRun, run: outerRun = null, authorLaunch = null, cycle = undefined, now = () => new Date() }) {
   const subject = verifySubject({ cwd, env, file });
   const { store, config, path, id, def } = subject;
   if (!verifyOn(config)) throw refuse(`the verifier is off for this project ([docs] verify = false); nothing was run`, 'verify-off', 'turn it on in .mirai/config.toml, or approve without her check');
@@ -187,7 +187,8 @@ export async function runVerify({ cwd, env, file, launchToken = null, launchOpti
   checkLaunchToken(launchToken);
   const { inputs, files } = verifyInputs(subject);
   const runs = runsOf(config, 'verify');
-  const round = nextVerifyRound(store, id);
+  const thisCycle = cycleOf(readVerifyResults(store, id), cycle);
+  const round = nextVerifyRound(store, id, thisCycle);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   const who = namerOf(watch);
   return await inRun({ cwd, env, run: outerRun }, async ({ store: runStore, runId, outer }) => {
@@ -203,7 +204,7 @@ export async function runVerify({ cwd, env, file, launchToken = null, launchOpti
     if (got.problem) return { outcome: 'unreadable', why: `${got.problem}; nothing was recorded (no round was used)`, entry: null, reused: false, subject, launch: launched };
     const line = r.line ?? {};
     const entry = recordVerifyResult(store, id, {
-      subject_hash, content_hash: contentHash(subject.bytes), files: subject.files.map((f) => ({ path: f.path, content_hash: contentHash(f.bytes) })),
+      subject_hash, ...(thisCycle ? { cycle: thisCycle } : {}), content_hash: contentHash(subject.bytes), files: subject.files.map((f) => ({ path: f.path, content_hash: contentHash(f.bytes) })),
       round, result: mustFix(got.findings).length ? 'open' : 'pass', must_fix: mustFix(got.findings).length, suggestions: suggestions(got.findings).length,
       findings: got.findings, dropped: got.dropped, type: def.name, path,
       model: typeof line.model_used === 'string' ? line.model_used : typeof line.model === 'string' ? line.model : 'unknown', tier: typeof line.tier === 'string' ? line.tier : 'unknown',

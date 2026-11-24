@@ -9,7 +9,7 @@ import { atomicWrite, ensurePrivateDir, readPrivateFile, withLock } from './file
 // results are: `verify/<document id>.json`, { schema_version, id, results: [entry …] }, oldest
 // first. Each entry is one version of the document as Vera checked it, keyed by its subject hash
 // (the document's bytes, and an epic's ticket files with it: subjectHash), with its round:
-//   { subject_hash, content_hash, files: [{ path, content_hash }], round, result: 'pass' | 'open',
+//   { subject_hash, cycle?, content_hash, files: [{ path, content_hash }], round, result: 'pass' | 'open',
 //     must_fix, suggestions, findings: [finding …], dropped: [{ id, why, quote }], type, path,
 //     model, tier, rung?, launch_id, at, hash }
 // `hash` is the entry's own content hash (over every other field), which an approval line records.
@@ -67,8 +67,19 @@ export function readVerifyResults(store, id) {
 // The result for this exact version, or null.
 export const verifyResultFor = (store, id, subject) => readVerifyResults(store, id).filter((e) => e.subject_hash === subject).at(-1) ?? null;
 
-// The round a new version of this document would be.
-export const nextVerifyRound = (store, id) => readVerifyResults(store, id).reduce((n, e) => Math.max(n, e.round), 0) + 1;
+// The cycle a new result belongs to (unit 41, P4's run, Jet's "A", 2026-11-24): the author's runs
+// name one (Nora's: her interview's content hash, so your new answers start a new one); a check
+// that names none continues the last result's cycle. Rounds count within a cycle.
+export function cycleOf(results, cycle) {
+  return cycle === undefined ? (results.at(-1)?.cycle ?? null) : cycle;
+}
+
+// The round a new version of this document would be, within its cycle.
+export function nextVerifyRound(store, id, cycle) {
+  const results = readVerifyResults(store, id);
+  const c = cycleOf(results, cycle);
+  return results.filter((e) => (e.cycle ?? null) === c).reduce((n, e) => Math.max(n, e.round), 0) + 1;
+}
 
 // Records one result (without `hash`; it's added), under the store's lock for the file.
 export function recordVerifyResult(store, id, entry) {

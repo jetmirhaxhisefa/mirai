@@ -479,6 +479,41 @@ test('41 (P4\'s run, Jet\'s "A"): an answer that changes the brief while she con
   assert.deepEqual(second.events.filter((e) => e.kind === 'lint').map((e) => e.type), ['brief', 'prd', 'brief']);
 });
 
+test('41 (P4\'s run, Jet\'s "A"): your new answers start a new cycle of Vera\'s rounds: a brief left open after the last round goes back to her, and its rounds count from 1', async () => {
+  const f = fixture();
+  let answered = false;
+  const finding = { id: 'V-1', grade: 'must-fix', layer: 'checklist', kind: 'writing', kind_reason: 'The interview gives it.', decision_type: 'none', where: { file: 'document.md', line: 22, quote: 'They keep deadlines in a spreadsheet beside it.' }, what: 'The summary misses a rule.', fix: 'Add it.' };
+  // Before your answer, Vera finds one must-fix in every version of the brief.
+  const vera = fakeVera((o) => (o.item === 'due-dates-brief' && !answered ? { findings: [finding] } : { findings: [] }));
+  let b = 0;
+  const brief = (o, fx) => {
+    put(fx, `${D}/brief.md`, `${BRIEF_READY}${'\n'.repeat(b++)}`);
+    return result();
+  };
+  const paused = (o, fx) => {
+    put(fx, `${D}/prd.md`, PRD_READY);
+    put(fx, `${D}/interview.md`, INTERVIEW.replace('state: confirmed', 'state: paused').replace('## Restatement', Q8));
+    return result({ outcome: 'paused', question: 'Q-8' });
+  };
+  const first = await nora(f, { vera, steps: [byDocument({ brief, prd: paused })] });
+  assert.equal(first.r.state, 'paused', first.r.why);
+  const store = openStore({ cwd: f.root, env: f.env });
+  assert.deepEqual(readVerifyResults(store, 'due-dates-brief').map((e) => [e.round, e.must_fix]), [[1, 1], [2, 1], [3, 1]], 'the brief used its three rounds');
+  writeFileSync(join(f.root, D, 'interview.md'), INTERVIEW.replace('## Restatement', Q8.replace('Answer:\n', 'Answer: A.\n')));
+  f.git('commit', '-qam', 'answered');
+  answered = true;
+  const second = await nora(f, { vera, steps: [byDocument({ brief, prd: (o, fx) => {
+    put(fx, `${D}/prd.md`, `${PRD_READY}\n`);
+    return result();
+  } })] });
+  assert.equal(second.r.state, 'done', second.r.why);
+  assert.equal(second.r.open, undefined, 'nothing left open');
+  assert.deepEqual(second.n.calls.map((c) => [indexOf(c).document, indexOf(c).step]), [['brief', 'fix'], ['prd', 'continue']], 'the brief\'s open findings went back to her');
+  const results = readVerifyResults(store, 'due-dates-brief');
+  assert.deepEqual([results.at(-1).round, results.at(-1).must_fix], [1, 0], 'round 1 of the new cycle');
+  assert.notEqual(results.at(-1).cycle, results[0].cycle);
+});
+
 test('41 T5: a pause her interview doesn\'t show is no pause: the run ends failed', async () => {
   const f = fixture();
   const { r } = await nora(f, { steps: [() => result({ outcome: 'paused', question: 'Q-9' })] });
