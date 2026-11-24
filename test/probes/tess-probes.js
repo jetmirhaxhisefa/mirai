@@ -202,7 +202,7 @@ function steps(home, key, c, log) {
     } else if (c.types) {
       log('4. P4 passes when each ticket\'s ticket_type is the one you would have chosen, and the set lints clean (the run ends "done").');
     } else {
-      log('3. P1 passes when the run ends "done" after at most one fixing round, every FR, NFR and AC is in the epic\'s Coverage table, only the reminder-email ticket has e2e: true, and you would approve the set.');
+      log('3. P1 passes when the run ends "done" after at most one fixing round, every FR, NFR and AC is in the epic\'s Coverage table, e2e: true is only on a ticket that changes a critical journey in journeys.md (none in this PRD), a proposed new journey, if any, is under New critical journeys, and you would approve the set.');
     }
   }
   log(`Any time: cd ${ROOT} && node test/probes/tess-probes.js --probe show --home ${home.workdir}`);
@@ -217,8 +217,10 @@ async function tessOnce(home, c, log) {
   const store = openStore({ cwd: home.root, env: home.env });
   for (const l of tessStateLines(readJournal(store).events, c.initiative)) log(l);
   const dir = join(home.root, 'docs', 'mirai', c.one ? 'tickets' : c.initiative);
-  for (const n of existsSync(dir) ? readdirSync(dir).filter((x) => x.endsWith('.md')) : []) log(join(dir, n));
-  if (!c.one && existsSync(join(dir, 'tickets'))) for (const n of readdirSync(join(dir, 'tickets'))) log(join(dir, 'tickets', n));
+  // Only the documents: a folder beside them (Claude Code's .claude/ staging) isn't one (P1's run).
+  const docs = (d) => (existsSync(d) ? readdirSync(d, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.md')).map((e) => e.name).sort() : []);
+  for (const n of docs(dir)) log(join(dir, n));
+  if (!c.one) for (const n of docs(join(dir, 'tickets'))) log(join(dir, 'tickets', n));
   log(`commits: ${r.commits.map((s) => s.slice(0, 12)).join(', ') || 'none'}`);
   return r;
 }
