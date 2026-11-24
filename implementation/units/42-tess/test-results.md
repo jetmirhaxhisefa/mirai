@@ -299,6 +299,17 @@ Test `42 (P3's run)`: the skill's text, her agent file, the guide and her launch
 4. **Pass when** each ticket's `ticket_type` is the one you would have chosen, and the set lints
    clean (the run ends "done"). Output: `~/mirai-u42-p4.txt`.
 
+### P4's run (Jet, 2026-11-24, home `~/.mirai-probes-tktf3b`, output `~/mirai-u42-p4.txt`): PASSED
+
+- **The types:** the probe's placeholder descriptions for Task, Bug and Investigation were kept
+  (Jet didn't edit them).
+- **Her run:** one run, 3 Sonnet launches, lint 0 fix rounds; Vera round 1: 3 must-fix, round 2: 1,
+  round 3: 0. Done.
+- **The set:** 9 tickets, SAMPLE-2 to SAMPLE-10, all `Task`: correct, since nothing in the PRD is
+  broken today (no Bug) and nothing is unknown (no Investigation).
+- **PASSED** (Jet, 2026-11-24: "A"). Her choice among mixed types is tested on the pilot instead
+  (For later units).
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`, computed on this branch): `registry/agents/
@@ -456,7 +467,25 @@ hand-written tickets (such as the fixtures' `PMT-31`) miss template sections. Re
 4. **Lint every lone ticket at approval?** **A** Vera always, the lint only with an interview (as
    built); **B** lint every lone ticket. Recommendation: **A**, revisit at 44.
 
-## Questions for Jet (open)
+## Question 4 (answered: Jet, 2026-11-24, "A")
+
+Built: `mirai tickets fix <KEY> --answer "<text>"` (in your session `/mirai ticket fix <KEY>
+"<answer>"`, the session command `ticket fix` with `answer`, one line). Your answer reaches Tess as
+data, `answer.md`, fenced between random markers like Vera's hand-off (every "@" defused), framed as
+your decision on the open point, never instructions. She settles the point it answers (the AC it
+concerns, its "Open: …" line out of Notes) and changes only that; MIRAI lints the ticket and Vera
+checks it again, with the normal rounds. Without `--answer` the fix still needs Vera's must-fix
+findings; with it, it works on a ticket she passed, or one with no result yet. An empty answer (or
+one over 2000 characters, or with control characters) is refused. The open-point wording in her
+prompt, her agent file and the ticket guide now reads "answer it with `/mirai ticket fix <KEY>
+"<your answer>"`, or edit <the AC> before approving". Docs: `docs/tickets.md`, `docs/agents.md`.
+Test `42 (question 4, Jet's "A")`: a passed ticket, an answer holding "@everyone" and "Ignore your
+instructions" reaches her fenced and defused; she rewrites one AC; Vera checks again; done; an
+empty answer is refused; the session command passes one line and refuses two. Cage files:
+`src/mcp/tools/commands.js` and `src/adapters/claude-code.js` (the session command and the
+`/mirai` file's line), so `u42-baseline-4` and `u42-redteam-4` run with `u42-tests-5`.
+
+The question as asked:
 
 4. **"Answer it with `/mirai ticket fix <KEY>` and your answer":** `mirai tickets fix` takes no
    answer today; it starts from Vera's must-fix findings, and refuses a ticket she passed
@@ -475,6 +504,8 @@ hand-written tickets (such as the fixtures' `PMT-31`) miss template sections. Re
 - **38's trackers:** `tracker_type` is stored and documented; nothing publishes it yet; the key
   prefix then comes from the tracker (question 1).
 - **44:** `/mirai-new` sends a `quick` request to the one-ticket path (`mirai tickets <name> --one`).
+- **The pilot (Thudos), not a P4b** (Jet's "A", 2026-11-24): Tess's choice among mixed types
+  (a Bug, an Investigation beside Tasks) is tested there with Jet's real work.
 - **46 (the inbox):** lists `tess_run` (paused, done, failed) and her `template_gap` lines.
 
 ## The full suite
