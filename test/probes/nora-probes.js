@@ -16,9 +16,11 @@ import { resolveClaude } from '../../src/redteam/key.js';
 import { readToken } from '../../src/sign/token.js';
 import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
+import { readFrontmatter } from '../../src/lint/frontmatter.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../src/trust/snapshot.js';
 import { findingLines, mustFix } from '../../src/verify/findings.js';
 import { runVerify } from '../../src/verify/run.js';
+import { probeLoop } from './loop.js';
 import { setupHome } from './reader-probes.js';
 import { PROBE_BUSINESS } from './verify-probes.js';
 
@@ -37,6 +39,7 @@ import { PROBE_BUSINESS } from './verify-probes.js';
 //   node test/probes/nora-probes.js --check                      (no model: builds a home of each case in a temp folder, lints its context, deletes it)
 //   node test/probes/nora-probes.js --probe home --case p1|p2|p3|p4   (no model: makes the home, prints the steps)
 //   node test/probes/nora-probes.js --yes --probe write --home <dir>  (Nora's run: Opus launches, Vera's checks, a reader test)
+//   node test/probes/nora-probes.js --yes --probe loop --home <dir>   (the same run, again after each pause once your session has confirmed: loop.js)
 //   node test/probes/nora-probes.js --probe show --home <dir>         (no model: her state and the documents)
 //   node test/probes/nora-probes.js --yes --probe drop --home <dir> --line REQ-n   (P4: one Vera run)
 
@@ -170,11 +173,11 @@ function steps(home, c, key, log) {
     log(`4. Delete the home: chmod -R u+w ${home.workdir} && rm -rf ${home.workdir}`);
     return;
   }
-  log('4. Back in your first Terminal window (the probe commits what the session left, then starts Nora):');
-  log(`   cd ${ROOT} && caffeinate -i node test/probes/nora-probes.js --yes --probe write --home ${home.workdir} | tee ~/mirai-u41-${key}.txt`);
+  log('4. Back in your first Terminal window (the probe commits what the session left, then starts Nora; on a pause it prints the message for your session and starts her again once you\'ve confirmed):');
+  log(`   cd ${ROOT} && caffeinate -i node test/probes/nora-probes.js --yes --probe loop --home ${home.workdir} | tee ~/mirai-u41-${key}.txt`);
   log('   You see one line per step (her launches, the lint, Vera, the reader test), then her state and each document\'s full path.');
   if (key === 'p3') {
-    log('5. When it says "paused": the question is in interview.md. Go back to the session and say: "Nora paused; resume the interview at her question." Answer it, confirm, then repeat step 4.');
+    log('5. When it says "PAUSED": paste the printed message into the session, answer, confirm; the loop starts her again by itself.');
     log('   P3 passes when she paused on the deletion rule, the question is in interview.md, and the second run ends done.');
   } else if (key === 'p4') {
     log('5. When it says "done", seed a dropped line (no model for the first part; one Vera run):');
@@ -185,6 +188,41 @@ function steps(home, c, key, log) {
   }
   log(`Any time: cd ${ROOT} && node test/probes/nora-probes.js --probe show --home ${home.workdir}`);
   log(`At the end, delete the home: chmod -R u+w ${home.workdir} && rm -rf ${home.workdir}`);
+}
+
+// One Nora run as `mirai write` runs it, after committing what the session left: what --probe write
+// does, and each pass of --probe loop.
+async function writeOnce(home, c, log) {
+  commit(home, `probe: the interview for ${c.initiative}, as the session left it`);
+  const head = git(home, 'rev-parse', '--short', 'HEAD').stdout.trim();
+  log(`committed what the session left: ${head}. Starting her run.`);
+  const onStep = (e) => log(e.kind === 'launch' ? `Nora: ${e.step} the ${e.type} (round ${e.round}): ${e.outcome}` : e.kind === 'lint' ? `lint, the ${e.type}: ${e.errors ? `${e.errors} problem(s)` : 'clean'}` : e.kind === 'verify' ? `Vera, the ${e.type}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (reused)' : ''}` : `reader test, the ${e.type}: ${e.result}, round ${e.round}`);
+  const r = await runNora({ cwd: home.root, env: home.env, initiative: c.initiative, nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep });
+  const store = openStore({ cwd: home.root, env: home.env });
+  for (const l of noraStateLines(readJournal(store).events, c.initiative)) log(l);
+  for (const t of ['interview', 'requirements', 'business-change', 'brief', 'prd']) {
+    const p = join(home.root, 'docs', 'mirai', c.initiative, `${t}.md`);
+    if (existsSync(p)) log(p);
+  }
+  log(`commits: ${r.commits.map((s) => s.slice(0, 12)).join(', ') || 'none'}`);
+  return r;
+}
+
+// interview.md as the loop waits on it: its state, its lint errors, and its bytes as the stamp.
+export function interviewNow(home, c) {
+  const rel = `docs/mirai/${c.initiative}/interview.md`;
+  const abs = join(home.root, rel);
+  if (!existsSync(abs)) return null;
+  const text = readFileSync(abs, 'utf8');
+  let state = null;
+  try {
+    state = readFrontmatter(text, { source: rel })?.value?.state ?? null;
+  } catch {
+    state = 'unreadable';
+  }
+  const trust = snapshot({ cwd: home.root, env: home.env });
+  const errors = lintText(text, { source: rel, registry: trustedRegistry(trust), project: projectOf(trustedConfig(trust)), repo: home.root }).filter((p) => p.severity === 'error').length;
+  return { state: String(state), errors, stamp: text };
 }
 
 async function cli() {
@@ -210,8 +248,8 @@ async function cli() {
     return bad ? 1 : 0;
   }
   const probe = values.probe;
-  if (!['home', 'write', 'show', 'drop'].includes(probe)) {
-    process.stderr.write('--probe home --case p1|p2|p3|p4 | write --home <dir> | show --home <dir> | drop --home <dir> --line REQ-n; or --check, no model\n');
+  if (!['home', 'write', 'loop', 'show', 'drop'].includes(probe)) {
+    process.stderr.write('--probe home --case p1|p2|p3|p4 | write --home <dir> | loop --home <dir> | show --home <dir> | drop --home <dir> --line REQ-n; or --check, no model\n');
     return 2;
   }
   if (probe === 'home') {
@@ -233,23 +271,23 @@ async function cli() {
     return r.status ?? 1;
   }
   if (!values.yes) {
-    process.stderr.write(`--yes: ${probe === 'write' ? 'Nora\'s run on your Claude subscription: her launches on Opus (the prd step is deep), Vera on each version (on her tier too: the verifier ladder), and a reader test (Sonnet)' : 'one Vera run'}\n`);
+    process.stderr.write(`--yes: ${probe === 'write' || probe === 'loop' ? 'Nora\'s run on your Claude subscription: her launches on Opus (the prd step is deep), Vera on each version (on her tier too: the verifier ladder), and a reader test (Sonnet)' : 'one Vera run'}\n`);
     return 2;
   }
   if (probe === 'write') {
-    commit(home, `probe: the interview for ${c.initiative}, as the session left it`);
-    const head = git(home, 'rev-parse', '--short', 'HEAD').stdout.trim();
-    log(`committed what the session left: ${head}. Starting her run.`);
-    const onStep = (e) => log(e.kind === 'launch' ? `Nora: ${e.step} the ${e.type} (round ${e.round}): ${e.outcome}` : e.kind === 'lint' ? `lint, the ${e.type}: ${e.errors ? `${e.errors} problem(s)` : 'clean'}` : e.kind === 'verify' ? `Vera, the ${e.type}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (reused)' : ''}` : `reader test, the ${e.type}: ${e.result}, round ${e.round}`);
-    const r = await runNora({ cwd: home.root, env: home.env, initiative: c.initiative, nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep });
-    const store = openStore({ cwd: home.root, env: home.env });
-    for (const l of noraStateLines(readJournal(store).events, c.initiative)) log(l);
-    for (const t of ['interview', 'requirements', 'business-change', 'brief', 'prd']) {
-      const p = join(home.root, 'docs', 'mirai', c.initiative, `${t}.md`);
-      if (existsSync(p)) log(p);
-    }
-    log(`commits: ${r.commits.map((s) => s.slice(0, 12)).join(', ') || 'none'}`);
+    const r = await writeOnce(home, c, log);
     return r.state === 'failed' ? 1 : 0;
+  }
+  if (probe === 'loop') {
+    const r = await probeLoop({
+      runOnce: () => writeOnce(home, c, log),
+      interview: () => interviewNow(home, c),
+      commit: (m) => commit(home, m),
+      resumeMessage: (end) => `Nora paused on ${end.question_id}; resume the interview at her question in docs/mirai/${c.initiative}/interview.md, then confirm the restatement. Don't commit and don't start Nora: the probe does both.`,
+      log,
+    });
+    log(`loop: ${r.state} after ${r.runs} run(s)`);
+    return r.state === 'done' ? 0 : 1;
   }
   // drop: P4's seeded loss. The PRD's citation of one REQ-n taken out, committed; the lint's answer,
   // then Vera's on that text.
