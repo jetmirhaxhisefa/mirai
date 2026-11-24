@@ -255,6 +255,31 @@ reminder job's ticket can't meet both.
      seeded PRD lints clean as at approval and holds both lines). `--check` now lints each home's
      documents as at approval.
 
+### P2's second run (Jet, 2026-11-25, home `~/.mirai-probes-uenU94`, at `89a4016`, output `~/mirai-u42-p2.txt`): failed on the question's place; the question itself right
+
+- **She paused correctly,** before writing any ticket, with an excellent Q-8: it names NFR-3
+  against FR-4, and also FR-7 (a retry an hour later against a once-a-day 18:00 UTC job), with
+  options A, B and C, her guess B, and the interview set `paused`.
+- **But she appended Q-8 at the end of interview.md,** after `## Restatement` and its "Confirmed:
+  yes" line. `questionsOf` reads only `## Questions`, so the run ended `failed`: "she says she
+  paused on Q-8, but interview.md has no Q-8".
+- **Fixed (Jet's "A", 2026-11-25):**
+  1. **Where the question goes, one text for both agents:** `PAUSE_PLACE` (`src/agent/pause.js`):
+     "Put the question last inside `## Questions`, right before `## Restatement`, as the next
+     `### Q-n: <what it is about>`; never after the restatement or its "Confirmed:" line, where
+     nothing reads it." Both agent files (Nora's and Tess's) hold it word for word in their pause
+     steps, and both launch prompts carry it in their pause line; a test holds all four to the
+     constant, so they can't drift. Nora's prompt had no placement rule either: it has it now.
+  2. **MIRAI's message names the place:** the shared check (`checkPause`, used by Nora's and Tess's
+     pause ends) finds a named question outside `## Questions` and says so: "she says she paused on
+     Q-8, but interview.md has Q-8, but outside ## Questions (line N, after ## Restatement): it must
+     be the last question inside ## Questions". The run still ends `failed`; MIRAI doesn't move it.
+  3. **Tests:** `42 (P2's second run)` (Tess: after the restatement, failed with the message and its
+     line; inside `## Questions`, paused; her prompt and both agent files carry the text) and `41
+     (42's P2 rerun)` (Nora: the same failure and message; her prompt carries it).
+- Not a cage file: `src/agent/pause.js`, `src/nora/run.js` and `src/tess/run.js` are outside the
+  cage; the agents' `.md` prompts aren't cage data (only their `.toml`).
+
 ### P3 A technical ticket by hand (a session of yours, then 1 Sonnet launch and 1 Vera check)
 
 1. `--probe home --case p3`, then the printed steps: a new Terminal window, `cd <repo> && claude`,
