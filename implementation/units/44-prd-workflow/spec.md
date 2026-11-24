@@ -146,6 +146,8 @@ existing ledger.
    - **you confirm** the track; the brief records it in "Appetite and track";
    - `quick` → 42's `/mirai ticket` path with the request and the intake answers;
    - `standard` or `full` → 35's interview, then 41's `start_agent` for Nora;
+     *(changed: Jet, 2026-11-23, 41's re-check, Q1 "A1"):* 41 starts Nora with `/mirai write
+     <initiative>` (a session command), not `start_agent`; her run is several launches.
    - `/mirai-prd` skips the track question and starts at the interview (track `standard`
      unless you say `full`).
 2. **Vera's labels** (decision 3), on 40's findings schema (`src/verify/findings.js`):
@@ -169,6 +171,12 @@ existing ledger.
    breaks a schema rule (no `kind`, say) is dropped and logged, and the other findings count (Jet,
    2026-11-23, P1); `decision_type` is always given, `none` for a writing finding.
 3. **The routing** (`src/docs/route.js`, new; used by 41's `verify` broker tool):
+   *(changed: Jet, 2026-11-23, 41's P1, "A2"):* Nora's launch has a headless `lint` tool (the
+   same lint, read-only, documents under the docs root only); Vera and the reader test still run
+   between her launches, never from her server.
+   *(changed: Jet, 2026-11-23, 41's re-check, Q1 "A1"):* there is no `verify` broker tool. MIRAI
+   runs Vera between Nora's launches (41's `src/nora/run.js`), and the split below applies to the
+   hand-off her next launch gets, not to a tool's reply.
    - the tool's result to Nora is split: **"fix these"** (writing must-fix findings) and
      **"ask these"** (decision findings: write `(open)` with the question and add the question
      to `interview.md`);

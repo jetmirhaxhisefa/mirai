@@ -23,6 +23,8 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | Type | What it is | Where it lives | Explained in |
 |---|---|---|---|
 | `interview` | the questions an agent asked you before the brief, your answers and your "yes"; no approval of its own, but an unconfirmed one blocks the brief's | `docs/mirai/<initiative>/interview.md` | "The interview", below |
+| `requirements` | your own list of requirements, each line word for word as `REQ-n`; a source the PRD carries line by line | `docs/mirai/<initiative>/requirements.md` | "From request to approval", below |
+| `business-change` | a proposal to change `business.md`, which you approve on its own; approving it applies it | `docs/mirai/<initiative>/business-change.md` | "From request to approval", below |
 | `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
 | `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
@@ -244,6 +246,64 @@ and model, and its rung when MIRAI ran the author (`docs/model-tiers.md`).
 [docs]
 verify = false
 ```
+
+## From request to approval
+
+Unit 41. Nora (`mirai-product-manager`) turns your request into a brief and a PRD ready for your
+approval. Your time goes into answering questions and approving; she writes in the background.
+The steps, in order:
+
+1. **The interview, in your session** (`mirai-interview`). Before the first question the session
+   reads `business.md` and `journeys.md`. A request that contradicts them gets it as the first
+   question, with "propose a change to business.md" as one option. When you give your own list of
+   requirements, the session keeps it as `requirements.md` and asks only what it leaves open or
+   where lines contradict.
+2. **Your list, numbered:** `mirai requirements <initiative>` (or `/mirai requirements`) numbers a
+   pasted list in place, each line word for word as `REQ-1`, `REQ-2` …; `--from <file>` copies a
+   file of yours and names it as the source.
+3. **A business.md proposal, when you chose one:** `business-change.md` beside the interview. Each
+   change quotes business.md's lines as they are (`Replace:`) and the new text (`With:`), with its
+   source ("you said, <date>") and why. `mirai approve --file docs/mirai/<initiative>/business-change.md`
+   applies it to business.md and signs both; a rejection leaves business.md as it was. The brief
+   can't be approved while it's open. Nora never edits business.md.
+4. **Commit, then start her:** every launch needs a clean tree, and MIRAI commits her documents on
+   your current branch, never on the integration branch. So the session commits `interview.md` (and
+   the list) on a branch for the feature, then runs `/mirai write <initiative>` (in a terminal:
+   `mirai write <initiative>`).
+5. **Her run:** one MIRAI run, several launches, on the `prd` step's tier (deep). For the brief,
+   then the PRD:
+   - her launch writes the document (on the local store she returns it and MIRAI writes it there),
+     and on the repo store lints it herself with MIRAI's `lint` tool before it ends;
+   - MIRAI refuses any change outside the initiative's folder, and commits hers (you as author,
+     MIRAI as committer, `Mirai-Initiative: <initiative>`);
+   - the lint, then Vera (on the `verify` step's own tier, not raised to Nora's; her launch is the
+     author's, so the run log has the rung), then the reader test where the type has one;
+   - what they find goes to her next launch: the lint's problems, Vera's must-fix findings (fenced),
+     the reader's gaps. Within `[docs] verify_fix_rounds` and `reader_fix_rounds`, and two lint
+     fixes for each draft (her write, and each fix of Vera's or the reader's findings).
+6. **She pauses** when only you can answer: a contradiction with the context she meets while
+   writing, a fact or choice no source holds, or a `decision` finding of Vera's. She writes
+   `(open)` with the question where the answer goes, adds it to `interview.md` as an open question
+   with options and her guess, and sets the interview `paused`. Your session tells you the
+   question; you answer it there, confirm, commit, and start her again. She continues from the
+   documents as they are.
+7. **She's done:** your session says "the brief and the PRD are ready to approve", with each
+   file's full path and link. You approve them as always (on standard, one decision for both).
+
+**Your own list, line by line.** The PRD cites each `REQ-n` on the FR, NFR or AC that carries it
+(`(BR-2) (REQ-23)`). The lint fails a line no requirement cites (unless "Not in this" lists it with
+the reason) and a `REQ-n` the list doesn't define. Vera gets the list as a fourth input: a line
+cited with its number or condition changed ("1 day before" became "before") is a must-fix on the
+`checklist` layer, whatever grade she gave. A line left out under "Not in this", with a reason, is
+no finding. (`REQ`, not `R`: a brief's and a PRD's `R-n` are their risks.)
+
+**Template gaps.** When something fits no section, she puts it in the closest one (a risk, an
+assumption, an open question) and reports it. Each gap is a `template_gap` journal line; `mirai
+show <initiative>` lists them. A gap never changes a template, and she never adds a section.
+
+**Where she stands:** `mirai show <initiative>` (or `/mirai show <initiative>`) shows her state
+under the documents: running, paused with her question, done, or stopped with why, and each run's
+record (rounds per check, launches, tier and model). `mirai write`'s own last lines are the same.
 
 ## The reader test
 

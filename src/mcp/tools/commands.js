@@ -89,6 +89,12 @@ export const COMMANDS = Object.freeze({
   // Unit 40: the verifier's check of one document, an agent launch like review (21f's rule: what
   // isn't a gate runs from your session). It signs nothing and changes no file.
   verify: { needs: ['file'], tty: true, argv: (a) => ['verify', a.file] },
+  // Unit 41 (Jet's re-check answers, 2026-11-23): Nora's run, which the session starts when the
+  // interview is confirmed. Several agent launches and Vera's checks in one run, so the run's time
+  // limit; it signs nothing (her documents still wait for your approval). Your requirements list,
+  // numbered in place.
+  write: { needs: ['initiative'], tty: true, run: true, argv: (a) => ['write', a.initiative] },
+  requirements: { quick: true, needs: ['initiative'], argv: (a) => ['requirements', a.initiative] },
   detect: { argv: () => ['detect'] },
   // Unit 38: the docs merge request. Neither decides anything new: publish pushes the documents
   // as they are, and merge needs your signed approvals, not a typed key.
@@ -237,7 +243,7 @@ export const miraiCommand = Object.freeze({
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
       type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template and show checklist (unit 37)' },
-      initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38)' },
+      initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38), write and requirements (unit 41)' },
       file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34) and verify (unit 40)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },
@@ -251,7 +257,7 @@ export const miraiCommand = Object.freeze({
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
       path: { type: 'string', pattern: ITEM.source, description: 'an item\'s path in the repo, for custom add, setup decide and setup defer (unit 39)' },
       stage: { type: 'string', enum: ['scan', 'migrate', 'context', 'connect', 'finish'], description: 'a setup stage, for setup start and setup done' },
-      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer, mirai-verifier) or skill; a hook\'s form: interactive, check or both' },
+      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer, mirai-verifier, mirai-product-manager) or skill; a hook\'s form: interactive, check or both' },
       role: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent overlay\'s role' },
       event: { type: 'string', pattern: WORD.source, description: 'with custom add: a hook\'s event, such as PostToolUse' },
       matcher: { type: 'string', pattern: WORD.source, description: 'with custom add: the tools a hook matches, such as Edit|Write' },

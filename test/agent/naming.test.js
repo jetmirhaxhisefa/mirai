@@ -163,7 +163,7 @@ function strings(line) {
   while ((m = re.exec(line))) out.push(m[0].slice(1, -1));
   return out;
 }
-test('38b T8: no stray word: "merge request" and "MR" only from the helper; no Kai, Rex or Vera in src outside the registry', () => {
+test('38b T8: no stray word: "merge request" and "MR" only from the helper; no Kai, Rex, Vera or Nora in src outside the registry', () => {
   const found = [];
   for (const file of jsFiles(SRC)) {
     const rel = relative(SRC, file);
@@ -173,8 +173,8 @@ test('38b T8: no stray word: "merge request" and "MR" only from the helper; no K
       const code = line.replace(/\s\/\/\s.*$/, '');
       for (const s of strings(code)) {
         if (!ALLOWED_WORD_FILES.has(rel) && /merge request|\bMRs?\b/.test(s)) found.push(`${rel}:${i + 1}: ${s.slice(0, 80)}`);
-        // Unit 40: Vera's name comes from the registry too.
-        if (/\b(Kai|Rex|Vera)\b/.test(s) && !AGENT_PROMPTS.some((p) => p.test(s))) found.push(`${rel}:${i + 1}: ${s.slice(0, 80)}`);
+        // Unit 40: Vera's name comes from the registry too; unit 41: Nora's.
+        if (/\b(Kai|Rex|Vera|Nora)\b/.test(s) && !AGENT_PROMPTS.some((p) => p.test(s))) found.push(`${rel}:${i + 1}: ${s.slice(0, 80)}`);
       }
     });
   }

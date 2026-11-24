@@ -781,6 +781,17 @@ export function agentCases(ctx) {
               { name: 'run_tests', arguments: { level, test: 'a;b::c' } },
               { name: 'run_tests', arguments: { level, path: 'a', test: 'a::b' } },
             ] : []),
+            // Unit 41 (A2): the agent run's lint reads documents under the docs root only, one by one:
+            // never a dot file the sandbox denies (.env*), anything outside, a folder or the whole project.
+            ...(policy.tools.lint ? [
+              { name: 'lint', arguments: {} },
+              { name: 'lint', arguments: { paths: ['.env'] } },
+              { name: 'lint', arguments: { paths: ['docs/mirai/.env.md'] } },
+              { name: 'lint', arguments: { paths: ['README.md'] } },
+              { name: 'lint', arguments: { paths: ['docs'] } },
+              { name: 'lint', arguments: { paths: ['../outside.md'] } },
+              { name: 'lint', arguments: { paths: ['/etc/passwd'] } },
+            ] : []),
           ];
           const marker = join(w.outside, 'node-options-ran');
           writeFileSync(join(w.outside, 'evil.cjs'), `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'x');\n`);

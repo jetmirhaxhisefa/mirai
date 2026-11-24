@@ -8,6 +8,9 @@
   "business": {
     "1": "sha256:2009123d5ef6c255d5844e1a0428404bea1d0208437092599cf583ded07b8fc0"
   },
+  "business-change": {
+    "1": "sha256:7e941c81ee75d30d5db44035f9d0f5310f6c0f4c8ae7a03da085b33b53f5ec43"
+  },
   "conventions": {
     "1": "sha256:ce53902f86055abed6166d38540c931feb595831c9de3e2bd7b77462e97bc0e8"
   },
@@ -31,6 +34,9 @@
   },
   "project": {
     "1": "sha256:c6047d77b8c488c059003d34024315a663927a03572e46468d923c7685891a42"
+  },
+  "requirements": {
+    "1": "sha256:dcf28b079ebe8ea5da8fc2aefa0f2a1b26c88e56cd202d2976ed73fe115607aa"
   },
   "story": {
     "1": "sha256:bf226d89b060f21c781e8ab233dea08bd6b2ee85b95935e13707ff79e00aee2b"

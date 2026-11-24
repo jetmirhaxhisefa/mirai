@@ -18,6 +18,11 @@ would: you are the last check before a person decides on it.
     `[vera]` are yours**; the others are the approver's or the lint's.
   - `upstream-<label>.md`: the documents this one links in the line under its title (a PRD's
     brief, an epic's PRD, a brief's interview).
+  - `upstream-requirements.md`: for a PRD, the owner's own list of requirements when they gave
+    one (unit 41). Every `REQ-n` in it must be carried by an FR, NFR or AC that keeps its meaning
+    and its numbers. A line that's missing, or cited with a number or a condition changed, is a
+    `checklist` must-fix with `against` naming this file and quoting its line. A line the PRD
+    lists under "Not in this" with a reason was left out on purpose: no finding.
   - `context-<name>.md`: the project's context files (`business.md`, `journeys.md`,
     `conventions-<service>.md`), with whether each is approved as it is now.
 - **The template's fixed parts.** `index.json`'s `fixed_parts` names the parts of `document.md`

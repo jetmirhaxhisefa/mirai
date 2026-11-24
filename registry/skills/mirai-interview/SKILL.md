@@ -32,6 +32,38 @@ confirmed.
 3. **Start `interview.md`** from the template (`.mirai/framework/registry/templates/interview.md`)
    at `docs/mirai/<initiative>/interview.md`, with `state: open`, the request word for word, and
    your first guess.
+4. **Read the business context before the first question** (unit 41): `.mirai/context/business.md`
+   and `.mirai/context/journeys.md`. When the request contradicts one of them (business.md says
+   "signed-in teams only", the request says "guests comment"), that contradiction is your **first
+   question**: quote both sides, and offer "propose a change to business.md" as one of the
+   options, beside keeping business.md and changing the request.
+5. **The owner's own list.** When the owner gives a list of requirements (pasted, or a file), keep
+   it: save a pasted list as `docs/mirai/<initiative>/requirements.md`, one requirement per line,
+   word for word, then run `/mirai requirements <initiative>` (in a terminal: `mirai requirements
+   <initiative>`, or `--from <file>` for a file), which numbers each line `REQ-1`, `REQ-2` …. Read
+   it first, and ask only what it leaves open, or where two lines contradict each other or the
+   context. Never ask the owner to repeat a line.
+
+## When the owner chooses "propose a change to business.md"
+
+business.md changes only through a proposal the owner approves on its own; neither you nor Nora
+edits it. Write `docs/mirai/<initiative>/business-change.md` from its template
+(`/mirai show template business-change`): for each change, the lines of business.md as they are
+now under `Replace:`, the new text under `With:` (with its source ID, and a new row under
+"Sources" when the source is new), `Source: you said, <date> (interview.md Q-n)` and `Why:`.
+Record the answer in `interview.md` as usual.
+
+- **Cover what the restatement allows.** The proposal changes business.md for everything the
+  restatement says the request now allows, not only its headline: "guests see the whole task and
+  every comment" needs both seeing and commenting in business.md.
+- **Lint it before you hand it over:** `/mirai lint` (or `mirai lint
+  docs/mirai/<initiative>/business-change.md`). The lint applies the proposal and lints business.md
+  as it would become, with business.md's own rules (sentence length, the sources' form). Fix the
+  `With:` text until it's clean.
+
+Then tell the owner the approval command, for their terminal: `mirai approve --file
+docs/mirai/<initiative>/business-change.md`. The brief can't be approved while the proposal is
+open.
 
 ## Each question
 
@@ -147,6 +179,30 @@ date, and set `state: confirmed`. Then stop and hand back: the brief comes next,
 confirmed interview. The brief links it in the line under its title:
 `Interview: [<the interview's title>](interview.md)`.
 
+## Handing over to Nora
+
+In your own session, once the interview is confirmed, Nora (`mirai-product-manager`) writes the
+brief and the PRD in the background:
+
+1. **Commit first.** Every agent launch needs a clean tree. Commit `interview.md` (and
+   `requirements.md` and `business-change.md` when there are any) on a branch for this feature,
+   never on the integration branch: `git switch -c docs-<initiative>` when you're on it, then
+   `git add docs/mirai/<initiative> && git commit -m "<initiative>: interview"`.
+2. **Start her** with `/mirai write <initiative>` (MIRAI's `mirai_command` tool, command `write`).
+   Your tool asks the owner to allow it.
+3. **Follow her** with MIRAI's `mirai_status` tool and the request id, now and then. Her run takes a while:
+   several launches, with MIRAI's lint, the verifier and the reader test between them.
+4. **Tell the owner** when it ends, with the full path and the link of each document from its last
+   lines:
+   - **done:** "the brief and the PRD are ready to approve", and the approval command for their
+     terminal;
+   - **paused:** her question, which she added to `interview.md` (state `paused`). Resume the
+     interview at that question (below), then start her again: she continues from the documents
+     as they are;
+   - **stopped:** why, as the output says it.
+
+`/mirai show <initiative>` shows her state (running, paused with her question, done) at any time.
+
 ## Pause and resume
 
 **Pause.** When the owner says "pause" (or "draft it"), write every question you still have into
@@ -160,6 +216,9 @@ brief beside it can't be approved.
 
 **Resume.** A new session reads `interview.md` first. It starts at the first open question, and
 never asks an answered one again. Set `state: open` while you ask.
+When Nora paused on a question, ask it the same way; when it's answered and the owner says yes
+to the restatement again (amend it if the answer changes it), set `state: confirmed`, commit, and
+start her again (`/mirai write <initiative>`).
 
 ## Autonomous mode
 
@@ -171,8 +230,9 @@ answers it.
 
 ## Checking it
 
-- **You don't run `mirai`.** Ask the owner to run `mirai lint docs/mirai/<initiative>/interview.md`,
-  and fix what it reports.
+- **You don't run `mirai` from a shell.** In the owner's session use `/mirai lint` (the
+  `mirai_command` tool); otherwise ask the owner to run `mirai lint docs/mirai/<initiative>/interview.md`.
+  Fix what it reports.
 - **Don't edit** `.mirai/`, `AGENTS.md` or `CLAUDE.md`.
 
 Credits for the sources behind this method are in [CREDITS.md](CREDITS.md).

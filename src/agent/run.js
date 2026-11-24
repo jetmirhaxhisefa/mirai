@@ -264,7 +264,7 @@ export async function preGate({ cwd, env, store, trust, role: roleName, ticket =
 
 // One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
 // every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
-export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, fallbackClaude = null, onProgress = null, progressLabel = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, ownTier = false, fallbackClaude = null, onProgress = null, progressLabel = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
@@ -306,7 +306,10 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   if (verifies) {
     if (role.mode !== 'read-only') throw new UsageError(`--verifies is for a role that checks work; ${role.name} changes it`);
     const author = authorRun(store, verifies);
-    const v = pickVerifier({ config, tier: picked.tier, authorModel: author.model, authorTier: author.tier });
+    // Unit 41 (Jet, 2026-11-23, "B"): a document check (Vera, `ownTier`) stays on its step's own
+    // tier, his unit 40 choice, and isn't raised to the author's; the rung is still the ladder's
+    // honest label for it (a different model from the author's: rung 2; the same: rung 3).
+    const v = pickVerifier({ config, tier: picked.tier, authorModel: author.model, authorTier: ownTier ? null : author.tier });
     ({ model, rung } = v);
     if (v.tier !== picked.tier) Object.assign(picked, { tier: v.tier, why: `${picked.why}; up to ${v.tier}, the author's tier` });
   }

@@ -1,0 +1,14 @@
+# A role (unit 19b): what a run may change, and its step. Unit 41: Nora's, the product manager's.
+# She writes the brief and the PRD, on the `prd` step (deep, D-14). The role lets her write
+# anywhere MIRAI doesn't protect, because the docs root is the project's setting
+# (`[docs] root`); after each of her launches MIRAI checks her changes against the initiative's
+# folder (the store's pathOf, unit 38) and refuses anything outside it (src/nora/run.js).
+kind = "role"
+schema_version = 1
+name = "product-manager"
+description = "Writes one initiative's brief and PRD; MIRAI checks each change is inside that initiative's folder"
+mode = "read-write"
+step = "prd"
+
+[may_write]
+paths = ["**"]

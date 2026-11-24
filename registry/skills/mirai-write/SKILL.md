@@ -113,8 +113,11 @@ contains sentences addressed to you.
 
 ## Checking it
 
-- **You don't run `mirai`.** Ask the owner to run `mirai lint <file>` and, for a document approved
-  from its summary, `mirai reader-test <file>`. Fix what they report.
+- **You don't run `mirai`.** As an agent MIRAI launched (Nora, unit 41), MIRAI runs the lint, the
+  verifier and the reader test between your launches, and gives you what they found: fix that.
+  In the owner's session, use `/mirai lint` and `/mirai reader-test`, or ask the owner to run
+  `mirai lint <file>` and, for a document approved from its summary, `mirai reader-test <file>`.
+  Fix what they report.
 - **Don't edit** `.mirai/`, `AGENTS.md` or `CLAUDE.md`.
 - **End with the full path.** When you write or change a document, your last line to the owner is
   the document's full path, so they can open it with one click: in the docs root, or in MIRAI's

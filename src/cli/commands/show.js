@@ -24,6 +24,8 @@ import { documentLine } from '../../store/connectors/links.js';
 import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js';
 import { hostWords, projectWords } from '../../ship/words.js';
 import { agentNamer } from '../../agent/names.js';
+import { noraStateLines } from '../../nora/state.js';
+import { readRunState } from '../../store/run.js';
 
 // mirai show <ticket> (unit 28, decision 7; design/03 "mirai show"): the ticket's page from the
 // store: its plan, build, review rounds with every blocking finding, the MR, rounds, usage and why
@@ -103,8 +105,17 @@ function initiativeOf({ cwd, env, name }) {
     exists = false;
   }
   let docs = [];
+  let nora = [];
   if (exists) {
     const { events } = readJournal(store);
+    // Unit 41 (Scope 6, 7): Nora's state for the initiative, and the template gaps she logged.
+    let runState = null;
+    try {
+      runState = readRunState(store);
+    } catch {
+      runState = null;
+    }
+    nora = events.some((e) => (e.type === 'nora_run' || e.type === 'template_gap') && e.item === name) ? noraStateLines(events, name, { who: agentNamer(), runState }) : [];
     docs = documentRows({ store, conn, initiative: name }).map((d) => {
       let bytes = null;
       try {
@@ -117,12 +128,12 @@ function initiativeOf({ cwd, env, name }) {
       return { ...d, misses, line: documentLine({ store, config, conn, abs: d.path, rel: d.rel, bytes, events }) };
     });
   }
-  return { exists, docsRoot: conn.docsRoot, shown: conn.kind === 'local' ? dir : shown, dir, name, docs, store: conn.name };
+  return { exists, docsRoot: conn.docsRoot, shown: conn.kind === 'local' ? dir : shown, dir, name, docs, nora, store: conn.name };
 }
 
 // One header line (the initiative and its track, from the PRD or the brief), then a line per
 // document. Everything read from a file is shown, not acted on (plain).
-function initiativeText({ name, docs, shown }) {
+function initiativeText({ name, docs, shown, nora = [] }) {
   const track = docs.find((d) => d.type === 'prd')?.track ?? docs.find((d) => d.type === 'brief')?.track ?? null;
   const out = [`${plain(name)}   ${track ? plain(track) : 'no track yet'}`];
   if (!docs.length) out.push(`  no documents yet in ${plain(shown)}/`);
@@ -134,6 +145,7 @@ function initiativeText({ name, docs, shown }) {
     out.push(`  ${plain(d.file).padEnd(w('file'))}   ${plain(d.type ?? '—').padEnd(w('type'))}   ${plain(d.id ?? '—').padEnd(w('id'))}   ${d.state.padEnd(22)}   ${d.line ?? plain(d.path)}`);
     for (const m of d.misses ?? []) out.push(`    missed by ${who('mirai-verifier')}: she passed it and you rejected it${m.note ? ` (${plain(m.note)})` : ''}${m.at ? `, ${plain(String(m.at).slice(0, 10))}` : ''}`);
   }
+  for (const l of nora) out.push(`  ${l}`);
   return `${out.join('\n')}\n`;
 }
 

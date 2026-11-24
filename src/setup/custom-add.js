@@ -16,7 +16,7 @@ import { REGISTRY_DIR } from '../install/render.js';
 // never at the move. The item is checked first, as it would be read from its new place (the
 // static checks of decision 3); one that fails is refused, naming the check, and nothing moves.
 
-export const AS_VALUES = Object.freeze(['skill', 'mirai-developer', 'mirai-reviewer', 'mirai-verifier', 'interactive', 'check', 'both']);
+export const AS_VALUES = Object.freeze(['skill', 'mirai-developer', 'mirai-reviewer', 'mirai-verifier', 'mirai-product-manager', 'interactive', 'check', 'both']);
 const NAME = /^[a-z][a-z0-9-]{0,62}$/;
 const SCRIPT_EXT = Object.keys(SCRIPT_RUNNERS);
 
@@ -127,8 +127,8 @@ function agentFrom(root, file, opts) {
     return { kind: 'project-skill', name, writes: new Map([[`project-skills/${name}/SKILL.md`, Buffer.from(skill, 'utf8')]]), removes: [file], edits: [], main: `project-skills/${name}/SKILL.md` };
   }
   // Unit 40: a project's own document checker can become an overlay of the verifier, too.
-  if (!['mirai-developer', 'mirai-reviewer', 'mirai-verifier'].includes(opts.as)) {
-    throw new CustomError(`${file} is an agent: say which MIRAI agent it becomes an overlay of, or keep it as a skill`, { code: 'custom-agent-as', hint: `mirai custom add ${file} --as mirai-developer|mirai-reviewer|mirai-verifier --role <a role in .mirai/custom/roles/>, or --as skill; any other agent is dropped (a new agent comes with its own unit)` });
+  if (!['mirai-developer', 'mirai-reviewer', 'mirai-verifier', 'mirai-product-manager'].includes(opts.as)) {
+    throw new CustomError(`${file} is an agent: say which MIRAI agent it becomes an overlay of, or keep it as a skill`, { code: 'custom-agent-as', hint: `mirai custom add ${file} --as mirai-developer|mirai-reviewer|mirai-verifier|mirai-product-manager --role <a role in .mirai/custom/roles/>, or --as skill; any other agent is dropped (a new agent comes with its own unit)` });
   }
   const tools = fm?.value?.tools === undefined ? null : (Array.isArray(fm.value.tools) ? fm.value.tools : String(fm.value.tools).split(/[\s,]+/)).map(String).filter(Boolean);
   const lines = ['kind = "agent-overlay"', 'schema_version = 1', `name = ${tomlString(opts.as)}`, `# From ${file}, moved by mirai custom add (unit 39).`];
