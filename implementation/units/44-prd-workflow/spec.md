@@ -372,6 +372,16 @@ existing ledger.
 - **design/07 row 44:** points to this spec. **Row 46:** the note above.
 - **design/13 §2 and §3:** the "Decision questions" log row and its audit row.
 
+## To interview before the build (Jet, 2026-11-24, "A", from 41's P4)
+
+- **The interview looks ahead through the PRD's checklist.** Before you confirm the restatement,
+  the interview (35) reads the PRD's checklist and asks what Nora would otherwise pause on later, so
+  her pauses come up front. *Seen in 41's P4:* 6 questions at the interview, then 5 pauses in
+  Nora's runs (Q-7 to Q-11), each a real gap.
+- **Interview Jet on it first** (interview-me), before any design for it is written.
+- **Accepted only if the probes show** fewer pauses than without it, and Vera's findings no worse
+  (the must-fix count and the kinds), on the same requests.
+
 ## Follow-up
 
 - **`pre-commit` and document approvals (from the spec review, 2026-11-22):** the hook's unsigned-approval check covers `.mirai/records/` only, because document approvals are journal lines in MIRAI's store, not repo files. If approvals are ever committed (38's committed-records idea, 37's `approvals/` pattern), the hook must check them too.
