@@ -67,6 +67,7 @@ What the tickets build together, and why they come in this order.
 
 <!-- done when: one item per ticket that needs the approver's call, each by ticket key with a one-line reason: every risk: high ticket, every e2e: true ticket, every tdd or tests override, and the release mode when it is together, cited by the epic's own key; or one line: None — <why nothing needs your call> -->
 1. A ticket that needs your call (PMT-12): what it is, and why it needs you.
+2. A new critical journey, J-9 (PMT-12): approving the set adds it to journeys.md.
 
 ### Not in this
 

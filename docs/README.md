@@ -16,6 +16,7 @@ These pages say "merge request" for both hosts. On GitHub this is a pull request
 ## Documents and tickets
 
 - [documents.md](documents.md): the document types, the summary for approval, the lint and the reader test.
+- [tickets.md](tickets.md): Tess, the ticket planner; testable acceptance criteria, priority and order, the run's pick, and the project's ticket types (unit 42).
 - [context.md](context.md): the project's context files in `.mirai/context/`, what the lint checks in them and how you approve them.
 - [stores.md](stores.md): where documents are kept (the repo or your Mac only), and the docs merge request that takes an initiative's documents to main after your signed approvals.
 - [overlays.md](overlays.md): a project's own changes to MIRAI's templates, agents and skills, what they may never drop, and how you approve them.

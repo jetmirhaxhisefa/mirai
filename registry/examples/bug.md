@@ -2,12 +2,9 @@
 id: PMT-31
 type: bug
 template: bug@v2
-ticket_type: Bug
 repo: "."
 risk: normal
 size: S
-priority: normal
-order: 2
 verify: "Changing a team's name keeps every member on the team page, checked by a feature test."
 covers_fr: []
 covers_ac: []
@@ -15,6 +12,9 @@ governed_by: []
 after: []
 files_likely: [app/Actions/RenameTeam.php]
 e2e: false
+ticket_type: Bug
+priority: normal
+order: 2
 ---
 # Renaming a team hides its members
 
