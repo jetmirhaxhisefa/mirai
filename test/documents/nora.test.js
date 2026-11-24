@@ -25,7 +25,8 @@ import { readJournal } from '../../src/store/journal.js';
 import { readVerifyResults } from '../../src/store/verify-results.js';
 import { verifyInputs, verifySubject } from '../../src/verify/run.js';
 import { findingsFrom } from '../../src/verify/findings.js';
-import { NORA_AGENT, NORA_ROLE, runNora } from '../../src/nora/run.js';
+import { NORA_AGENT, NORA_ROLE, noraPrompt, noraSubject, runNora } from '../../src/nora/run.js';
+import { PAUSE_PLACE } from '../../src/agent/pause.js';
 import { NORA_SCHEMA } from '../../src/nora/schema.js';
 import { noraStateLines } from '../../src/nora/state.js';
 import { requirementLines, requirementsText } from '../../src/nora/requirements.js';
@@ -519,6 +520,22 @@ test('41 T5: a pause her interview doesn\'t show is no pause: the run ends faile
   const { r } = await nora(f, { steps: [() => result({ outcome: 'paused', question: 'Q-9' })] });
   assert.equal(r.state, 'failed');
   assert.match(r.why, /she says she paused on Q-9, but interview\.md isn't paused/);
+});
+
+test('41 (42\'s P2 rerun, Jet\'s "A"): a pause question after the restatement ends failed, naming its line; her prompt says where it goes', async () => {
+  const f = fixture();
+  const after = `${INTERVIEW.replace('state: confirmed', 'state: paused').trimEnd()}\n\n${Q8.replace('\n\n## Restatement', '')}\n`;
+  const { r } = await nora(f, { steps: [byDocument({ brief: (o, fx) => {
+    put(fx, `${D}/brief.md`, BRIEF_READY);
+    put(fx, `${D}/interview.md`, after);
+    return result({ outcome: 'paused', question: 'Q-8' });
+  } })] });
+  assert.equal(r.state, 'failed');
+  const line = after.split('\n').indexOf('### Q-8: Comments by guests') + 1;
+  assert.equal(r.why, `she says she paused on Q-8, but interview.md has Q-8, but outside ## Questions (line ${line}, after ## Restatement): it must be the last question inside ## Questions`);
+  assert.ok(read('agents/mirai-product-manager.md').includes(PAUSE_PLACE));
+  const g = fixture();
+  assert.ok(noraPrompt(noraSubject({ cwd: g.root, env: g.env, initiative: 'due-dates' }), { type: 'brief', step: 'write', round: 1 }).includes(PAUSE_PLACE));
 });
 
 // ---- T6 Template gaps ---------------------------------------------------------------------------

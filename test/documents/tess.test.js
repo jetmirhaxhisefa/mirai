@@ -35,6 +35,7 @@ import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { passVera } from '../helpers/vera.js';
 import { isWriteStaging } from '../../src/agent/staging.js';
+import { PAUSE_PLACE } from '../../src/agent/pause.js';
 import { prdWithGap } from '../probes/tess-probes.js';
 import { installed } from '../tests/run-fixture.js';
 
@@ -273,6 +274,28 @@ test('42 T4: a pause her interview doesn\'t show is no pause: the run ends faile
   const { r } = await tess(f, { steps: [() => result({ outcome: 'paused', question: 'Q-8' })] });
   assert.equal(r.state, 'failed');
   assert.match(r.why, /she says she paused on Q-8, but interview\.md isn't paused/);
+});
+
+test('42 (P2\'s second run, Jet\'s "A"): a pause question after the restatement ends failed, naming its line; inside ## Questions it pauses; her prompt says where it goes', async () => {
+  const f = await fixture();
+  const after = `${INTERVIEW.replace('state: confirmed', 'state: paused').trimEnd()}\n\n${Q8.replace('\n\n## Restatement', '')}\n`;
+  const { r } = await tess(f, { steps: [(o, fx) => {
+    put(fx, `${D}/interview.md`, after);
+    return result({ outcome: 'paused', question: 'Q-8' });
+  }] });
+  assert.equal(r.state, 'failed');
+  const line = after.split('\n').indexOf('### Q-8: An untestable requirement') + 1;
+  assert.equal(r.why, `she says she paused on Q-8, but interview.md has Q-8, but outside ## Questions (line ${line}, after ## Restatement): it must be the last question inside ## Questions`);
+  assert.ok(read('agents/mirai-ticket-planner.md').includes(PAUSE_PLACE));
+  assert.ok(read('agents/mirai-product-manager.md').includes(PAUSE_PLACE), 'one text in both prompts');
+  const g = await fixture();
+  assert.ok(tessPrompt(tessSubject({ cwd: g.root, env: g.env, initiative: 'due-dates' }), { step: 'write', round: 1 }).includes(PAUSE_PLACE));
+  // Inside "## Questions", it pauses (T4's run).
+  const { r: ok } = await tess(g, { steps: [(o, fx) => {
+    put(fx, `${D}/interview.md`, INTERVIEW.replace('state: confirmed', 'state: paused').replace('## Restatement', Q8));
+    return result({ outcome: 'paused', question: 'Q-8' });
+  }] });
+  assert.equal(ok.state, 'paused', ok.why);
 });
 
 // ---- T5 One ticket by hand --------------------------------------------------------------------
