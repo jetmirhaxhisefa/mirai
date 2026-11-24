@@ -332,6 +332,12 @@ interview from a guess. Test: `42 (Jet's answer 2, A+)` (the skill's text carrie
   `tdd.test.js` and `test/proofs/fixture.js`: their `tty` helper records Vera's pass before an
   approval (`veraBefore`, 40's helper), since their lone ticket `PMT-31` now needs her result.
 
+**4: A** (Jet, 2026-11-24, the builder's new question): Vera on every lone ticket; the lint at
+approval only on a ticket that links its interview (Tess's). A person's own ticket approves after
+Vera's check without the lint, as 33's always did; a lint failure has no "approve anyway", and old
+hand-written tickets (such as the fixtures' `PMT-31`) miss template sections. Revisit at 44, once
+`/mirai-new` covers the small cases.
+
 ## Questions for Jet (answered above)
 
 1. **The ticket key prefix with no tracker.** The spec says `mirai init` asks once. Built: Tess
@@ -348,6 +354,8 @@ interview from a guess. Test: `42 (Jet's answer 2, A+)` (the skill's text carrie
    as built (33's tickets without an interview, written by you, approve as before); **B** every
    story or bug with no epic needs her result. Recommendation: **A**, so your own hand-written
    tickets keep their one-step approval.
+4. **Lint every lone ticket at approval?** **A** Vera always, the lint only with an interview (as
+   built); **B** lint every lone ticket. Recommendation: **A**, revisit at 44.
 
 ## For later units
 
