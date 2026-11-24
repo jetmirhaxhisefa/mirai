@@ -25,7 +25,7 @@ import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { INPUT_LIMITS } from '../../src/launch/strict.js';
 import { verifyInputs, verifySubject } from '../../src/verify/run.js';
-import { TESS_AGENT, TESS_ROLE, runTess, tessSubject } from '../../src/tess/run.js';
+import { TESS_AGENT, TESS_ROLE, runTess, tessPrompt, tessSubject } from '../../src/tess/run.js';
 import { TESS_SCHEMA, checkTessResult } from '../../src/tess/schema.js';
 import { tessStateLines } from '../../src/tess/state.js';
 import { runPick } from '../../src/tickets/pick.js';
@@ -35,6 +35,7 @@ import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { passVera } from '../helpers/vera.js';
 import { isWriteStaging } from '../../src/agent/staging.js';
+import { prdWithGap } from '../probes/tess-probes.js';
 import { installed } from '../tests/run-fixture.js';
 
 // Unit 42: Tess, the ticket planner. No model runs: fake launchers stand in for MIRAI's launcher
@@ -624,6 +625,39 @@ test('42 (re-check): her result is checked: a lone ticket can\'t pause or return
   assert.deepEqual(checkTessResult(result({ documents: [{ name: 'tickets/K-1.md', text: 'x' }] }), { local: true }).value.documents.length, 1);
 });
 
+// ---- P2's first run (Jet's "A", 2026-11-24): the testability lint on the PRD's ACs -------------
+
+const lintPrd = (text) => lintText(text, { source: `${D}/prd.md`, registry: REGISTRY, project: { repos: ['.'] }, linked: { 'brief.md': BRIEF_READY }, approving: true }).filter((p) => p.severity === 'error');
+const AC41 = '  - AC-FR-4.1: Given Ana has two tasks due 2027-01-15, when 2027-01-14 ends, then Ana gets one email naming both.';
+
+test('42 (P2\'s first run): the PRD\'s ACs are held to the testability rule: "sent reliably" fails naming the AC; Given/When/Then and a system-facing AC pass; a stray vague bullet under an AC fails', () => {
+  assert.deepEqual(lintPrd(PRD_READY), [], 'the example PRD lints clean');
+  // (A PRD's AC is also Given / When / Then: 32's prd-ac says so for this one too.)
+  const bad = lintPrd(swap(PRD_READY, AC41, '  - AC-FR-4.1: reminders are sent reliably')).filter((p) => p.code === 'prd-ac-untestable');
+  assert.equal(bad.length, 1);
+  assert.deepEqual(lintPrd(swap(PRD_READY, AC41, '  - AC-FR-4.1: Given two tasks due tomorrow, when the day ends, then reminders are sent reliably')).map((p) => p.code), ['prd-ac-untestable']);
+  assert.match(bad[0].reason, /^AC-FR-4\.1's outcome "reminders are sent reliably" says "reliably" with no number: nobody could test it$/);
+  assert.equal(bad[0].hint, 'say what the reviewer sees: a value, a screen, a record, a log line');
+  assert.deepEqual(lintPrd(swap(PRD_READY, AC41, '  - AC-FR-4.1: Given a task due tomorrow, when the reminder job runs at 18:00, then one email is sent to the assignee.')), []);
+  assert.deepEqual(lintPrd(swap(PRD_READY, AC41, '  - AC-FR-4.1: Given the reminder job runs, when it sends a reminder, then its log entry in the cloud log uses the structure in ADR-12.')), []);
+  // P2's first seed: the AC kept, a vague bullet beside it (or under it) is part of it, and fails.
+  for (const stray of [`${AC41}\n  - reminders are sent reliably`, `${AC41}\n    - reminders are sent reliably`]) {
+    const s = lintPrd(swap(PRD_READY, AC41, stray));
+    assert.deepEqual(s.map((p) => p.code), ['prd-ac-untestable'], stray);
+    assert.match(s[0].reason, /^AC-FR-4\.1 \(its line "reminders are sent reliably"\)'s outcome "reminders are sent reliably" says "reliably"/);
+  }
+  // A requirement's own "Verified by:" line isn't an AC's.
+  assert.match(PRD_READY, /^ {2}- Verified by: a measurement/m);
+});
+
+test('42 (P2 reseeded): the probe\'s PRD lints clean as at approval and holds the conflict: FR-4 at the team\'s midnight, NFR-3 at 18:00 UTC', () => {
+  const seeded = prdWithGap(PRD_READY);
+  assert.deepEqual(lintPrd(seeded), []);
+  assert.match(seeded, /^- FR-4: When a day ends/m);
+  assert.match(seeded, /^- Day ends: midnight in the team's own time zone\.$/m);
+  assert.match(seeded, /^- NFR-3: Every scheduled job, the reminders included, must run once a day at 18:00 UTC/m);
+});
+
 // ---- P1's run, a finding: Claude Code's write staging ------------------------------------------
 
 test('42 (P1\'s run): an empty .claude/.cc-writes/ beside her tickets doesn\'t fail the run with no global ignore; a non-empty one, or another file under .claude/, still does', async () => {
@@ -662,6 +696,19 @@ test('42 (Jet\'s answer 2, A+): the skill says up front when 3 questions can\'t 
   assert.match(part, /\(a\) a small feature through\s+`\/mirai-new`, with a full interview and no cap/);
   assert.match(part, /\(b\) a sharper line from the owner/);
   assert.match(part, /Never write a ticket interview from a guess/);
+});
+
+test('42 (P3\'s run): a change to the restatement after the yes is shown and confirmed again; an open point in a lone ticket\'s Notes says how to settle it', async () => {
+  const skill = read('skills/mirai-interview/SKILL.md');
+  const yes = skill.slice(skill.indexOf('## The yes'), skill.indexOf('## Handing over to Nora'));
+  assert.match(yes, /Any change to it after "Confirmed: yes", even a\s+rewording or a guess they accepted folded in, is shown to the owner line by line and confirmed\s+again before the record is final\. Never change it and tell them afterwards\./);
+  const settle = /answer it with `?\/mirai ticket fix <KEY>`? and your answer, or edit <the AC> before approving/;
+  assert.match(read('agents/mirai-ticket-planner.md'), settle);
+  assert.match(read('agents/mirai-ticket-planner.md'), /Never "the owner decides at approval"/);
+  assert.match(read('skills/mirai-write/guides/ticket.md'), /An open point in Notes says how to settle it/);
+  const f = await fixture({ files: { [`${L}/interview.md`]: TICKET_INTERVIEW } });
+  const s = tessSubject({ cwd: f.root, env: f.env, initiative: 'log-format', one: true });
+  assert.match(tessPrompt(s, { step: 'write', round: 1 }), settle);
 });
 
 // A person's own lone ticket: no interview, no epic, written by hand.

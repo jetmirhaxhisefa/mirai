@@ -207,17 +207,53 @@ second Tess run.
    `src/nora/run.js` and `src/tess/run.js` are too.
 3. **The probe's file list** printed `tickets/.claude`: it now lists only `.md` documents.
 
-### P2 A gap (Tess, then Nora's continue, then Tess again)
+### P2 A gap (Tess, then Nora's continue, then Tess again; reseeded 2026-11-24)
 
-1. `--probe home --case p2`: the same PRD with AC-FR-4.1 made "reminders are sent reliably".
-2. Approve the PRD (the printed command, as P1's step 2), then the printed `--probe loop`.
+The seed is decision 3's other kind of gap: a case the PRD doesn't settle that only shows when
+cutting. FR-4 sends the reminders "when a day ends", and the glossary says a day ends at midnight
+in the team's own time zone; an added NFR-3 says every scheduled job, the reminders included, runs
+once a day at 18:00 UTC. Each reads fine alone, and the PRD lints clean as at approval; the
+reminder job's ticket can't meet both.
+
+1. `cd ~/Projects/mirai-u42 && git fetch origin unit/42-build && git checkout --detach
+   origin/unit/42-build`, then `node test/probes/tess-probes.js --check` (four lines, p2's reading
+   `a gap: FR-4 (as the team's day ends) against NFR-3 (18:00 UTC): home built, …, documents lint
+   clean`).
+2. `node test/probes/tess-probes.js --probe home --case p2`, then approve the PRD (the printed
+   command, as P1's step 2), then the printed `--probe loop … | tee ~/mirai-u42-p2.txt`.
 3. When it prints **PAUSED**: in a new Terminal window, `cd <repo> && claude`, paste the printed
    message, answer her question there and confirm the restatement. The loop then commits the
    interview, runs Nora (her `continue` step, Opus), and prints the PRD's approval command: run it.
    You see "changed since your approval (seq n): N lines" with only the changed lines; answer `a`.
    The loop sees the approval and starts Tess again.
-4. **Pass when** her question names AC-FR-4.1 (its "reliably"), and the run after your answer and
-   the PRD's update ends "done". Output: `~/mirai-u42-p2.txt`.
+4. **Pass when** she pauses with a question that names both FR-4 and NFR-3 (the team's midnight
+   against 18:00 UTC), and after your answer, Nora's update of the PRD and your approval of it again
+   (shown only the changed lines), the next Tess run ends "done". Output: `~/mirai-u42-p2.txt`.
+5. Delete the home (the printed line).
+
+### P2's first run (Jet, 2026-11-24, home `~/.mirai-probes-1h3x3a`, output `~/mirai-u42-p2.txt`): invalid (the seed)
+
+- **The seed didn't make the gap.** `prdWithGap` kept AC-FR-4.1's own Given/When/Then line and only
+  replaced its sub-bullets with "- reminders are sent reliably", so the AC stayed testable. Tess
+  ended "done" (Vera round 1: 6 must-fix; round 2: 0), with no pause.
+- **It also showed a hole:** the PRD's lint let "reliably" through. The writing rules' vague words
+  have `reliable`, not `reliably`, and the testability lint ran on ticket ACs only, so a PRD with a
+  vague AC could be approved.
+- **Fixed (Jet's "A"):**
+  1. **The testability lint runs on the PRD's ACs too** (`prd-ac-untestable`, `src/lint/prd.js`
+     calling `prdTestabilityProblems` in `src/lint/testable.js`): every `AC-FR-n.m` and `AC-NFR-n.m`,
+     with the same rule and words as a ticket's, naming the AC and the fix. A bullet with no ID under
+     an AC (indented under it, or beside it in its list) is part of that AC and is held to the rule
+     on its own, so the first seed now fails the PRD's lint. Nora gets it through her lint (her
+     headless `lint` tool and MIRAI's lint between her launches). The example PRD and the probe
+     homes' PRDs lint clean; no fixture needed a change. Tests: `42 (P2's first run)` (a PRD AC
+     "reminders are sent reliably" fails naming AC-FR-4.1; a Given/When/Then passes; a
+     system-facing AC passes; a stray vague bullet under or beside an AC fails; a "Verified by:"
+     line isn't an AC's). Docs: `docs/documents.md` ("The four requirement groups") and the
+     `mirai-write` PRD guide.
+  2. **P2 reseeded** with the conflict above (`prdWithGap`, `P2_NFR`; test `42 (P2 reseeded)`: the
+     seeded PRD lints clean as at approval and holds both lines). `--check` now lints each home's
+     documents as at approval.
 
 ### P3 A technical ticket by hand (a session of yours, then 1 Sonnet launch and 1 Vera check)
 
@@ -228,6 +264,30 @@ second Tess run.
    state and the ticket's full path under `docs/mirai/tickets/`.
 3. **Pass when** she (the session) asked at most 3 questions, the run ends "done", and the ticket's
    ACs describe the system and a reviewer could test each one. Output: `~/mirai-u42-p3.txt`.
+
+### P3's run (Jet, 2026-11-24, home `~/.mirai-probes-39AnPP`, output `~/mirai-u42-p3.txt`): PASSED
+
+- **The interview:** exactly 3 questions (Q-1 to Q-3, each answered A); it linted clean and was
+  confirmed.
+- **Her run:** one run, 2 Sonnet launches, lint 0 fix rounds; Vera round 1: 1 must-fix, round 2: 0.
+- **The ticket:** SAMPLE-1 (story, M, normal), six system-facing Given/When/Then ACs (one JSON line
+  per log call; severity ERROR or WARNING; the message and an ISO 8601 time; the trace field
+  present or absent; the setting off keeps today's line), Boundaries as chosen, and one open point
+  in Notes (which trace header, and where the GCP project ID comes from, for AC-SAMPLE-1.4).
+- **PASSED** (Jet, 2026-11-24: "P3 pass").
+
+**Two findings, fixed:**
+
+1. **The session edited the restatement after the owner's "yes"** (it reworded "Why now" into the
+   guess he had accepted, then told him). `mirai-interview`, "The yes" (every interview, not only
+   one ticket's): after "Confirmed: yes", any change to the restatement is shown to the owner line
+   by line and confirmed again before the record is final; never changed and told afterwards.
+2. **The open point in Notes named no way to settle it** ("The owner decides at approval"). Tess's
+   prompt (her agent file and the launch prompt for a lone ticket) and the `mirai-write` ticket
+   guide: an open point says how to settle it, "answer it with `/mirai ticket fix <KEY>` and your
+   answer, or edit <the AC> before approving". See question 4.
+
+Test `42 (P3's run)`: the skill's text, her agent file, the guide and her launch prompt carry each.
 
 ### P4 Your work's types (1–3 Sonnet launches)
 
@@ -264,6 +324,11 @@ the session red team's existing "start an agent as a subagent" case covers.
 `ticket fix` step) and `src/store/journal.js` (`tess_run`'s `fix` mode). So `u42-baseline-2` and
 `u42-redteam-2` run at the new head. No case changes: `mirai tickets fix` is one more run of Tess
 under the same read-write template.
+
+**After P2's first run** (the PRD's testability lint), two cage files changed: `src/lint/prd.js`
+and `src/lint/testable.js` (the lint is reached from MIRAI's MCP server's `lint` tool, a cage
+root). So `u42-baseline-3` and `u42-redteam-3` run with `u42-tests-4`. No case changes: the lint
+still only reads and reports.
 
 ## Claude-only parts (Jet's standing rule, 2026-11-23)
 
@@ -390,6 +455,16 @@ hand-written tickets (such as the fixtures' `PMT-31`) miss template sections. Re
    tickets keep their one-step approval.
 4. **Lint every lone ticket at approval?** **A** Vera always, the lint only with an interview (as
    built); **B** lint every lone ticket. Recommendation: **A**, revisit at 44.
+
+## Questions for Jet (open)
+
+4. **"Answer it with `/mirai ticket fix <KEY>` and your answer":** `mirai tickets fix` takes no
+   answer today; it starts from Vera's must-fix findings, and refuses a ticket she passed
+   (`nothing-to-fix`), which is where an open point in Notes usually sits. Options: **A** add
+   `mirai tickets fix <KEY> --answer "<text>"` (`/mirai ticket fix <KEY> "<answer>"`): your answer
+   goes to her as `answer.md`, data, and she settles the open point with it; Vera checks again;
+   **B** keep the line to "edit <the AC> before approving" only. Recommendation: **A**, a small
+   follow-up commit on this branch (no new cage file but the session command table).
 
 ## For later units
 
