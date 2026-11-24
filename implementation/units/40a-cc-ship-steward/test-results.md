@@ -15,6 +15,7 @@ Branch `fix/cc-ship-steward`, from `main` at `33b3066`.
     MIRAI's own `skillOverrides` in `.claude/settings.json` as an item of yours. Fixed in
     `src/setup/ledger.js`.
   - `fix-ccss-tests-2` at `a4e1ede` (15.2 min): **808/808**.
+  - `fix-ccss-tests-3` at `4148fb8` (14.6 min, with claude-approvals off): **808/808**.
 
 ## Probes
 
