@@ -124,7 +124,7 @@ export function interactiveDenies(registry) {
 }
 
 // The bundled skills MIRAI turns off in your sessions too (unit 40a; Jet's "A", 2026-11-23): the
-// adapter's builtin_skills_off (2.1.330's ship-local and steward, which commit, push and watch a PR
+// adapter's builtin_skills_off (ship-local, steward and claude-approvals, which act on a PR
 // as you), written as skillOverrides "off" into `.claude/settings.json`. Only in MIRAI projects.
 export const interactiveSkillsOff = (registry) => [...(registry.adapters[ADAPTER]?.strict?.builtin_skills_off ?? [])].sort();
 

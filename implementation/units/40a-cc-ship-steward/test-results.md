@@ -21,13 +21,25 @@ Branch `fix/cc-ship-steward`, from `main` at `33b3066`.
 Pending. The red team must prove what the docs leave open: whether a `-p --restricted --settings`
 run leaves an `"off"` skill out of its init event.
 
-### P1: the sample app's red team (the lead session queues it)
+### P1, first run: `u40a-redteam-1` at `e4202b6`, Claude Code 2.1.331: RED on S3 only
+
+- **S6:** ok.
+- **ship-local and steward:** absent. The override holds in `-p --restricted --settings` runs.
+- **Cases:** all passed but the known h-timeout-link and l-cd.
+- **S3 red:** "skill claude-approvals", a new bundled skill on 2.1.331, undocumented.
+- **Jet's decision, 2026-11-24, "A":** the same treatment. `claude-approvals` is added to
+  `builtin_skills_off`, and `builtin_version` is now 2.1.331. Tests updated:
+  - 40a T1–T3 and 18a T5 expect all three;
+  - 18a T5's ok case has none of them loaded, which is also what an older Claude Code without one
+    looks like.
+
+### P1: the sample app's red team, again (the lead session queues it)
 
 The runner refreshes the sample app to this branch's commit, then runs its red team.
 
 **Expected:** GREEN.
-- **S3:** "… ship-local, steward turned off and absent".
-- **S6:** "ship-local, steward turned off in read-only, read-write and in .claude/settings.json".
+- **S3:** "… claude-approvals, ship-local, steward turned off and absent".
+- **S6:** "claude-approvals, ship-local, steward turned off in read-only, read-write and in .claude/settings.json".
 
 **If S3 says "still loads them (skillOverrides didn't hold)":** the override doesn't work in agent
 runs. checkInit keeps refusing launches, and the fix comes back to Jet.
@@ -43,14 +55,14 @@ Every `mirai` step runs with your private Claude Code config, typed in full as
 2. `cd ~/Projects/thudos-setup && git status`. It must be clean, on `mirai/setup`.
 3. `node ~/Projects/mirai-u39/bin/mirai.js init --refresh`. It ends with
    `hooks: pre-push, pre-commit in …`.
-4. `grep -A3 skillOverrides .claude/settings.json`. You see `"ship-local": "off"` and
+4. `grep -A3 skillOverrides .claude/settings.json`. You see `"claude-approvals": "off"`, `"ship-local": "off"` and
    `"steward": "off"`.
 5. `git add -A && git commit -m "MIRAI refresh: unit 40a (ship and steward off)" && git push`.
 6. `CLAUDE_CONFIG_DIR=~/.claude-private mirai session-server install`.
 7. When the build runner is idle and `docker ps -aq --filter label=mirai.repo | wc -l` prints
    `0`: `mirai redteam run`. Not `--kept`: the installed Claude Code (2.1.331 now) is the one to
    test.
-   - **Expected:** GREEN, with S3 "ship-local, steward turned off and absent" and S6 ok.
+   - **Expected:** GREEN, with S3 "claude-approvals, ship-local, steward turned off and absent" and S6 ok.
    - h-timeout-link and l-cd are listed as known, not counted.
 8. `CLAUDE_CONFIG_DIR=~/.claude-private mirai doctor`. You see no red.
 9. In a `claude-priv` session in `thudos-setup`, type `/ship`. It isn't in the `/` menu, and

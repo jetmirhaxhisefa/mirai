@@ -94,7 +94,7 @@ function unquote(v) {
 export function nameClash(name, registry) {
   if (name === 'mirai' || name.startsWith('mirai-')) return `the name "${name}" is MIRAI's: mirai and mirai-* are MIRAI's own names`;
   if (Object.hasOwn(registry.skills ?? {}, name) || Object.hasOwn(registry.agents ?? {}, name)) return `the name "${name}" is one of MIRAI's skills or agents`;
-  // The ones MIRAI turns off too (ship-local, steward): Claude Code reserves their names.
+  // The ones MIRAI turns off too (ship-local, steward, claude-approvals): Claude Code reserves their names.
   const builtin = Object.values(registry.adapters ?? {}).flatMap((a) => [...(a.strict?.builtin_skills ?? []), ...(a.strict?.builtin_skills_off ?? [])]);
   if (builtin.includes(name)) return `the name "${name}" is one of Claude Code's own skills`;
   return null;

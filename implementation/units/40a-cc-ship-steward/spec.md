@@ -1,7 +1,7 @@
 ---
 unit: "40a"
 name: cc-ship-steward
-status: built, waiting for the probes and Jet's approval (urgent fix; decision "A", Jet, 2026-11-23)
+status: built, waiting for the probes and Jet's approval (urgent fix; decisions "A", Jet, 2026-11-23 and 2026-11-24)
 roadmap: new, an urgent fix from the red team's S3 going red on Claude Code 2.1.330; units 13b (strict bundle), 13c (your sessions' settings), 18a (the red team's static checks)
 depends_on: ["13b", "13c", "18a", "40"]
 ---
@@ -36,23 +36,39 @@ same reason.
 - **Not in the docs:** whether an `"off"` skill is left out of a `-p` run's init event. Only the
   red team shows that (S3, below).
 
-## Decision (Jet, 2026-11-23, "A")
+**2.1.331 added a third, `claude-approvals`** (2026-11-24). The sample app's first red team on
+this fix (`u40a-redteam-1` at `e4202b6`, Claude Code 2.1.331) showed:
+- S6 ok;
+- ship-local and steward absent, so the override holds in `-p` runs;
+- every case passed but the known h-timeout-link and l-cd;
+- **S3 red** on "skill claude-approvals".
 
-Turn both off everywhere MIRAI controls. Outside MIRAI projects nothing changes. Jet's own
-`~/.claude*` settings aren't touched.
+It isn't documented. The nearest documented feature is Claude Approvals, a GitHub PR
+approval-policy check that can post approving reviews.
+
+## Decisions (Jet, "A")
+
+- **2026-11-23:** turn `ship-local` and `steward` off everywhere MIRAI controls.
+- **2026-11-24:** the same for `claude-approvals`.
+
+Outside MIRAI projects nothing changes. Jet's own `~/.claude*` settings aren't touched.
+
+**An off skill an older Claude Code doesn't have** is harmless: the override names nothing
+there, and S3 and checkInit count only what a run loads. S3 says "… turned off and absent".
 
 ## Scope
 
 1. **Adapter data** (`registry/adapters/claude-code.toml`):
-   - `builtin_skills_off = ["ship-local", "steward"]`, beside `builtin_skills` and never in it
-     (the registry refuses a name in both);
-   - `builtin_version` is `2.1.330`: the other lists were seen unchanged there.
+   - `builtin_skills_off = ["claude-approvals", "ship-local", "steward"]`, beside `builtin_skills`
+     and never in it (the registry refuses a name in both);
+   - `builtin_version` is `2.1.331`: the lists were checked there (u40a-redteam-1), the other
+     ones unchanged.
 
    A new bundled skill in neither list still turns S3 red. `nameClash` refuses a custom item
    named after either.
 2. **Agent runs** (`src/launch/strict.js`):
    - each strict template carries `builtin.skills_off`;
-   - `renderStrict` writes `skillOverrides: {"ship-local": "off", "steward": "off"}`. This changes
+   - `renderStrict` writes `skillOverrides` with each of them `"off"`. This changes
      the canonical bundle hash, so earlier red-team results no longer cover the templates;
    - `checkInit` refuses a run whose init event still lists one: "skills MIRAI's settings turn off
      still loaded: …".

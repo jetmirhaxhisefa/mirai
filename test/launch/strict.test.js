@@ -619,9 +619,9 @@ launchTest('15a T8: the input folder: names, counts and sizes checked first; rea
 test('40a T3: every template turns off ship-local and steward; the canonical hash covers it; a run that still loads one is refused', () => {
   for (const mode of ['read-write', 'read-only']) {
     const t = template(undefined, mode);
-    assert.deepEqual(t.builtin.skills_off, ['ship-local', 'steward'], mode);
+    assert.deepEqual(t.builtin.skills_off, ['claude-approvals', 'ship-local', 'steward'], mode);
     for (const s of t.builtin.skills_off) assert.ok(!t.builtin.skills.includes(s), s);
-    assert.deepEqual(renderStrict(t, FACTS).skillOverrides, { 'ship-local': 'off', steward: 'off' }, mode);
+    assert.deepEqual(renderStrict(t, FACTS).skillOverrides, { 'claude-approvals': 'off', 'ship-local': 'off', steward: 'off' }, mode);
   }
   const t = template();
   // Dropping one changes the rendered settings, so the canonical hash (what a red-team result covers) too.

@@ -110,8 +110,8 @@ export function strictTemplate({ registry, config, mode }) {
     deny_env: merge(MIN_DENY_ENV, profile.deny_env),
     write_denied: [...new Set(writeDenied)].sort(),
     readable_env: [...new Set(readable)].sort(),
-    // `skills_off`: bundled skills the settings turn off (skillOverrides; 2.1.330's ship-local and
-    // steward), so a run never loads them; checkInit refuses a run that still does.
+    // `skills_off`: bundled skills the settings turn off (skillOverrides; ship-local, steward and
+    // claude-approvals), so a run never loads them; checkInit refuses a run that still does.
     builtin: { version: profile.builtin_version, plugins: [...profile.builtin_plugins], skills: [...profile.builtin_skills], agents: [...profile.builtin_agents], skills_off: [...(profile.builtin_skills_off ?? [])].sort() },
     // The secret shapes the hook refuses in what an agent writes (unit 13c).
     secrets: Object.values(registry.secrets ?? {}).flatMap((d) => d.patterns.map((p) => ({ name: p.name, regex: p.regex }))),
@@ -284,8 +284,8 @@ export function renderStrict(template, facts) {
     // it never gets the first word (R1), but a Claude Code update could change that flag unseen.
     permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t)), ...mcpTools(template)], deny: [...new Set(deny)], ...Object.fromEntries(FILE_TOOL_BLOCKS.map((k) => [k, true])) },
     hooks: { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
-    // 2.1.330's bundled ship-local (/ship) and steward (/steward) commit, push and watch a PR, some
-    // of it outside the sandbox: turned off by name (Jet's "A", 2026-11-23). S6 checks they're here.
+    // The bundled ship-local (/ship), steward (/steward) and claude-approvals act on a PR as you, some
+    // of it outside the sandbox: turned off by name (Jet's "A", 2026-11-23 and -24). S6 checks they're here.
     ...(off.length ? { skillOverrides: skillOverrides(off) } : {}),
     sandbox: {
       enabled: true,

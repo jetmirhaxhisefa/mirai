@@ -114,7 +114,7 @@ const ADAPTER = {
         builtin_skills: NAME_LIST,
         builtin_agents: NAME_LIST,
         // Bundled skills MIRAI turns off with Claude Code's skillOverrides (2.1.330's ship-local and
-        // steward; Jet's "A", 2026-11-23). Never in builtin_skills, so a run that still loads one is red.
+        // steward, 2.1.331's claude-approvals; Jet's "A"). Never in builtin_skills, so a run that still loads one is red.
         builtin_skills_off: NAME_LIST,
         // What the binary allows, as seen on `seen_on` (unit 18a): the red-team run reads both from
         // the installed binary and refuses anything new.

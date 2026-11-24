@@ -466,7 +466,7 @@ test('40a T1: your sessions\' settings turn off ship-local and steward; yours st
   install(r);
   const settings = () => JSON.parse(read(r.root, '.claude/settings.json'));
   // Yours stays; MIRAI's "off" wins over your "on" for a skill it turns off.
-  assert.deepEqual(settings().skillOverrides, { legacy: 'name-only', steward: 'off', 'ship-local': 'off' });
+  assert.deepEqual(settings().skillOverrides, { legacy: 'name-only', steward: 'off', 'claude-approvals': 'off', 'ship-local': 'off' });
   const entry = readLock(r.root).files.get('.claude/settings.json');
   assert.ok(entry.entries.includes('skill-off:ship-local') && entry.entries.includes('skill-off:steward'));
   assert.ok(render({ cwd: r.root, env: r.env }).files.every((f) => !f.changed));
@@ -492,17 +492,17 @@ test('40a T1: your sessions\' settings turn off ship-local and steward; yours st
   lock.files = lock.files.map((f) => (f.path === '.claude/settings.json' ? { ...f, entries: [...f.entries, 'skill-off:gone'] } : f));
   writeFileSync(join(r.root, LOCK_FILE), lockTextOf(lock));
   render({ cwd: r.root, env: r.env });
-  assert.deepEqual(settings().skillOverrides, { legacy: 'off', 'ship-local': 'off', steward: 'off' });
+  assert.deepEqual(settings().skillOverrides, { legacy: 'off', 'claude-approvals': 'off', 'ship-local': 'off', steward: 'off' });
   assert.ok(!readLock(r.root).files.get('.claude/settings.json').entries.includes('skill-off:gone'));
 });
 
 test('40a T2: the adapter keeps ship-local and steward off, never in builtin_skills; a name in both is refused', () => {
   const strict = loadRegistry(join(PACKAGE_ROOT, 'registry')).adapters['claude-code'].strict;
-  assert.deepEqual([...strict.builtin_skills_off].sort(), ['ship-local', 'steward']);
+  assert.deepEqual([...strict.builtin_skills_off].sort(), ['claude-approvals', 'ship-local', 'steward']);
   for (const s of strict.builtin_skills_off) assert.ok(!strict.builtin_skills.includes(s), s);
   const dir = tempDir('reg');
   cpSync(join(PACKAGE_ROOT, 'registry'), dir, { recursive: true });
   const toml = join(dir, 'adapters', 'claude-code.toml');
-  writeFileSync(toml, readFileSync(toml, 'utf8').replace('builtin_skills_off = ["ship-local", "steward"]', 'builtin_skills_off = ["ship-local", "steward", "dataviz"]'));
+  writeFileSync(toml, readFileSync(toml, 'utf8').replace('builtin_skills_off = ["claude-approvals", "ship-local", "steward"]', 'builtin_skills_off = ["claude-approvals", "ship-local", "steward", "dataviz"]'));
   assert.throws(() => loadRegistry(dir), (err) => err instanceof ConfigError && err.errors.some((e) => /dataviz is in builtin_skills too/.test(e.reason)));
 });
