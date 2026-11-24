@@ -225,6 +225,12 @@ launch is unchanged (a lone ticket is one more document type in her input folder
 settings' deny list gains `Agent(mirai-ticket-planner)` (13c's rule: every agent by name), which
 the session red team's existing "start an agent as a subagent" case covers.
 
+**After Jet's answers** (`e3f6774`), three cage files changed again: `src/mcp/tools/commands.js`
+(the `ticket fix` session command), `src/adapters/claude-code.js` (the `/mirai` command file's
+`ticket fix` step) and `src/store/journal.js` (`tess_run`'s `fix` mode). So `u42-baseline-2` and
+`u42-redteam-2` run at the new head. No case changes: `mirai tickets fix` is one more run of Tess
+under the same read-write template.
+
 ## Claude-only parts (Jet's standing rule, 2026-11-23)
 
 Nothing in Tess's code path (`src/tess/`, `src/tickets/`, `src/cli/commands/tickets.js`,
@@ -256,9 +262,9 @@ Nothing in Tess's code path (`src/tess/`, `src/tickets/`, `src/cli/commands/tick
 - **The interview cap is a lint rule** (`interview-cap` on `for: ticket`), so "refused by the
   skill's cap" is checkable; the skill says so too.
 - **Vera on a lone story or bug:** `verifier = true` on story and bug; `verifySubject` refuses a
-  ticket of an epic ("checked with its epic"). Approving a lone ticket (one with an `Interview:`
-  line and no `epic`) runs the lint and needs Vera's result, as a document does; every other
-  ticket's approval is unchanged (33's).
+  ticket of an epic ("checked with its epic"). Since Jet's answer 3: every lone story or bug needs
+  her result at approval (a person's may be approved anyway after her first check); one that links
+  its interview is linted there too.
 - **New critical journeys live in the epic** (an optional section, "New critical journeys", in
   journeys.md's own form), not in a separate file: Vera reads them with the set, the epic's
   approval covers them, and approving the set writes journeys.md and signs its line (as 41's
@@ -278,7 +284,55 @@ Nothing in Tess's code path (`src/tess/`, `src/tickets/`, `src/cli/commands/tick
 - **A ticket type's own template:** `kind = "ticket-type-overlay"` in `.mirai/custom/ticket-types/`,
   approved as `overlay-<name>` through 37's path; `[[tickets.types]] template` names it.
 
-## Questions for Jet
+## Jet's answers (2026-11-24)
+
+**1: A,** as built. `[tickets] key_prefix` stays a required config line; the tracker fills it
+later (38's connector). No change.
+
+**2: A+.** As built (a ticket by hand doesn't pause; her open points go in its Notes), **plus** a
+rule in `mirai-interview`'s "One ticket by hand": when, after reading the context and the code, the
+session sees that three questions can't settle the request ("make logging better"), it says so up
+front, before asking anything, and offers two ways on: (a) a small feature through `/mirai-new`
+(a full interview, no cap) or (b) a sharper line from the owner. It never writes a ticket
+interview from a guess. Test: `42 (Jet's answer 2, A+)` (the skill's text carries each part).
+
+**3: B, plus A+.** Built:
+
+- **Every story or bug with no epic needs Vera's result at approval**, whoever wrote it, with or
+  without an interview (`loneTicketGate`, `src/cli/commands/approve.js`). One that links its
+  interview is still linted as at approval too; one with no interview isn't linted there (as 33's
+  ticket approval never was). A ticket of an epic stays checked and approved with its epic.
+- **Approve anyway after the first check, for a person's own ticket.** The signal: **no `tess_run`
+  line in the journal names the ticket** (`ticket: <KEY>`). The journal is the reliable one: only
+  MIRAI writes `tess_run` (privileged, `by: script`), while an `Interview:` line or a frontmatter
+  field is the file's own text, which anyone can add or remove. For a person's ticket, approval
+  shows Vera's open must-fix findings right after her first check, says "this is your own ticket, so
+  you may approve it anyway now", offers `mirai tickets fix <KEY>`, and takes `a`; the signed line
+  carries her result's hash (`verifier`), as 40's approve-anyway after the last round does, so it
+  names the findings approved over. Tess's tickets keep the rounds: refused with `verify-open` while
+  rounds are left (`verifierFor`'s new `early` flag, `src/verify/gate.js`).
+- **`mirai tickets fix <KEY>`** (in your session `/mirai ticket fix <KEY>`, session command
+  `ticket fix`): Tess on an existing lone ticket (any author) with Vera's must-fix findings on it as
+  it is now as `findings.md`; her prompt: change only what they name, never the ticket's scope or
+  intent; then MIRAI lints it and Vera checks it again, with the normal rounds (a fix starts a cycle
+  of its own: the ticket as she starts) and the 16-launch cap; the write scope is that one ticket
+  file; no pause (leftovers in Notes); a `tess_run` line with `mode: fix` and the ticket's key as
+  its item. Refused on a ticket of an epic (`ticket-of-epic`: fix it through the epic's set), on one
+  with no result of Vera's for it as it is now (`no-verify`: `mirai verify <file>` first), and on
+  one whose result has nothing to fix (`nothing-to-fix`). On the session list (21f, the `/mirai`
+  command file), in `docs/tickets.md` ("A lone ticket fixed", "Approving a lone ticket") and
+  `docs/agents.md`. Nothing in its code path names Claude Code.
+- **Tests:** `42 (Jet's answer 3, B)` (a person's lone ticket with no interview and no result is
+  refused naming `mirai verify`; after her first check with a must-fix open it is approved anyway,
+  the line records her result; Tess's lone ticket with a must-fix open at round 2 of 3 is refused);
+  `42 (Jet's answer 3): mirai tickets fix` (a fake run fixes one AC, Vera checks again at round 1 of
+  the new cycle, done, the `tess_run` line, the session command); `… a write outside the ticket
+  fails the run; refused for a ticket of an epic and for one with no result`.
+- **Tests changed by this answer:** `test/agent/build.test.js`, `plan.test.js`, `review.test.js`,
+  `tdd.test.js` and `test/proofs/fixture.js`: their `tty` helper records Vera's pass before an
+  approval (`veraBefore`, 40's helper), since their lone ticket `PMT-31` now needs her result.
+
+## Questions for Jet (answered above)
 
 1. **The ticket key prefix with no tracker.** The spec says `mirai init` asks once. Built: Tess
    refuses to start without `[tickets] key_prefix`, naming the line to add. Options: **A** keep it
@@ -314,5 +368,9 @@ Nothing in Tess's code path (`src/tess/`, `src/tickets/`, `src/cli/commands/tick
 clean. **The full suite on the Mac** (`caffeinate -i npm test` at `0f8c1fa`): **853/853 pass**, 0
 skipped. After it: test results and PROGRESS only.
 
-**Through the build runner** (queued at the pushed head; Jet runs the runner): `u42-tests-1`
-(tests), `u42-baseline-1` (baseline), `u42-redteam-1` (redteam-full: cage files changed, above).
+**Through the build runner** (a clean export each):
+- `u42-tests-1` at `b2fdbb5`: **pass, 853/853**, 16.7 minutes; `u42-baseline-1` pass;
+  `u42-redteam-1` **GREEN** (Claude Code 2.1.331).
+- After Jet's answers, on the Mac at `e3f6774`: **857/857 pass**, 0 skipped
+  (`test/documents/tess.test.js` 25/25). Queued at the new head: `u42-tests-2` (tests),
+  `u42-baseline-2` and `u42-redteam-2` (redteam-full: three cage files changed, see "The red team").
