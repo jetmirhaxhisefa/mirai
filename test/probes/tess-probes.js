@@ -52,12 +52,19 @@ const SAMPLE = join(ROOT, 'test', 'fixtures', 'sample-app');
 const MIRAI = join(ROOT, 'bin', 'mirai.js');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
-// P2's seed: one AC of the PRD made untestable (the roadmap's "an AC nobody could test").
-const UNTESTABLE = 'reminders are sent reliably';
-function prdWithGap(prd) {
-  const m = /^( *- AC-FR-4\.1: [^\n]*\n)((?: {2,}- [^\n]*\n)+)/m.exec(prd);
-  if (!m) throw new Error('the example PRD has no AC-FR-4.1 to seed');
-  return prd.replace(m[0], `${m[1]}  - ${UNTESTABLE}\n`);
+// P2's seed (reseeded 2026-11-24, Jet's "A", after its first run): decision 3's other kind of gap, a
+// case the PRD doesn't settle that only shows when cutting. FR-4 sends the reminders as the team's
+// day ends (the glossary: midnight in the team's own time zone); the added NFR-3 runs every
+// scheduled job once a day at 18:00 UTC. Each reads fine alone, and the PRD lints clean; the ticket
+// that builds the reminder job can't meet both, so Tess must ask which. (An untestable AC, the
+// first seed, is now the PRD's own lint's to catch: prd-ac-untestable.)
+export const P2_NFR = `- NFR-3: Every scheduled job, the reminders included, must run once a day at 18:00 UTC, the one window the mail service's quota allows.
+  - AC-NFR-3.1: Given the job schedule, when a day passes, then each scheduled job has started once, at 18:00 UTC.
+`;
+export function prdWithGap(prd) {
+  const at = prd.indexOf('\n## Non-goals');
+  if (at < 0 || !/^- FR-4: When a day ends/m.test(prd) || !/^- Day ends: midnight in the team's own time zone\.$/m.test(prd)) throw new Error('the example PRD has no FR-4 and "Day ends" to seed against');
+  return `${prd.slice(0, at).replace(/\n+$/, '\n')}${P2_NFR}${prd.slice(at)}`;
 }
 
 // P4: your work's ticket types. Edit the descriptions to yours before her run (step 2 says how).
@@ -80,7 +87,7 @@ runs_as = "investigation"
 
 export const CASES = Object.freeze({
   p1: { initiative: 'due-dates', what: 'a real PRD into tickets' },
-  p2: { initiative: 'due-dates', what: 'a gap: one AC made untestable', gap: true },
+  p2: { initiative: 'due-dates', what: 'a gap: FR-4 (as the team\'s day ends) against NFR-3 (18:00 UTC)', gap: true },
   p3: { initiative: 'log-format', what: 'a technical ticket by hand', one: true, line: 'the log format in GCP should change to the new structure' },
   p4: { initiative: 'due-dates', what: 'your work\'s ticket types', types: true },
 });
@@ -146,7 +153,7 @@ function homeProblems(home, c) {
   for (const rel of rels) {
     const linked = {};
     for (const n of ['interview.md', 'brief.md']) if (existsSync(join(home.root, dirname(rel), n))) linked[n] = readFileSync(join(home.root, dirname(rel), n), 'utf8');
-    for (const p of lintText(readFileSync(join(home.root, rel), 'utf8'), { source: rel, registry, project: projectOf(trustedConfig(trust)), linked, repo: home.root }).filter((x) => x.severity === 'error')) out.push(`${rel}:${p.line}: ${p.reason}`);
+    for (const p of lintText(readFileSync(join(home.root, rel), 'utf8'), { source: rel, registry, project: projectOf(trustedConfig(trust)), linked, repo: home.root, approving: !rel.startsWith('.mirai/') }).filter((x) => x.severity === 'error')) out.push(`${rel}:${p.line}: ${p.reason}`);
   }
   return out;
 }
@@ -198,7 +205,7 @@ function steps(home, key, c, log) {
       log('3. When it says "PAUSED": in a new Terminal window, cd into the repo and start claude, paste the printed message, answer her question and confirm.');
       log('   The loop then commits the interview, runs Nora to bring the PRD in line (Opus launches), and prints the approval command: run it, read only the changed lines, answer a.');
       log('   The loop sees your approval and starts Tess again by itself.');
-      log('4. P2 passes when she paused with a question that names AC-FR-4.1 ("reliably"), and after your answer and the PRD\'s update the next run ends "done".');
+      log('4. P2 passes when she pauses with a question that names both FR-4 and NFR-3 (the team\'s midnight against 18:00 UTC), and after your answer, Nora\'s update of the PRD and your approval of it again (shown only the changed lines), the next Tess run ends "done".');
     } else if (c.types) {
       log('4. P4 passes when each ticket\'s ticket_type is the one you would have chosen, and the set lints clean (the run ends "done").');
     } else {
