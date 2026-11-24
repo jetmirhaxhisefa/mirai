@@ -219,7 +219,7 @@ P1 reruns in a fresh home (steps below). P3 and P4 are still to run.
   (none, `.env`, a dot file under the docs root, `README.md`, a folder, `../outside.md`,
   `/etc/passwd`); each must be refused. It runs in `redteam-full` on the read-write template.
 
-### P1's rerun (Jet, 2026-11-24, home `~/.mirai-probes-w4FvBO`, output `~/mirai-u41-p1.txt`)
+### P1's rerun (Jet, 2026-11-24, home `~/.mirai-probes-w4FvBO`, output `~/mirai-u41-p1.txt`): PASSED
 
 At `8876d31` (with 40a). Three `--probe write` runs, 8 Opus launches in all (13 last time), **lint 0
 fix rounds throughout** (A2 holds: each draft came back clean):
@@ -242,7 +242,7 @@ fix rounds throughout** (A2 holds: each draft came back clean):
   `src/store/journal.js` is a cage file: the sample app's red team runs again.
 - **Noted, not changed:** an end record the journal refuses is dropped without a word (the run's
   outcome stands); a later unit may want it logged.
-- **Pass:** waiting on Jet's read of the brief and the PRD.
+- **PASSED** (Jet, 2026-11-24: "approve": Jet would approve the brief and the PRD as they are, with Vera's one open finding).
 
 ### P3 Contradiction while writing (a session of yours, 2 Nora runs)
 
