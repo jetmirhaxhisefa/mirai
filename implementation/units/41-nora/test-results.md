@@ -310,6 +310,14 @@ lists what is open in document order.
   rounds spent across pauses (above). The PRD is at 2995 of a lite PRD's 3000 words: the scope
   growth shows.
 
+### P4's extra run on the cycle fix (Jet, 2026-11-24, `35c844f`, output `~/mirai-u41-p4b.txt`)
+
+The results left by the earlier runs carry no cycle, so they count as an earlier cycle. The brief's 3
+must-fix (round 4, reused) **went back to her** (fix, round 1); Vera then counted **from round 1**
+(1 must-fix), round 2 (1 must-fix); one lint fix between. Her next fix **paused on Q-12** (what a
+user who signs up after the release gets: one more teams gap). The cycle fix behaves as built; the
+run was left there (Jet's call), P4 having passed already.
+
 ### P4 Your own list (a session of yours, 1 Nora run, then 1 Vera run)
 
 1. `--probe home --case p4`, then the printed steps: the session first keeps
@@ -319,6 +327,15 @@ lists what is open in document order.
 3. **Pass when** the interview asked only about gaps and contradictions, every REQ-n was cited in
    the PRD after her run, and the drop prints "REQ-12 raised as a must-fix". (The lint also fails
    the dropped line, `prd-requirement-uncovered`: MIRAI catches it before Vera does.)
+
+## For later (Jet, 2026-11-24, "A": faster, with the same checks)
+
+- **`--probe loop`, before 42's probes:** one command per probe; on a pause it prints her question
+  and the resume message, waits until your session has confirmed the interview, and starts her
+  again. Test tooling only: every check (lint, Vera, the reader test, the pause) runs as now.
+- **Unit 44, to interview:** the interview looks ahead through the PRD's checklist before you
+  confirm, so Nora's pauses come up front (P4: 6 questions at the interview, then 5 pauses).
+  Measured by the probes: fewer pauses, and Vera's findings no worse.
 
 ## The red team
 
