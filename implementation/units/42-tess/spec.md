@@ -1,7 +1,7 @@
 ---
 unit: "42"
 name: tess
-status: approved (Jet, 2026-11-21: "approve 42"; interview 2026-11-21: Q1 "C", Q2 "A", Q3 "A", restatement "yes"; after his read of the draft: Q4 "A" priority, Q5 "a mix of A and B" ticket types, Q6 "A")
+status: approved (Jet, 2026-11-21: "approve 42"; interview 2026-11-21: Q1 "C", Q2 "A", Q3 "A", restatement "yes"; after his read of the draft: Q4 "A" priority, Q5 "a mix of A and B" ticket types, Q6 "A"; re-checked against 40, 40a and 41 as built, 2026-11-24: Q1 "A" her run is MIRAI-driven like Nora's, Q2 "A" the whole set in one launch, Q3 "A" all seven of 37's items in)
 roadmap: design/07-implementation-roadmap.md, row 42; design/01 §5 (tickets) and §7 (`tdd`, `tests`); design/02 (d) (one feature, from idea to live); 09 PM-07 (system-facing criteria); D-41 (strict templates, the template-gap signal); units 19c (`start_agent`, broker tools), 33 (epic, tickets, graph lint), 34 (`mirai-write`), 35 (interview, pause), 36 (journeys), 38 (store, links), 40 (Vera), 41 (Nora, the pause and the run record)
 depends_on: ["19c", "33", "34", "35", "36", "38", "40", "41"]
 ---
@@ -92,6 +92,11 @@ hand.
    - **Tools:** `Read`, `Glob`, `Grep`, `Write` and `Edit`, within that write scope.
    - **Gets** 34's `mirai-write` skill (its epic and ticket guides) and the rules of decision 4.
    
+   *(Changed 2026-11-24, re-check Q1 "A": her run is MIRAI-driven, as Nora's (41's A1 and A2).
+   She writes; MIRAI renders the epic and runs the lint and Vera between her launches. Her tools
+   are the read-write template's, `Bash` included, plus the headless `lint` tool. See "Re-checked
+   against 40, 40a and 41 as built" below; the steps below are read through it.)*
+
    Her prompt gives her steps:
    1. read the approved documents and the context files;
    2. write the epic and its tickets;
@@ -99,7 +104,9 @@ hand.
    4. run MIRAI's checks through the broker (lint with the graph lint, `verify`);
    5. fix the must-fix findings within the rounds set in `[docs]`;
    6. stop.
-2. **Starting her:**
+2. **Starting her** *(changed 2026-11-24, re-check Q1 "A": `/mirai tickets <initiative>` in your
+   session, `mirai tickets` in a terminal, followed with `mirai_status`, not `start_agent` and
+   `agent_status`; `/mirai ticket` starts the same run for one ticket)*:
    - **after an approval:** when the PRD (on `standard`) or the design (on `full`) is approved,
      the session that approved it starts Tess with 19c's `start_agent` (`agent:
      mirai-ticket-planner`, the initiative). She refuses to start while the PRD, or the design
@@ -282,3 +289,60 @@ hand.
   - where the ticket key prefix comes from;
   - the story template's `epic:` line is only in a comment;
   - how added PRD sections (Data privacy, Security sign-off) flow into tickets.
+
+**Re-checked against 40, 40a and 41 as built (2026-11-24; Jet's answers Q1–Q3 "A"):**
+
+- **Her run (Q1 "A", as Nora's):** `mirai tickets <initiative>` (on the session list as
+  `/mirai tickets`, `tty`, `run`), followed with `mirai_status`; `start_agent` takes a role, not
+  an agent (41). One run: she writes, then MIRAI renders the epic (`mirai epic render`), lints the
+  set (the graph lint and the testability lint), and runs Vera on the epic with its tickets, between
+  her launches. A problem goes to her next launch as `lint.json` or `findings.md` (41's hand-off).
+  She has the headless `lint` tool on her server (41's A2) and no broker tool for `epic_render` or
+  `verify` (D-53: agents never start Vera). 2 lint fixes per draft (`LINT_FIX_ROUNDS`), 16 launches
+  a run (`MAX_LAUNCHES`), Vera's rounds from `[docs]`, restarting with each interview version
+  (41's cycles). Her done line names what is open (41's `open`). No reader test on the set.
+- **How much per launch (Q2 "A"):** her first launch writes the epic and every ticket; each fix
+  launch resumes her kept session with `lint.json` and `findings.md`.
+- **By hand:** `/mirai ticket "<one line>"`: 35's interview (cap 3), then `mirai tickets --one
+  <id>`: the same run for one story or bug, no epic, no `epic render`.
+- **Her tools:** the read-write template's (`Bash` included), as Nora's (41's "Changed from the
+  spec"); her prompt uses the file tools, and `mirai` from Bash is denied (D-30). Scope 1's tool
+  list reads that way.
+- **The local store (41's B1):** she returns the documents and MIRAI writes them through the store.
+- **Commits (41's C1):** MIRAI commits her documents on your current branch, never the integration
+  branch; a run on it is refused with the `git switch -c` hint.
+- **Tiers:** Tess on the `tickets` step's tier (`models.steps.tickets`, `standard` by default; one
+  up for high risk or size L). Vera on her own tier (`ownTier`, 41's answer 1).
+- **The pause (decision 3):** her question goes into `interview.md` and MIRAI checks it (a
+  `paused` result whose interview isn't paused with that question open ends the run `failed`).
+  A PRD gap always changes the PRD: after your answer, the session runs `/mirai write` (Nora brings
+  the PRD in line, 41's continue step), you approve the PRD again, then `/mirai tickets` again.
+- **New: Vera checks a lone ticket.** Today she checks an epic with its tickets, never a story or a
+  bug alone (`isVeraType`, `src/verify/run.js`). Decision 2 needs it: a lone ticket is checked
+  against its interview and the context files.
+- **New: approving the PRD again shows what changed** (decision 3): today `mirai approve` shows the
+  whole file. Added: the changes since the last approved version (on the repo store, from the
+  approved commit), then the whole file on request.
+- **Vera's input cap:** one check takes 32 files (`INPUT_LIMITS`). An epic at 33's cap (20
+  tickets) with the PRD, the brief, the interview and the context files comes close. Added test:
+  the largest set fits, or the refusal names the split.
+- **40a:** her strict template carries `builtin.skills_off` (`/ship`, `/steward`,
+  `claude-approvals`) like every agent. Her agent and role are cage data: a sample-app red team
+  after the merge.
+- **37's "For later" items (Q3 "A", all in):**
+  1. the `files_likely` overlap warning is grouped per file, naming every ticket sharing it; her
+     prompt settles each (an `after`, or a stated reason the changes can't clash);
+  2. a ticket that delivers an NFR cites its ID, and the coverage check counts it;
+  3. an NFR is proved by an end-to-end test only through a critical journey (decision 4); Vera's
+     ticket checklist has the line, and her prompt names the test kind to use instead;
+  4. near-identical items in "Decisions for you" merge into one, naming every ticket (epic guide
+     and Vera's checklist);
+  5. `[tickets] key_prefix` (new; default the tracker's project key, 38; with no tracker,
+     `mirai init` asks once), in `docs/config.md`;
+  6. the story's and bug's `epic:` becomes a frontmatter field (their `template_version` 2);
+  7. a line in a section a company adds to the PRD (37's overlays) becomes an AC on the ticket that
+     does the work, or, if nobody could test it, an item in "Decisions for you".
+- **Probes:** they run through `--probe loop` (41's "For later", built before them): one command a
+  probe; on a pause it prints the question and the resume message, waits for your confirmed
+  interview, and starts the run again. Every check runs as before.
+
