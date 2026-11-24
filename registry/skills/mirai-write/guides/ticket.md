@@ -29,7 +29,7 @@ explains both. This guide covers the wording.
 - **A line from a section the project added to the PRD** (Data privacy, a security sign-off)
   becomes a criterion of the ticket that does the work.
 - **An open point in Notes says how to settle it:** "Open: which trace header to read (AC-SAMPLE-1.4).
-  Answer it with `/mirai ticket fix SAMPLE-1` and your answer, or edit AC-SAMPLE-1.4 before
+  Answer it with `/mirai ticket fix SAMPLE-1 "<your answer>"`, or edit AC-SAMPLE-1.4 before
   approving." Never "the owner decides at approval".
 - **A file another ticket also lists** in `files_likely`: wait for it (`after`), or say in Notes
   why the two changes can't clash.

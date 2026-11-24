@@ -28,10 +28,11 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
   return {
     name: 'tickets',
     summary: `Have ${fullName(TESS_AGENT)} cut an approved PRD into an epic and its tickets, write one ticket from its short interview, or fix a lone ticket from the verifier's findings`,
-    usage: 'mirai tickets <initiative> [--one] | mirai tickets fix <ticket>',
+    usage: 'mirai tickets <initiative> [--one] | mirai tickets fix <ticket> [--answer <text>]',
     positionals: { min: 1, max: 2 },
     options: {
       one: { type: 'boolean', description: 'one lone ticket from the folder\'s short interview (for: ticket), with no epic' },
+      answer: { type: 'string', description: 'with fix: your answer to an open point in the ticket\'s Notes; she settles that point with it' },
     },
     async run(args, io, { now = () => new Date() } = {}) {
       // Jet's answer 3 (2026-11-24): `mirai tickets fix <KEY>`, an existing lone ticket fixed from
@@ -39,6 +40,7 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
       const fix = args.positionals.length === 2 ? args.positionals[1] : null;
       if (args.positionals.length === 2 && args.positionals[0] !== 'fix') throw new UsageError(`mirai tickets takes one initiative, or fix and a ticket key`, 'mirai tickets <initiative> [--one], or mirai tickets fix <ticket>');
       if (fix && args.values.one) throw new UsageError('--one is for a ticket asked for by hand, not a fix', `mirai tickets fix ${fix}`);
+      if (!fix && args.values.answer !== undefined) throw new UsageError('--answer goes with fix', 'mirai tickets fix <ticket> --answer "<your answer>"');
       const initiative = fix ?? args.positionals[0];
       const one = Boolean(args.values.one) || Boolean(fix);
       requireTtyOrSession(io, 'mirai tickets', 'tickets');
@@ -65,7 +67,7 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
           else if (e.kind === 'verify') say(`${who(VERIFY_AGENT)}, ${what}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (unchanged since that check)' : ''}`);
         };
         const r = await runTess({
-          cwd: io.cwd, env: io.env, ...(fix ? { fix } : { initiative, one }), nextToken: () => mintLaunchToken(), launchOptions, onStep, now,
+          cwd: io.cwd, env: io.env, ...(fix ? { fix, ...(args.values.answer !== undefined ? { answer: args.values.answer } : {}) } : { initiative, one }), nextToken: () => mintLaunchToken(), launchOptions, onStep, now,
           ...(launch ? { launch } : {}), ...(verifyLaunch ? { verifyLaunch } : {}),
         });
         progress.stop();

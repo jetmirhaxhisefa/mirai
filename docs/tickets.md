@@ -25,6 +25,11 @@ step `tickets`, the standard tier by default: `models.steps.tickets`).
   that one file and doesn't pause; a `tess_run` line (mode `fix`) records it. Refused for a ticket
   of an epic (fix it through the epic's set) and for one with no result of Vera's yet (`mirai
   verify <file>` first).
+- **Your answer to an open point:** `mirai tickets fix <KEY> --answer "<text>"` (in your session
+  `/mirai ticket fix <KEY> "<answer>"`). A lone ticket's Notes may hold "Open: …" points, each saying
+  how to settle it. Your answer reaches Tess as data (`answer.md`, fenced); she settles the point it
+  answers, changing only that, and MIRAI lints it and Vera checks it again. It works on a ticket Vera
+  passed too; an empty answer is refused.
 - **Her ticket keys:** `<tickets.key_prefix>-<n>`, numbered on from the highest key under the docs
   root ([config.md](config.md)). With no prefix set she doesn't start, and says how to set it.
 

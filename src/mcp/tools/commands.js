@@ -31,7 +31,7 @@ const LINE = /^[^\u0000-\u001f\u007f]{1,300}$/;
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._|*()-]{0,99}$/;
 const STAGE = /^(scan|migrate|context|connect|finish)$/;
 // The arguments a command may take besides those it needs (unit 39's optional ones).
-const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop']);
+const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop', 'answer']);
 // What the red team costs, as the terminal says it before its y/N.
 export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Opus), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
 // One-time codes for a red-team run, kept in this server only, for ten minutes.
@@ -101,7 +101,8 @@ export const COMMANDS = Object.freeze({
   // interview asks for (the command file's step 0, then this).
   tickets: { needs: ['initiative'], flags: ['one'], tty: true, run: true, argv: (a) => ['tickets', a.initiative, ...(a.one ? ['--one'] : [])] },
   // Jet's answer 3 (2026-11-24): a lone ticket fixed from the verifier's findings on it (/mirai ticket fix <KEY>).
-  'ticket fix': { needs: ['ticket'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket] },
+  // With `answer` (Jet's answer to question 4): your answer to an open point in its Notes, one line.
+  'ticket fix': { needs: ['ticket'], opts: ['answer'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket, ...(a.answer ? ['--answer', a.answer] : [])] },
   detect: { argv: () => ['detect'] },
   // Unit 38: the docs merge request. Neither decides anything new: publish pushes the documents
   // as they are, and merge needs your signed approvals, not a typed key.
@@ -196,7 +197,7 @@ export function checkCommand(args) {
     } else if (k === 'n') {
       if (!Number.isInteger(args.n) || args.n < 1 || args.n > 50) return { refused: 'n is a checklist line\'s number' };
       out.n = args.n;
-    } else if (typeof args[k] !== 'string' || !((k === 'place' || k === 'summary' || k === 'note') ? LINE : WORD).test(args[k])) return { refused: `${k} isn't a value MIRAI takes here` };
+    } else if (typeof args[k] !== 'string' || !((k === 'place' || k === 'summary' || k === 'note' || k === 'answer') ? LINE : WORD).test(args[k])) return { refused: `${k} isn't a value MIRAI takes here` };
     else out[k] = args[k];
   }
   // Unit 33: a document's path in the repo (`epic render`), relative, a Markdown file.
@@ -275,6 +276,7 @@ export const miraiCommand = Object.freeze({
       note: { type: 'string', description: 'with setup decide: one line on what became of it, such as "used as a source for conventions-app.md" with drop' },
       drop: { type: 'boolean', description: 'with setup decide: the item is dropped' },
       summary: { type: 'string', description: 'with setup decide: what the item does, from the research (one line)' },
+      answer: { type: 'string', pattern: LINE.source, description: 'with ticket fix: your answer to an open point in the ticket\'s Notes, in your words (one line, unit 42)' },
       n: { type: 'integer', description: 'with setup checklist: a line you mark done' },
     },
     required: ['command'],
