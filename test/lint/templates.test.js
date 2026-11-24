@@ -97,7 +97,7 @@ test('T3: a ticket without its own AC IDs or a repo is flagged; so are an unknow
   assert.deepEqual(codes(replace(STORY, 'repo: "."\n', '')), ['1:1 required']);
   assert.deepEqual(codes(replace(STORY, 'repo: "."', 'repo: web')), ['5:7 unknown-repo']);
   assert.deepEqual(codes(replace(STORY, 'repo: "."', 'repo: api')), []);
-  assert.deepEqual(codes(replace(STORY, 'template: story@v1\n', 'template: story@v1\nstatus: ready-for-dev\n')), ['5:1 status-forbidden']);
+  assert.deepEqual(codes(replace(STORY, 'template: story@v2\n', 'template: story@v2\nstatus: ready-for-dev\n')), ['5:1 status-forbidden']);
   assert.deepEqual(codes(replace(BUG, 'repo: "."\n', ''), 'tickets/PMT-31.md'), ['1:1 required']);
   const bugNoIds = BUG.replace(/- AC-PMT-31\.(\d): /g, '- ');
   assert.deepEqual(codes(bugNoIds, 'tickets/PMT-31.md').map((c) => c.split(' ')[1]), ['missing-id']);

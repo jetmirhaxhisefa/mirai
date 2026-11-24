@@ -23,6 +23,10 @@ import { CUSTOM_FOLDERS, CUSTOM_KINDS, readCustomItems, roleProtectedWrites, str
 //   templates/<type>.md          the template fragments for added sections, or the replacement
 //   agents/<name>.toml + .md     an agent's instructions and permissions
 //   skills/<name>/overlay.toml + overlay.md   a skill's instructions
+//   ticket-types/<name>.toml + .md   a ticket type's own template (unit 42): base = "story" or
+//                                "bug", checked by the replacement rules above, approved as
+//                                overlay-<name>, and used for the tickets of the [[tickets.types]]
+//                                entry whose template is <name>
 //
 // Unit 39 adds the project's own items beside them (src/config/custom-items.js): project-skills/,
 // hooks/, scripts/ and mcp/, each with its own schema and approval record, read and approved the
@@ -33,8 +37,8 @@ import { CUSTOM_FOLDERS, CUSTOM_KINDS, readCustomItems, roleProtectedWrites, str
 // project's name as MIRAI's.
 
 export const CUSTOM_DIR = '.mirai/custom';
-export const OVERLAY_FOLDERS = Object.freeze(['document-types', 'templates', 'agents', 'skills', ...CUSTOM_FOLDERS]);
-export const OVERLAY_KINDS = Object.freeze(['document-type', 'agent', 'skill', ...CUSTOM_KINDS]);
+export const OVERLAY_FOLDERS = Object.freeze(['document-types', 'templates', 'agents', 'skills', 'ticket-types', ...CUSTOM_FOLDERS]);
+export const OVERLAY_KINDS = Object.freeze(['document-type', 'agent', 'skill', 'ticket-type', ...CUSTOM_KINDS]);
 export { CUSTOM_KINDS };
 // Unit 37 (Jet's answer to Q3, "A"): each approval is also a signed record committed beside the
 // overlays, so it travels with the repo: .mirai/custom/approvals/<kind>-<name>.json.
@@ -59,6 +63,20 @@ const INSTRUCTIONS = {
     if (value.mode === 'replace' && value.part === undefined) report(`${path}.part`, `${path}.part names the heading of the part a replace takes the place of`, 'for example part = "## Output"', 'required');
     if (value.mode === 'append' && value.part !== undefined) report(`${path}.part`, `${path}.part is only for mode = "replace"`, undefined, 'invalid');
   },
+};
+
+// Unit 42 (Scope 6): a ticket type's own template. `base`: the MIRAI type its tickets are written
+// as (a type that runs as `change` is a story, `bug` a bug); the template beside it must keep every
+// protected part of that type, as 37's replacement template does.
+const TICKET_TYPE_OVERLAY = {
+  type: 'table',
+  fields: {
+    kind: { type: 'enum', values: ['ticket-type-overlay'] },
+    schema_version: { type: 'integer', min: 1, max: 1 },
+    name: { type: 'string', pattern: NAME, patternHint: 'the overlay\'s name, such as "tech-debt"' },
+    base: { type: 'enum', values: ['story', 'bug'] },
+  },
+  required: ['kind', 'schema_version', 'name', 'base'],
 };
 
 const TYPE_OVERLAY = {
@@ -192,6 +210,9 @@ export function readOverlays(files, registry, { roles = registry.roles ?? {}, fl
     } else if ((m = /^agents\/([^/]+)\.toml$/.exec(rel))) {
       const md = `agents/${m[1]}.md`;
       out.push(one({ kind: 'agent', name: m[1], rel, bytes: take(rel), boundRel: md, boundBytes: take(md), full }, (o) => applyAgent(o, registry, roles)));
+    } else if ((m = /^ticket-types\/([^/]+)\.toml$/.exec(rel))) {
+      const md = `ticket-types/${m[1]}.md`;
+      out.push(one({ kind: 'ticket-type', name: m[1], rel, bytes: take(rel), boundRel: md, boundBytes: take(md), full }, (o) => applyTicketType(o, registry)));
     } else if ((m = /^skills\/([^/]+)\/overlay\.toml$/.exec(rel))) {
       const md = `skills/${m[1]}/overlay.md`;
       out.push(one({ kind: 'skill', name: m[1], rel, bytes: take(rel), boundRel: md, boundBytes: take(md), full }, (o) => applySkill(o, registry)));
@@ -210,9 +231,9 @@ export function readOverlays(files, registry, { roles = registry.roles ?? {}, fl
       continue;
     }
     const owner = /^templates\/([^/]+)\.md$/.exec(rel) ? `document-types/${rel.slice(10, -3)}.toml`
-      : /^agents\/([^/]+)\.md$/.exec(rel) ? `${rel.slice(0, -3)}.toml`
+      : /^(?:agents|ticket-types)\/([^/]+)\.md$/.exec(rel) ? `${rel.slice(0, -3)}.toml`
         : /^skills\/[^/]+\/overlay\.md$/.test(rel) ? rel.replace(/\.md$/, '.toml') : null;
-    const kind = rel.startsWith('templates/') || rel.startsWith('document-types/') ? 'document-type' : rel.startsWith('agents/') ? 'agent' : 'skill';
+    const kind = rel.startsWith('templates/') || rel.startsWith('document-types/') ? 'document-type' : rel.startsWith('agents/') ? 'agent' : rel.startsWith('ticket-types/') ? 'ticket-type' : 'skill';
     const bytes = files.get(rel);
     out.push({
       path: full(rel), kind, name: rel.split('/')[1]?.replace(/\.(toml|md)$/, '') ?? rel, main: bytes, bound: [], hash: bytes ? sha256(bytes) : null,
@@ -238,7 +259,7 @@ function one({ kind, name, rel, bytes, boundRel, boundBytes, full }, apply) {
     o.problems.push(...(err.errors ?? [err]).map((e) => `line ${e.line ?? 1}: ${e.reason ?? e.message}`));
     return clean(o);
   }
-  const schema = kind === 'document-type' ? TYPE_OVERLAY : kind === 'agent' ? AGENT_OVERLAY : SKILL_OVERLAY;
+  const schema = kind === 'document-type' ? TYPE_OVERLAY : kind === 'agent' ? AGENT_OVERLAY : kind === 'ticket-type' ? TICKET_TYPE_OVERLAY : SKILL_OVERLAY;
   const locate = (path) => {
     for (let p = path; ; p = p.slice(0, Math.max(p.lastIndexOf('.'), p.lastIndexOf('['), 0))) {
       const at = o.value.positions.get(p);
@@ -447,6 +468,17 @@ function applyType(o, registry) {
     checklist = `${checklist.replace(/\n+$/, '')}\n\n${checklistAdds.map((c) => `## ${c.name}\n\n${c.lines.map((l) => `- [vera] ${l}`).join('\n')}`).join('\n\n')}\n`;
   }
   o.result = { def: { ...def, renames: { ...rename }, template_text: template, ...(checklist !== null ? { checklist_text: checklist } : {}), overlay: { path: o.path, hash: o.hash, replace: v.replace === true } }, template, replace: v.replace === true, coreTemplate: { version: core.template_version ?? null, hash: sha256(Buffer.from(coreTemplate, 'utf8')) } };
+  return undefined;
+}
+
+// A ticket type's own template (unit 42): 37's replacement template for its base type, checked by
+// the same rules (every protected section and field kept). o.result is applyType's, with `base`;
+// the effective definition is the base type's name with this template.
+function applyTicketType(o, registry) {
+  const v = o.value.value;
+  const as = { ...o, value: { ...o.value, value: { kind: 'document-type-overlay', schema_version: 1, name: v.base, replace: true } } };
+  applyType(as, registry);
+  if (as.result) o.result = { ...as.result, base: v.base, def: { ...as.result.def, ticket_template: v.name } };
   return undefined;
 }
 
@@ -742,7 +774,7 @@ export const STATE_TEXT = Object.freeze({ approved: 'approved', changed: 'change
 
 // The one line a command prints for an overlay it skips, naming it and the way to use it.
 export function skipLine(o, state, reason = null) {
-  const what = o.kind === 'document-type' ? `MIRAI's ${o.name} type` : o.kind === 'agent' ? `MIRAI's ${o.name}` : o.kind === 'skill' ? `MIRAI's ${o.name} skill` : null;
+  const what = o.kind === 'ticket-type' ? `the ${o.name} ticket type's template` : o.kind === 'document-type' ? `MIRAI's ${o.name} type` : o.kind === 'agent' ? `MIRAI's ${o.name}` : o.kind === 'skill' ? `MIRAI's ${o.name} skill` : null;
   if (what === null) {
     // Unit 39: a project's own item isn't used at all until it's approved.
     if (state === 'invalid') return `note: ${o.path} doesn't validate (${o.problems[0]}), so it isn't used; mirai show overlays lists every problem`;
@@ -775,6 +807,8 @@ export function applyOverlays(registry, files, events, { roles, keys = null, rep
   const agents = { ...registry.agents };
   const agentPrompts = {};
   const skillTexts = {};
+  // Unit 42: the ticket types' own templates, by overlay name (a ticket's type names it).
+  const ticketTemplates = {};
   const skipped = [];
   for (const o of overlays) {
     if (o.state !== 'approved' || !o.result) {
@@ -782,13 +816,14 @@ export function applyOverlays(registry, files, events, { roles, keys = null, rep
       continue;
     }
     if (o.kind === 'document-type') documentTypes[o.name] = o.result.def;
+    else if (o.kind === 'ticket-type') ticketTemplates[o.name] = o.result.def;
     else if (o.kind === 'agent') {
       agents[o.name] = o.result.def;
       agentPrompts[o.name] = o.result.prompt;
     } else skillTexts[o.name] = o.result.text;
   }
   const applied = overlays.filter((o) => o.state === 'approved' && o.result).map((o) => ({ path: o.path, kind: o.kind, name: o.name, hash: o.hash, files: [o.path, ...o.bound.map((b) => b.path)] }));
-  const out = { ...registry, documentTypes, agents, agentPrompts, skillTexts, overlays: applied };
+  const out = { ...registry, documentTypes, agents, agentPrompts, skillTexts, ticketTemplates, overlays: applied };
   // Unit 39: the project's own items approved as they are now, for your sessions' files (mirai
   // render). Never part of what a launch reads.
   const custom = overlays.filter((o) => CUSTOM_KINDS.includes(o.kind) && o.state === 'approved' && o.result).map((o) => ({ path: o.path, kind: o.kind, name: o.name, hash: o.hash, files: [o.path, ...o.bound.map((b) => b.path)], result: o.result }));

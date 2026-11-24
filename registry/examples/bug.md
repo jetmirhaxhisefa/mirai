@@ -1,10 +1,13 @@
 ---
 id: PMT-31
 type: bug
-template: bug@v1
+template: bug@v2
+ticket_type: Bug
 repo: "."
 risk: normal
 size: S
+priority: normal
+order: 2
 verify: "Changing a team's name keeps every member on the team page, checked by a feature test."
 covers_fr: []
 covers_ac: []

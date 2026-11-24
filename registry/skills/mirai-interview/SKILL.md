@@ -203,6 +203,42 @@ brief and the PRD in the background:
 
 `/mirai show <initiative>` shows her state (running, paused with her question, done) at any time.
 
+## Handing over to Tess
+
+Once the owner has approved the PRD (`mirai approve <prd-id> --file …prd.md`, in their terminal),
+Tess (`mirai-ticket-planner`) cuts it into an epic and its tickets in the background:
+
+1. **Commit first,** on the feature's branch, as above.
+2. **Start her** with `/mirai tickets <initiative>` (MIRAI's `mirai_command` tool, command
+   `tickets`), and **follow her** with `mirai_status`, as for Nora.
+3. **Tell the owner** when it ends, with each file's full path and link from its last lines:
+   - **done:** "the epic and its tickets are ready to approve", and the approval command;
+   - **paused:** her question about a gap in the PRD, which she added to `interview.md`. Resume
+     the interview at it. The answer changes the PRD: start Nora (`/mirai write <initiative>`) to
+     bring it in line, the owner approves the PRD again (it shows only what changed), then start
+     Tess again (`/mirai tickets <initiative>`).
+
+## One ticket by hand
+
+When the owner asks for one ticket (`/mirai ticket "<one line>"`): a story, a bug or a technical
+change that needs no PRD.
+
+1. **Read first** (the context files, the code the line names), as above: ask only what's missing.
+2. **At most 3 questions.** Pick the three that decide the ticket: what the reviewer must see to
+   call it done, whether it's a story or a bug (something that works wrongly today), and the one
+   limit or edge case that matters. Fewer is better. `mirai lint` fails a ticket interview with a
+   fourth question.
+3. **The record:** `interview.md` in a folder of its own under the docs root, named for the ticket
+   in a few words (`docs/mirai/<name>/interview.md`), with `for: ticket` in its frontmatter, then
+   the restatement and "Confirmed: yes (date)" as for any interview.
+4. **Hand over:** commit it on a branch for this ticket, then `/mirai tickets <name>` with `one`
+   (`mirai_command`, command `tickets`, `initiative` the folder's name, `one` true). Tess writes one
+   lone ticket in `docs/mirai/tickets/`, with no epic, and MIRAI runs the lint and Vera on it. It
+   doesn't pause: anything still open goes in the ticket's Notes.
+5. **Tell the owner** its path and link, and the approval command: they approve it on its own
+   (`mirai approve <KEY> --file docs/mirai/tickets/<KEY>.md`). It gets its own branch, and its
+   documents travel in its code merge request.
+
 ## Pause and resume
 
 **Pause.** When the owner says "pause" (or "draft it"), write every question you still have into

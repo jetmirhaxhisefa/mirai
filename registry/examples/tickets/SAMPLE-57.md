@@ -1,10 +1,13 @@
 ---
 id: SAMPLE-57
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: M
+priority: normal
+order: 7
 verify: "A team lead opens the overdue page and sees the team's overdue tasks, the most overdue first, within 2 seconds."
 covers_fr: [FR-2, NFR-1]
 covers_ac: [AC-FR-2.1, AC-FR-2.2]

@@ -1,6 +1,6 @@
 import { summaryOf } from './summary.js';
 import { checkIds, linkLinesOf } from './rules.js';
-import { byKey, capsOf, coverage, graphProblems, prdItems, ticketsOf } from './graph.js';
+import { blocksCount, byKey, capsOf, coverage, graphProblems, prdItems, ticketsOf } from './graph.js';
 
 // The epic's own lint (unit 33; design/01 §5, §12a; Jet's decisions 2026-11-20). The epic is the
 // page you approve a ticket set from. What the generic rules can't say:
@@ -78,11 +78,24 @@ export function checkEpic(doc, def, ctx, add) {
     const key = String(t.value.id);
     const needs = [
       t.value.risk === 'high' ? 'risk: high' : null,
+      // Unit 42 (decision 5): a high priority is Tess's proposal; you set it at approval.
+      t.value.priority === 'high' ? 'priority: high' : null,
       t.value.e2e === true ? 'e2e: true' : null,
       typeof t.value.tdd === 'string' ? `tdd: ${t.value.tdd}` : null,
       typeof t.value.tests === 'string' ? `tests: ${t.value.tests}` : null,
     ].filter(Boolean);
     if (needs.length && !mentions(decisionText, key)) add({ code: 'epic-decision', ...at, reason: `${key} is ${needs.join(', ')}, but "Decisions for you" doesn't list it`, hint: `add an item naming ${key} with a one-line reason, so you decide it at the ticket gate` });
+  }
+
+  // ---- New critical journeys (unit 42, Scope 7): each one is yours to decide ------------------
+  const journeys = h2('New critical journeys');
+  if (journeys) {
+    const next = scan.headings.find((h) => h.line > journeys.line && h.level <= 2);
+    for (const h of scan.headings.filter((x) => x.level === 3 && x.line > journeys.line && (!next || x.line < next.line))) {
+      const m = /^(J-[0-9]+)\b/.exec(h.text);
+      if (!m) add({ code: 'epic-journey', line: h.line, column: 1, reason: `"### ${h.text}" under "## New critical journeys" isn't a journey`, hint: 'write each as "### J-<n>: <name>", numbered on from journeys.md' });
+      else if (!mentions(decisionText, m[1])) add({ code: 'epic-decision', line: h.line, column: 1, reason: `the new critical journey ${m[1]} isn't listed under "Decisions for you"`, hint: `add an item naming ${m[1]} and the ticket that builds it: approving the set adds it to journeys.md` });
+    }
   }
 
   // ---- The epic's own non-goals carry on after the PRD's and the brief's -----------------------
@@ -144,10 +157,14 @@ export function renderSections({ track, tickets, items }) {
   const key = (t) => cell(t.value.id);
   const sorted = [...tickets].sort((a, b) => byKey(String(a.value.id), String(b.value.id)));
 
+  // Unit 42 (decision 5): the priority, the epic's order, and how many tickets each one blocks
+  // (every ticket whose after chain reaches it), as the run's pick reads them.
+  const blocks = blocksCount(sorted);
+  const num = (v) => (Number.isInteger(v) ? String(v) : '—');
   out.set('Tickets', [
-    '| Key | Title | Size | Risk | After | FRs | ACs | ADRs |',
-    '|---|---|---|---|---|---|---|---|',
-    ...sorted.map((t) => `| [${key(t)}](${t.path}) | ${cell(t.title) || '—'} | ${cell(t.value.size ?? '—')} | ${cell(t.value.risk ?? '—')} | ${ids(t.value.after)} | ${ids(t.value.covers_fr)} | ${ids(t.value.covers_ac)} | ${ids(t.value.governed_by)} |`),
+    '| Key | Title | Type | Size | Risk | Priority | Order | Blocks | After | FRs | ACs | ADRs |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|',
+    ...sorted.map((t) => `| [${key(t)}](${t.path}) | ${cell(t.title) || '—'} | ${cell(t.value.ticket_type ?? t.value.type ?? '—')} | ${cell(t.value.size ?? '—')} | ${cell(t.value.risk ?? '—')} | ${cell(t.value.priority ?? 'normal')} | ${num(t.value.order)} | ${blocks.get(String(t.value.id)) ?? 0} | ${ids(t.value.after)} | ${ids(t.value.covers_fr)} | ${ids(t.value.covers_ac)} | ${ids(t.value.governed_by)} |`),
   ]);
 
   const node = new Map(sorted.map((t, i) => [String(t.value.id).toLowerCase(), `t${i + 1}`]));

@@ -12,6 +12,7 @@ Each of MIRAI's agents has a persona, the name its output gives it. **The first 
 | Rex | `mirai-reviewer` | `reviewer` | reviews a ticket's change, read-only | 24a |
 | Vera | `mirai-verifier` | `verifier` | checks a document before you approve it, read-only (`docs/documents.md`, "Vera") | 40 |
 | Nora | `mirai-product-manager` | `product-manager` | writes an initiative's brief and PRD from your confirmed interview, in the background (`docs/documents.md`, "From request to approval") | 41 |
+| Tess | `mirai-ticket-planner` | `ticket-planner` | cuts an approved PRD into an epic and its tickets, or writes one ticket you ask for by hand, in the background ([tickets.md](tickets.md)) | 42 |
 
 Each new agent adds its row when it's built.
 
@@ -34,6 +35,7 @@ in `interview.md` beside the brief).
 | `planner` | read-only | plan | nothing: MIRAI stores the plan from the run's output |
 | `reviewer`, `verifier`, `qa` | read-only | review, verify, qa | nothing |
 | `product-manager` | read-write | prd | anything MIRAI doesn't protect outright; after each of Nora's launches MIRAI also refuses any change outside the initiative's folder (unit 41) |
+| `ticket-planner` | read-write | tickets | anything MIRAI doesn't protect outright; after each of Tess's launches MIRAI also refuses any change outside the epic, its `tickets/` folder and `interview.md`, or for a ticket by hand outside the one ticket file (unit 42) |
 
 The role `developer` was named `author` before unit 38b. The old name is refused wherever a role is named (an agent overlay, `mirai agent run --role`, the broker's `start_agent`, a project role's own name), with the new name in the message. A project whose MIRAI copy still has `author` is told to run `mirai init --refresh` and commit it.
 
@@ -190,6 +192,8 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai verify docs/mirai/due-dates/prd.md      # Vera checks it (docs/documents.md, "Vera")
 /mirai requirements due-dates  # numbers your own list in requirements.md (REQ-1, REQ-2 …)
 /mirai write due-dates         # Nora writes the brief and the PRD (docs/documents.md, "From request to approval")
+/mirai tickets due-dates       # Tess cuts the approved PRD into an epic and its tickets (docs/tickets.md)
+/mirai ticket "the log format in GCP should change to the new structure"   # one ticket by hand: at most 3 questions, then Tess
 /mirai reader-test docs/mirai/due-dates/prd.md
 /mirai show overlays          # the project's overlays (docs/overlays.md)
 /mirai show template prd      # a type's template, with the approved overlays

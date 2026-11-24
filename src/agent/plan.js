@@ -34,6 +34,7 @@ import { planInputs, ticketAcs } from './inputs.js';
 import { checkLaunchToken } from './requests.js';
 import { inRun, launchInRun } from './run.js';
 import { agentNamer } from './names.js';
+import { investigationRefusal } from '../tickets/types.js';
 
 // The plan step (unit 21a; design/01 §6, D-15, R2-C1, R2-M11). Kai, on the planner role (it may
 // change nothing), reads the ticket's inputs and returns the plan as its run's structured output;
@@ -289,6 +290,10 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
     if (!record.approved) throw fail(`${ticket} has no approval of yours in the journal`, 'no-ticket-approval', EXIT.BLOCKED, `approve it: mirai approve ${ticket} --file ${given.ticket.path}`);
     if (record.approved.content_hash !== contentHash(given.ticket.bytes)) throw fail(`${ticket} on the integration branch (${given.ticket.path}) isn't the file you approved`, 'ticket-changed', EXIT.BLOCKED, `on the integration branch, read it and approve it as merged: mirai approve ${ticket} --file ${given.ticket.path}`);
     const fm = given.ticket.fm;
+    // Unit 42 (Scope 6): an investigation (research and a written finding, no code merge) runs in
+    // its own run, unit 42b. Until it's built, it isn't planned or built here.
+    const notYet = investigationRefusal(fm, ticket, config);
+    if (notYet) throw fail(notYet.message, 'investigation-not-yet', EXIT.BLOCKED, notYet.hint);
     const fields = {
       ticket, acs: ticketAcs(given.ticket), risk: fm.risk === 'high' ? 'high' : 'normal',
       tdd: ['auto', 'first', 'after'].includes(fm.tdd) ? fm.tdd : config.testing?.tdd ?? 'auto', tests: ['required', 'optional'].includes(fm.tests) ? fm.tests : config.testing?.tests ?? 'required',

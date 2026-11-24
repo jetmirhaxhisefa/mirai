@@ -9,6 +9,7 @@ import { aliased, checkDocument } from './rules.js';
 import { frameworkDefaults } from '../config/defaults.js';
 import { isContextFile } from './context.js';
 import { repoReader } from './repo.js';
+import { ticketDefOf } from '../tickets/types.js';
 
 // Linting files (unit 07b).
 // - Inside the docs root (`[docs] root`, default docs/mirai) every Markdown file is a MIRAI
@@ -77,7 +78,7 @@ export function projectDefaults() {
 
 // What the checks need from a checked config.
 export function projectOf(config) {
-  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])), limits: { ...(config.docs?.limits ?? {}) }, checks: Object.fromEntries(Object.entries(config.checks ?? {}).map(([name, c]) => [name, [...((Array.isArray(c) ? c : c?.command) ?? [])]])) };
+  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])), limits: { ...(config.docs?.limits ?? {}) }, ticketTypes: Array.isArray(config.tickets?.types) ? config.tickets.types : null, checks: Object.fromEntries(Object.entries(config.checks ?? {}).map(([name, c]) => [name, [...((Array.isArray(c) ? c : c?.command) ?? [])]])) };
 }
 
 const toPosix = (p) => p.split(sep).join('/');
@@ -231,6 +232,8 @@ export function lintFile(file, ctx) {
     return notADocument({ code: 'unknown-type', line: at.line, column: at.valueColumn ?? at.column, reason: `"${type}" is not a document type MIRAI knows`, hint: near ? `did you mean "${near}"?` : undefined });
   }
   if (!inside && !Object.hasOwn(fm.value, 'template')) return { linted: false, problems };
+  // Unit 42: a ticket of a type with its own approved template is linted with it.
+  const own = ticketDefOf(ctx.registry, ctx.project, def, fm.value);
 
   const scan = scanMarkdown(fm.body, { firstLine: fm.bodyLine });
   for (const p of scan.problems) problem(p);
@@ -238,10 +241,10 @@ export function lintFile(file, ctx) {
   const linkTarget = (path) => resolveLink(dirname(abs), path, ctx);
   const readDocument = (path) => readLinked(dirname(abs), path, ctx);
   const readTickets = () => readTicketFolder(dirname(abs), ctx);
-  const template = inside ? templateOf(type, def, ctx) : null;
+  const template = inside ? templateOf(type, own, ctx) : null;
   // Unit 36: a context file is checked against the repo's code.
   const repo = isContextFile(file) ? (ctx.repo ??= repoReader(ctx.root)) : null;
-  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry, repo })) problems.push({ file, ...p });
+  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry, repo })) problems.push({ file, ...p });
   return { linted: true, problems };
 }
 
@@ -296,7 +299,8 @@ export function parseDocument(text, source) {
 // A type's template text, for the leftover check: its body's text lines, and its `id` plus any
 // string field whose example is a sentence (has a space). Null when the template can't be read.
 function templateOf(type, def, ctx) {
-  if (ctx.templates.has(type)) return ctx.templates.get(type);
+  const cacheKey = def.ticket_template ? `${type}:${def.ticket_template}` : type;
+  if (ctx.templates.has(cacheKey)) return ctx.templates.get(cacheKey);
   let template = null;
   try {
     // Unit 37: the template as the project's overlay renders it, when one applies.
@@ -321,13 +325,15 @@ function templateOf(type, def, ctx) {
     });
     const fields = new Map();
     for (const [key, value] of Object.entries(fm?.value ?? {})) {
+      // Unit 42: a ticket type's name ("Tech Debt") is a name to keep, not an example to replace.
+      if (key === 'ticket_type') continue;
       if (typeof value === 'string' && (key === 'id' || / /.test(value))) fields.set(key, value);
     }
     template = { lines, fields, fixed: new Map([...fixed].map(([name, f]) => [name, f.text])) };
   } catch {
     template = null;
   }
-  ctx.templates.set(type, template);
+  ctx.templates.set(cacheKey, template);
   return template;
 }
 
@@ -441,7 +447,9 @@ export function lintText(text, { source = '<text>', registry, project = projectD
   for (const p of scan.problems) problem(p);
   const doc = { value: fm.value, positions: fm.positions, scan, bodyLine: fm.bodyLine, text: text.startsWith('\uFEFF') ? text.slice(1) : text };
   const ctx = { registry, templates: new Map() };
-  const template = templateOf(type, def, ctx);
+  // Unit 42: a ticket of a type with its own approved template is linted with it.
+  const own = ticketDefOf(registry, project, def, fm.value);
+  const template = templateOf(type, own, ctx);
   const linkTarget = () => ({ slugs: null });
   const readDocument = (path) => {
     if (!Object.hasOwn(linked, path)) return { problem: 'unavailable' };
@@ -465,6 +473,6 @@ export function lintText(text, { source = '<text>', registry, project = projectD
     return { status: 'ok', all };
   };
   const code = repo ? repoReader(repo) : null;
-  for (const p of checkDocument(doc, def, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code })) problems.push({ file: source, ...p });
+  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

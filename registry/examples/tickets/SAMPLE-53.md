@@ -1,10 +1,13 @@
 ---
 id: SAMPLE-53
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: high
 size: L
+priority: normal
+order: 2
 verify: "With tasks due tomorrow for two people, ending the day sends each of them one email listing only their open tasks."
 covers_fr: [FR-4, NFR-2]
 covers_ac: [AC-FR-4.1, AC-FR-4.2, AC-FR-4.3, AC-FR-4.4, AC-FR-4.5, AC-NFR-2.1]

@@ -128,7 +128,7 @@ export const EVENT_TYPES = Object.freeze({
       if ((e.template_version !== undefined || e.template_hash !== undefined) && e.kind !== 'overlay') report('template_hash', 'template_version and template_hash go with an overlay\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
-      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
+      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
     },
   },
   // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.
@@ -203,6 +203,35 @@ export const EVENT_TYPES = Object.freeze({
     required: ['item', 'run_id', 'state'],
     check(e, report) {
       if ((e.state === 'paused') !== (e.question_id !== undefined)) report('question_id', 'a paused run names its question, and only a paused one');
+      if (e.open !== undefined && e.state !== 'done') report('open', 'only a done run lists what it left open');
+      if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
+    },
+  },
+  // Unit 42 (Scope 9): one of the ticket planner's runs on an initiative (`item`; for a ticket asked
+  // for by hand, the folder of its interview): `running`, then `done`, `paused` (set only: her
+  // question in interview.md) or `failed`. `mode`: `set` (an epic and its tickets) or `one` (a lone
+  // ticket, `ticket` its key). The end line carries the record, as nora_run's.
+  tess_run: {
+    privileged: true,
+    fields: {
+      run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
+      state: { type: 'enum', values: ['running', 'done', 'paused', 'failed'] },
+      mode: { type: 'enum', values: ['set', 'one'] },
+      ticket: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, patternHint: 'a ticket key' },
+      question_id: { type: 'string', pattern: /^Q-[0-9]{1,4}$/, patternHint: 'Q-n' },
+      question: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      why: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      rounds: { type: 'table', fields: { lint: { type: 'integer', min: 0 }, verify: { type: 'integer', min: 0 } }, required: ['lint', 'verify'] },
+      launches: { type: 'integer', min: 0 },
+      template_gaps: { type: 'integer', min: 0 },
+      open: { type: 'table', fields: { vera: { type: 'integer', min: 1 } }, required: ['vera'] },
+      tier: { type: 'string', pattern: /^[a-z]{1,20}$/, patternHint: 'a tier' },
+      model: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._:@/[\]-]{0,127}$/, patternHint: 'a model id' },
+    },
+    required: ['item', 'run_id', 'state', 'mode'],
+    check(e, report) {
+      if ((e.state === 'paused') !== (e.question_id !== undefined)) report('question_id', 'a paused run names its question, and only a paused one');
+      if (e.state === 'paused' && e.mode === 'one') report('state', 'a ticket asked for by hand doesn\'t pause');
       if (e.open !== undefined && e.state !== 'done') report('open', 'only a done run lists what it left open');
       if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
     },

@@ -224,19 +224,21 @@ export const SUMMARY_PARTS = Object.freeze(['The ask', 'Why', 'What changes', 'D
 // What MIRAI's machinery reads in a document (unit 37, decision 5): each protected section or
 // field names its readers, so a refusal can say what would break. `lint`: the type's own lint
 // checks; the others are named for their command or step.
-export const READERS = Object.freeze(['approval', 'reader-test', 'trace', 'epic-coverage', 'graph-lint', 'gate', 'lint', 'epic-render']);
+// Unit 42: `run-pick`, the run's pick of the next ready ticket (src/tickets/pick.js).
+export const READERS = Object.freeze(['approval', 'reader-test', 'trace', 'epic-coverage', 'graph-lint', 'gate', 'lint', 'epic-render', 'run-pick']);
 // The sections and parts (### headings) each built-in check reads by name (unit 37, Scope 1).
 // A type whose lint_checks read one of its own sections must list it in protected_sections, so
 // no overlay can drop what a check depends on. `*required*`: every required section (the
 // business check reads each one's bullets).
 export const CHECK_READS = Object.freeze({
-  ticket: [],
+  // Unit 42: the testability lint reads each acceptance criterion (src/lint/testable.js).
+  ticket: ['Acceptance criteria'],
   plan: ['Code map', 'Test list', 'Declared changes'],
   summary: [SUMMARY_SECTION, ...SUMMARY_PARTS],
   writing: [],
   brief: ['Success', 'Business requirements', 'Appetite and track', 'Open questions'],
   prd: ['Functional requirements', 'Glossary', 'Assumptions', 'Decisions for you', 'Capabilities', 'Triggers and states', 'Failures', 'Unchanged behaviour', 'Terms', 'ID prefixes'],
-  epic: ['Release', 'Not in this epic', 'Tickets', 'Dependencies', 'Coverage', 'Design decisions', 'Decisions for you'],
+  epic: ['Release', 'Not in this epic', 'Tickets', 'Dependencies', 'Coverage', 'Design decisions', 'Decisions for you', 'New critical journeys'],
   interview: ['Questions', 'Restatement'],
   business: ['Sources', '*required*'],
   journeys: ['Journeys', 'Sources'],

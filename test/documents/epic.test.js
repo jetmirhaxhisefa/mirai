@@ -81,7 +81,7 @@ const graph = (s, code) => errors(s.text, { tickets: s.tickets }).filter((p) => 
 const ticket = (key, { epic = 'SAMPLE-50', size = 'S', after = [], fr = ['FR-1'], ac = ['AC-FR-1.1'], files = [] } = {}) => `---
 id: ${key}
 type: story
-template: story@v1
+template: story@v2
 repo: "."
 risk: normal
 size: ${size}

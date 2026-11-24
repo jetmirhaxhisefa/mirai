@@ -7,7 +7,7 @@ name = "repo"
 kind = "repo"
 description = "Documents under the docs root in the project's repo; they reach the integration branch through one docs merge request per initiative."
 verbs = ["setup", "write", "read", "query", "publish", "status"]
-holds = ["interview", "brief", "prd", "epic", "story", "bug"]
+holds = ["interview", "brief", "prd", "epic", "story", "bug", "investigation"]
 
 [setup]
 proof = "the docs root is a real folder inside the repo (or not made yet), not a link"

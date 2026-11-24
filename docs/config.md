@@ -220,6 +220,21 @@ A whole list (an array) is replaced, never merged.
 | `docs.limits.business_words` | project | `1000` | The most words `.mirai/context/business.md` may have, its Sources table not counted; the lint fails above it ([context.md](context.md)). From 300 to 3000. |
 | `docs.limits.business_warn_words` | project | `800` | The word count at which the lint warns that `business.md` is near its cap; below `docs.limits.business_words`. From 200 to 3000. |
 
+## [tickets]
+
+Unit 42 ([tickets.md](tickets.md)). Team policy: the project file only.
+
+| Key | Who may set it | Default | What it does |
+|---|---|---|---|
+| `tickets.key_prefix` | project | none | The ticket keys' prefix (`PROJ` in `PROJ-12`): capital letters and digits, up to 10. Tess numbers new tickets on from the highest key with it; with none set, she doesn't start, and says so. |
+| `tickets.types[]` | project | Story, Bug, Investigation | The project's ticket types (`[[tickets.types]]`), each one entry; with none, the three defaults. |
+| `tickets.types[].name` | project | none | The type's name, as your tracker calls it (`Task`, `Spike`, `Tech Debt`); required, unique. A ticket names it in `ticket_type`. |
+| `tickets.types[].description` | project | none | What the type is for and when to use it; required: Tess reads it to choose a ticket's type. |
+| `tickets.types[].runs_as` | project | none | The MIRAI behaviour it runs as: `change` (a story), `bug` (a bug, red test first) or `investigation` (research and a finding, unit 42b); required. Anything else is refused. |
+| `tickets.types[].template` | project | none | The name of its own template, `.mirai/custom/ticket-types/<name>.toml` + `.md`, approved as an overlay ([overlays.md](overlays.md)); unapproved, MIRAI's template is used. |
+| `tickets.types[].checklist` | project | none | Extra checklist lines for the type, one line each; read by Tess with the type. |
+| `tickets.types[].tracker_type` | project | none | The issue type a tracker uses when the ticket is published (unit 38's trackers). |
+
 ## [retention]
 
 | Key | Who may set it | Default | What it does |

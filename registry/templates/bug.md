@@ -1,15 +1,19 @@
 ---
 id: PMT-1
 type: bug
-template: bug@v1
+template: bug@v2
+ticket_type: Bug
 repo: "."
 risk: normal
 size: S
+priority: normal
+order: 1
 verify: "One sentence: how a person or a test checks that the bug is gone."
 covers_fr: []
 covers_ac: []
 governed_by: []
 after: []
+epic: PMT-10
 files_likely: []
 e2e: false
 ---
@@ -18,8 +22,11 @@ The bug template (MIRAI). Replace every line below; keep the headings. mirai lin
 line, the id or the verify sentence left word for word from this template.
 - Frontmatter: id is the ticket key, and the file is tickets/<id>.md; repo is a name from
   [[repos]] in .mirai/config.toml; covers_fr and covers_ac (AC-FR-n.m, AC-NFR-n.m) only when
-  the bug breaks a PRD requirement; tdd and tests only when they differ from the project's
-  setting.
+  the bug breaks a PRD requirement; epic is the epic's id, and a lone bug (asked for by hand)
+  has no epic line but an "Interview:" line under its title; tdd and tests only when they differ
+  from the project's setting.
+- ticket_type is one of the project's ticket types (Bug by default); priority is high, normal or
+  low (an urgent bug is high: you set it at approval).
 - No status field: the store holds the ticket's status.
 - If the reproduction shows nothing is wrong, the ticket is dropped, with the evidence in Notes.
 - An optional section that doesn't apply keeps one line: Not applicable — <the reason>.

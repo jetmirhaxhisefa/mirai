@@ -1,10 +1,13 @@
 ---
 id: SAMPLE-54
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: M
+priority: normal
+order: 4
 verify: "With the mail service refusing one reminder, it is sent again an hour later and the failure is logged."
 covers_fr: [FR-7]
 covers_ac: [AC-FR-7.1]

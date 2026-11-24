@@ -17,6 +17,8 @@ Overlays stay in their project. Which ones go back to MIRAI is `mirai promote`'s
 | `.mirai/custom/agents/<name>.md` | the text added to the agent's prompt |
 | `.mirai/custom/skills/<name>/overlay.toml` | how a skill's text changes |
 | `.mirai/custom/skills/<name>/overlay.md` | the text added to the skill |
+| `.mirai/custom/ticket-types/<name>.toml` | a ticket type's own template (unit 42): `base = "story"` or `"bug"`, used for the `[[tickets.types]]` entry whose `template` is `<name>` ([tickets.md](tickets.md)) |
+| `.mirai/custom/ticket-types/<name>.md` | that template, checked like a replacement template of its base type |
 | `.mirai/custom/approvals/<kind>-<name>.json` | your signed approval of one overlay, written by `mirai approve` |
 
 The `.toml` file is the overlay. You approve it, and its approval covers the `.md` beside it.

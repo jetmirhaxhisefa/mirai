@@ -51,6 +51,19 @@ reaches you (unit 40).
   feature map (setup, design/01 §10); with no list yet, only the PRD's main user journey counts,
   and the choice is named under "Decisions for you".
 - [vera] Does each "Decisions for you" item give the approver a real choice, with a one-line reason?
+- [vera] Are near-identical items in "Decisions for you" merged into one that names every ticket it
+  covers (unit 42), rather than repeated per ticket?
+- [vera] Is `priority: high` proposed only where it is urgent (an urgent bug, a deadline the PRD
+  names), and is each high ticket listed under "Decisions for you"?
+- [vera] Is an NFR proved by an end-to-end test only through a critical journey? Otherwise the ticket
+  that delivers it names a unit, an integration or a load test in its `verify`.
+- [vera] Does each ticket that delivers an NFR cite it (NFR-n in `covers_fr`), so the coverage counts
+  it?
+- [vera] Where two tickets list the same file in `files_likely` with no `after` between them, is one
+  made to wait, or is there a stated reason the two changes can't clash?
+- [vera] Does each line in a section the project added to the PRD (Data privacy, a security
+  sign-off) become an AC on the ticket that does the work, or, when nobody could test it, an item
+  under "Decisions for you"?
 
 ## Words and scope
 

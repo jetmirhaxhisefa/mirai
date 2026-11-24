@@ -1,10 +1,13 @@
 ---
 id: PMT-12
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: M
+priority: normal
+order: 2
 verify: "A staff member signs in with SSO on the staging stack and lands on their team page."
 covers_fr: [FR-2]
 covers_ac: [AC-FR-2.1, AC-FR-2.2]

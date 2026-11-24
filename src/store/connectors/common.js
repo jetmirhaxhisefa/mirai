@@ -42,7 +42,7 @@ export function pathOfIn({ base, docsRoot, checkout }, type, initiative, name) {
   }
   const file = name ?? defaultName(type, initiative);
   if (!file || !FILE.test(file)) throw new UsageError(`${shown(String(file))} isn't a document's file name`, 'a name like prd.md or SAMPLE-12.md');
-  const ticket = type === 'story' || type === 'bug';
+  const ticket = type === 'story' || type === 'bug' || type === 'investigation'; // unit 42: investigation
   if (initiative === null || initiative === undefined) {
     if (!ticket) throw new UsageError(`a ${type} belongs to an initiative`, 'name the initiative');
     return join(base, docsRoot, 'tickets', file);

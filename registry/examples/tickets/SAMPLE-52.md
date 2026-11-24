@@ -1,10 +1,13 @@
 ---
 id: SAMPLE-52
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: S
+priority: normal
+order: 3
 verify: "Entering yesterday's date on a task shows the refusal message and keeps the old date."
 covers_fr: [FR-6]
 covers_ac: [AC-FR-6.1]
