@@ -21,6 +21,19 @@ export function noraStateOf(events, initiative, { runState = null } = {}) {
 
 const DOC = { brief: 'the brief', prd: 'the PRD' };
 
+// What a done run left open (its record's `open`), as "1 must-fix finding from Vera on the PRD".
+// The journal is read as data: only known documents and whole counts are shown.
+function openParts(open, who) {
+  if (!Array.isArray(open)) return [];
+  return open.filter((o) => o && Object.hasOwn(DOC, o.document)).map((o) => {
+    const what = [
+      ...(Number.isInteger(o.vera) && o.vera > 0 ? [`${o.vera} must-fix finding${o.vera === 1 ? '' : 's'} from ${who('mirai-verifier')}`] : []),
+      ...(o.reader === true ? ['a reader test not passed'] : []),
+    ];
+    return what.length ? `${what.join(' and ')} on ${DOC[o.document]}` : null;
+  }).filter(Boolean);
+}
+
 export function noraStateLines(events, initiative, { who = (id) => fullName(id), runState = null } = {}) {
   const n = noraStateOf(events, initiative, { runState });
   const name = who(AGENT);
@@ -30,7 +43,12 @@ export function noraStateLines(events, initiative, { who = (id) => fullName(id),
   if (n.state === null) out.push(`${name}: not started for this initiative (mirai write ${plain(initiative)} starts her)`);
   else if (n.state === 'running') out.push(`${name}: running (run ${l.run_id}, since ${plain(String(l.ts ?? '').slice(0, 16))})`);
   else if (n.state === 'lost') out.push(`${name}: her run ${l.run_id} stopped without its record (since ${plain(String(l.ts ?? '').slice(0, 16))}); start her again: mirai write ${plain(initiative)}`);
-  else if (n.state === 'done') out.push(`${name}: done: the brief and the PRD are ready for your approval (${record})`);
+  else if (n.state === 'done') {
+    const open = openParts(l.open, who);
+    out.push(open.length
+      ? `${name}: done, with ${open.join('; ')} open after the last round: the brief and the PRD are ready for your approval, which shows each one (${record})`
+      : `${name}: done: the brief and the PRD are ready for your approval (${record})`);
+  }
   else if (n.state === 'paused') out.push(`${name}: paused on ${DOC[l.document] ?? 'a document'}, waiting for your answer to ${l.question_id} in interview.md: ${plain(l.question)} (${record})`);
   else out.push(`${name}: stopped on ${DOC[l.document] ?? 'her run'}: ${plain(l.why ?? 'no reason recorded')} (${record})`);
   if (n.gaps.length) {

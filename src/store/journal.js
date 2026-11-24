@@ -195,12 +195,15 @@ export const EVENT_TYPES = Object.freeze({
       rounds: { type: 'table', fields: { lint: { type: 'integer', min: 0 }, verify: { type: 'integer', min: 0 }, reader: { type: 'integer', min: 0 } }, required: ['lint', 'verify', 'reader'] },
       launches: { type: 'integer', min: 0 },
       template_gaps: { type: 'integer', min: 0 },
+      // What a done run left open after the last round, per document (P1's rerun, Jet's "A").
+      open: { type: 'array', items: { type: 'table', fields: { document: { type: 'enum', values: ['brief', 'prd'] }, vera: { type: 'integer', min: 1 }, reader: { type: 'boolean' } }, required: ['document'] }, uniqueBy: 'document' },
       tier: { type: 'string', pattern: /^[a-z]{1,20}$/, patternHint: 'a tier' },
       model: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._:@/[\]-]{0,127}$/, patternHint: 'a model id' },
     },
     required: ['item', 'run_id', 'state'],
     check(e, report) {
       if ((e.state === 'paused') !== (e.question_id !== undefined)) report('question_id', 'a paused run names its question, and only a paused one');
+      if (e.open !== undefined && e.state !== 'done') report('open', 'only a done run lists what it left open');
       if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
     },
   },

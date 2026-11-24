@@ -311,6 +311,18 @@ function fixFrom(c) {
   return { 'reader.json': `${JSON.stringify({ round: c.entry.round, of: c.runs, missing: failedLabels(c.entry) }, null, 2)}\n` };
 }
 
+// A document is done once its checks have nothing left to send her, which includes the last round
+// of Vera's or the reader's with something still open (40's rule: you decide at approval). The
+// run's record keeps what is open, so her "done" line names it (P1's rerun, Jet's "A", 2026-11-24).
+function doneWith(ctx, type, c) {
+  const open = {
+    ...(c.vera && (c.vera.must_fix ?? 0) > 0 ? { vera: c.vera.must_fix } : {}),
+    ...(c.reader && c.reader.result !== 'pass' ? { reader: true } : {}),
+  };
+  if (Object.keys(open).length) ctx.open.push({ document: type, ...open });
+  return { state: 'done' };
+}
+
 // One document through Nora and the checks: { state: 'done' } or the run's end.
 async function documentLoop(ctx, type) {
   const exists = readDoc(ctx.s, type) !== null;
@@ -319,7 +331,7 @@ async function documentLoop(ctx, type) {
   else if (type === ctx.pausedOn) next = { type, step: 'continue' };
   else {
     const c = await checks(ctx, type);
-    if (c.stage === 'done') return { state: 'done' };
+    if (c.stage === 'done') return doneWith(ctx, type, c);
     if (c.stage === 'error') return { state: 'failed', document: type, why: c.why };
     next = { type, step: 'fix', extra: fixFrom(c) };
   }
@@ -328,7 +340,7 @@ async function documentLoop(ctx, type) {
     const l = await noraLaunch(ctx, next);
     if (l.end) return l.end;
     const c = await checks(ctx, type);
-    if (c.stage === 'done') return { state: 'done' };
+    if (c.stage === 'done') return doneWith(ctx, type, c);
     if (c.stage === 'error') return { state: 'failed', document: type, why: c.why };
     if (c.stage === 'lint') {
       if (lintFixes >= LINT_FIX_ROUNDS) return { state: 'failed', document: type, why: `the lint still finds ${c.problems.length} problem${c.problems.length === 1 ? '' : 's'} in the ${type} after ${LINT_FIX_ROUNDS} fixes of this draft, such as "${oneLine(c.problems[0].reason, 200)}" (line ${c.problems[0].line})` };
@@ -355,7 +367,7 @@ export async function runNora({ cwd, env, initiative, nextToken, launch = launch
     s.store = store;
     const ctx = {
       s, cwd, env, runId, nextToken, launch, verify, verifyLaunch, reader, readerLaunch, readerClaude, watch, who: namerOf(watch), now, onStep,
-      started: false, launches: 0, lastLaunch: null, line: null, gaps: 0, docRounds: {}, commits: [], rounds: { lint: 0, verify: 0, reader: 0 },
+      started: false, launches: 0, lastLaunch: null, line: null, gaps: 0, docRounds: {}, commits: [], open: [], rounds: { lint: 0, verify: 0, reader: 0 },
       // A run after a pause continues the document she paused on, from your answers.
       pausedOn: before?.state === 'paused' ? before.document ?? null : null,
     };
@@ -379,7 +391,7 @@ export async function runNora({ cwd, env, initiative, nextToken, launch = launch
       try {
         appendEvent(store, {
           type: 'nora_run', by: 'script', item: initiative, run_id: runId, state: end.state, ...(end.document ? { document: end.document } : {}), ...(end.question_id ? { question_id: end.question_id, question: end.question } : {}), ...(end.why ? { why: oneLine(end.why) } : {}),
-          rounds: ctx.rounds, launches: ctx.launches, template_gaps: ctx.gaps, ...(tier ? { tier } : {}), ...(model && /^[A-Za-z0-9]/.test(model) ? { model } : {}),
+          rounds: ctx.rounds, launches: ctx.launches, template_gaps: ctx.gaps, ...(end.state === 'done' && ctx.open.length ? { open: ctx.open } : {}), ...(tier ? { tier } : {}), ...(model && /^[A-Za-z0-9]/.test(model) ? { model } : {}),
         });
       } catch {
         // the record is a report; the run's outcome stands
@@ -387,6 +399,6 @@ export async function runNora({ cwd, env, initiative, nextToken, launch = launch
       const run = readRunState(store);
       if (ctx.started && run?.state === 'running' && run.run_id === runId) writeRunState(store, end.state === 'failed' ? 'stopped' : 'finished', { clear: true });
     }
-    return { ...end, run_id: runId, rounds: ctx.rounds, launches: ctx.launches, template_gaps: ctx.gaps, commits: ctx.commits, subject: s };
+    return { ...end, ...(end.state === 'done' && ctx.open.length ? { open: ctx.open } : {}), run_id: runId, rounds: ctx.rounds, launches: ctx.launches, template_gaps: ctx.gaps, commits: ctx.commits, subject: s };
   });
 }

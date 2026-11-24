@@ -292,6 +292,28 @@ test('41 (P1\'s run): the lint fixes restart for each draft: after a fix of Vera
   assert.equal(r.rounds.lint, 3, 'two fixes of the first draft, one of the fixed one');
 });
 
+test('41 (P1\'s rerun, Jet\'s "A"): a run done with Vera\'s must-fix still open after her last round says so in its record and its "done" line', async () => {
+  const f = fixture();
+  let n = 0;
+  // Vera finds one must-fix on every PRD version; each of her fixes is a new version.
+  const vera = fakeVera((o) => (o.item === 'due-dates-prd'
+    ? { findings: [{ id: 'V-1', grade: 'must-fix', layer: 'checklist', kind: 'writing', kind_reason: 'The brief gives it.', decision_type: 'none', where: { file: 'document.md', line: 72, quote: 'the system must email each assignee once' }, what: 'FR-4 has no time.', fix: 'Say when.' }] }
+    : { findings: [] }));
+  const { r } = await nora(f, { vera, steps: [byDocument({ brief: writes('brief'), prd: (o, fx) => {
+    put(fx, `${D}/prd.md`, `${PRD_READY}${'\n'.repeat(n++)}`);
+    return result();
+  } })] });
+  assert.equal(r.state, 'done', r.why);
+  assert.deepEqual(r.open, [{ document: 'prd', vera: 1 }]);
+  const last = noraLines(f).at(-1);
+  assert.deepEqual(last.open, [{ document: 'prd', vera: 1 }], 'the record keeps what is open');
+  const line = noraStateLines(readJournal(f.store).events, 'due-dates')[0];
+  assert.match(line, /^Nora \(mirai-product-manager\): done, with 1 must-fix finding from Vera \(mirai-verifier\) on the PRD open after the last round: the brief and the PRD are ready for your approval, which shows each one \(run /);
+  // The journal is data: an unknown document or a count that isn't whole shows nothing.
+  const odd = [{ type: 'nora_run', item: 'x', run_id: 'r-20261123-120000-abcd', state: 'done', open: [{ document: '../etc', vera: 2 }, { document: 'prd', vera: 'many' }] }];
+  assert.match(noraStateLines(odd, 'x')[0], /: done: the brief and the PRD are ready for your approval/);
+});
+
 // ---- T3 business.md at the interview ---------------------------------------------------------
 
 test('41 T3: the interview skill reads business.md first; a contradiction is the first question, with "propose a change to business.md"; the proposal\'s form and its approval command', () => {

@@ -219,6 +219,31 @@ P1 reruns in a fresh home (steps below). P3 and P4 are still to run.
   (none, `.env`, a dot file under the docs root, `README.md`, a folder, `../outside.md`,
   `/etc/passwd`); each must be refused. It runs in `redteam-full` on the read-write template.
 
+### P1's rerun (Jet, 2026-11-24, home `~/.mirai-probes-w4FvBO`, output `~/mirai-u41-p1.txt`)
+
+At `8876d31` (with 40a). Three `--probe write` runs, 8 Opus launches in all (13 last time), **lint 0
+fix rounds throughout** (A2 holds: each draft came back clean):
+
+- **Run 1:** the brief: lint clean, Vera 1 must-fix; her fix **paused on Q-9** (a new lead's pins).
+  Your session resumed the interview at Q-9 (and Q-10, a reopened task's pin; it noted the app
+  can't reopen a done task today).
+- **Run 2:** the brief: Vera 2 must-fix, fixed, then 0 (passed). The PRD: lint clean, Vera 3
+  must-fix; her fix **paused on Q-11** (a removed lead's pin records, under GDPR). Answered: "removed
+  user".
+- **Run 3:** the brief reused. The PRD: Vera 1, fixed, 1 more on her last round (round 3 of 3: NFR-3's
+  UNKNOWN limit missing from the summary); the reader test passed; **done**.
+- **Content:** every answer is in: the teams initiative first (NG-1, BR-6, A-5), Q-9, Q-10 with no
+  claim that tasks reopen, Q-11 as FR-10.
+- **A finding, fixed (Jet's "A"):** her "done" line read like a clean pass with Vera's must-fix still
+  open after the last round. The run's record now keeps `open` (per document: Vera's count, a reader
+  test not passed), and the line reads "done, with 1 must-fix finding from Vera (mirai-verifier) on
+  the PRD open after the last round: … ready for your approval, which shows each one". `nora_run`'s
+  journal form takes `open` (only on a done run). Test `41 (P1's rerun, Jet's "A")`.
+  `src/store/journal.js` is a cage file: the sample app's red team runs again.
+- **Noted, not changed:** an end record the journal refuses is dropped without a word (the run's
+  outcome stands); a later unit may want it logged.
+- **Pass:** waiting on Jet's read of the brief and the PRD.
+
 ### P3 Contradiction while writing (a session of yours, 2 Nora runs)
 
 1. `--probe home --case p3`, then the printed steps. The request (delete a task for good) breaks a
