@@ -570,6 +570,11 @@ The lint checks that:
 - every FR ends with the brief's BR it serves, and every BR of the brief is served by an FR or an
   NFR;
 - every FR has at least one AC (`AC-FR-n.m`), and every AC has Given, When and Then;
+- every AC (`AC-FR-n.m`, `AC-NFR-n.m`) is one a reviewer could test (unit 42, `prd-ac-untestable`):
+  its outcome, the "then" part, names no vague word without a number (`reliably`, `properly`,
+  `as expected`, `quickly`, the writing rules' `fast` and `reliable` …). A bullet with no ID under
+  an AC is part of it and is held to the same rule. The same rule as a ticket's ACs
+  ([tickets.md](tickets.md)), so a vague AC can't reach approval, and then Tess;
 - every NFR says how it's verified: its own `AC-NFR-n.m`, or a line `Verified by:` naming a test
   level, a measurement or a manual check;
 - IDs run 1, 2, 3 … with no gap, and an AC's requirement exists.

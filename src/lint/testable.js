@@ -48,18 +48,61 @@ export function outcomeOf(text) {
   return (m ? m[1] : text).trim();
 }
 
+// One criterion's text against the rule: the reason it fails, or null.
+export function untestableReason(id, text) {
+  const outcome = outcomeOf(text);
+  if (!outcome) return `${id} says nothing a reviewer could observe`;
+  if (/[0-9]/.test(outcome)) return null;
+  const vague = UNTESTABLE.find((w) => new RegExp(`(?<![\\w-])${escape(w)}(?![\\w-])`, 'i').test(outcome));
+  return vague ? `${id}'s outcome "${outcome.slice(0, 80)}" says "${vague}" with no number: nobody could test it` : null;
+}
+
 // The problems: [{ code, line, column, reason, hint }].
 export function testabilityProblems(doc, def) {
   const out = [];
   for (const ac of acceptanceCriteria(doc, def)) {
-    const outcome = outcomeOf(ac.text);
-    if (!outcome) {
-      out.push({ code: 'ac-untestable', line: ac.line, column: 1, reason: `${ac.id} says nothing a reviewer could observe`, hint: TESTABLE_HINT });
+    const reason = untestableReason(ac.id, ac.text);
+    if (reason) out.push({ code: 'ac-untestable', line: ac.line, column: 1, reason, hint: TESTABLE_HINT });
+  }
+  return out;
+}
+
+// The PRD's ACs (unit 42, P2's first run, Jet's "A", 2026-11-24): the same rule on every AC-FR-n.m
+// and AC-NFR-n.m, wherever it is defined, so a vague AC can't reach approval and then Tess. A bullet
+// with no ID under an AC (indented below it, or beside it in the same list) is part of that AC and
+// is held to the rule on its own: a vague line can't hide beside a testable one.
+const PRD_AC = /^(\s*)[-*+][ \t]+(?:\*\*)?(AC-N?FR-[0-9]+\.[0-9]+)(?:\*\*)?(?::|[ \t]+—[ \t])?[ \t]*(.*)$/;
+const BULLET = /^(\s*)[-*+][ \t]+(.*)$/;
+const REQUIREMENT = /^(?:\*\*)?(?:N?FR|AC-N?FR)-[0-9]/;
+
+export function prdTestabilityProblems(doc) {
+  const out = [];
+  let ac = null;
+  for (const l of doc.scan.lines) {
+    if (l.kind === 'heading') {
+      ac = null;
       continue;
     }
-    if (/[0-9]/.test(outcome)) continue;
-    const vague = UNTESTABLE.find((w) => new RegExp(`(?<![\\w-])${escape(w)}(?![\\w-])`, 'i').test(outcome));
-    if (vague) out.push({ code: 'ac-untestable', line: ac.line, column: 1, reason: `${ac.id}'s outcome "${outcome.slice(0, 80)}" says "${vague}" with no number: nobody could test it`, hint: TESTABLE_HINT });
+    if (l.kind !== 'text') continue;
+    const t = (l.visible ?? l.text).replace(/’/g, '\'');
+    const m = PRD_AC.exec(t);
+    if (m) {
+      ac = { id: m[2], indent: m[1].length };
+      const reason = untestableReason(m[2], m[3].trim());
+      if (reason) out.push({ code: 'prd-ac-untestable', line: l.line, column: 1, reason, hint: TESTABLE_HINT });
+      continue;
+    }
+    const b = BULLET.exec(t);
+    if (!ac || !b) {
+      if (!/^\s+\S/.test(t)) ac = null; // a plain line not indented ends the list
+      continue;
+    }
+    if (b[1].length < ac.indent || REQUIREMENT.test(b[2])) {
+      ac = null;
+      continue;
+    }
+    const reason = untestableReason(`${ac.id} (its line "${b[2].trim().slice(0, 60)}")`, b[2].trim());
+    if (reason) out.push({ code: 'prd-ac-untestable', line: l.line, column: 1, reason, hint: TESTABLE_HINT });
   }
   return out;
 }
