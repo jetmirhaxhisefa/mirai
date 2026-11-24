@@ -294,6 +294,22 @@ cycle, as before. Test `41 (P4's run, Jet's "A"): your new answers start a new c
 files (`src/store/verify-results.js`, `src/verify/run.js`, `src/nora/run.js`). Also: her done line
 lists what is open in document order.
 
+### P4's run (Jet, 2026-11-24, home `~/.mirai-probes-gY4T5W`, output `~/mirai-u41-p4.txt`): PASSED
+
+- **The interview** asked only about gaps and contradictions in the 24-line list (6 questions: the
+  teams the list relies on, REQ-22 against REQ-18 on the sort order, success, why now, the date,
+  how long the first team runs).
+- **Her runs:** five, pausing on Q-7 to Q-11, each a real gap or contradiction, all from teams being
+  built inside this initiative (Jet's Q-1). Q-11 was a contradiction inside business.md: she wrote
+  `business-change.md` (only the team lead assigns), the T3/T4 path on a real run. Lint 0 fix rounds
+  throughout. The last run (on `8a40305`) changed the brief to match Q-10 and checked it again.
+- **Every REQ-1…24 is cited** in the PRD after her run.
+- **The drop:** `(REQ-12)` taken out: the lint fails it (`prd-requirement-uncovered`), and Vera,
+  round 4, raised it as a must-fix against requirements.md:24.
+- **Two findings, both fixed (Jet's "A" each):** the brief left behind by a later answer; Vera's
+  rounds spent across pauses (above). The PRD is at 2995 of a lite PRD's 3000 words: the scope
+  growth shows.
+
 ### P4 Your own list (a session of yours, 1 Nora run, then 1 Vera run)
 
 1. `--probe home --case p4`, then the printed steps: the session first keeps
