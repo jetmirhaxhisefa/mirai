@@ -615,3 +615,29 @@ launchTest('15a T8: the input folder: names, counts and sizes checked first; rea
   }
   assert.match(checkInit(init, plan.expectedInit, { version: 'v' }).join('; '), /extra folders are none, expected .*input\/files/);
 });
+
+test('40a T3: every template turns off ship-local and steward; the canonical hash covers it; a run that still loads one is refused', () => {
+  for (const mode of ['read-write', 'read-only']) {
+    const t = template(undefined, mode);
+    assert.deepEqual(t.builtin.skills_off, ['claude-approvals', 'ship-local', 'steward'], mode);
+    for (const s of t.builtin.skills_off) assert.ok(!t.builtin.skills.includes(s), s);
+    assert.deepEqual(renderStrict(t, FACTS).skillOverrides, { 'claude-approvals': 'off', 'ship-local': 'off', steward: 'off' }, mode);
+  }
+  const t = template();
+  // Dropping one changes the rendered settings, so the canonical hash (what a red-team result covers) too.
+  const fewer = { ...t, builtin: { ...t.builtin, skills_off: ['steward'] } };
+  assert.deepEqual(renderStrict(fewer, FACTS).skillOverrides, { steward: 'off' });
+  assert.notEqual(canonicalSha256(fewer), canonicalSha256(t));
+  // A template from before 40a turns nothing off (and checkInit then refuses a run that loads them).
+  const old = { ...t, builtin: { ...t.builtin } };
+  delete old.builtin.skills_off;
+  assert.equal(renderStrict(old, FACTS).skillOverrides, undefined);
+  for (const bad of ['steward', [''], ['a b'], [1]]) assert.throws(() => renderStrict({ ...t, builtin: { ...t.builtin, skills_off: bad } }, FACTS), /skills_off isn't a list/, JSON.stringify(bad));
+  // checkInit: an off skill that still loads is named as such, not as a stranger.
+  const expected = expectedInit(t, {});
+  const init = { type: 'system', subtype: 'init', tools: expected.tools, apiKeySource: 'none', memory_paths: null, permissionMode: 'dontAsk', mcp_servers: [{ name: 'mirai', status: 'connected' }],
+    plugins: t.builtin.plugins.map((name) => ({ name, path: 'builtin' })), skills: [...t.builtin.skills], agents: [...t.builtin.agents], claude_code_version: '2.1.330' };
+  assert.deepEqual(checkInit(init, expected, { version: '2.1.330' }), []);
+  const problems = checkInit({ ...init, skills: [...t.builtin.skills, 'ship-local', { name: 'steward' }] }, expected, { version: '2.1.330' });
+  assert.deepEqual(problems, ["skills MIRAI's settings turn off still loaded: ship-local, steward"]);
+});
