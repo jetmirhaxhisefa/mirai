@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { probeLoop, waitForConfirmed } from './loop.js';
+import { probeLoop, waitForConfirmed } from '../probes/loop.js';
 
 // `--probe loop` (Jet, 2026-11-24, "A"): test tooling only, checked with a fake run and a fake
 // clock (no model, no wait).

@@ -463,7 +463,7 @@ Probes P1–P4 passed; every probe home deleted.
 - **Refresh the installs** to take 41 (`thudos-setup`, `mirai-sample-app-gitlab`, the pilot's
   Thudos): cage files changed (an agent `.toml`, its role, `strict.js`, `journal.js`, the lint, the
   MCP tools), so a red team after each refresh.
-- **`--probe loop`** before 42's probes (Jet's "A"; test tooling only): built 2026-11-24, `test/probes/loop.js` (shared with 42's probes) and `nora-probes.js --probe loop`; tests `test/probes/loop.test.js`.
+- **`--probe loop`** before 42's probes (Jet's "A"; test tooling only): built 2026-11-24, `test/probes/loop.js` (shared with 42's probes) and `nora-probes.js --probe loop`; tests `test/tools/probe-loop.test.js`.
 - **Unit 44:** the interview looking ahead through the PRD's checklist, to interview (Jet's "A");
   plus the notes under "For later units".
 - **Template version bump, later:** a Dependencies line and a Rollout line in the lite PRD (P3, P4's
