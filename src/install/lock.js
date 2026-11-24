@@ -241,8 +241,16 @@ export function settingsHash(text, entries) {
   const table = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
   const hooks = new Set(Object.entries(table(value?.hooks)).flatMap(([event, groups]) => (Array.isArray(groups) ? groups.map((g) => hookEntry(event, g)) : [])));
   const servers = new Set(Object.entries(table(value?.mcpServers)).map(([n, s]) => mcpEntry(n, s)));
-  return entriesHash(entries.filter((e) => (e.startsWith('hook:') ? hooks.has(e) : e.startsWith('mcp:') ? servers.has(e) : deny.includes(e))));
+  // Unit 40a: a bundled skill MIRAI turns off counts as there while skillOverrides still says "off".
+  const overrides = table(value?.skillOverrides);
+  const off = (e) => overrides[e.slice(SKILL_OFF.length)] === 'off';
+  return entriesHash(entries.filter((e) => (e.startsWith('hook:') ? hooks.has(e) : e.startsWith('mcp:') ? servers.has(e) : e.startsWith(SKILL_OFF) ? off(e) : deny.includes(e))));
 }
+
+// A bundled skill MIRAI turns off in your sessions' settings (unit 40a): its lock entry.
+const SKILL_OFF = 'skill-off:';
+export const skillOffEntry = (name) => `${SKILL_OFF}${String(name).slice(0, 80)}`;
+export const skillOffName = (entry) => (entry.startsWith(SKILL_OFF) ? entry.slice(SKILL_OFF.length) : null);
 
 // A value as canonical JSON: object keys sorted, so the same hook or server always hashes the same.
 const canonicalJson = (v) => (Array.isArray(v) ? `[${v.map(canonicalJson).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(v[k])}`).join(',')}}` : JSON.stringify(v ?? null));

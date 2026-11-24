@@ -1,5 +1,5 @@
 import { blockOf } from '../install/agents-block.js';
-import { hookEntry, renderedHash } from '../install/lock.js';
+import { hookEntry, renderedHash, skillOffName } from '../install/lock.js';
 import { flagText, rulesOf } from '../detect/instructions.js';
 import { blobReader, readTree } from '../detect/walk.js';
 import { importsOf, INSTRUCTION_FILES } from '../trust/imports.js';
@@ -173,7 +173,10 @@ function settingsRows(p, t, row, patterns, rules, calls, lock) {
       row(`${p}#hooks.${event}.${i}`, 'hook', clip(`${event}${g?.matcher ? ` (${g.matcher})` : ''}: ${cmds.join('; ')}`), [p], cmds.flatMap(flag));
     });
   }
-  const rest = Object.keys(v ?? {}).filter((k) => k !== 'hooks' && k !== '$schema' && !(k === 'permissions' && Object.keys(v.permissions ?? {}).every((x) => x === 'deny')));
+  // Unit 40a: skillOverrides holding only the bundled skills MIRAI turns off (in the lock) is MIRAI's.
+  const mineOff = new Set((lock?.get(p)?.entries ?? []).map(skillOffName).filter((n) => n !== null));
+  const onlyMine = (o) => o && typeof o === 'object' && !Array.isArray(o) && Object.entries(o).every(([n, x]) => mineOff.has(n) && x === 'off');
+  const rest = Object.keys(v ?? {}).filter((k) => k !== 'hooks' && k !== '$schema' && !(k === 'permissions' && Object.keys(v.permissions ?? {}).every((x) => x === 'deny')) && !(k === 'skillOverrides' && onlyMine(v.skillOverrides)));
   if (rest.length) row(p, 'other', `settings: ${rest.join(', ')}`, [p], flagText(p, t, patterns, rules).flags.map((f) => f.pattern));
 }
 

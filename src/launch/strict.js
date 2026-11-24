@@ -110,7 +110,9 @@ export function strictTemplate({ registry, config, mode }) {
     deny_env: merge(MIN_DENY_ENV, profile.deny_env),
     write_denied: [...new Set(writeDenied)].sort(),
     readable_env: [...new Set(readable)].sort(),
-    builtin: { version: profile.builtin_version, plugins: [...profile.builtin_plugins], skills: [...profile.builtin_skills], agents: [...profile.builtin_agents] },
+    // `skills_off`: bundled skills the settings turn off (skillOverrides; ship-local, steward and
+    // claude-approvals), so a run never loads them; checkInit refuses a run that still does.
+    builtin: { version: profile.builtin_version, plugins: [...profile.builtin_plugins], skills: [...profile.builtin_skills], agents: [...profile.builtin_agents], skills_off: [...(profile.builtin_skills_off ?? [])].sort() },
     // The secret shapes the hook refuses in what an agent writes (unit 13c).
     secrets: Object.values(registry.secrets ?? {}).flatMap((d) => d.patterns.map((p) => ({ name: p.name, regex: p.regex }))),
     // MIRAI's MCP server: the test levels and checks it offers, or null for none (unit 14d;
@@ -223,6 +225,8 @@ export function renderStrict(template, facts) {
     || !(m.tests === null || (strings(m.tests?.levels) && strings(m.tests?.checks))) || !(m.lint === undefined || m.lint === true)) {
     throw new StrictError('the strict template\'s mcp field isn\'t one this MIRAI reads', { code: 'bad-template' });
   }
+  const off = template.builtin?.skills_off ?? [];
+  if (!Array.isArray(off) || !off.every((s) => typeof s === 'string' && /^[A-Za-z][A-Za-z0-9._-]{0,80}$/.test(s))) throw new StrictError('the strict template\'s builtin.skills_off isn\'t a list of skill names', { code: 'bad-template' });
   const co = plain(facts.checkout, 'the checkout');
   const home = plain(facts.home, 'your home folder');
   const homes = [...new Set([home, ...(facts.homes ?? []).map((h) => plain(h, 'your home folder'))])];
@@ -283,6 +287,9 @@ export function renderStrict(template, facts) {
     // it never gets the first word (R1), but a Claude Code update could change that flag unseen.
     permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t)), ...mcpTools(template)], deny: [...new Set(deny)], ...Object.fromEntries(FILE_TOOL_BLOCKS.map((k) => [k, true])) },
     hooks: { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
+    // The bundled ship-local (/ship), steward (/steward) and claude-approvals act on a PR as you, some
+    // of it outside the sandbox: turned off by name (Jet's "A", 2026-11-23 and -24). S6 checks they're here.
+    ...(off.length ? { skillOverrides: skillOverrides(off) } : {}),
     sandbox: {
       enabled: true,
       failIfUnavailable: true,
@@ -299,6 +306,14 @@ export function renderStrict(template, facts) {
     },
   };
 }
+
+// Claude Code's skillOverrides value that turns each of `names` off (its docs: "off" hides a skill
+// from Claude and the / menu, and invoking it by name returns an error).
+export const skillOverrides = (names) => Object.fromEntries([...names].sort().map((n) => [n, 'off']));
+
+// Which of `names` a settings object doesn't turn off: S6 (unit 40a), on the strict and the
+// interactive settings alike.
+export const notTurnedOff = (settings, names) => names.filter((n) => settings?.skillOverrides?.[n] !== 'off');
 
 // Every sandbox key 2.1.310 has that could loosen it (research/10), checked on a rendered file.
 // prepareLaunch refuses a file with any of them loose.
@@ -737,7 +752,10 @@ export function checkInit(init, expected, { version } = {}) {
   const b = expected.builtin;
   const plugins = (init.plugins ?? []).filter((p) => !(typeof p === 'object' && p?.path === 'builtin' && b.plugins.includes(p.name)));
   if (plugins.length) problems.push(`plugins that aren't Claude Code's own: ${plugins.map((p) => nameOf(p) ?? '(no name)').join(', ')}`);
-  const skills = (init.skills ?? []).filter((s) => !b.skills.includes(nameOf(s)));
+  // A skill the settings turn off (skillOverrides) that still loads means the override didn't hold.
+  const offLoaded = (init.skills ?? []).filter((s) => (b.skills_off ?? []).includes(nameOf(s)));
+  if (offLoaded.length) problems.push(`skills MIRAI's settings turn off still loaded: ${offLoaded.map(nameOf).join(', ')}`);
+  const skills = (init.skills ?? []).filter((s) => !b.skills.includes(nameOf(s)) && !(b.skills_off ?? []).includes(nameOf(s)));
   if (skills.length) problems.push(`skills that aren't Claude Code's own: ${skills.map(nameOf).join(', ')}`);
   const agents = (init.agents ?? []).filter((a) => !b.agents.includes(nameOf(a)) && nameOf(a) !== expected.agent);
   if (agents.length) problems.push(`agents MIRAI didn't pass: ${agents.map(nameOf).join(', ')}`);
