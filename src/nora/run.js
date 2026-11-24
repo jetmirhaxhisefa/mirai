@@ -321,6 +321,7 @@ function doneWith(ctx, type, c) {
   };
   ctx.open = ctx.open.filter((o) => o.document !== type);
   if (Object.keys(open).length) ctx.open.push({ document: type, ...open });
+  ctx.open.sort((a, b) => DOCS.indexOf(a.document) - DOCS.indexOf(b.document));
   ctx.checked[type] = readDoc(ctx.s, type)?.text ?? null;
   return { state: 'done' };
 }
