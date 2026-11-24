@@ -34,6 +34,7 @@ import { addJourneys, newJourneys } from '../../src/tickets/journeys.js';
 import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { passVera } from '../helpers/vera.js';
+import { isWriteStaging } from '../../src/agent/staging.js';
 import { installed } from '../tests/run-fixture.js';
 
 // Unit 42: Tess, the ticket planner. No model runs: fake launchers stand in for MIRAI's launcher
@@ -621,6 +622,34 @@ test('42 (re-check): her result is checked: a lone ticket can\'t pause or return
   assert.match(checkTessResult(result({ documents: [{ name: 'tickets/K-1.md', text: 'x' }] }), { local: false }).problem, /on the repo store she writes the files herself/);
   assert.match(checkTessResult(result({ documents: [{ name: '../x.md', text: 'x' }] }), { local: true }).problem, /isn't \{ name, text \}/);
   assert.deepEqual(checkTessResult(result({ documents: [{ name: 'tickets/K-1.md', text: 'x' }] }), { local: true }).value.documents.length, 1);
+});
+
+// ---- P1's run, a finding: Claude Code's write staging ------------------------------------------
+
+test('42 (P1\'s run): an empty .claude/.cc-writes/ beside her tickets doesn\'t fail the run with no global ignore; a non-empty one, or another file under .claude/, still does', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'mirai-42-staging-'));
+  mkdirSync(join(root, 'a', '.claude', '.cc-writes'), { recursive: true });
+  mkdirSync(join(root, 'b', '.claude', '.cc-writes'), { recursive: true });
+  writeFileSync(join(root, 'b', '.claude', '.cc-writes', 'x'), 'x');
+  mkdirSync(join(root, 'c', '.cc-writes'), { recursive: true });
+  assert.deepEqual([isWriteStaging(root, 'a/.claude/.cc-writes'), isWriteStaging(root, 'a/.claude/.cc-writes/'), isWriteStaging(root, 'b/.claude/.cc-writes'), isWriteStaging(root, 'c/.cc-writes'), isWriteStaging(root, 'a/.claude')], [true, true, false, false, false]);
+  const run = async (extra) => {
+    const f = await fixture();
+    f.env.GIT_CONFIG_GLOBAL = '/dev/null';
+    return (await tess(f, { steps: [(o, fx) => {
+      writeSet()(o, fx);
+      extra(fx);
+      return result();
+    }] })).r;
+  };
+  const empty = await run((fx) => mkdirSync(join(fx.root, D, 'tickets', '.claude', '.cc-writes'), { recursive: true }));
+  assert.equal(empty.state, 'done', empty.why);
+  const full = await run((fx) => put(fx, `${D}/tickets/.claude/.cc-writes/hook.sh`, 'echo x\n'));
+  assert.equal(full.state, 'failed');
+  assert.match(full.why, /tickets\/\.claude\/\.cc-writes\/hook\.sh/);
+  const other = await run((fx) => put(fx, `${D}/tickets/.claude/settings.json`, '{}\n'));
+  assert.equal(other.state, 'failed');
+  assert.match(other.why, /tickets\/\.claude\/settings\.json/);
 });
 
 // ---- Jet's answers (2026-11-24) ---------------------------------------------------------------

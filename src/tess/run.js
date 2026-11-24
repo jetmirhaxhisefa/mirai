@@ -10,6 +10,7 @@ import { LAUNCH_OPTIONS, namerOf } from '../agent/plan.js';
 import { fullName, personaOf } from '../agent/names.js';
 import { launchInRun, withRun } from '../agent/run.js';
 import { changedPaths } from '../agent/scope.js';
+import { withoutStaging } from '../agent/staging.js';
 import { checklistTextOf, templateTextOf } from '../config/overlays.js';
 import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 import { questionsOf } from '../lint/interview.js';
@@ -152,7 +153,7 @@ function checkTree(s, branch, commitHint) {
     identity(env, config);
     commitFormat({ config, store });
   }
-  const dirty = changedPaths(workTreeChanges(store.checkout, store.gitEnv));
+  const dirty = withoutStaging(store.checkout, changedPaths(workTreeChanges(store.checkout, store.gitEnv)));
   if (dirty.length) throw refuse(`the work tree has ${dirty.length} uncommitted change(s), such as ${dirty[0]}: every launch needs a clean tree, so what she writes can be told apart`, 'dirty-tree', `commit them first${commitHint}, then start her again`);
 }
 
@@ -391,7 +392,7 @@ async function tessLaunch(ctx, { step, extra = {} }) {
   const checked = checkTessResult(r.structured, { local, one: s.one });
   if (checked.problem) return { end: { state: 'failed', why: `${checked.problem}; nothing of this launch was kept as checked` } };
   const result = checked.value;
-  const changes = changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv));
+  const changes = withoutStaging(s.store.checkout, changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv)));
   if (local) {
     if (changes.length) return { end: { state: 'failed', why: `on the local store she writes no file, but the project changed (${changes.slice(0, 5).join(', ')}): left as it is for you to look at` } };
     for (const d of result.documents) {
@@ -429,7 +430,7 @@ async function tessLaunch(ctx, { step, extra = {} }) {
     appendEvent(s.store, { type: 'template_gap', by: 'script', item: s.initiative, template: g.type, section: oneLine(g.where, 200), message: oneLine(g.what) });
     ctx.gaps += 1;
   }
-  if (!local && changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv)).length) commitDocs(ctx, s.one ? `a ticket, round ${round}` : `the tickets, round ${round}`, result.summary);
+  if (!local && withoutStaging(s.store.checkout, changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv))).length) commitDocs(ctx, s.one ? `a ticket, round ${round}` : `the tickets, round ${round}`, result.summary);
   if (result.outcome === 'paused') return { end: pausedEnd(ctx, result.question) };
   return { ok: true, result };
 }
@@ -440,7 +441,7 @@ function commitDocs(ctx, what, body) {
   const who = identity(ctx.env, s.config);
   const format = commitFormat({ config: s.config, store: s.store });
   const sha = commitAll(s.store.checkout, s.store.gitEnv, { message: messageFor({ subject: subjectFor({ ticket: s.initiative, what, format }), body, trailer: INITIATIVE_TRAILER, ticket: s.initiative }), ...who });
-  const after = workTreeChanges(s.store.checkout, s.store.gitEnv);
+  const after = withoutStaging(s.store.checkout, changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv)));
   if (after.length) throw refuse(`${after.length} file(s) changed right after MIRAI's commit: something is still writing to the project`, 'changed-after-commit', 'look for a process still working in the project');
   ctx.commits.push(sha);
   return sha;

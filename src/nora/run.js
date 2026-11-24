@@ -9,6 +9,7 @@ import { LAUNCH_OPTIONS, namerOf } from '../agent/plan.js';
 import { fullName, personaOf } from '../agent/names.js';
 import { launchInRun, withRun } from '../agent/run.js';
 import { changedPaths } from '../agent/scope.js';
+import { withoutStaging } from '../agent/staging.js';
 import { checklistTextOf, templateTextOf } from '../config/overlays.js';
 import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 import { questionsOf } from '../lint/interview.js';
@@ -96,7 +97,7 @@ export function noraSubject({ cwd, env, initiative, store = openStore({ cwd, env
     identity(env, config);
     commitFormat({ config, store });
   }
-  const dirty = changedPaths(workTreeChanges(store.checkout, store.gitEnv));
+  const dirty = withoutStaging(store.checkout, changedPaths(workTreeChanges(store.checkout, store.gitEnv)));
   if (dirty.length) throw refuse(`the work tree has ${dirty.length} uncommitted change(s), such as ${dirty[0]}: every launch needs a clean tree, so what she writes can be told apart`, 'dirty-tree', `commit them first${rel ? ` (the interview: git add ${rel} && git commit -m "${initiative}: interview")` : ''}, then start her again`);
   return s;
 }
@@ -235,7 +236,7 @@ async function noraLaunch(ctx, { type, step, extra = {} }) {
   const checked = checkNoraResult(r.structured, { local });
   if (checked.problem) return { end: { state: 'failed', document: type, why: `${checked.problem}; nothing of this launch was kept as checked` } };
   const result = checked.value;
-  const changes = changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv));
+  const changes = withoutStaging(s.store.checkout, changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv)));
   if (local) {
     if (changes.length) return { end: { state: 'failed', document: type, why: `on the local store she writes no file, but the project changed (${changes.slice(0, 5).join(', ')}): left as it is for you to look at` } };
     for (const d of result.documents) s.conn.write(NAME_TYPE[d.name], s.initiative, d.name, Buffer.from(d.text, 'utf8'));
@@ -261,7 +262,7 @@ function commitDocs(ctx, what, body) {
   const who = identity(ctx.env, s.config);
   const format = commitFormat({ config: s.config, store: s.store });
   const sha = commitAll(s.store.checkout, s.store.gitEnv, { message: messageFor({ subject: subjectFor({ ticket: s.initiative, what, format }), body, trailer: INITIATIVE_TRAILER, ticket: s.initiative }), ...who });
-  const after = workTreeChanges(s.store.checkout, s.store.gitEnv);
+  const after = withoutStaging(s.store.checkout, changedPaths(workTreeChanges(s.store.checkout, s.store.gitEnv)));
   if (after.length) throw refuse(`${after.length} file(s) changed right after MIRAI's commit: something is still writing to the project`, 'changed-after-commit', 'look for a process still working in the project');
   ctx.commits.push(sha);
   return sha;
