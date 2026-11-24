@@ -1,4 +1,5 @@
 import { EXIT } from '../exit-codes.js';
+import { UsageError } from '../errors.js';
 import { progressPrinter } from '../progress.js';
 import { requireTtyOrSession } from '../tty.js';
 import { plain } from '../../status/text.js';
@@ -26,15 +27,20 @@ import { readApprovedFile } from '../human-move.js';
 export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}) {
   return {
     name: 'tickets',
-    summary: `Have ${fullName(TESS_AGENT)} cut an approved PRD into an epic and its tickets, or write one ticket from its short interview`,
-    usage: 'mirai tickets <initiative> [--one]',
-    positionals: { min: 1, max: 1 },
+    summary: `Have ${fullName(TESS_AGENT)} cut an approved PRD into an epic and its tickets, write one ticket from its short interview, or fix a lone ticket from the verifier's findings`,
+    usage: 'mirai tickets <initiative> [--one] | mirai tickets fix <ticket>',
+    positionals: { min: 1, max: 2 },
     options: {
       one: { type: 'boolean', description: 'one lone ticket from the folder\'s short interview (for: ticket), with no epic' },
     },
     async run(args, io, { now = () => new Date() } = {}) {
-      const [initiative] = args.positionals;
-      const one = Boolean(args.values.one);
+      // Jet's answer 3 (2026-11-24): `mirai tickets fix <KEY>`, an existing lone ticket fixed from
+      // the verifier's findings on it.
+      const fix = args.positionals.length === 2 ? args.positionals[1] : null;
+      if (args.positionals.length === 2 && args.positionals[0] !== 'fix') throw new UsageError(`mirai tickets takes one initiative, or fix and a ticket key`, 'mirai tickets <initiative> [--one], or mirai tickets fix <ticket>');
+      if (fix && args.values.one) throw new UsageError('--one is for a ticket asked for by hand, not a fix', `mirai tickets fix ${fix}`);
+      const initiative = fix ?? args.positionals[0];
+      const one = Boolean(args.values.one) || Boolean(fix);
       requireTtyOrSession(io, 'mirai tickets', 'tickets');
       requireHooks({ store: openStore({ cwd: io.cwd, env: io.env }), env: io.env });
       const who = agentNamer();
@@ -59,7 +65,7 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
           else if (e.kind === 'verify') say(`${who(VERIFY_AGENT)}, ${what}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (unchanged since that check)' : ''}`);
         };
         const r = await runTess({
-          cwd: io.cwd, env: io.env, initiative, one, nextToken: () => mintLaunchToken(), launchOptions, onStep, now,
+          cwd: io.cwd, env: io.env, ...(fix ? { fix } : { initiative, one }), nextToken: () => mintLaunchToken(), launchOptions, onStep, now,
           ...(launch ? { launch } : {}), ...(verifyLaunch ? { verifyLaunch } : {}),
         });
         progress.stop();
@@ -67,7 +73,7 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
         const out = [...tessStateLines(readJournal(s.store).events, initiative, { who })];
         if (r.commits.length) out.push(`committed on your branch: ${r.commits.map((c) => c.slice(0, 12)).join(', ')} (MIRAI's commit${r.commits.length === 1 ? '' : 's'}, you as author)`);
         const line = (abs, bytes) => documentLine({ store: s.store, config: s.config, conn: s.conn, abs, rel: s.conn.relOf(abs) ?? abs, bytes });
-        const interview = readDoc(s, 'interview');
+        const interview = fix ? s.interview : readDoc(s, 'interview');
         if (interview) out.push(line(interview.abs, interview.bytes));
         let approve = null;
         if (one) {

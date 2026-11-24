@@ -51,12 +51,16 @@ const refuse = (message, code, hint) => Object.assign(new MiraiError(message, EX
 // it refuses, naming `mirai verify <file>`; with must-fix findings and rounds left, it refuses
 // too (decision 1: the author fixes them first). After the last round you decide.
 // `files`: an epic's ticket files, [{ path, bytes }], which her check covers with it.
-export function verifierFor({ store, config, def, id, path, bytes, files = [] }) {
+// `early` (unit 42, Jet's answer 3): a person's own lone ticket may be approved anyway right after
+// her first check, with must-fix findings open: the state is then `early`, shown with each finding,
+// and the signed line records her result (its hash names the findings you approved over).
+export function verifierFor({ store, config, def, id, path, bytes, files = [], early = false }) {
   if (!isVeraType(def)) return null;
   if (!verifyOn(config)) return { off: true };
   const entry = verifyResultFor(store, id, subjectHash(bytes, files));
   if (!entry) throw refuse(`${path} has no result from ${fullName(VERIFY_AGENT)} for it as it is now; nothing was written`, 'no-verify', `run: mirai verify ${path}, then approve again`);
   const state = resultState(entry, config);
+  if (state === 'open' && early) return { entry, state: 'early' };
   if (state === 'open') {
     throw refuse(`${personaOf(VERIFY_AGENT) ?? VERIFY_AGENT} has ${entry.must_fix} must-fix finding${entry.must_fix === 1 ? '' : 's'} open on ${path} (round ${entry.round} of ${runsOf(config, 'verify')}): the author fixes them first; nothing was written`, 'verify-open', `fix them, run mirai verify ${path}, then approve again (mirai verify ${path} --handoff gives them as the author's next run takes them)`);
   }
@@ -72,7 +76,9 @@ export function verifierLines(v, who = (id) => fullName(id)) {
   const e = v.entry;
   const tips = suggestions(e.findings ?? []).length;
   if (v.state === 'pass') return [`${name}: passed (${tips} suggestion${tips === 1 ? '' : 's'}; round ${e.round}, model ${plain(e.model)})`, ...(e.findings ?? []).flatMap((f) => findingLines(f).map(plain))];
-  const out = [`${name}: ${e.must_fix} finding${e.must_fix === 1 ? '' : 's'} open after the last round (round ${e.round}, model ${plain(e.model)})`];
+  const out = [v.state === 'early'
+    ? `${name}: ${e.must_fix} finding${e.must_fix === 1 ? '' : 's'} open after her check (round ${e.round}, model ${plain(e.model)}); this is your own ticket, so you may approve it anyway now`
+    : `${name}: ${e.must_fix} finding${e.must_fix === 1 ? '' : 's'} open after the last round (round ${e.round}, model ${plain(e.model)})`];
   for (const f of mustFix(e.findings ?? [])) out.push(...findingLines(f).map(plain));
   for (const f of suggestions(e.findings ?? [])) out.push(...findingLines(f).map(plain));
   out.push('you can still decide: approve anyway (a), reject with a note (r), or answer them yourself: fix the document, run mirai verify, then approve again');

@@ -8,6 +8,7 @@ import { loadRegistry } from '../../src/config/registry.js';
 import { loadConfig } from '../../src/config/load.js';
 import { REGISTRY_DIR } from '../../src/cli/commands/lint.js';
 import { changedLines } from '../../src/cli/commands/approve.js';
+import { EXIT } from '../../src/cli/exit-codes.js';
 import { checkAgentRole } from '../../src/agent/run.js';
 import { mintLaunchToken } from '../../src/agent/requests.js';
 import { pickTier } from '../../src/agent/tiers.js';
@@ -32,6 +33,7 @@ import { DEFAULT_TICKET_TYPES, investigationRefusal, ticketTypesOf } from '../..
 import { addJourneys, newJourneys } from '../../src/tickets/journeys.js';
 import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
+import { passVera } from '../helpers/vera.js';
 import { installed } from '../tests/run-fixture.js';
 
 // Unit 42: Tess, the ticket planner. No model runs: fake launchers stand in for MIRAI's launcher
@@ -619,4 +621,90 @@ test('42 (re-check): her result is checked: a lone ticket can\'t pause or return
   assert.match(checkTessResult(result({ documents: [{ name: 'tickets/K-1.md', text: 'x' }] }), { local: false }).problem, /on the repo store she writes the files herself/);
   assert.match(checkTessResult(result({ documents: [{ name: '../x.md', text: 'x' }] }), { local: true }).problem, /isn't \{ name, text \}/);
   assert.deepEqual(checkTessResult(result({ documents: [{ name: 'tickets/K-1.md', text: 'x' }] }), { local: true }).value.documents.length, 1);
+});
+
+// ---- Jet's answers (2026-11-24) ---------------------------------------------------------------
+
+test('42 (Jet\'s answer 2, A+): the skill says up front when 3 questions can\'t settle the request, offers /mirai-new or a sharper line, and never writes a ticket interview from a guess', () => {
+  const skill = read('skills/mirai-interview/SKILL.md');
+  const part = skill.slice(skill.indexOf('## One ticket by hand'), skill.indexOf('## Pause and resume'));
+  assert.match(part, /When 3 questions can't settle it, say so first/);
+  assert.match(part, /before asking anything/);
+  assert.match(part, /\(a\) a small feature through\s+`\/mirai-new`, with a full interview and no cap/);
+  assert.match(part, /\(b\) a sharper line from the owner/);
+  assert.match(part, /Never write a ticket interview from a guess/);
+});
+
+// A person's own lone ticket: no interview, no epic, written by hand.
+const PERSON = LONE.replace('upstream: [log-format-interview]\n', '').replace('Interview: [Interview: due dates on tasks](../log-format/interview.md)\n\n', '').replace('- The interview: [log-format](../log-format/interview.md).', '- The team\'s logging notes.').replace(/SAMPLE-1\b/g, 'SAMPLE-7');
+const P7 = 'docs/mirai/tickets/SAMPLE-7.md';
+const MUST = (quote, line = 30) => ({ id: 'V-1', grade: 'must-fix', layer: 'checklist', kind: 'writing', kind_reason: 'The criterion.', decision_type: 'none', where: { file: 'document.md', line, quote }, what: 'AC-SAMPLE-7.2 names no field a reviewer can check.', fix: 'Name the field that is gone.' });
+
+test('42 (Jet\'s answer 3, B): every lone ticket needs Vera\'s result at approval, even a person\'s with no interview; a person\'s may be approved anyway after her first check; Tess\'s keeps the rounds', async () => {
+  const f = await fixture({ approve: false, files: { [P7]: PERSON } });
+  const none = await tty(['approve', 'SAMPLE-7', '--file', P7], f.io, ['a', 'SAMPLE-7'], { vera: false });
+  assert.equal(none.code, EXIT.BLOCKED, none.err);
+  assert.match(none.err, /has no result from Vera \(mirai-verifier\) for it as it is now; nothing was written/);
+  assert.match(none.err, /mirai verify docs\/mirai\/tickets\/SAMPLE-7\.md/);
+  const first = passVera(f, P7, { findings: [MUST('the log entries no longer have the field msg')] });
+  assert.equal(first.round, 1);
+  const ok = await tty(['approve', 'SAMPLE-7', '--file', P7], f.io, ['a', 'SAMPLE-7'], { vera: false });
+  assert.equal(ok.code, 0, ok.err);
+  assert.match(ok.out, /1 finding open after her check \(round 1, model claude-sonnet-5-5\); this is your own ticket, so you may approve it anyway now/);
+  assert.match(ok.out, /AC-SAMPLE-7\.2 names no field a reviewer can check/);
+  assert.match(ok.out, /or have her fix it first: mirai tickets fix SAMPLE-7 \(\/mirai ticket fix SAMPLE-7\)/);
+  const line = readJournal(f.store).events.filter((e) => e.type === 'approval' && e.item === 'SAMPLE-7').at(-1);
+  assert.equal(line.verifier, first.hash, 'the signed line records the result approved over');
+  // Tess's own lone ticket (a tess_run line names it) keeps the rounds: refused while open.
+  const g = await fixture({ files: { [`${L}/interview.md`]: TICKET_INTERVIEW } });
+  await tess(g, { initiative: 'log-format', one: true, steps: [(o, fx) => {
+    put(fx, 'docs/mirai/tickets/SAMPLE-1.md', LONE);
+    return result();
+  }] });
+  passVera(g, 'docs/mirai/tickets/SAMPLE-1.md', { findings: [MUST('the log entries no longer have the field msg')] });
+  const held = await tty(['approve', 'SAMPLE-1', '--file', 'docs/mirai/tickets/SAMPLE-1.md'], g.io, ['a', 'SAMPLE-1'], { vera: false });
+  assert.equal(held.code, EXIT.BLOCKED, held.err);
+  assert.match(held.err, /must-fix finding open on docs\/mirai\/tickets\/SAMPLE-1\.md \(round 2 of 3\): the author fixes them first/);
+});
+
+test('42 (Jet\'s answer 3): mirai tickets fix <KEY>: she fixes only what Vera found, MIRAI lints and Vera checks again, done; a tess_run line records it', async () => {
+  const f = await fixture({ approve: false, files: { [P7]: PERSON } });
+  passVera(f, P7, { findings: [MUST('the log entries no longer have the field msg')] });
+  const vera = fakeVera();
+  const t = fakeTess(f, [(o, fx) => {
+    put(fx, P7, PERSON.replace('the log entries no longer have the field msg', 'a log line written after the change has no field named msg'));
+    return result({ summary: 'Named the field in AC-SAMPLE-7.2.' });
+  }]);
+  const r = await runTess({ cwd: f.root, env: f.env, fix: 'SAMPLE-7', nextToken: () => mintLaunchToken(), launch: t.launch, verifyLaunch: vera.launch });
+  assert.equal(r.state, 'done', r.why);
+  const [c] = t.calls;
+  assert.deepEqual([indexOf(c).mode, indexOf(c).ticket, indexOf(c).step], ['fix', 'SAMPLE-7', 'fix']);
+  assert.match(c.inputs['findings.md'], /AC-SAMPLE-7\.2 names no field a reviewer can check/);
+  assert.match(c.prompt, /change only what they name, never the ticket's scope or intent/);
+  assert.match(c.prompt, /Edit the ticket at docs\/mirai\/tickets\/SAMPLE-7\.md/);
+  assert.deepEqual(vera.calls.map((v) => v.item), ['SAMPLE-7'], 'Vera checks it again');
+  assert.equal(vera.calls[0].round, 1, 'a fix starts her rounds again');
+  const end = tessLines(f).at(-1);
+  assert.deepEqual([end.item, end.mode, end.ticket, end.state, end.launches], ['SAMPLE-7', 'fix', 'SAMPLE-7', 'done', 1]);
+  assert.match(f.git('log', '-1', '--format=%s'), /SAMPLE-7: a ticket, round 1/);
+  assert.deepEqual(COMMANDS['ticket fix'].argv({ ticket: 'SAMPLE-7' }), ['tickets', 'fix', 'SAMPLE-7']);
+  assert.deepEqual(checkCommand({ command: 'ticket fix', ticket: 'SAMPLE-7' }).args, { command: 'ticket fix', ticket: 'SAMPLE-7' });
+  assert.match(MIRAI_COMMAND, /If the command is `ticket fix` and a ticket key/);
+});
+
+test('42 (Jet\'s answer 3): mirai tickets fix: a write outside the ticket fails the run; refused for a ticket of an epic and for one with no result of Vera\'s', async () => {
+  const f = await fixture({ approve: false, files: { [P7]: PERSON, 'docs/mirai/tickets/SAMPLE-9.md': PERSON.replace(/SAMPLE-7/g, 'SAMPLE-9').replace('e2e: false\n', 'e2e: false\nepic: SAMPLE-50\n') } });
+  const fix = (steps, key = 'SAMPLE-7') => runTess({ cwd: f.root, env: f.env, fix: key, nextToken: () => mintLaunchToken(), launch: fakeTess(f, steps).launch, verifyLaunch: fakeVera().launch });
+  await assert.rejects(fix([() => result()]), (e) => e.code === 'no-verify' && /mirai verify docs\/mirai\/tickets\/SAMPLE-7\.md first/.test(e.hint));
+  await assert.rejects(fix([() => result()], 'SAMPLE-9'), (e) => e.code === 'ticket-of-epic' && /through its epic's set/.test(e.hint));
+  passVera(f, P7, { findings: [MUST('the log entries no longer have the field msg')] });
+  const head = f.git('rev-parse', 'HEAD');
+  const r = await fix([(o, fx) => {
+    put(fx, P7, PERSON.replace('the log entries no longer have the field msg', 'no log line has a field named msg'));
+    put(fx, 'app/Logging/Other.php', '<?php\n');
+    return result();
+  }]);
+  assert.equal(r.state, 'failed');
+  assert.match(r.why, /she changed files outside docs\/mirai\/tickets\/ \(app\/Logging\/Other\.php\): nothing was committed/);
+  assert.equal(f.git('rev-parse', 'HEAD'), head);
 });

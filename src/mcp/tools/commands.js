@@ -100,6 +100,8 @@ export const COMMANDS = Object.freeze({
   // (the set still waits for your approval). With `one`, the one ticket /mirai ticket's short
   // interview asks for (the command file's step 0, then this).
   tickets: { needs: ['initiative'], flags: ['one'], tty: true, run: true, argv: (a) => ['tickets', a.initiative, ...(a.one ? ['--one'] : [])] },
+  // Jet's answer 3 (2026-11-24): a lone ticket fixed from the verifier's findings on it (/mirai ticket fix <KEY>).
+  'ticket fix': { needs: ['ticket'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket] },
   detect: { argv: () => ['detect'] },
   // Unit 38: the docs merge request. Neither decides anything new: publish pushes the documents
   // as they are, and merge needs your signed approvals, not a typed key.

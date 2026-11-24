@@ -330,7 +330,9 @@ The types, priority, order and the run's pick are in [tickets.md](tickets.md).
 `/mirai ticket "<one line>"` in your session (unit 42): the session reads the context files and the
 code the line names, and asks **at most 3 questions** (`mirai-interview`, "One ticket by hand"). The
 record is `docs/mirai/<name>/interview.md` with `for: ticket`; the lint fails one with a fourth
-question. Then Tess writes **one** story or bug (`mirai tickets <name> --one`) at
+question; when three can't settle the request, the session says so before asking and offers
+`/mirai-new` or a sharper line, and never writes a ticket interview from a guess. Then Tess writes
+**one** story or bug (`mirai tickets <name> --one`) at
 `docs/mirai/tickets/<KEY>.md`: no epic, an `Interview:` line under its title, and anything still
 open in its Notes (she doesn't pause). MIRAI lints it and Vera checks it against its interview and
 the context files. You approve it on its own (`mirai approve <KEY> --file

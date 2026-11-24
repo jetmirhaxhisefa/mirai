@@ -29,6 +29,7 @@ import { loadRegistry } from '../../src/config/registry.js';
 import { unparkCommand } from '../../src/run/drive.js';
 import { PARK_REASONS, TICKET as TICKET_MACHINE } from '../../src/status/machines.js';
 import { needsTest } from '../helpers/needs.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
 const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
@@ -82,6 +83,8 @@ function claudeAnswering(results, { before = '' } = {}) {
 const plan = (f, claude, o = {}) => runPlan({ cwd: f.root, env: f.env, ticket: 'PMT-31', launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions: { claude: claude.path, status: green, check: () => [] }, ...o });
 
 async function tty(argv, { cwd, env }, answers) {
+  // Unit 42 (Jet's answer 3): a lone ticket's approval needs Vera's result; these tests aren't about her.
+  veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);

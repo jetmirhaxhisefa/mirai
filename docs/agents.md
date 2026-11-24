@@ -194,6 +194,7 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai write due-dates         # Nora writes the brief and the PRD (docs/documents.md, "From request to approval")
 /mirai tickets due-dates       # Tess cuts the approved PRD into an epic and its tickets (docs/tickets.md)
 /mirai ticket "the log format in GCP should change to the new structure"   # one ticket by hand: at most 3 questions, then Tess
+/mirai ticket fix SAMPLE-60    # Tess fixes a lone ticket from Vera's findings on it (mirai tickets fix SAMPLE-60)
 /mirai reader-test docs/mirai/due-dates/prd.md
 /mirai show overlays          # the project's overlays (docs/overlays.md)
 /mirai show template prd      # a type's template, with the approved overlays

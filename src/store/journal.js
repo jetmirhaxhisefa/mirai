@@ -216,7 +216,8 @@ export const EVENT_TYPES = Object.freeze({
     fields: {
       run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
       state: { type: 'enum', values: ['running', 'done', 'paused', 'failed'] },
-      mode: { type: 'enum', values: ['set', 'one'] },
+      // Unit 42 (Jet's answer 3): `fix`, mirai tickets fix <KEY> on an existing lone ticket.
+      mode: { type: 'enum', values: ['set', 'one', 'fix'] },
       ticket: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, patternHint: 'a ticket key' },
       question_id: { type: 'string', pattern: /^Q-[0-9]{1,4}$/, patternHint: 'Q-n' },
       question: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
@@ -231,7 +232,7 @@ export const EVENT_TYPES = Object.freeze({
     required: ['item', 'run_id', 'state', 'mode'],
     check(e, report) {
       if ((e.state === 'paused') !== (e.question_id !== undefined)) report('question_id', 'a paused run names its question, and only a paused one');
-      if (e.state === 'paused' && e.mode === 'one') report('state', 'a ticket asked for by hand doesn\'t pause');
+      if (e.state === 'paused' && e.mode !== 'set') report('state', 'a lone ticket\'s run doesn\'t pause');
       if (e.open !== undefined && e.state !== 'done') report('open', 'only a done run lists what it left open');
       if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
     },

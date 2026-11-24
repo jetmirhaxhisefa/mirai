@@ -111,6 +111,14 @@ change nothing else. You never run `mirai` yourself, and you don't need to: MIRA
 - **No "how" in the epic**: endpoints, tables, libraries and file names belong in a ticket's
   `files_likely`, the design and the plan.
 
+## Fixing a lone ticket (`fix`)
+
+With `tess.mode` `fix`, you get an existing lone story or bug (`ticket-<key>.md`, written by you or
+by a person) and the verifier's must-fix findings on it (`findings.md`). Change **only** what the
+findings name, in the ticket file `tess.ticket` names: never its scope, its intent or what it asks
+for. A finding of kind `decision` isn't yours: write it in Notes as "Open: …". Your next launches
+get the lint's problems or her new findings, as for any ticket. You don't pause.
+
 ## When only the owner can answer: pause (`set` only)
 
 Stop and ask when the PRD has a gap: an AC nobody could test, a case it doesn't cover that a

@@ -18,6 +18,13 @@ step `tickets`, the standard tier by default: `models.steps.tickets`).
 - **One ticket by hand:** `/mirai ticket "<one line>"` in your session: at most 3 questions, then
   `mirai tickets <name> --one` writes one lone story or bug ([documents.md](documents.md), "One
   ticket by hand").
+- **A lone ticket fixed:** `mirai tickets fix <KEY>` (in your session `/mirai ticket fix <KEY>`):
+  Tess takes an existing lone story or bug, yours or hers, with Vera's must-fix findings on it as
+  it is now (`findings.md`), and changes only what they name, never its scope or intent. Then MIRAI
+  lints it and Vera checks it again, with her usual rounds and the 16-launch cap. She writes only
+  that one file and doesn't pause; a `tess_run` line (mode `fix`) records it. Refused for a ticket
+  of an epic (fix it through the epic's set) and for one with no result of Vera's yet (`mirai
+  verify <file>` first).
 - **Her ticket keys:** `<tickets.key_prefix>-<n>`, numbered on from the highest key under the docs
   root ([config.md](config.md)). With no prefix set she doesn't start, and says how to set it.
 
@@ -25,6 +32,18 @@ How she cuts follows design/01 §5 and §7: vertical slices, the first a tracer 
 layer and the next the one she's least sure of; "split, never shrink"; one repo per ticket; sizes
 S, M and L within the caps; `e2e: true` only on a ticket that creates or changes a critical journey;
 `tdd` and `tests` only as a proposal for you.
+
+## Approving a lone ticket
+
+Every story or bug with no epic needs Vera's result for it as it is now before you approve it
+(`mirai verify <file>`), whoever wrote it; a ticket of an epic is checked and approved with its
+epic. One that links its interview is linted as at approval too.
+
+- **Tess's own** (a `tess_run` line of MIRAI's names it): her must-fix findings go back to her
+  within the rounds, as for any document.
+- **Yours** (no `tess_run` names it): right after Vera's first check you may **approve anyway**
+  with must-fix findings open; the screen shows each one, and the signed line records her result.
+  Or `mirai tickets fix <KEY>` first.
 
 ## Acceptance criteria a reviewer can test
 

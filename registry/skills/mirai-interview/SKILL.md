@@ -224,6 +224,11 @@ When the owner asks for one ticket (`/mirai ticket "<one line>"`): a story, a bu
 change that needs no PRD.
 
 1. **Read first** (the context files, the code the line names), as above: ask only what's missing.
+   **When 3 questions can't settle it, say so first.** If, after reading, you see that three
+   questions can't settle the request ("make logging better": what, where, measured how?), say so
+   up front, before asking anything, and offer two ways on: (a) a small feature through
+   `/mirai-new`, with a full interview and no cap; (b) a sharper line from the owner, which you
+   then take as a new `/mirai ticket`. Never write a ticket interview from a guess.
 2. **At most 3 questions.** Pick the three that decide the ticket: what the reviewer must see to
    call it done, whether it's a story or a bug (something that works wrongly today), and the one
    limit or edge case that matters. Fewer is better. `mirai lint` fails a ticket interview with a

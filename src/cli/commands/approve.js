@@ -100,6 +100,7 @@ export default {
 
     io.stdout.write(`ticket: ${ticket} (${current.state})\nfile:   ${file.path}\nhash:   ${hash}\n`);
     if (lone) showVerifier(io, lone.vera);
+    if (lone?.vera?.state === 'early') io.stdout.write(`or have her fix it first: mirai tickets fix ${ticket} (/mirai ticket fix ${ticket})\n`);
     const prompter = createPrompter(io);
     try {
       const asked = now().getTime();
@@ -234,9 +235,13 @@ async function approvePlan(ticket, io, now) {
   }
 }
 
-// Unit 42 (decision 2): a story or bug that belongs to no epic and links its interview ("Interview:"
-// under its title) was asked for by hand. It is linted as at approval (with its interview), and
-// Vera's result for it as it is now is needed, as for a document. Null for any other ticket.
+// Unit 42 (decision 2; Jet's answer 3 "B, plus A+", 2026-11-24): every story or bug that belongs to
+// no epic needs Vera's result for it as it is now, whoever wrote it; one of an epic is checked with
+// its epic, and approved with it. A lone ticket that links its interview ("Interview:" under its
+// title) is also linted as at approval, with its interview. A person's own ticket (no `tess_run`
+// line of MIRAI's names it: the journal's record, which only MIRAI writes) may be approved anyway
+// right after her first check, with must-fix findings open; one Tess wrote keeps the rounds. Null
+// for any other ticket.
 function loneTicketGate({ io, store, file, ticket, base }) {
   let doc;
   try {
@@ -250,16 +255,19 @@ function loneTicketGate({ io, store, file, ticket, base }) {
   const config = trustedConfig(trust);
   const registry = withOverlays(trust, store, io, [type, 'interview']);
   const own = linkLinesOf(doc.scan, registry.documentTypes[type]).find((l) => l.link.label === 'Interview');
-  if (!own) return null;
-  const target = own.targets[0].split('#')[0];
-  let interview;
-  try {
-    interview = readApprovedFile(base, base, posix.normalize(posix.join(posix.dirname(file.path), target)));
-  } catch {
-    throw Object.assign(new MiraiError(`${file.path} links its interview ${plain(target)}, which isn't a file; nothing was written`, EXIT.BLOCKED), { hint: 'correct the "Interview:" line, then approve again' });
+  if (own) {
+    const target = own.targets[0].split('#')[0];
+    let interview;
+    try {
+      interview = readApprovedFile(base, base, posix.normalize(posix.join(posix.dirname(file.path), target)));
+    } catch {
+      throw Object.assign(new MiraiError(`${file.path} links its interview ${plain(target)}, which isn't a file; nothing was written`, EXIT.BLOCKED), { hint: 'correct the "Interview:" line, then approve again' });
+    }
+    refuseOnLint(io, [{ path: file.path, errors: lintText(file.bytes.toString('utf8'), { source: file.path, registry, project: projectOfConfig(config), approving: true, linked: { [target]: interview.bytes.toString('utf8') } }) }]);
   }
-  refuseOnLint(io, [{ path: file.path, errors: lintText(file.bytes.toString('utf8'), { source: file.path, registry, project: projectOfConfig(config), approving: true, linked: { [target]: interview.bytes.toString('utf8') } }) }]);
-  return { vera: verifierFor({ store, config, def: registry.documentTypes[type], id: ticket, path: file.path, bytes: file.bytes }) };
+  const byTess = readJournal(store).events.some((e) => e.type === 'tess_run' && e.by === 'script' && typeof e.ticket === 'string' && e.ticket.toLowerCase() === String(ticket).toLowerCase());
+  const vera = verifierFor({ store, config, def: registry.documentTypes[type], id: ticket, path: file.path, bytes: file.bytes, early: !byTess });
+  return { vera, byTess };
 }
 
 // The approved ticket's text on the integration branch, checked against a rejection note.

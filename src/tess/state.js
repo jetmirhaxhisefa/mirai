@@ -20,9 +20,9 @@ export function tessStateLines(events, initiative, { who = (id) => fullName(id),
   if (t.state === null) return [];
   const name = who(AGENT);
   const l = t.last;
-  const one = l.mode === 'one';
+  const one = l.mode === 'one' || l.mode === 'fix';
   const what = one ? `the ticket${typeof l.ticket === 'string' ? ` ${plain(l.ticket)}` : ''}` : 'the epic and its tickets';
-  const again = `mirai tickets ${plain(initiative)}${one ? ' --one' : ''}`;
+  const again = l.mode === 'fix' ? `mirai tickets fix ${plain(initiative)}` : `mirai tickets ${plain(initiative)}${one ? ' --one' : ''}`;
   const record = [`run ${l.run_id}`, ...(l.rounds ? [`rounds: lint ${l.rounds.lint}, ${who('mirai-verifier')} ${l.rounds.verify}`] : []), ...(Number.isInteger(l.launches) ? [`${l.launches} launch${l.launches === 1 ? '' : 'es'}`] : []), ...(l.model ? [`${l.tier ? `${l.tier}, ` : ''}${plain(l.model)}`] : [])].join('; ');
   if (t.state === 'running') return [`${name}: running (run ${l.run_id}, since ${plain(String(l.ts ?? '').slice(0, 16))})`];
   if (t.state === 'lost') return [`${name}: her run ${l.run_id} stopped without its record; start her again: ${again}`];

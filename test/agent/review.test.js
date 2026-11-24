@@ -27,6 +27,7 @@ import { readTicketStatus } from '../../src/store/tickets.js';
 import { snapshot } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
 import { needsTest } from '../helpers/needs.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
 const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
@@ -84,6 +85,8 @@ const PASSED = { state: 'pass', known_failures: [], tests: { total: 3, skipped: 
 const passing = async ({ name }) => ({ outcome: 'pass', id: `t-${name}`, tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 } });
 
 async function tty(argv, { cwd, env }, answers) {
+  // Unit 42 (Jet's answer 3): a lone ticket's approval needs Vera's result; these tests aren't about her.
+  veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);

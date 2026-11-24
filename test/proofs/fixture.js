@@ -21,6 +21,7 @@ import { openStore } from '../../src/store/home.js';
 import { protectionRules } from '../../src/trust/protected.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // A ticket Kai built and Rex passed, with a stand-in claude and test run (no model, no Docker):
 // unit 25a's fixture, shared with unit 26a's push tests.
@@ -40,6 +41,8 @@ export const PASSED = { state: 'pass', known_failures: [], tests: { total: 3, sk
 export const passing = async ({ name }) => ({ outcome: 'pass', id: `t-${name}`, tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 } });
 
 export async function tty(argv, { cwd, env }, answers = []) {
+  // Unit 42 (Jet's answer 3): a lone ticket's approval needs Vera's result; these tests aren't about her.
+  veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);

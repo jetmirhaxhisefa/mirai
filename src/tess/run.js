@@ -15,6 +15,8 @@ import { CONTEXT_DIR, contextKindOf } from '../lint/context.js';
 import { questionsOf } from '../lint/interview.js';
 import { lintText, parseDocument, projectOf, readTicketFolder } from '../lint/lint.js';
 import { checkInitiative } from '../store/connectors/common.js';
+import { linkLinesOf } from '../lint/rules.js';
+import { subjectHash, verifyResultFor } from '../store/verify-results.js';
 import { docsStoreFor } from '../store/connectors/index.js';
 import { commitAll, symbolicBranch, workTreeChanges } from '../store/git.js';
 import { openStore } from '../store/home.js';
@@ -94,7 +96,8 @@ export const readDoc = (s, type) => readAt(s, s.conn.pathOf(type, s.initiative))
 // `set` a PRD that isn't approved as it is now; on `one` an interview that isn't a confirmed
 // ticket interview; an interview with an open question; a dirty tree; on the repo store the
 // integration branch or no author.
-export function tessSubject({ cwd, env, initiative, one = false, store = openStore({ cwd, env }) }) {
+export function tessSubject({ cwd, env, initiative, one = false, fix = null, store = openStore({ cwd, env }) }) {
+  if (fix) return fixSubject({ cwd, env, key: fix, store });
   checkInitiative(initiative);
   const { conn } = docsStoreFor({ cwd, env, store });
   const trust = snapshot({ cwd, env });
@@ -133,17 +136,61 @@ export function tessSubject({ cwd, env, initiative, one = false, store = openSto
     s.prd = prd;
     s.track = typeof prd.value.track === 'string' ? prd.value.track : 'standard';
   }
+  checkTree(s, one ? `ticket-${initiative}` : `tickets-${initiative}`, rel ? ` (git add ${rel} && git commit -m "${initiative}: interview")` : '');
+  return s;
+}
+
+// On the repo store: a branch that isn't the integration branch, and an author; on either store a
+// clean tree (every launch needs one, so what she writes can be told apart).
+function checkTree(s, branch, commitHint) {
+  const { conn, config, store, env } = s;
   if (conn.kind === 'repo') {
     const integration = config.git?.integration_branch ?? store.branch;
     const current = symbolicBranch(store.checkout, 'HEAD', store.gitEnv);
     if (!current) throw refuse('your checkout has no branch (a detached HEAD): MIRAI commits her documents on your current branch', 'no-branch', 'switch to a branch for this work: git switch -c <name>');
-    if (current === integration) throw refuse(`you're on ${integration}, the integration branch: MIRAI commits her documents on your current branch, and never on that one`, 'integration-branch', `switch to a branch for this work first: git switch -c ${one ? `ticket-${initiative}` : `tickets-${initiative}`}`);
+    if (current === integration) throw refuse(`you're on ${integration}, the integration branch: MIRAI commits her documents on your current branch, and never on that one`, 'integration-branch', `switch to a branch for this work first: git switch -c ${branch}`);
     identity(env, config);
     commitFormat({ config, store });
   }
   const dirty = changedPaths(workTreeChanges(store.checkout, store.gitEnv));
-  if (dirty.length) throw refuse(`the work tree has ${dirty.length} uncommitted change(s), such as ${dirty[0]}: every launch needs a clean tree, so what she writes can be told apart`, 'dirty-tree', `commit them first${rel ? ` (git add ${rel} && git commit -m "${initiative}: interview")` : ''}, then start her again`);
+  if (dirty.length) throw refuse(`the work tree has ${dirty.length} uncommitted change(s), such as ${dirty[0]}: every launch needs a clean tree, so what she writes can be told apart`, 'dirty-tree', `commit them first${commitHint}, then start her again`);
+}
+
+// `mirai tickets fix <KEY>` (Jet's answer 3, 2026-11-24): an existing lone story or bug (any
+// author) and Vera's must-fix findings on it as it is now. Refused: no such lone ticket; a ticket of
+// an epic (fixed through its epic's set); no result of Vera's for it as it is now; a result with
+// nothing to fix. `initiative` is the ticket's key (the journal's item for her run).
+function fixSubject({ cwd, env, key, store }) {
+  if (typeof key !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(key)) throw new UsageError(`${oneLine(key, 70)} isn't a ticket key`, 'a key such as PROJ-12');
+  const { conn } = docsStoreFor({ cwd, env, store });
+  const trust = snapshot({ cwd, env });
+  const config = trustedConfig(trust);
+  const registry = effectiveRegistry(trust, store);
+  const ticketsAbs = dirname(conn.pathOf('story', null, 'X.md'));
+  const s = { store, conn, config, trust, registry, initiative: key, one: true, fix: key, dir: ticketsAbs, rel: null, ticketsAbs, ticketsRel: conn.kind === 'repo' ? conn.relOf(ticketsAbs) : null, env, prefix: config.tickets?.key_prefix ?? null };
+  s.ticket = join(ticketsAbs, `${key}.md`);
+  const t = readAt(s, s.ticket);
+  if (!t) throw new UsageError(`${s.ticketsRel ?? ticketsAbs}/${key}.md isn't there: ${who()} fixes a lone ticket (one with no epic) in the lone tickets' folder`, 'a ticket of an epic is fixed through its epic\'s set: mirai tickets <initiative>');
+  if (!['story', 'bug'].includes(t.value.type)) throw new UsageError(`${t.shown} is a ${oneLine(t.value.type, 30)}, not a story or a bug`, 'she fixes a lone story or bug');
+  if (typeof t.value.epic === 'string' && t.value.epic !== '') throw refuse(`${t.shown} is a ticket of the epic ${t.value.epic}: it is checked and fixed with its epic`, 'ticket-of-epic', 'fix it through its epic\'s set: mirai tickets <initiative>');
+  const entry = verifyResultFor(store, String(t.value.id ?? key), subjectHash(t.bytes, []));
+  if (!entry) throw refuse(`${t.shown} has no result from ${fullName('mirai-verifier')} for it as it is now, so there are no findings to fix`, 'no-verify', `run: mirai verify ${t.shown} first, then fix it`);
+  if ((entry.must_fix ?? 0) === 0) throw refuse(`${fullName('mirai-verifier')} found nothing that must be fixed in ${t.shown} as it is now`, 'nothing-to-fix', `approve it: mirai approve ${key} --file ${t.shown}`);
+  s.veraEntry = entry;
+  s.interview = linkedInterview(s, t);
+  checkTree(s, `fix-${key.toLowerCase()}`, '');
   return s;
+}
+
+// The interview a lone ticket links ("Interview:" under its title), read as a document, or null.
+function linkedInterview(s, t) {
+  if (!t?.doc) return null;
+  const def = s.registry.documentTypes[t.value.type];
+  const line = def ? linkLinesOf(t.doc.scan, def).find((l) => l.link.label === 'Interview') : null;
+  if (!line) return null;
+  const target = line.targets[0].split('#')[0];
+  const d = readAt(s, join(dirname(t.abs), target));
+  return d ? { ...d, link: target } : null;
 }
 
 // The keys already used under the docs root (every initiative's tickets and epics, and the lone
@@ -218,7 +265,7 @@ export function lintSet(s) {
       out.push(...errs(epic.text, epic.shown, { linked: { 'prd.md': s.prd.text, ...(readDoc(s, 'brief') ? { 'brief.md': readDoc(s, 'brief').text } : {}) }, tickets: folder }));
     }
   } else if (!tickets.length) out.push({ severity: 'error', file: 'tickets/', line: 1, column: 1, code: 'missing', reason: 'the ticket isn\'t there' });
-  for (const t of tickets) out.push(...errs(t.text, t.shown, s.one && s.interview ? { linked: { [`../${s.initiative}/interview.md`]: s.interview.text } } : {}));
+  for (const t of tickets) out.push(...errs(t.text, t.shown, s.one && s.interview ? { linked: { [s.interview.link ?? `../${s.initiative}/interview.md`]: s.interview.text } } : {}));
   return out;
 }
 
@@ -238,7 +285,7 @@ export function tessInputs(s, { step, round, extra = {} }) {
   };
   for (const [t, why] of [['interview', s.one ? 'the owner\'s confirmed short interview: your source for the one ticket' : 'the owner\'s interview: background, and where a pause question goes'], ['brief', 'the approved brief'], ['prd', 'the approved PRD: every FR, NFR and AC is covered by a ticket']]) {
     if (s.one && t !== 'interview') continue;
-    const d = readDoc(s, t);
+    const d = s.fix ? s.interview : readDoc(s, t);
     if (d) add(`${t}.md`, d.text, why, d.shown);
   }
   const set = currentSet(s);
@@ -279,19 +326,23 @@ export function tessInputs(s, { step, round, extra = {} }) {
   }
   for (const [name, text] of Object.entries(extra)) add(name, text, EXTRA_WHY[name] ?? 'from MIRAI');
   const types = ticketTypesOf(s.config).map((t) => ({ name: t.name, description: t.description, runs_as: t.runs_as, writes: DOC_OF_RUNS_AS[t.runs_as], ...(t.template && s.registry.ticketTemplates?.[t.template] ? { template: `template-type-${t.template}.md` } : {}) }));
-  inputs['index.json'] = `${JSON.stringify({ schema: 'mirai-inputs/1', tess: { initiative: s.initiative, store: s.conn.kind, mode: s.one ? 'one' : 'set', folder: s.rel, ticket_folder: s.ticketsRel, ...(s.one ? {} : { track: s.track }), step, round, key_prefix: s.prefix, next_number: s.next, types }, files: index }, null, 2)}\n`;
+  inputs['index.json'] = `${JSON.stringify({ schema: 'mirai-inputs/1', tess: { initiative: s.initiative, store: s.conn.kind, mode: s.fix ? 'fix' : s.one ? 'one' : 'set', ...(s.fix ? { ticket: s.fix } : {}), folder: s.rel, ticket_folder: s.ticketsRel, ...(s.one ? {} : { track: s.track }), step, round, key_prefix: s.prefix, next_number: s.next, types }, files: index }, null, 2)}\n`;
   return inputs;
 }
 
 export function tessPrompt(s, { step, round }) {
-  const what = s.one
+  const what = s.fix
+    ? `fix the ticket ${s.fix} from what MIRAI's checks found (findings.md, the verifier's; lint.json, the lint's): change only what they name, never the ticket's scope or intent`
+    : s.one
     ? { write: `write one ${'ticket'} from the owner's short interview`, fix: 'fix the ticket from what MIRAI\'s checks found', continue: 'continue the ticket' }[step]
     : { write: 'cut the approved PRD into the epic and every ticket', continue: `continue the set from the owner's new answers in interview.md and the PRD as it is now`, fix: 'fix the set from what MIRAI\'s checks found' }[step];
   return [
     `Your step: ${what}, for ${s.initiative} (round ${round}).`,
     'The input folder holds the documents, the context files, the templates, the checklists and the mirai-write skill, with index.json listing each; read index.json first.',
     s.conn.kind === 'repo'
-      ? (s.one
+      ? (s.fix
+        ? `Edit the ticket at ${s.conn.relOf(s.ticket)} in the project, with Edit; change nothing else. Before you finish, run MIRAI's lint tool on it and fix what it reports.`
+        : s.one
         ? `Write the ticket at ${s.ticketsRel}/<KEY>.md in the project, with Write and Edit; change nothing else. Before you finish, run MIRAI's lint tool on it and fix what it reports.`
         : `Write the epic at ${s.rel}/epic-${s.initiative}.md and each ticket at ${s.rel}/tickets/<KEY>.md, with Write and Edit; change nothing else (interview.md only to pause). Before you finish, run MIRAI's lint tool on each file and fix what it reports.`)
       : 'The documents live in MIRAI\'s store, which you can\'t open: write no file, and return each document you write or change, whole, in your result\'s documents.',
@@ -355,6 +406,7 @@ async function tessLaunch(ctx, { step, extra = {} }) {
           type = 'story';
         }
         const file = d.name.slice('tickets/'.length);
+        if (s.fix && file.toLowerCase() !== `${s.fix}.md`.toLowerCase()) return { end: { state: 'failed', why: `she returned ${d.name}, but a fix changes only tickets/${s.fix}.md: nothing of this launch was kept` } };
         s.conn.write(['story', 'bug', 'investigation'].includes(type) ? type : 'story', s.one ? null : s.initiative, file, bytes);
         if (s.one) s.ticket = s.conn.pathOf('story', null, file);
       }
@@ -439,8 +491,10 @@ async function setLoop(ctx) {
   const { s } = ctx;
   const exists = s.one ? Boolean(s.ticket) : readDoc(s, 'epic') !== null;
   let next;
+  // `mirai tickets fix`: her first launch gets Vera's findings on the ticket as it is now.
+  if (s.fix) next = { step: 'fix', extra: { 'findings.md': `${handoffText(s.veraEntry, { file: s.conn.relOf(s.ticket) ?? s.ticket })}\n` } };
   // A run after her pause continues from your answers and the documents as they are.
-  if (ctx.paused) next = { step: 'continue' };
+  else if (ctx.paused) next = { step: 'continue' };
   else if (!exists) next = { step: 'write' };
   else {
     const c = await checks(ctx);
@@ -471,6 +525,8 @@ function doneWith(ctx, c) {
 }
 
 function interviewCycle(s) {
+  // A fix starts a cycle of its own (the ticket as she starts), so Vera's rounds are whole again.
+  if (s.fix) return readAt(s, s.ticket) ? contentHash(readAt(s, s.ticket).bytes) : null;
   const i = readDoc(s, 'interview');
   return i ? contentHash(Buffer.from(i.text, 'utf8')) : null;
 }
@@ -491,12 +547,14 @@ function loneTicketOf(s, events) {
 // `mirai tickets <initiative> [--one]`'s work: { state, question_id?, question?, why?, rounds,
 // launches, template_gaps, commits, run_id, open?, ticket?, subject }. `launch` is MIRAI's launcher
 // for her launches; `verifyLaunch` stands in for Vera's in tests.
-export async function runTess({ cwd, env, initiative, one = false, nextToken, launch = launchInRun, verify = runVerify, verifyLaunch = null, launchOptions = {}, onStep = () => {}, now = () => new Date() }) {
-  const s = tessSubject({ cwd, env, initiative, one });
+export async function runTess({ cwd, env, initiative = null, one = false, fix = null, nextToken, launch = launchInRun, verify = runVerify, verifyLaunch = null, launchOptions = {}, onStep = () => {}, now = () => new Date() }) {
+  const s = tessSubject({ cwd, env, initiative, one, fix });
+  if (fix) initiative = s.initiative;
+  const mode = fix ? 'fix' : one ? 'one' : 'set';
   const events = readJournal(s.store).events;
-  const before = lastTessRun(events, initiative);
-  if (one) s.ticket = loneTicketOf(s, events);
-  s.next = nextNumber(s);
+  const before = fix ? null : lastTessRun(events, initiative);
+  if (one && !fix) s.ticket = loneTicketOf(s, events);
+  s.next = s.prefix ? nextNumber(s) : null;
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   return await withRun({ cwd, env }, async ({ store, runId }) => {
     s.store = store;
@@ -506,7 +564,7 @@ export async function runTess({ cwd, env, initiative, one = false, nextToken, la
       cycle: interviewCycle(s), rounds: { lint: 0, verify: 0 },
       paused: before?.state === 'paused',
     };
-    appendEvent(store, { type: 'tess_run', by: 'script', item: initiative, run_id: runId, state: 'running', mode: one ? 'one' : 'set' });
+    appendEvent(store, { type: 'tess_run', by: 'script', item: initiative, run_id: runId, state: 'running', mode });
     let end = null;
     try {
       end = await setLoop(ctx);
@@ -516,10 +574,10 @@ export async function runTess({ cwd, env, initiative, one = false, nextToken, la
     } finally {
       const tier = typeof ctx.line?.tier === 'string' && /^[a-z]{1,20}$/.test(ctx.line.tier) ? ctx.line.tier : null;
       const model = typeof (ctx.line?.model_used ?? ctx.line?.model) === 'string' ? String(ctx.line.model_used ?? ctx.line.model).replace(/[^A-Za-z0-9._:@/[\]-]/g, '_').slice(0, 128) : null;
-      const key = s.one && s.ticket ? s.ticket.split('/').at(-1).replace(/\.md$/, '') : null;
+      const key = (s.one || s.fix) && s.ticket ? s.ticket.split('/').at(-1).replace(/\.md$/, '') : null;
       try {
         appendEvent(store, {
-          type: 'tess_run', by: 'script', item: initiative, run_id: runId, state: end.state, mode: one ? 'one' : 'set', ...(end.question_id ? { question_id: end.question_id, question: end.question } : {}), ...(end.why ? { why: oneLine(end.why) } : {}),
+          type: 'tess_run', by: 'script', item: initiative, run_id: runId, state: end.state, mode, ...(end.question_id ? { question_id: end.question_id, question: end.question } : {}), ...(end.why ? { why: oneLine(end.why) } : {}),
           rounds: ctx.rounds, launches: ctx.launches, template_gaps: ctx.gaps, ...(end.state === 'done' && ctx.open ? { open: ctx.open } : {}), ...(key && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(key) ? { ticket: key } : {}), ...(tier ? { tier } : {}), ...(model && /^[A-Za-z0-9]/.test(model) ? { model } : {}),
         });
       } catch {
