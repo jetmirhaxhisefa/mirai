@@ -353,4 +353,10 @@ Nothing in trace's path (`src/trace/`, `src/cli/commands/trace.js`, `src/mcp/too
 
 **Through the build runner** (a clean export each), queued at the pushed head: `u43-tests-1`
 (tests), `u43-baseline-1` (baseline) and `u43-redteam-1` (redteam-full: cage files changed, see
-"The red team"). Results: not in yet when this was written.
+"The red team"). `u43-tests-1` **pass, 888/888**; `u43-baseline-1` pass; `u43-redteam-1` still
+running when the P1/P2 fixes went in.
+
+**After P1 and P2's first runs** (the PHPUnit names, the probe home's overlays, PASS/FAIL): on the
+Mac at `a84e467`, **890/890 pass**, 0 skipped; `--check` both lines (now with "overlays none"),
+exit 0. Queued at the new head: `u43-tests-2`, and since `src/trace/ticket.js` is a cage file (the
+`trace` tool reaches it), `u43-baseline-2` and `u43-redteam-2`.
