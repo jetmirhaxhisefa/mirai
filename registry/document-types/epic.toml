@@ -11,11 +11,13 @@ kind = "document-type"
 schema_version = 1
 name = "epic"
 template = "templates/epic.md"
-template_version = 1
+template_version = 2
 checklist = "templates/epic-checklist.md"
 status = "forbidden"
 required_sections = ["Summary for approval", "Order", "Release", "Not in this epic", "Tickets", "Dependencies", "Coverage", "Design decisions"]
-optional_sections = []
+# Unit 42 (Scope 7): a critical journey the feature creates, in journeys.md's own form; approving
+# the set adds it to .mirai/context/journeys.md, as a change you approve with it.
+optional_sections = ["New critical journeys"]
 summary_words = 400
 summary_warn_words = 300
 lint_checks = ["summary", "writing", "epic"]
@@ -139,3 +141,7 @@ read_by = ["approval", "lint", "epic-coverage", "epic-render"]
 [[protected_fields]]
 link = "Design"
 read_by = ["lint"]
+
+[[protected_sections]]
+name = "New critical journeys"
+read_by = ["lint", "approval"]

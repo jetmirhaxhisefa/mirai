@@ -24,6 +24,12 @@ type = "enum"
 values = ["open", "paused", "confirmed"]
 required = true
 
+# Unit 42 (decision 2): an interview for one ticket asked for by hand (/mirai ticket) is short: at
+# most 3 questions (TICKET_QUESTION_CAP, src/lint/interview.js). Unset: an initiative's interview.
+[frontmatter.fields.for]
+type = "enum"
+values = ["initiative", "ticket"]
+
 # Each question is a heading: "### Q-1: Who it's for".
 [[ids]]
 prefix = "Q"

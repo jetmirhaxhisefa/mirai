@@ -1,10 +1,13 @@
 ---
 id: SAMPLE-51
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: M
+priority: normal
+order: 1
 verify: "A team lead dates a task, changes the date and removes it; the task list keeps its order for undated tasks."
 covers_fr: [FR-1, FR-9]
 covers_ac: [AC-FR-1.1, AC-FR-1.2, AC-FR-1.3, AC-FR-9.1]

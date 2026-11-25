@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readdirSync, readFileSync, readlinkSync } from 'node:fs';
+import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { MiraiError } from '../cli/errors.js';
@@ -11,6 +11,7 @@ import { readFrontmatter } from '../lint/frontmatter.js';
 import { tableIn } from '../lint/checks.js';
 import { scanMarkdown } from '../lint/markdown.js';
 import { parkTicket } from '../loop/park.js';
+import { isWriteStaging } from './staging.js';
 import { beforeLaunch, settleLaunch } from '../loop/guard.js';
 import { usageCheck, usageStop } from '../loop/ledger.js';
 import { TICKET } from '../status/machines.js';
@@ -245,18 +246,9 @@ async function checkAfter({ cwd, env, store, trust, config, registry, keys, plan
   }
   const observed = seen ?? observe({ store, base: stepBase, rules, ignoredBefore });
   const { fingerprint } = observed;
-  // Claude Code's own write staging (an empty `.claude/.cc-writes/`, made whenever it writes a
-  // file: 21b's walkthrough) is no change of the agent's. Only empty, and only that name directly
-  // inside a `.claude` folder: anything in it, or anything else under `.claude/`, still counts.
-  const staging = (p) => {
-    if (!/(^|\/)\.claude\/\.cc-writes$/.test(p)) return false;
-    try {
-      const st = lstatSync(join(store.checkout, p));
-      return st.isDirectory() && readdirSync(join(store.checkout, p)).length === 0;
-    } catch {
-      return false;
-    }
-  };
+  // Claude Code's own write staging (an empty `.claude/.cc-writes/`): no change of the agent's
+  // (src/agent/staging.js, shared with Nora's and Tess's checks).
+  const staging = (p) => isWriteStaging(store.checkout, p);
   const change = { ...observed.change, changes: observed.change.changes.filter((p) => !staging(p)), ignored: new Set([...(observed.change.ignored ?? [])].filter((p) => !staging(p))) };
   // Unit 30b: the plan's packages are installed and committed before Kai starts, so any
   // dependency change in a step is Kai's own, and refused: nothing is declared for it.

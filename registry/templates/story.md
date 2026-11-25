@@ -1,15 +1,19 @@
 ---
 id: PMT-1
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: S
+priority: normal
+order: 1
 verify: "One sentence: how a person or a test checks that this works."
 covers_fr: []
 covers_ac: []
 governed_by: []
 after: []
+epic: PMT-10
 files_likely: []
 e2e: false
 ---
@@ -21,9 +25,13 @@ line, the id or the verify sentence left word for word from this template.
   Anything bigger is split, never shrunk: "for now" and "wired later" are a second story.
 - Frontmatter: id is the ticket key, and the file is tickets/<id>.md; repo is a name from
   [[repos]] in .mirai/config.toml; covers_fr and covers_ac list the PRD's FR/NFR and AC IDs
-  (AC-FR-n.m, AC-NFR-n.m) this story delivers, empty on the quick track; add epic: <the epic's
-  id> when the story belongs to an epic (33's P2: the field wasn't shown); tdd and tests only
-  when they differ from the project's setting.
+  (AC-FR-n.m, AC-NFR-n.m) this story delivers, empty on the quick track; an NFR it delivers is
+  cited by its ID (NFR-n) in covers_fr; epic is the epic's id, and a lone ticket (asked for by
+  hand) has no epic line but an "Interview:" line under its title; tdd and tests only when they
+  differ from the project's setting, as a proposal for you.
+- ticket_type is one of the project's ticket types (mirai config show: tickets.types; Story by
+  default); priority is high, normal or low (normal unless it's urgent: you set it at approval);
+  order numbers the epic's tickets, the tracer bullet first, then the one least certain.
 - No status field: the store holds the ticket's status.
 - An optional section that doesn't apply keeps one line: Not applicable — <the reason>.
 -->

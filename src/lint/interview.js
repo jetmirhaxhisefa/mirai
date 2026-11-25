@@ -10,7 +10,9 @@
 // - `state: open` or `paused` fails, naming the open questions: an unfinished interview never
 //   passes the lint, so the brief beside it can't be approved (src/lint/brief.js).
 
-export const RESTATEMENT = Object.freeze(['Outcome', 'Who it\'s for', 'Why now', 'Success', 'Limits', 'Not included']);
+// Unit 42 (decision 2): a ticket asked for by hand gets a short interview.
+export const TICKET_QUESTION_CAP = 3;
+export const RESTATEMENT =Object.freeze(['Outcome', 'Who it\'s for', 'Why now', 'Success', 'Limits', 'Not included']);
 const OPTION = /^[-*+][ \t]+(?:\*\*)?([A-Z])(?:\*\*)?:[ \t]*(\S.*)?$/;
 const GUESS = /^Guess:[ \t]*(?:\*\*)?([A-Z])?(?:\*\*)?\b[ \t,.:;—-]*(.*)$/;
 const ANSWER = /^Answer:[ \t]*(.*)$/;
@@ -72,6 +74,11 @@ export function checkInterview(doc, def, ctx, add) {
   const top = { line: title?.line ?? doc.bodyLine, column: 1 };
   const stateAt = positions?.get('state') ? { line: positions.get('state').line, column: 1 } : top;
   const questions = questionsOf(doc);
+
+  // ---- Unit 42 (decision 2): one ticket by hand asks at most 3 questions ---------------------
+  if (value.for === 'ticket' && questions.length > TICKET_QUESTION_CAP) {
+    add({ code: 'interview-cap', line: questions[TICKET_QUESTION_CAP].line, column: 1, reason: `an interview for one ticket asks at most ${TICKET_QUESTION_CAP} questions; this one has ${questions.length}`, hint: 'keep the three that matter most, and put the rest in the ticket\'s Notes as "Open: …", or ask for an initiative instead (/mirai-new)' });
+  }
 
   // ---- Each question -----------------------------------------------------------------------
   questions.forEach((q, i) => {

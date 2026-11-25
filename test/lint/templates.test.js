@@ -42,7 +42,7 @@ const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: te
 
 test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and the five context files, templates that match their types, and known checks', () => {
   // Unit 41: your requirements list and a business.md proposal.
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'interview', 'journeys', 'plan', 'prd', 'project', 'requirements', 'story']);
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'interview', 'investigation', 'journeys', 'plan', 'prd', 'project', 'requirements', 'story']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);
@@ -97,7 +97,7 @@ test('T3: a ticket without its own AC IDs or a repo is flagged; so are an unknow
   assert.deepEqual(codes(replace(STORY, 'repo: "."\n', '')), ['1:1 required']);
   assert.deepEqual(codes(replace(STORY, 'repo: "."', 'repo: web')), ['5:7 unknown-repo']);
   assert.deepEqual(codes(replace(STORY, 'repo: "."', 'repo: api')), []);
-  assert.deepEqual(codes(replace(STORY, 'template: story@v1\n', 'template: story@v1\nstatus: ready-for-dev\n')), ['5:1 status-forbidden']);
+  assert.deepEqual(codes(replace(STORY, 'template: story@v2\n', 'template: story@v2\nstatus: ready-for-dev\n')), ['5:1 status-forbidden']);
   assert.deepEqual(codes(replace(BUG, 'repo: "."\n', ''), 'tickets/PMT-31.md'), ['1:1 required']);
   const bugNoIds = BUG.replace(/- AC-PMT-31\.(\d): /g, '- ');
   assert.deepEqual(codes(bugNoIds, 'tickets/PMT-31.md').map((c) => c.split(' ')[1]), ['missing-id']);

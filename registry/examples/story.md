@@ -1,7 +1,7 @@
 ---
 id: PMT-12
 type: story
-template: story@v1
+template: story@v2
 repo: "."
 risk: normal
 size: M
@@ -13,6 +13,9 @@ after: [PMT-11]
 epic: PMT-10
 files_likely: [app/Http/Controllers/Auth/SsoController.php, resources/js/pages/Login.tsx]
 e2e: true
+ticket_type: Story
+priority: normal
+order: 2
 ---
 # A staff member signs in with company SSO
 

@@ -23,7 +23,8 @@ export const MIRAI_STATES = Object.freeze(['draft', 'in-review', 'approved', 'pu
 // The document types a store may hold: the initiative's documents and tickets. Context files
 // (.mirai/context/, unit 36) and overlays (.mirai/custom/, unit 37) are project files in the repo,
 // never a store's.
-export const STORE_TYPES = Object.freeze(['interview', 'brief', 'prd', 'epic', 'story', 'bug']);
+// Unit 42: an investigation is a ticket too.
+export const STORE_TYPES = Object.freeze(['interview', 'brief', 'prd', 'epic', 'story', 'bug', 'investigation']);
 
 const NAME = /^[a-z][a-z0-9-]{0,31}$/;
 const LINE = /^[^\x00-\x1f\x7f]{1,300}$/;

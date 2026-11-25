@@ -16,6 +16,11 @@ The `mirai-docs` skill explains both. This guide covers the wording.
 - **Each item under "Not in this" names its reason,** as in the PRD.
 - **Ticket names say what someone can do after the ticket,** not the layer it touches
   ("Front end", "Bugs" and "Cleanup" never finish).
+- **One item per decision under "Decisions for you"** (unit 42). Near-identical items merge into
+  one that names every ticket it covers: "SAMPLE-53 and SAMPLE-55 are high risk: both send email
+  to people outside the team", not one line per ticket. A high priority is one of them.
+- **A line the PRD can't test** (from a section the project added, such as a security sign-off)
+  is an item under "Decisions for you", never dropped.
 
 ## Examples
 

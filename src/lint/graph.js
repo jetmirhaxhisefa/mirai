@@ -157,14 +157,59 @@ export function graphProblems({ epicId, track, tickets, all, items, caps = CAPS 
     }
     return false;
   };
-  for (let i = 0; i < tickets.length; i++) {
-    for (let j = i + 1; j < tickets.length; j++) {
-      const [a, b] = [tickets[i], tickets[j]];
-      const shared = list(a.value.files_likely).filter((f) => list(b.value.files_likely).includes(f));
-      if (shared.length && !reach(keyOf(a), keyOf(b)) && !reach(keyOf(b), keyOf(a))) {
-        warn('graph-files', `${keyOf(a)} and ${keyOf(b)} both list ${shared[0]}${shared.length > 1 ? ` (and ${shared.length - 1} more)` : ''} in files_likely, with no after between them`, `if one must go first, add after: [${keyOf(a)}] to ${keyOf(b)}; else check the two changes can't clash`);
+  // 37's "For later" (unit 42, Jet's Q3 "A"): one warning per file, naming every ticket that lists
+  // it and doesn't wait for another of them; settled by an after, or a stated reason in the ticket.
+  const byFile = new Map();
+  for (const t of tickets) for (const f of new Set(list(t.value.files_likely))) byFile.set(f, [...(byFile.get(f) ?? []), t]);
+  for (const [file, sharing] of [...byFile].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    if (sharing.length < 2) continue;
+    const loose = new Set();
+    for (let i = 0; i < sharing.length; i++) {
+      for (let j = i + 1; j < sharing.length; j++) {
+        const [a, b] = [keyOf(sharing[i]), keyOf(sharing[j])];
+        if (!reach(a, b) && !reach(b, a)) loose.add(a).add(b);
       }
     }
+    if (!loose.size) continue;
+    const keys = [...loose].sort(byKey);
+    warn('graph-files', `${keys.join(', ')} all list ${file} in files_likely, with no after between ${keys.length === 2 ? 'them' : 'some of them'}`, `make one wait for the other (after: [${keys[0]}] in ${keys.at(-1)}), or say in each ticket's Notes why the changes to ${file} can't clash`);
+  }
+  return out;
+}
+
+// How many tickets each ticket blocks (unit 42, decision 5): key → the number of other tickets in
+// `tickets` whose `after` chain reaches it. `done`: keys already done, which block nothing and
+// whose own waiting no longer counts (a done ticket in the chain no longer counts as blocked).
+export function blocksCount(tickets, { done = new Set() } = {}) {
+  const lower = (k) => String(k).toLowerCase();
+  const byLower = new Map(tickets.map((t) => [lower(t.value.id), String(t.value.id)]));
+  const isDone = (k) => done.has(k) || done.has(lower(k));
+  const waitsFor = new Map(tickets.map((t) => [String(t.value.id), list(t.value.after).map((a) => byLower.get(lower(a))).filter(Boolean)]));
+  const out = new Map();
+  for (const t of tickets) {
+    const key = String(t.value.id);
+    if (isDone(key)) {
+      out.set(key, 0);
+      continue;
+    }
+    let n = 0;
+    for (const other of tickets) {
+      const o = String(other.value.id);
+      if (o === key || isDone(o)) continue;
+      const seen = new Set();
+      const stack = [...(waitsFor.get(o) ?? [])];
+      while (stack.length) {
+        const k = stack.pop();
+        if (k === key) {
+          n += 1;
+          break;
+        }
+        if (seen.has(k)) continue;
+        seen.add(k);
+        stack.push(...(waitsFor.get(k) ?? []));
+      }
+    }
+    out.set(key, n);
   }
   return out;
 }

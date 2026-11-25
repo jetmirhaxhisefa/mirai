@@ -1,0 +1,15 @@
+# A role (unit 19b): what a run may change, and its step. Unit 42: Tess's, the ticket planner's.
+# She writes an initiative's epic and its tickets/ folder, or one lone ticket, on the `tickets` step
+# (standard, D-14; one up for high risk or size L). The role lets her write anywhere MIRAI doesn't
+# protect, because the docs root is the project's setting (`[docs] root`); after each of her
+# launches MIRAI checks her changes against the epic's and the tickets' paths (the store's pathOf,
+# unit 38) and refuses anything outside them (src/tess/run.js).
+kind = "role"
+schema_version = 1
+name = "ticket-planner"
+description = "Writes one initiative's epic and tickets, or one lone ticket; MIRAI checks each change is inside those paths"
+mode = "read-write"
+step = "tickets"
+
+[may_write]
+paths = ["**"]

@@ -25,6 +25,8 @@ import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js
 import { hostWords, projectWords } from '../../ship/words.js';
 import { agentNamer } from '../../agent/names.js';
 import { noraStateLines } from '../../nora/state.js';
+import { tessStateLines } from '../../tess/state.js';
+import { readyLines } from '../../tickets/pick.js';
 import { readRunState } from '../../store/run.js';
 
 // mirai show <ticket> (unit 28, decision 7; design/03 "mirai show"): the ticket's page from the
@@ -116,6 +118,8 @@ function initiativeOf({ cwd, env, name }) {
       runState = null;
     }
     nora = events.some((e) => (e.type === 'nora_run' || e.type === 'template_gap') && e.item === name) ? noraStateLines(events, name, { who: agentNamer(), runState }) : [];
+    // Unit 42 (Scope 2, 5, 9): the ticket planner's state, and the ready tickets in the run's pick order.
+    nora.push(...tessStateLines(events, name, { who: agentNamer(), runState }), ...readyLines({ store, dir, base: conn.base, events }));
     docs = documentRows({ store, conn, initiative: name }).map((d) => {
       let bytes = null;
       try {

@@ -30,6 +30,7 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
 | `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |
 | `bug` | a ticket: what's wrong, how to reproduce it, and how the fix is proven | `docs/mirai/<initiative>/tickets/<key>.md` | [tdd.md](tdd.md) for its red test |
+| `investigation` | a ticket that answers one question with research and a written finding, no code merge; its run is unit 42b, and until then MIRAI doesn't start one | `docs/mirai/<initiative>/tickets/<key>.md` | [tickets.md](tickets.md) |
 | `plan` | how one ticket will be built and proven, written by Kai | the store: `<store>/tickets/<ticket>/plan.md` | [agents.md](agents.md), "The plan step" |
 | `business` | what the product does, for whom, its goals, rules and constraints, each claim with its source; approved as a whole | `.mirai/context/business.md` | [context.md](context.md) |
 | `journeys` | the critical journeys `J-n`, each with its steps, why it's critical and its E2E test; approved as a whole | `.mirai/context/journeys.md` | [context.md](context.md) |
@@ -305,6 +306,39 @@ show <initiative>` lists them. A gap never changes a template, and she never add
 under the documents: running, paused with her question, done, or stopped with why, and each run's
 record (rounds per check, launches, tier and model). `mirai write`'s own last lines are the same.
 
+**The ticket step (unit 42).** Once you approve the PRD (on `full`, the design, once units 62–65
+write it; until then the PRD), Tess (`mirai-ticket-planner`) cuts it into an epic and its tickets:
+`/mirai tickets <initiative>` in your session (`mirai tickets <initiative>` in a terminal). Her
+run is Nora's, for the set:
+
+1. her first launch writes the epic and every ticket, on the `tickets` step's tier (standard);
+2. MIRAI refuses any change outside the epic, `tickets/` and `interview.md`, renders the epic's
+   generated sections (`mirai epic render`'s work), and commits on your branch;
+3. the lint (each ticket with the testability lint, the epic with the graph lint), then Vera on the
+   epic with its tickets; what they find goes to her next launch, which resumes her kept session;
+4. **she pauses** on a gap in the PRD (an AC nobody could test, a case it doesn't cover, a set over
+   a cap): her question goes in `interview.md`. Your answer changes the PRD, so `/mirai write`
+   brings it in line, you approve the PRD again (approval shows only the lines that changed since
+   your last approval, with the whole file's path), then `/mirai tickets` again. She never edits
+   the PRD, and never fixes a gap only in a ticket;
+5. **she's done:** the epic and its tickets wait for your one approval of the set.
+
+The types, priority, order and the run's pick are in [tickets.md](tickets.md).
+
+## One ticket by hand
+
+`/mirai ticket "<one line>"` in your session (unit 42): the session reads the context files and the
+code the line names, and asks **at most 3 questions** (`mirai-interview`, "One ticket by hand"). The
+record is `docs/mirai/<name>/interview.md` with `for: ticket`; the lint fails one with a fourth
+question; when three can't settle the request, the session says so before asking and offers
+`/mirai-new` or a sharper line, and never writes a ticket interview from a guess. Then Tess writes
+**one** story or bug (`mirai tickets <name> --one`) at
+`docs/mirai/tickets/<KEY>.md`: no epic, an `Interview:` line under its title, and anything still
+open in its Notes (she doesn't pause). MIRAI lints it and Vera checks it against its interview and
+the context files. You approve it on its own (`mirai approve <KEY> --file
+docs/mirai/tickets/<KEY>.md`: the lint and Vera's result first, as for a document). It gets its own
+branch, and its documents travel in its code merge request.
+
 ## The reader test
 
 Unit 34 (Jet's decisions 1–6). The lint checks the summary's form. The reader test checks that you
@@ -536,6 +570,11 @@ The lint checks that:
 - every FR ends with the brief's BR it serves, and every BR of the brief is served by an FR or an
   NFR;
 - every FR has at least one AC (`AC-FR-n.m`), and every AC has Given, When and Then;
+- every AC (`AC-FR-n.m`, `AC-NFR-n.m`) is one a reviewer could test (unit 42, `prd-ac-untestable`):
+  its outcome, the "then" part, names no vague word without a number (`reliably`, `properly`,
+  `as expected`, `quickly`, the writing rules' `fast` and `reliable` …). A bullet with no ID under
+  an AC is part of it and is held to the same rule. The same rule as a ticket's ACs
+  ([tickets.md](tickets.md)), so a vague AC can't reach approval, and then Tess;
 - every NFR says how it's verified: its own `AC-NFR-n.m`, or a line `Verified by:` naming a test
   level, a measurement or a manual check;
 - IDs run 1, 2, 3 … with no gap, and an AC's requirement exists.

@@ -1,10 +1,13 @@
 ---
 id: SAMPLE-55
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: S
+priority: normal
+order: 5
 verify: "An assignee who turned reminders off, and one who left the team, get no email; the new assignee does."
 covers_fr: [FR-3, FR-8]
 covers_ac: [AC-FR-3.1, AC-FR-8.1, AC-FR-8.2]

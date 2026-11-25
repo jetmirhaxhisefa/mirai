@@ -144,8 +144,11 @@ test('40 T1: a launch (fake launcher) gets the document, the checklist, the upst
   assert.equal(inputs['document.md'], BUSINESS_EX);
   assert.equal(inputs['context-business.md'], undefined, 'not given twice');
   // Not hers: a ticket, a plan, the feature map.
+  // Unit 42: a story is hers only alone (a ticket asked for by hand); one of an epic is checked with it.
   writeFileSync(join(f.root, 'story.md'), read('examples/story.md'));
-  assert.throws(() => verifySubject({ cwd: f.root, env: f.env, file: 'story.md' }), /is a story, which the verifier doesn't check/);
+  assert.throws(() => verifySubject({ cwd: f.root, env: f.env, file: 'story.md' }), /is a story of the epic PMT-10: the verifier checks it with its epic/);
+  writeFileSync(join(f.root, 'plan.md'), read('examples/plan.md'));
+  assert.throws(() => verifySubject({ cwd: f.root, env: f.env, file: 'plan.md' }), /is a plan, which the verifier doesn't check/);
 });
 
 const INIT = '{"type":"system","subtype":"init","permissionMode":"dontAsk"}';
@@ -447,7 +450,8 @@ function registryWith(changes) {
 
 test('40 T7: every Vera-checked type\'s checklist has [vera] items; one without fails the registry check; an overlay\'s lines are hers', () => {
   const checked = Object.values(REGISTRY.documentTypes).filter(isVeraType).map((d) => d.name).sort();
-  assert.deepEqual(checked, ['brief', 'business', 'conventions', 'epic', 'journeys', 'prd'], 'decision 6');
+  // Unit 42 (decision 2): a lone story or bug too.
+  assert.deepEqual(checked, ['brief', 'bug', 'business', 'conventions', 'epic', 'journeys', 'prd', 'story'], 'decision 6');
   for (const name of checked) assert.match(checklistTextOf(REGISTRY, REGISTRY.documentTypes[name]), VERA_LINE, name);
   // Lines left for you on business.md: what only the owner knows.
   assert.match(read('templates/business-checklist.md'), /^- Is each "you said" really something the owner said/m);

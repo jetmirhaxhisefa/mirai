@@ -31,6 +31,7 @@ import { readTicketStatus } from '../../src/store/tickets.js';
 import { snapshot } from '../../src/trust/snapshot.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
 import { needsTest } from '../helpers/needs.js';
+import { veraBefore } from '../helpers/vera.js';
 
 // Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
 const launchTest = needsTest('macos', 'an agent launch: its scratch folder is macOS\'s /private/tmp (src/launch/strict.js; P01)');
@@ -50,6 +51,8 @@ const TICKET = doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"
 const FILES = { 'docs/mirai/tickets/PMT-31.md': TICKET, 'package.json': '{\n  "name": "app",\n  "dependencies": { "express": "^4" }\n}\n', 'app/Team.php': '<?php\n', 'tests/Unit/.gitkeep': '', 'tests/Feature/.gitkeep': '' };
 
 async function tty(argv, { cwd, env }, answers) {
+  // Unit 42 (Jet's answer 3): a lone ticket's approval needs Vera's result; these tests aren't about her.
+  veraBefore(argv, { cwd, env });
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);

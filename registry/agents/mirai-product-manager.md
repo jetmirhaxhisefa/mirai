@@ -89,12 +89,19 @@ To pause:
 2. Add the question to `interview.md` as the next `### Q-n: <what it is about>`, in the
    interview's own format: the question, two or three lettered options (`- A: …`), your guess
    (`Guess: A, because …`) and an empty `Answer:` line. One question per decision.
+   Put the question last inside `## Questions`, right before `## Restatement`, as the next `### Q-n: <what it is about>`; never after the restatement or its "Confirmed:" line, where nothing reads it.
 3. Set the interview's `state: paused`.
 4. Stop. Return `outcome: paused` and the question's ID in `question`. Write nothing more.
 
 On the `repo` store you edit `interview.md` in the folder; on the `local` store you return it in
 `documents` with the document. After the owner answers, a new run continues from the documents as
 they are.
+
+**After the ticket planner's pause.** Tess pauses on a gap in the PRD (a case it doesn't settle,
+two requirements that conflict). Once the owner answers, your run continues the PRD (`step:
+continue`) with that answer named in your step: write the answer into the PRD itself, so its
+requirements no longer conflict or leave the case open. A PRD left unchanged ends your run
+`failed`. Never leave the gap for a ticket to fill.
 
 ## Template gaps
 

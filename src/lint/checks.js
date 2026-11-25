@@ -4,6 +4,8 @@ import { checkBrief } from './brief.js';
 import { checkPrd } from './prd.js';
 import { checkEpic } from './epic.js';
 import { checkInterview } from './interview.js';
+import { testabilityProblems } from './testable.js';
+import { DOC_OF_RUNS_AS, ticketTypesOf } from '../tickets/types.js';
 import { checkBusinessChange, checkRequirements } from './requirements.js';
 import { checkBusiness, checkConventions, checkFeatureMap, checkJourneys, checkProject } from './context.js';
 import { DEPENDENCY_KINDS, installData, parseDependency } from '../agent/dependency-rows.js';
@@ -186,6 +188,16 @@ export const CHECKS = Object.freeze({
     if (parts.length >= 2 && parts.at(-2).toLowerCase() === 'tickets' && typeof value.id === 'string') {
       const stem = parts.at(-1).replace(/\.(?:md|markdown)$/i, '');
       if (!sameKey(stem, value.id)) add({ code: 'file-name', ...at('id'), reason: "the file name doesn't match the ticket's id", hint: 'name ticket files <id>.md' });
+    }
+    // Unit 42 (Scope 3): every AC is one a reviewer could test.
+    for (const p of testabilityProblems(doc, def)) add(p);
+    // Unit 42 (decisions 6 and 7): the ticket's type is one of the project's, and runs as this
+    // document's type (Story as a story, Bug as a bug, Spike as an investigation).
+    if (value.ticket_type !== undefined) {
+      const types = ticketTypesOf(ctx.project);
+      const t = typeof value.ticket_type === 'string' ? types.find((x) => x.name.toLowerCase() === value.ticket_type.toLowerCase()) : null;
+      if (!t) add({ code: 'ticket-type', ...at('ticket_type'), reason: `"${String(value.ticket_type).slice(0, 40)}" isn't one of the project's ticket types`, hint: `use one of: ${types.map((x) => x.name).join(', ')} ([[tickets.types]] in .mirai/config.toml)` });
+      else if (DOC_OF_RUNS_AS[t.runs_as ?? 'change'] !== def.name) add({ code: 'ticket-type', ...at('ticket_type'), reason: `a ${t.name} runs as ${t.runs_as ?? 'change'}, so it is written as a ${DOC_OF_RUNS_AS[t.runs_as ?? 'change']}, not a ${def.name}`, hint: `set type: ${DOC_OF_RUNS_AS[t.runs_as ?? 'change']}, or pick a ${def.name} type` });
     }
   },
 

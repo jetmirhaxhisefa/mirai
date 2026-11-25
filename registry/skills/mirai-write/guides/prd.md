@@ -17,6 +17,9 @@ you're given, or `mirai show template prd`, and its checklist, `mirai show check
 - **An AC's "Given … when … then …" is one sentence for the lint** (25 words at most). When it runs
   longer, end the sentence after "then …" and put the rest of the outcome in a second sentence,
   as Example 3 does. Keep every condition and every outcome; never drop one to fit (unit 34's P3).
+- **Every AC's outcome can be observed** (unit 42): "then the reminders are sent reliably" fails
+  the lint (`prd-ac-untestable`); "then Ana gets one email naming both" passes. A vague word needs
+  a number. A loose bullet under an AC is part of it, and is checked the same way.
 - **Exact values, quoted.** A message the user sees is written in quotes, word for word. A limit
   has its number and its unit ("2,000 characters").
 - **No escape clauses or open ends.** "Where possible", "as appropriate", "if necessary",

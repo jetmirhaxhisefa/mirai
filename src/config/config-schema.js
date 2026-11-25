@@ -2,6 +2,7 @@ import { GATE_STAGES, NEVER_AUTO_STAGES, JUDGEMENT_STEPS, STEPS } from './defaul
 import { globProblem } from '../util/glob.js';
 import { linkHasCredential, remoteHasCredential } from './credentials.js';
 import { allowEntryProblem } from './git-repo-keys.js';
+import { checkTicketTypes } from '../tickets/types.js';
 
 // The config schema (unit 03b; the key list in design/07, "Config keys (unit 03b)").
 
@@ -9,7 +10,7 @@ import { allowEntryProblem } from './git-repo-keys.js';
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.integration_branch', 'git.host', 'git.host_url', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
-    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*'],
+    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*', 'tickets.*'],
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by', 'run.on_limit', 'run.max_wait_minutes'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel', 'signing.unlock', 'claude_code.move'],
 });
@@ -346,6 +347,33 @@ export const CONFIG_SCHEMA = {
       },
     },
     retention: { type: 'table', fields: { days: { type: 'integer', min: 1, max: 3650 }, auto: { type: 'boolean' } } },
+    // Unit 42: tickets. `key_prefix`, the ticket keys' prefix (PROJ in PROJ-12; the tracker's project
+    // key once a tracker is connected, 38). `types` (Jet's decisions 6 and 7): the project's ticket
+    // types, each with a name, what it's for, and the MIRAI behaviour it runs as; with none, Story,
+    // Bug and Investigation. Team policy, so the project layer only (LAYER_KEYS).
+    tickets: {
+      type: 'table',
+      fields: {
+        key_prefix: { type: 'string', pattern: /^[A-Z][A-Z0-9]{0,9}$/, patternHint: 'capital letters and digits, starting with a letter, up to 10, such as "PROJ"' },
+        types: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'table',
+            fields: {
+              name: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9 ._-]{0,39}$/, patternHint: 'a name such as "Tech Debt": letters, digits, spaces, ".", "_" and "-", up to 40' },
+              description: { type: 'string' },
+              runs_as: { type: 'string' },
+              template: { type: 'string', pattern: NAME, patternHint: `the ticket type overlay's name (.mirai/custom/ticket-types/<name>.toml): ${NAME_HINT}` },
+              checklist: { type: 'array', items: { type: 'string', pattern: /^[^\n\r]{1,300}$/, patternHint: 'one line' } },
+              tracker_type: { type: 'string', pattern: /^[^\n\r]{1,60}$/, patternHint: 'the tracker\'s issue type, one line' },
+            },
+            required: ['name', 'runs_as'],
+          },
+          check: checkTicketTypes,
+        },
+      },
+    },
     run: {
       type: 'table',
       fields: {

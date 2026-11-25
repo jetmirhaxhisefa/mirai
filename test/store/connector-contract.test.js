@@ -54,7 +54,8 @@ test('38 T1: each built-in connector validates; a missing verb, an unknown verb,
   // A status mapped to a state MIRAI doesn't have.
   refusedNaming(connectorWith(REPO_TOML.replace('merged = "published"', 'merged = "shipped"')), 'status_map.merged', /maps to "shipped", which isn't a MIRAI state/);
   // A type no store holds, and a key the contract doesn't have.
-  refusedNaming(connectorWith(REPO_TOML.replace('"bug"]', '"bug", "business"]')), 'holds[6]', /isn't a type a store holds/);
+  // Unit 42: an investigation is a ticket too, so a store holds it.
+  refusedNaming(connectorWith(REPO_TOML.replace('"investigation"]', '"investigation", "business"]')), 'holds[7]', /isn't a type a store holds/);
   assert.throws(connectorWith(REPO_TOML.replace('schema_version = 1\n', 'schema_version = 1\nextra = 1\n')), /unknown key extra/);
   // An external store without its sync window; a file named for another connector.
   assert.throws(connectorWith(REPO_TOML.replace('kind = "repo"', 'kind = "external"')), /sync_window_minutes/);

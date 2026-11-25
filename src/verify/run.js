@@ -39,6 +39,8 @@ import { VERIFY_SCHEMA } from './schema.js';
 // MIRAI checks it against the schema and every quote against its file (src/verify/findings.js).
 
 export const VERIFY_MAX_TURNS = 40;
+// Unit 42: the ticket types Vera checks on their own, when they belong to no epic.
+export const LONE_TICKET_TYPES = Object.freeze(['story', 'bug']);
 export const VERIFY_TIMEOUT_MS = 20 * 60_000;
 
 const refuse = (message, code, hint, exit = EXIT.BLOCKED) => Object.assign(new MiraiError(message, exit), { code, ...(hint ? { hint } : {}) });
@@ -64,7 +66,10 @@ export function verifySubject({ cwd, env, file, store = openStore({ cwd, env }) 
   const type = typeof value.type === 'string' ? value.type : null;
   const def = type && Object.hasOwn(registry.documentTypes, type) ? registry.documentTypes[type] : null;
   if (!def) throw new UsageError(`${path} has no document type MIRAI knows`, 'run: mirai lint on it');
-  if (!isVeraType(def)) throw new UsageError(`${path} is a ${def.name}, which the verifier doesn't check`, 'she checks the brief, the PRD, the epic with its tickets, business.md, journeys.md and each conventions file; plans, feature-map.md and project files have the lint only');
+  if (!isVeraType(def)) throw new UsageError(`${path} is a ${def.name}, which the verifier doesn't check`, 'she checks the brief, the PRD, the epic with its tickets, a lone story or bug, business.md, journeys.md and each conventions file; plans, feature-map.md and project files have the lint only');
+  // Unit 42 (decision 2): a lone story or bug (one asked for by hand) is checked on its own,
+  // against its interview and the context files; a ticket of an epic is checked with its epic.
+  if (LONE_TICKET_TYPES.includes(def.name) && typeof value.epic === 'string' && value.epic !== '') throw new UsageError(`${path} is a ${def.name} of the epic ${value.epic}: the verifier checks it with its epic`, `run: mirai verify <the epic file> (epic-<initiative>.md beside its tickets/ folder)`);
   const context = ['business', 'journeys', 'conventions'].includes(def.name);
   if (context && !(isContextFile(path) && contextKindOf(path.slice(CONTEXT_DIR.length + 1))?.type === def.name)) throw new UsageError(`${path} is a ${def.name} file outside ${CONTEXT_DIR}/`, `the context files are ${CONTEXT_DIR}/business.md, journeys.md and conventions-<service>.md`);
   const id = typeof value.id === 'string' ? value.id : null;

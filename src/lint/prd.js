@@ -5,6 +5,7 @@ import { readFrontmatter } from './frontmatter.js';
 import { scanMarkdown, fixedParts } from './markdown.js';
 import { summaryOf, clip } from './summary.js';
 import { checkPrdRequirements } from './requirements.js';
+import { prdTestabilityProblems } from './testable.js';
 
 // The PRD's own lint (unit 32; research/13 §7, §9d; Jet's decisions 2026-11-19). What the
 // generic rules can't say:
@@ -47,6 +48,9 @@ export function checkPrd(doc, def, ctx, add) {
   };
   const title = scan.headings.find((h) => h.level === 1);
   const top = { line: title?.line ?? doc.bodyLine, column: 1 };
+
+  // ---- Unit 42 (P2's first run, Jet's "A"): every AC is one a reviewer could test ------------
+  for (const p of prdTestabilityProblems(doc)) add(p);
 
   // ---- Numbering -------------------------------------------------------------------------
   const defs = definitions(doc);

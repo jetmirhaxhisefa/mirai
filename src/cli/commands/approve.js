@@ -35,6 +35,7 @@ import { baseForArg, docsStoreFor } from '../../store/connectors/index.js';
 import { documentLine } from '../../store/connectors/links.js';
 import { agentNamer, fullName } from '../../agent/names.js';
 import { applyChanges, changesOf } from '../../lint/requirements.js';
+import { addJourneys, newJourneys } from '../../tickets/journeys.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -93,8 +94,13 @@ export default {
     const again = current.state === 'ready-for-dev';
     if (!again) move(TICKET, current.state, 'ready-for-dev', { by: 'human', item: ticket }); // refused unless draft
     const hash = contentHash(file.bytes);
+    // Unit 42 (decision 2): a lone ticket written from its interview (/mirai ticket) is approved on
+    // its own after the lint and Vera, as a document is.
+    const lone = loneTicketGate({ io, store, file, ticket, base });
 
     io.stdout.write(`ticket: ${ticket} (${current.state})\nfile:   ${file.path}\nhash:   ${hash}\n`);
+    if (lone) showVerifier(io, lone.vera);
+    if (lone?.vera?.state === 'early') io.stdout.write(`or have her fix it first: mirai tickets fix ${ticket} (/mirai ticket fix ${ticket})\n`);
     const prompter = createPrompter(io);
     try {
       const asked = now().getTime();
@@ -117,7 +123,7 @@ export default {
 
       const approval = checkEvent({
         type: 'approval', by: 'human', item: ticket, kind: 'ticket', path: file.path, content_hash: hash, decision,
-        ...(reason ? { reason } : {}), answered_after_s: answeredAfter,
+        ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...(lone ? verifierField(lone.vera) : {}),
       });
       const moveTo = { ticket, state: 'ready-for-dev', written_by: 'human' };
       const seq = withSeq(store, (ctx) => {
@@ -227,6 +233,41 @@ async function approvePlan(ticket, io, now) {
   } finally {
     prompter.close();
   }
+}
+
+// Unit 42 (decision 2; Jet's answer 3 "B, plus A+", 2026-11-24): every story or bug that belongs to
+// no epic needs Vera's result for it as it is now, whoever wrote it; one of an epic is checked with
+// its epic, and approved with it. A lone ticket that links its interview ("Interview:" under its
+// title) is also linted as at approval, with its interview. A person's own ticket (no `tess_run`
+// line of MIRAI's names it: the journal's record, which only MIRAI writes) may be approved anyway
+// right after her first check, with must-fix findings open; one Tess wrote keeps the rounds. Null
+// for any other ticket.
+function loneTicketGate({ io, store, file, ticket, base }) {
+  let doc;
+  try {
+    doc = parseDocument(file.bytes.toString('utf8'), file.path);
+  } catch {
+    return null;
+  }
+  const type = doc.value.type;
+  if ((type !== 'story' && type !== 'bug') || (typeof doc.value.epic === 'string' && doc.value.epic !== '')) return null;
+  const trust = snapshot({ cwd: io.cwd, env: io.env });
+  const config = trustedConfig(trust);
+  const registry = withOverlays(trust, store, io, [type, 'interview']);
+  const own = linkLinesOf(doc.scan, registry.documentTypes[type]).find((l) => l.link.label === 'Interview');
+  if (own) {
+    const target = own.targets[0].split('#')[0];
+    let interview;
+    try {
+      interview = readApprovedFile(base, base, posix.normalize(posix.join(posix.dirname(file.path), target)));
+    } catch {
+      throw Object.assign(new MiraiError(`${file.path} links its interview ${plain(target)}, which isn't a file; nothing was written`, EXIT.BLOCKED), { hint: 'correct the "Interview:" line, then approve again' });
+    }
+    refuseOnLint(io, [{ path: file.path, errors: lintText(file.bytes.toString('utf8'), { source: file.path, registry, project: projectOfConfig(config), approving: true, linked: { [target]: interview.bytes.toString('utf8') } }) }]);
+  }
+  const byTess = readJournal(store).events.some((e) => e.type === 'tess_run' && e.by === 'script' && typeof e.ticket === 'string' && e.ticket.toLowerCase() === String(ticket).toLowerCase());
+  const vera = verifierFor({ store, config, def: registry.documentTypes[type], id: ticket, path: file.path, bytes: file.bytes, early: !byTess });
+  return { vera, byTess };
 }
 
 // The approved ticket's text on the integration branch, checked against a rejection note.
@@ -441,6 +482,10 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   const prdBefore = documentApproval(store, id, file.bytes);
   const state = (b) => (b.approved ? ' (approved before, as it is now)' : b.stale ? ' (approved before; it has changed since)' : '');
   io.stdout.write(`prd:    ${id}${state(prdBefore)}\nfile:   ${file.path}\nhash:   ${prdHash}\n`);
+  // Unit 42 (decision 3): approving the PRD again after an answer changed it shows only what changed
+  // since your last approval (on the repo store, from the commit that holds the approved bytes); the
+  // whole file is at its full path below.
+  if (prdBefore.stale) showChangedSince(io, store, conn, id, file);
   io.stdout.write(`brief:  ${briefId}${pair ? state(briefBefore) : ' (approved, as it is now)'}\nfile:   ${brief.file.path}\nhash:   ${briefHash}\n`);
   for (const f of briefBound) io.stdout.write(`interview: ${plain(f.path)}   ${f.content_hash}, signed with the brief\n`);
   if (pair) io.stdout.write(`one decision approves both: the brief and its PRD (track ${fm.value.track})\n`);
@@ -608,6 +653,8 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
   io.stdout.write(`epic:    ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it or a ticket has changed since)' : ''}\nfile:    ${file.path}\nhash:    ${hash}\nprd:     ${prdId} (approved, as it is now)\ntickets: ${n}, signed with the epic\n`);
   for (const f of files) io.stdout.write(`  ${plain(f.path)}   ${f.content_hash}\n`);
   io.stdout.write(`${plain(join(base, file.path))}\n`);
+  // Unit 42 (Scope 7): a new critical journey in the epic is added to journeys.md by this approval.
+  const journeys = journeysChange({ io, store, text, registry, project });
   showVerifier(io, vera);
   showReader(io, reader);
   const prompter = createPrompter(io);
@@ -633,13 +680,27 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
     }
     const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader), ...verifierField(vera) });
     const misses = decision === 'rejected' ? missesOf([{ item: id, kind: 'epic', path: file.path, vera }], reason) : [];
-    const seq = withSeq(store, (ctx) => {
-      const k = ctx.take();
-      ctx.event(k, approval, { signer });
-      for (const m of misses) ctx.event(ctx.take(), m);
-      return k;
-    });
+    const journeyLine = decision === 'rejected' || !journeys ? null : checkEvent({ type: 'approval', by: 'human', item: journeys.id, kind: 'context', file_type: 'journeys', path: journeys.rel, content_hash: contentHash(journeys.after), proposal: file.path, decision, answered_after_s: answeredAfter });
+    if (journeyLine) {
+      if (contentHash(readApprovedFile(store.checkout, store.checkout, journeys.rel).bytes) !== contentHash(journeys.before)) throw new MiraiError(`${journeys.rel} changed while you were answering; nothing was written`, EXIT.FAILURE);
+      writeFileSync(journeys.abs, journeys.after, { mode: statSync(journeys.abs).mode & 0o777 });
+    }
+    let seq;
+    try {
+      seq = withSeq(store, (ctx) => {
+        const k = ctx.take();
+        ctx.event(k, approval, { signer });
+        if (journeyLine) ctx.event(ctx.take(), journeyLine, { signer });
+        for (const m of misses) ctx.event(ctx.take(), m);
+        return k;
+      });
+    } catch (err) {
+      // Nothing signed: journeys.md goes back to what it was.
+      if (journeyLine) writeFileSync(journeys.abs, journeys.before);
+      throw err;
+    }
     showMisses(io, misses);
+    if (journeyLine) io.stdout.write(`added to ${journeys.rel}: ${journeys.blocks.map((b) => b.id).join(', ')}, approved with the set (seq ${seq + 1}); commit it\n`);
     io.stdout.write(decision === 'rejected'
       ? `recorded: the epic ${id} and its ${n} tickets rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: the epic ${id} and its ${n} tickets, as they are now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to any of them needs a new approval\n`);
@@ -648,6 +709,87 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
   } finally {
     prompter.close();
   }
+}
+
+// The lines changed since the document's last accepted approval (unit 42, decision 3): the approved
+// text is read from git (the newest commit whose file at that path has the approved hash), so only
+// on the repo store; elsewhere, or with no such commit, it says so and the whole file is read.
+function showChangedSince(io, store, conn, id, file) {
+  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'prd' && e.item === id && e.decision !== 'rejected').at(-1);
+  const then = last && (!conn || conn.kind === 'repo') ? approvedText(store, last.path ?? file.path, last.content_hash) : null;
+  if (then === null) {
+    io.stdout.write(`changed since your approval (seq ${last?.seq ?? '?'}): the approved text isn't in git here, so read the whole file: ${plain(join(store.checkout, file.path))}\n`);
+    return;
+  }
+  const changes = changedLines(then, file.bytes.toString('utf8'));
+  io.stdout.write(`changed since your approval (seq ${last.seq}): ${changes.length} line${changes.length === 1 ? '' : 's'}; the whole file: ${plain(join(store.checkout, file.path))}\n`);
+  for (const c of changes.slice(0, 200)) io.stdout.write(`  ${c.sign} ${String(c.line).padStart(4)}  ${plain(c.text)}\n`);
+  if (changes.length > 200) io.stdout.write(`  … and ${changes.length - 200} more\n`);
+}
+
+// The file's text at the newest commit where its bytes hash to `hash`, or null.
+function approvedText(store, path, hash) {
+  try {
+    const shas = execFileSync('git', ['log', '--format=%H', '-n', '50', '--', path], { cwd: store.checkout, env: store.gitEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').filter(Boolean);
+    for (const sha of shas) {
+      const bytes = execFileSync('git', ['show', `${sha}:${path}`], { cwd: store.checkout, env: store.gitEnv, maxBuffer: 4 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+      if (contentHash(bytes) === hash) return bytes.toString('utf8');
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+// A line diff (longest common subsequence): [{ sign: '-' | '+', line, text }], `line` the old
+// file's line for a removal and the new file's for an addition.
+export function changedLines(before, after) {
+  const a = before.replace(/\r\n?/g, '\n').split('\n');
+  const b = after.replace(/\r\n?/g, '\n').split('\n');
+  if (a.length * b.length > 4_000_000) return [{ sign: '+', line: 1, text: '(too long to compare line by line: read the whole file)' }];
+  const n = a.length;
+  const m = b.length;
+  const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+  const out = [];
+  let i = 0;
+  let j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && a[i] === b[j]) {
+      i++;
+      j++;
+    } else if (i < n && (j >= m || lcs[i + 1][j] >= lcs[i][j + 1])) out.push({ sign: '-', line: ++i, text: a[i - 1] });
+    else out.push({ sign: '+', line: ++j, text: b[j - 1] });
+  }
+  return out;
+}
+
+// The epic's new critical journeys and journeys.md as approving the set makes it (unit 42, Scope
+// 7): null when the epic proposes none, else { blocks, rel, abs, id, before, after }, shown here.
+// journeys.md as it would be is linted with its own rules first; a J-n already there is refused.
+function journeysChange({ io, store, text, registry, project }) {
+  const blocks = newJourneys(text);
+  if (!blocks.length) return null;
+  const rel = `${CONTEXT_DIR}/journeys.md`;
+  let read;
+  try {
+    read = readApprovedFile(store.checkout, store.checkout, rel);
+  } catch {
+    throw Object.assign(new MiraiError(`the epic proposes ${blocks.map((b) => b.id).join(', ')}, but there is no ${rel} to add ${blocks.length === 1 ? 'it' : 'them'} to; nothing was written`, EXIT.BLOCKED), { code: 'no-journeys', hint: 'write and approve journeys.md first (mirai setup, the context stage), then approve the set again' });
+  }
+  const added = addJourneys(read.bytes.toString('utf8'), blocks);
+  if (added.problem) throw Object.assign(new MiraiError(`${added.problem}; nothing was written`, EXIT.BLOCKED), { code: 'journey-numbering' });
+  let linked = {};
+  try {
+    linked = { 'feature-map.md': readApprovedFile(store.checkout, store.checkout, `${CONTEXT_DIR}/feature-map.md`).bytes.toString('utf8') };
+  } catch {
+    linked = {};
+  }
+  refuseOnLint(io, [{ path: `${rel} (as the set's approval would make it)`, errors: lintText(added.text, { source: rel, registry, project, approving: true, linked, repo: store.checkout }) }]);
+  io.stdout.write(`new critical journeys: ${blocks.map((b) => `${b.id} (${plain(b.title)})`).join(', ')}; approving the set adds ${blocks.length === 1 ? 'it' : 'them'} to ${rel}, and approves journeys.md as it then is\n`);
+  for (const b of blocks) for (const l of b.text.split('\n')) io.stdout.write(`  + ${plain(l)}\n`);
+  const id = readFrontmatter(read.bytes)?.value?.id;
+  return { blocks, rel, abs: join(store.checkout, rel), id: typeof id === 'string' ? id : 'journeys', before: read.bytes, after: Buffer.from(added.text, 'utf8') };
 }
 
 // Whether the epic `id` and its tickets ([{ path, bytes }]) are as you last approved them:
@@ -791,6 +933,7 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
   const r = o.result;
   const what = o.kind === 'project-skill' ? `the project's own skill ${o.name}, for your sessions` : o.kind === 'hook' ? `a hook for your sessions only (${r.event}${r.group.matcher ? ` ${r.group.matcher}` : ''}), never a MIRAI run; it runs ${r.script}` : o.kind === 'script' ? `a script (${r.runner})` : o.kind === 'mcp' ? 'an MCP server for your sessions only, never a MIRAI run'
     : o.kind === 'document-type' ? `the ${o.name} type, ${r.replace ? 'a replacement template' : 'a section overlay'}`
+      : o.kind === 'ticket-type' ? `the ${o.name} ticket type's own template, on MIRAI's ${r.base} type`
     : o.kind === 'agent' ? `${o.name}, ${r.change === 'instructions' ? 'instructions only' : `${r.change}: ${r.why.join(', ')}`}` : `the ${o.name} skill, instructions`;
   io.stdout.write(`overlay: ${o.path} (${what})${before.state === 'approved' ? ' (approved before, as it is now)' : before.state === 'changed' ? ' (approved before; it has changed since)' : ''}\nhash:    ${o.hash}\n`);
   for (const b of o.bound) io.stdout.write(`with:    ${b.path}   ${b.content_hash}, signed with it\n`);
@@ -835,7 +978,7 @@ async function approveOverlay({ id, file, store, io, now, fileArg }) {
     io.stdout.write(decision === 'rejected'
       ? `recorded: ${o.path} rejected (signed with ${signer.keyId}, seq ${seq})\n`
       : `approved: ${o.path}, as it is now (${decision}; signed with ${signer.keyId}, seq ${seq}); MIRAI uses it once it's on ${store.branch}, and a change to it needs a new approval\n`);
-    if (o.kind === 'document-type' || o.kind === 'script') io.stdout.write(`record:  ${recordFile}: commit it with the ${o.kind === 'script' ? 'script' : 'overlay'}\n`);
+    if (o.kind === 'document-type' || o.kind === 'ticket-type' || o.kind === 'script') io.stdout.write(`record:  ${recordFile}: commit it with the ${o.kind === 'script' ? 'script' : 'overlay'}\n`);
     else {
       // An agent or skill overlay also changes your sessions' copy, which mirai render writes.
       const files = [o.path, ...o.bound.map((b) => b.path), recordFile];

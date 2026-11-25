@@ -19,6 +19,20 @@ explains both. This guide covers the wording.
 - **No hedges.** "If any" and "where possible" hand the builder a question. The ticket answers
   it, or names it as an assumption with what changes if it's wrong.
 - **The title says what someone can do after the ticket ships.**
+- **Every outcome can be observed** (unit 42): a value, a screen, a record, a log line. "Sent
+  reliably", "works properly", "as expected" and "quickly" with no number fail the lint. A
+  technical ticket's criteria may describe the system ("the log entries in GCP use the structure in
+  ADR-12"), as long as a reviewer or a check can read it.
+- **An NFR it delivers is cited by its ID** (`NFR-2` in `covers_fr`). It is proved by an
+  end-to-end test only through a critical journey; otherwise `verify` names the test kind (a unit,
+  an integration or a load test).
+- **A line from a section the project added to the PRD** (Data privacy, a security sign-off)
+  becomes a criterion of the ticket that does the work.
+- **An open point in Notes says how to settle it:** "Open: which trace header to read (AC-SAMPLE-1.4).
+  Answer it with `/mirai ticket fix SAMPLE-1 "<your answer>"`, or edit AC-SAMPLE-1.4 before
+  approving." Never "the owner decides at approval".
+- **A file another ticket also lists** in `files_likely`: wait for it (`after`), or say in Notes
+  why the two changes can't clash.
 
 ## Examples
 

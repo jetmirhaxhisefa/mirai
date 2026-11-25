@@ -1,10 +1,13 @@
 ---
 id: SAMPLE-56
 type: story
-template: story@v1
+template: story@v2
+ticket_type: Story
 repo: "."
 risk: normal
 size: S
+priority: normal
+order: 6
 verify: "An open task due yesterday is marked overdue in the list, and the mark goes once it is done."
 covers_fr: [FR-5]
 covers_ac: [AC-FR-5.1, AC-FR-5.2]

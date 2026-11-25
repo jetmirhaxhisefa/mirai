@@ -31,7 +31,7 @@ const LINE = /^[^\u0000-\u001f\u007f]{1,300}$/;
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._|*()-]{0,99}$/;
 const STAGE = /^(scan|migrate|context|connect|finish)$/;
 // The arguments a command may take besides those it needs (unit 39's optional ones).
-const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop']);
+const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop', 'answer']);
 // What the red team costs, as the terminal says it before its y/N.
 export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Opus), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
 // One-time codes for a red-team run, kept in this server only, for ten minutes.
@@ -95,6 +95,14 @@ export const COMMANDS = Object.freeze({
   // numbered in place.
   write: { needs: ['initiative'], tty: true, run: true, argv: (a) => ['write', a.initiative] },
   requirements: { quick: true, needs: ['initiative'], argv: (a) => ['requirements', a.initiative] },
+  // Unit 42 (Jet's re-check answers Q1–Q3 "A", 2026-11-24): the ticket planner's run, as Nora's:
+  // several agent launches and Vera's checks in one run, so the run's time limit; it signs nothing
+  // (the set still waits for your approval). With `one`, the one ticket /mirai ticket's short
+  // interview asks for (the command file's step 0, then this).
+  tickets: { needs: ['initiative'], flags: ['one'], tty: true, run: true, argv: (a) => ['tickets', a.initiative, ...(a.one ? ['--one'] : [])] },
+  // Jet's answer 3 (2026-11-24): a lone ticket fixed from the verifier's findings on it (/mirai ticket fix <KEY>).
+  // With `answer` (Jet's answer to question 4): your answer to an open point in its Notes, one line.
+  'ticket fix': { needs: ['ticket'], opts: ['answer'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket, ...(a.answer ? ['--answer', a.answer] : [])] },
   detect: { argv: () => ['detect'] },
   // Unit 38: the docs merge request. Neither decides anything new: publish pushes the documents
   // as they are, and merge needs your signed approvals, not a typed key.
@@ -169,7 +177,7 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'file', 'type', 'initiative', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'path', 'stage', ...OPTIONAL].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'file', 'type', 'initiative', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'one', 'path', 'stage', ...OPTIONAL].includes(k)) return { refused: `${k} isn't an argument here` };
   }
   // Unit 39's arguments.
   if (args.path !== undefined) {
@@ -189,7 +197,7 @@ export function checkCommand(args) {
     } else if (k === 'n') {
       if (!Number.isInteger(args.n) || args.n < 1 || args.n > 50) return { refused: 'n is a checklist line\'s number' };
       out.n = args.n;
-    } else if (typeof args[k] !== 'string' || !((k === 'place' || k === 'summary' || k === 'note') ? LINE : WORD).test(args[k])) return { refused: `${k} isn't a value MIRAI takes here` };
+    } else if (typeof args[k] !== 'string' || !((k === 'place' || k === 'summary' || k === 'note' || k === 'answer') ? LINE : WORD).test(args[k])) return { refused: `${k} isn't a value MIRAI takes here` };
     else out[k] = args[k];
   }
   // Unit 33: a document's path in the repo (`epic render`), relative, a Markdown file.
@@ -217,7 +225,7 @@ export function checkCommand(args) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
   }
-  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff']) {
+  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'one']) {
     if (args[flag] === undefined) continue;
     if (typeof args[flag] !== 'boolean') return { refused: `${flag} is true or false` };
     if (!(spec.flags ?? []).includes(flag)) return { refused: `${command} doesn't take ${flag}` };
@@ -243,7 +251,7 @@ export const miraiCommand = Object.freeze({
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
       type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template and show checklist (unit 37)' },
-      initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38), write and requirements (unit 41)' },
+      initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38), write and requirements (unit 41), tickets (unit 42)' },
       file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34) and verify (unit 40)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },
@@ -254,10 +262,11 @@ export const miraiCommand = Object.freeze({
       docs: { type: 'boolean', description: 'with show: the initiative\'s documents (docs/mirai/<name>/), when the name is also a ticket (unit 32)' },
       m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every ticket merged or closed on the host' },
       diff: { type: 'boolean', description: 'with review-mr: the whole diff of the code' },
+      one: { type: 'boolean', description: 'with tickets: the one lone ticket the folder\'s short interview asks for (unit 42)' },
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
       path: { type: 'string', pattern: ITEM.source, description: 'an item\'s path in the repo, for custom add, setup decide and setup defer (unit 39)' },
       stage: { type: 'string', enum: ['scan', 'migrate', 'context', 'connect', 'finish'], description: 'a setup stage, for setup start and setup done' },
-      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer, mirai-verifier, mirai-product-manager) or skill; a hook\'s form: interactive, check or both' },
+      as: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent\'s MIRAI agent (mirai-developer, mirai-reviewer, mirai-verifier, mirai-product-manager, mirai-ticket-planner) or skill; a hook\'s form: interactive, check or both' },
       role: { type: 'string', pattern: WORD.source, description: 'with custom add: an agent overlay\'s role' },
       event: { type: 'string', pattern: WORD.source, description: 'with custom add: a hook\'s event, such as PostToolUse' },
       matcher: { type: 'string', pattern: WORD.source, description: 'with custom add: the tools a hook matches, such as Edit|Write' },
@@ -267,6 +276,7 @@ export const miraiCommand = Object.freeze({
       note: { type: 'string', description: 'with setup decide: one line on what became of it, such as "used as a source for conventions-app.md" with drop' },
       drop: { type: 'boolean', description: 'with setup decide: the item is dropped' },
       summary: { type: 'string', description: 'with setup decide: what the item does, from the research (one line)' },
+      answer: { type: 'string', pattern: LINE.source, description: 'with ticket fix: your answer to an open point in the ticket\'s Notes, in your words (one line, unit 42)' },
       n: { type: 'integer', description: 'with setup checklist: a line you mark done' },
     },
     required: ['command'],

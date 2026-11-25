@@ -81,7 +81,7 @@ const graph = (s, code) => errors(s.text, { tickets: s.tickets }).filter((p) => 
 const ticket = (key, { epic = 'SAMPLE-50', size = 'S', after = [], fr = ['FR-1'], ac = ['AC-FR-1.1'], files = [] } = {}) => `---
 id: ${key}
 type: story
-template: story@v1
+template: story@v2
 repo: "."
 risk: normal
 size: ${size}
@@ -136,7 +136,8 @@ test('33 T1: the type, the template and the example: the example lints clean wit
   // The template holds every section of the type in order; left as it is, it fails as leftover
   // text (and, with no tickets, on the graph and its generated parts).
   const h2 = TEMPLATE.split('\n').filter((l) => l.startsWith('## ')).map((l) => l.slice(3));
-  assert.deepEqual(h2, DEF.required_sections);
+  // Unit 42: then the optional "New critical journeys".
+  assert.deepEqual(h2, [...DEF.required_sections, ...DEF.optional_sections]);
   const left = errors(TEMPLATE, { tickets: {}, prd: read('templates/prd.md') });
   assert.ok(codes(left).includes('template-text'), JSON.stringify(left));
   assert.ok(left.every((p) => /^template-text$|^graph-|^epic-generated$|^empty-section$/.test(p.code)), JSON.stringify(left.filter((p) => !/^template-text$|^graph-|^epic-generated$|^empty-section$/.test(p.code))));
@@ -201,7 +202,7 @@ test('33 T2: mirai epic render writes the four generated sections exactly; a han
   // 11 files: the brief, its interview (unit 35), the PRD, the epic and 7 tickets.
   assert.deepEqual((await r.run('lint')).out, '11 files, 0 problems, 0 warnings, 0 skipped\n');
   // A hand edit inside a generated part is drift.
-  const edited = swap(EPIC, '| [SAMPLE-52](tickets/SAMPLE-52.md) | A due date in the past is refused | S |', '| [SAMPLE-52](tickets/SAMPLE-52.md) | A due date in the past is refused | M |');
+  const edited = swap(EPIC, '| [SAMPLE-52](tickets/SAMPLE-52.md) | A due date in the past is refused | Story | S |', '| [SAMPLE-52](tickets/SAMPLE-52.md) | A due date in the past is refused | Story | M |');
   one(edited, 'epic-generated', /"## Tickets" doesn't match the ticket files and the PRD \(edited by hand, or a ticket changed since it was rendered\) \| run: mirai epic render/);
   // Text added outside the markers, inside a generated section, is drift too.
   one(swap(EPIC, '## Design decisions\n\n', '## Design decisions\n\nADR-9 is coming.\n\n'), 'epic-generated', /"## Design decisions" isn't the generated part/);
@@ -215,7 +216,7 @@ test('33 T2: mirai epic render writes the four generated sections exactly; a han
   ]);
   assert.equal((await r.run('epic', 'render', 'docs/mirai/due-dates/epic-due-dates.md')).code, EXIT.OK);
   assert.equal((await r.run('lint')).code, EXIT.OK);
-  assert.match(readFileSync(epicPath, 'utf8'), /\| \[SAMPLE-52\]\(tickets\/SAMPLE-52\.md\) \| A due date in the past is refused \| M \|/);
+  assert.match(readFileSync(epicPath, 'utf8'), /\| \[SAMPLE-52\]\(tickets\/SAMPLE-52\.md\) \| A due date in the past is refused \| Story \| M \|/);
   // Everything outside the four sections is left as it was.
   const outside = (t) => t.slice(0, t.indexOf('## Tickets'));
   assert.equal(outside(readFileSync(epicPath, 'utf8')), outside(EPIC));
@@ -280,7 +281,7 @@ test('33 T3: the graph lint: each failure caught on a seeded set, naming the tic
   // An after naming another epic's ticket passes: it only waits for that ticket to be done.
   const across = seeded(withTicket('SAMPLE-80', ticket('SAMPLE-80', { epic: 'SAMPLE-79' }), withTicket('SAMPLE-52', (t) => swap(t, 'after: [SAMPLE-51]', 'after: [SAMPLE-51, SAMPLE-80]'))));
   assert.deepEqual(errors(across.text, { tickets: across.tickets }), []);
-  assert.match(across.text, /\| \[SAMPLE-52\]\(tickets\/SAMPLE-52\.md\) \| [^|]+ \| S \| normal \| SAMPLE-51, SAMPLE-80 \|/);
+  assert.match(across.text, /\| \[SAMPLE-52\]\(tickets\/SAMPLE-52\.md\) \| [^|]+ \| Story \| S \| normal \| normal \| 3 \| 0 \| SAMPLE-51, SAMPLE-80 \|/);
   // But a loop through two epics fails, naming each ticket and its epic: SAMPLE-52 (epic
   // SAMPLE-50) waits for SAMPLE-80 (epic SAMPLE-79), which waits for SAMPLE-52.
   const loop = seeded(withTicket('SAMPLE-80', ticket('SAMPLE-80', { epic: 'SAMPLE-79', after: ['SAMPLE-52'] }), across.tickets));
@@ -297,12 +298,12 @@ test('33 T3: the graph lint: each failure caught on a seeded set, naming the tic
   // lint's to refuse: whether its work is asked for is Vera's checklist question.
   const sweep = seeded(withTicket('SAMPLE-90', ticket('SAMPLE-90', { fr: [], ac: [] })));
   assert.deepEqual(errors(sweep.text, { tickets: sweep.tickets }), []);
-  // Warn: the same file in two tickets with no after between them.
+  // Warn: the same file in two tickets with no after between them. Unit 42 (37's "For later"): one
+  // warning per file, naming every ticket that shares it.
   const files = seeded(withTicket('SAMPLE-52', (t) => swap(t, 'files_likely: [app/Http/Requests/UpdateTaskDueDate.php', 'files_likely: [app/Mail/DueReminder.php, app/Http/Requests/UpdateTaskDueDate.php')));
   assert.deepEqual(errors(files.text, { tickets: files.tickets }), []);
   assert.deepEqual(warnings(files.text, { tickets: files.tickets }).map((p) => `${p.reason} | ${p.hint}`), [
-    'SAMPLE-52 and SAMPLE-53 both list app/Mail/DueReminder.php in files_likely, with no after between them | if one must go first, add after: [SAMPLE-52] to SAMPLE-53; else check the two changes can\'t clash',
-    'SAMPLE-52 and SAMPLE-54 both list app/Mail/DueReminder.php in files_likely, with no after between them | if one must go first, add after: [SAMPLE-52] to SAMPLE-54; else check the two changes can\'t clash',
+    'SAMPLE-52, SAMPLE-53, SAMPLE-54 all list app/Mail/DueReminder.php in files_likely, with no after between some of them | make one wait for the other (after: [SAMPLE-52] in SAMPLE-54), or say in each ticket\'s Notes why the changes to app/Mail/DueReminder.php can\'t clash',
   ]);
   // No ticket at all.
   assert.match(graph(seeded({}), 'graph-tickets')[0].reason, /no ticket names this epic: tickets\/ holds no file with epic: SAMPLE-50/);

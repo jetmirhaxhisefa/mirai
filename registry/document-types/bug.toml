@@ -4,7 +4,7 @@ kind = "document-type"
 schema_version = 1
 name = "bug"
 template = "templates/bug.md"
-template_version = 1
+template_version = 2
 checklist = "templates/bug-checklist.md"
 status = "forbidden"
 id_pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
@@ -12,6 +12,15 @@ required_sections = ["Description", "Reproduction", "Acceptance criteria"]
 optional_sections = ["Cause hypothesis", "References", "Notes"]
 section_order = ["Description", "Reproduction", "Cause hypothesis", "Acceptance criteria", "References", "Notes"]
 lint_checks = ["ticket"]
+# Unit 42 (decision 2): a lone ticket, asked for by hand, is checked by Vera against its interview and
+# the context files; a ticket of an epic is checked with its epic (src/verify/run.js).
+verifier = true
+
+# Unit 42: a lone ticket links the interview it was written from, right under its title.
+[[upstream_link]]
+label = "Interview"
+type = "interview"
+required = false
 
 [frontmatter.fields.repo]
 type = "string"
@@ -54,6 +63,21 @@ pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
 [frontmatter.fields.files_likely]
 type = "list"
 pattern = "(?![A-Za-z]:)(?!/)(?! )(?!.*(?:^|/)\\.\\.(?:/|$))(?!.* $)[^\\\\\\u0000-\\u001f]+"
+
+# Unit 42 (decisions 5 and 6): the run's pick reads priority (Tess proposes, you set it at
+# approval) and order (within the epic: the tracer bullet first); ticket_type names one of the
+# project's [[tickets.types]] (Story, Bug and Investigation by default), whose runs_as must be this
+# document's type.
+[frontmatter.fields.priority]
+type = "enum"
+values = ["high", "normal", "low"]
+
+[frontmatter.fields.order]
+type = "integer"
+
+[frontmatter.fields.ticket_type]
+type = "string"
+pattern = "[A-Za-z][A-Za-z0-9 ._-]{0,39}"
 
 [frontmatter.fields.e2e]
 type = "boolean"
@@ -108,3 +132,16 @@ read_by = ["gate"]
 [[protected_fields]]
 name = "repo"
 read_by = ["lint"]
+
+# Unit 42: the run's pick (src/tickets/pick.js) and the ticket's type.
+[[protected_fields]]
+name = "priority"
+read_by = ["run-pick", "lint"]
+
+[[protected_fields]]
+name = "order"
+read_by = ["run-pick", "epic-render"]
+
+[[protected_fields]]
+name = "ticket_type"
+read_by = ["lint", "gate"]

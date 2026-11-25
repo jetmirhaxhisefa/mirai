@@ -1,0 +1,21 @@
+# Tess, MIRAI's ticket planner (unit 42; design/01 §5 and §7, D-09, D-41). One job: cut an approved
+# PRD (or, on `full`, the approved design) into an epic and its tickets that are ready for your one
+# approval of the set, or write one ticket you asked for by hand. She runs in the background, in
+# MIRAI's sandbox, on the `tickets` step's tier, and MIRAI renders the epic and runs the lint and
+# Vera between her launches, handing her each result (Jet, 2026-11-24, 42's re-check Q1 "A", as
+# Nora's: no agent starts an agent, D-53). Her answer is structured output: what she did, the
+# template gaps she met, a pause, and on the local store the documents themselves.
+kind = "agent"
+schema_version = 1
+name = "mirai-ticket-planner"
+role = "ticket-planner"
+persona = "Tess"
+description = "Tess: cuts an approved PRD into an epic and its tickets, or writes one ticket you ask for, for your approval"
+read_only = false
+prompt = "agents/mirai-ticket-planner.md"
+
+# The read-write template's tools: MIRAI's registry holds every agent to its template's tools (a
+# narrower template of her own would be a new cage for the red team). Her prompt uses the file
+# tools and MIRAI's headless `lint` tool only; `mirai` from Bash is denied in every launch (D-30).
+[tools]
+allowed = ["Bash", "Read", "Edit", "Write", "Glob", "Grep"]

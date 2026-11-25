@@ -1,7 +1,7 @@
 ---
 id: PMT-31
 type: bug
-template: bug@v1
+template: bug@v2
 repo: "."
 risk: normal
 size: S
@@ -12,6 +12,9 @@ governed_by: []
 after: []
 files_likely: [app/Actions/RenameTeam.php]
 e2e: false
+ticket_type: Bug
+priority: normal
+order: 2
 ---
 # Renaming a team hides its members
 
