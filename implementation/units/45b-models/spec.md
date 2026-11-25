@@ -1,7 +1,7 @@
 ---
 unit: "45b"
 name: models
-status: draft (from Jet's interview of 2026-11-23, roadmap row 45b; two questions below, the second a gap found in the code)
+status: draft (from Jet's interview of 2026-11-23, roadmap row 45b; questions 1 "D" and 2 "A" answered 2026-11-25)
 roadmap: design/07-implementation-roadmap.md, row 45b; D-14 (tiers, judgement steps deep), D-58; units 03b (config), 05a (the personal-repo file), 11 (render, the lock's bundle hash), 19b (`pickTier`, alternates), 21a (each agent's model in its file), 21f (the session list), 40 (Vera), 41 (Nora)
 depends_on: ["03b", "05a", "11", "19b", "21a", "21f", "40", "41"]
 ---
@@ -60,7 +60,8 @@ will add a tool per step later.
 3. **`mirai models set <tier> <model>`:** refuses a model off its tier's family and a model MIRAI
    doesn't know (question 1). Writes `models.<tier>`. With `--mine`, writes your personal-repo
    file instead (`config.user.toml`, 05a), where only the three tiers may be set (03b's allowlist);
-   whether `--mine` also takes a step depends on question 2.
+   `--mine` also takes a step's tier (question 2, "A": `models.steps.*` joins the personal-repo
+   allowlist; judgement steps still `deep`).
 4. **Writing the config:** a small line edit of `[models]` / `[models.steps]` that keeps comments
    and order (MIRAI has a TOML parser, no writer: the edit is checked by parsing the result and
    comparing every other key, and refused if anything else would change). The file must be clean
@@ -69,10 +70,16 @@ will add a tool per step later.
    model, and the lock's bundle hash must match, 11), shows the diff (config, lock, agent files),
    and prints the commit and where it applies: "Launches use it once it's on main (they run from
    main's snapshot, 11)." It never commits (C1) and never touches main.
-6. **`/mirai models`** on the session list (21f): the listing; `set` runs and prints the commit
+6. **Launches read your personal file** (question 2, "A"): `trustedConfig`'s result is merged with
+   your personal-repo file's `[models]` (tiers and steps) for launches you start, after the checks
+   (03b's allowlist, D-14, question 1's lists); the run line and `mirai models` name the source.
+   Main's snapshot and the lock are unchanged (the plugin files keep the project's models; the
+   launch passes its picked model, as `pickTier` does today). A test shows a personal step tier
+   used, a personal `prd = "standard"` refused, and a project-only run unchanged.
+7. **`/mirai models`** on the session list (21f): the listing; `set` runs and prints the commit
    line. Cursor and Codex: the command is MIRAI's, nothing names Claude Code except the tool
    column's value.
-7. **Docs:** `docs/models.md` (new: tiers, steps, families, the judgement rule, project vs
+8. **Docs:** `docs/models.md` (new: tiers, steps, families, the judgement rule, project vs
    `--mine`, when a change applies); `docs/config.md` points to it; the session list.
 
 **Out**
@@ -151,7 +158,7 @@ will add a tool per step later.
      to the newest model; probes and red-team results were measured on the pinned one");
    - 45b builds Claude Code's lists and the adapter hook (`listModels()`); Cursor's and Codex's
      come with 71 and 73.
-2. **Your personal override doesn't reach launches today** (found while writing this spec).
+2. **Your personal override doesn't reach launches today** (found while writing this spec; answered 2026-11-25, **A**: launches apply your personal file for your launches, tiers and step tiers, with D-14 and question 1's checks; the run line names the source).
    `docs/config.md` says your personal-repo file may set `models.light|standard|deep`, and `mirai
    config show` shows it, but every launch reads only main's project config (`trustedConfig` in
    `src/trust/snapshot.js` → `loadTreeConfig`, project file only). So `--mine` would write a value
