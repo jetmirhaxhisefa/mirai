@@ -399,7 +399,42 @@ existing ledger.
   PRD and leaves the offer to 45, as decision 7 says.
 - **The pause wording** (`PAUSE_PLACE`, shared by Nora and Tess since 42): this unit's
   decision questions use the same placement.
-- **The look-ahead note** ("To interview before the build") stands; it waits for its interview.
+- **The look-ahead note** ("To interview before the build") stands; interviewed 2026-11-25, see below.
+
+## The look-ahead (interview with Jet, 2026-11-25: Q1–Q4, restatement "yes")
+
+**Answers:** Q1 "A" (the pain is the interruption after you've walked away; a longer interview is
+fine); Q2 "A" (the PRD's checklist only; Tess's questions stay at the ticket step, 45); Q3 "a mix
+of B and A" (a real question where the guess is shaky; an assumption where it's confident, every
+one reviewed and approved by you); Q4 "A" (one numbered list, approved together).
+
+**Statement of intent (confirmed):**
+
+| | |
+|---|---|
+| **Outcome** | Before the restatement, the interview reads the PRD's checklist (`registry/templates/prd-checklist.md`) and finds what Nora would otherwise pause on later. A shaky guess becomes a real question (one at a time, with a guess). A confident guess becomes a numbered **Assumptions** list, approved with "ok" or corrected by number ("2: the team's midnight"); a correction is an answer. interview.md records each assumption as approved by you; Nora builds on them, and Vera checks the PRD against them. |
+| **User** | You, as the owner: present at the start, then walking away. |
+| **Why now** | 41's P4: 5 late pauses; 42's P2 (third auto run): 8 Nora pauses (Q-9 to Q-16), each a real gap, each stopping the work after you'd left. |
+| **Success** | On the same requests, the probes show fewer Nora pauses than without the look-ahead, and Vera's findings no worse (the must-fix count and the kinds). |
+| **Constraint** | Nothing is invented: every assumption is shown and approved; Nora still pauses on a gap the look-ahead missed. |
+| **Out of scope** | Looking ahead for Tess's ticket questions (45); a cap on questions; approving assumptions one at a time. |
+
+**What the build adds (to be designed with 44's build, nothing before):**
+
+1. **The interview skill** (`registry/skills/mirai-interview/SKILL.md`, 35): a step before the
+   restatement: read the PRD's checklist against the answers so far; for each item the answers
+   leave open, ask (guess shaky) or assume (guess confident, with its source: business.md, the
+   code, an earlier answer).
+2. **interview.md's template:** an `## Assumptions` section (numbered `A-n`, each with its source
+   and `approved: yes` or the correction), placed before `## Restatement`; the interview lint
+   refuses a `confirmed` interview with an assumption not approved.
+3. **Nora:** reads `## Assumptions` as answers (cites `A-n` where a requirement rests on one) and
+   doesn't pause on them.
+4. **Vera:** a checklist line: every approved assumption is reflected in the PRD, none
+   contradicted.
+5. **The probes:** the same requests (41's P4, 42's P2 with a fixture that matches the sample app)
+   run with and without the look-ahead; pauses counted, Vera's must-fix count and kinds compared.
+   Accepted only if pauses fall and Vera is no worse.
 
 ## Follow-up
 
