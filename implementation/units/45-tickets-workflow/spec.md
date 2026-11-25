@@ -189,9 +189,10 @@ needs your ticket decisions logged to judge whether Tess cuts well (PM-05).
   scope applies at ship. An `investigation` lone ticket has no build or code MR (42b): T7's "two
   actions" is for a change ticket.
 
-**Question for Jet (from this re-check):**
+**Question for Jet (from this re-check; answered 2026-11-25, "A"):**
 
-1. **The offer after a Tess pause.** Tess paused on the PRD; Nora took your answer; you approve
+1. **The offer after a Tess pause** (answered **A**: the re-approval asks "Tess paused on Q-8 for
+   this; continue her run now? [Y/n]", default yes; add a test T1b for it). Tess paused on the PRD; Nora took your answer; you approve
    the PRD again. A: the offer still asks, worded "Tess paused on Q-8 for this; continue her run
    now? [Y/n]" (default yes, since you started her already); B: her run continues by itself after
    the re-approval (no question); C: the same offer as the first time ("Start Tess …? [y/N]").
