@@ -21,7 +21,7 @@ import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { writeToken } from '../../src/sign/token.js';
 import { docsStoreFor } from '../../src/store/connectors/index.js';
 import { openStore } from '../../src/store/home.js';
-import { readJournal } from '../../src/store/journal.js';
+import { appendEvent, readJournal } from '../../src/store/journal.js';
 import { readVerifyResults } from '../../src/store/verify-results.js';
 import { verifyInputs, verifySubject } from '../../src/verify/run.js';
 import { findingsFrom } from '../../src/verify/findings.js';
@@ -522,6 +522,38 @@ test('41 T5: a pause her interview doesn\'t show is no pause: the run ends faile
   assert.match(r.why, /she says she paused on Q-9, but interview\.md isn't paused/);
 });
 
+// 42's P2 third run (Jet's "A", 2026-11-25): the ticket planner paused on Q-8, you answered it.
+function afterTessPause() {
+  const answered = INTERVIEW.replace('## Restatement', Q8.replace('Answer:\n', 'Answer: A.\n'));
+  const f = fixture({ files: { [`${D}/brief.md`]: BRIEF_READY, [`${D}/prd.md`]: PRD_READY } });
+  appendEvent(f.store, { type: 'tess_run', by: 'script', item: 'due-dates', run_id: 'r-20261125-010203-abcd', state: 'running', mode: 'set' });
+  appendEvent(f.store, { type: 'tess_run', by: 'script', item: 'due-dates', run_id: 'r-20261125-010203-abcd', state: 'paused', mode: 'set', question_id: 'Q-8', question: 'Q-8: Comments by guests', rounds: { lint: 0, verify: 0 }, launches: 1, template_gaps: 0 });
+  writeFileSync(join(f.root, D, 'interview.md'), answered);
+  f.git('commit', '-qam', 'Q-8 answered');
+  return f;
+}
+
+test('41 (42\'s P2 third run, Jet\'s "A"): after the ticket planner\'s pause, Nora continues the PRD with the answer named, and changes it', async () => {
+  const f = afterTessPause();
+  const { r, n } = await nora(f, { steps: [byDocument({ prd: (o, fx) => {
+    put(fx, `${D}/prd.md`, PRD_READY.replace('Day ends: midnight in the team\'s own time zone.', 'Day ends: midnight in the team\'s own time zone; guests may not comment, as the owner answered.'));
+    return result();
+  } })] });
+  assert.equal(r.state, 'done', r.why);
+  assert.deepEqual(n.calls.map((c) => [indexOf(c).document, indexOf(c).step]), [['prd', 'continue']]);
+  assert.match(n.calls[0].prompt, /the ticket planner paused on Q-8, and the owner's answer must change the prd/);
+  // Taken: a later run of hers doesn't continue it again.
+  const again = await nora(f, { steps: [() => result()] });
+  assert.equal(again.n.calls.length, 0, again.r.why);
+});
+
+test('41 (42\'s P2 third run): a continue after the ticket planner\'s pause that leaves the PRD unchanged ends failed, never done', async () => {
+  const f = afterTessPause();
+  const { r } = await nora(f, { steps: [() => result()] });
+  assert.equal(r.state, 'failed');
+  assert.equal(r.why, 'the PRD didn\'t take Q-8\'s answer: it is unchanged after her continue step');
+});
+
 test('41 (42\'s P2 rerun, Jet\'s "A"): a pause question after the restatement ends failed, naming its line; her prompt says where it goes', async () => {
   const f = fixture();
   const after = `${INTERVIEW.replace('state: confirmed', 'state: paused').trimEnd()}\n\n${Q8.replace('\n\n## Restatement', '')}\n`;
@@ -532,7 +564,7 @@ test('41 (42\'s P2 rerun, Jet\'s "A"): a pause question after the restatement en
   } })] });
   assert.equal(r.state, 'failed');
   const line = after.split('\n').indexOf('### Q-8: Comments by guests') + 1;
-  assert.equal(r.why, `she says she paused on Q-8, but interview.md has Q-8, but outside ## Questions (line ${line}, after ## Restatement): it must be the last question inside ## Questions`);
+  assert.equal(r.why, `she says she paused on Q-8, but interview.md has Q-8 outside ## Questions (line ${line}, after ## Restatement): it must be the last question inside ## Questions`);
   assert.ok(read('agents/mirai-product-manager.md').includes(PAUSE_PLACE));
   const g = fixture();
   assert.ok(noraPrompt(noraSubject({ cwd: g.root, env: g.env, initiative: 'due-dates' }), { type: 'brief', step: 'write', round: 1 }).includes(PAUSE_PLACE));

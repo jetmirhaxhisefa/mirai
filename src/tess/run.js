@@ -138,9 +138,26 @@ export function tessSubject({ cwd, env, initiative, one = false, fix = null, ans
     if (!a.approved) throw refuse(`the PRD ${id ?? prd.shown} isn't approved${a.stale ? ' as it is now (it changed since your approval)' : ''}, so ${who()} has nothing settled to cut`, 'prd-not-approved', `read it, then approve it: mirai approve ${id ?? '<prd-id>'} --file ${prd.shown}`);
     s.prd = prd;
     s.track = typeof prd.value.track === 'string' ? prd.value.track : 'standard';
+    prdBehind(s, id, prd);
   }
   checkTree(s, one ? `ticket-${initiative}` : `tickets-${initiative}`, rel ? ` (git add ${rel} && git commit -m "${initiative}: interview")` : '');
   return s;
+}
+
+// 42's P2 third run (Jet's "A", 2026-11-25): her pause's answer changes the PRD first (decision 3),
+// so she never cuts from an answer the PRD hasn't taken. Refused while her last run paused on Q-n
+// and the PRD hasn't been approved since that pause, or while the interview the brief was approved
+// with has changed since.
+function prdBehind(s, prdId, prd) {
+  const events = readJournal(s.store).events;
+  const pause = events.filter((e) => e.type === 'tess_run' && e.item === s.initiative && e.state !== 'running').at(-1);
+  const approval = events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'prd' && e.item === prdId && e.decision !== 'rejected').at(-1);
+  const hint = `run /mirai write ${s.initiative} (mirai write ${s.initiative}), then approve the PRD again: mirai approve ${prdId} --file ${prd.shown}`;
+  if (pause?.state === 'paused' && (!approval || approval.seq < pause.seq)) throw refuse(`the PRD hasn't taken ${pause.question_id}'s answer: ${who()} paused on it, and the PRD hasn't been approved since`, 'prd-behind-answer', hint);
+  const interview = s.interview;
+  const briefApproval = events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'brief' && e.decision !== 'rejected').filter((e) => (e.files ?? []).some((f) => interview && f.path === s.conn.relOf(interview.abs))).at(-1);
+  const bound = briefApproval?.files?.find((f) => interview && f.path === s.conn.relOf(interview.abs));
+  if (interview && bound && bound.content_hash !== contentHash(interview.bytes)) throw refuse(`the interview changed after the brief and the PRD were approved, so the PRD may not hold its answers yet`, 'prd-behind-answer', hint);
 }
 
 // On the repo store: a branch that isn't the integration branch, and an author; on either store a

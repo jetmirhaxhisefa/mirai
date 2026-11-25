@@ -19,7 +19,7 @@ export function pauseProblem(i, id) {
   const h = i.doc?.scan.headings.find((x) => re.test(x.text));
   if (!h) return `has no ${id}`;
   const after = i.doc.scan.headings.filter((x) => x.level === 2 && x.line < h.line).at(-1);
-  return `has ${id}, but outside ## Questions (line ${h.line}${after ? `, after ## ${after.text}` : ''}): it must be the last question inside ## Questions`;
+  return `has ${id} outside ## Questions (line ${h.line}${after ? `, after ## ${after.text}` : ''}): it must be the last question inside ## Questions`;
 }
 
 // The paused end, or the failed one with the reason: { paused: true, q } | { why }.

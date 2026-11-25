@@ -191,8 +191,10 @@ const EXTRA_WHY = Object.freeze({
   'reader.json': 'what the reader test couldn\'t find in the summary: make the summary say it',
 });
 
-export function noraPrompt(s, { type, step, round }) {
-  const what = { write: `write the ${type}`, continue: `continue the ${type} from the owner's new answers in interview.md${type === 'brief' ? '' : '; where an answer changes what a document you already wrote says (the brief), bring that document in line too, in this launch'}`, fix: `fix the ${type} from what MIRAI's checks found` }[step];
+export function noraPrompt(s, { type, step, round, answers = [] }) {
+  // 42's P2 third run (Jet's "A"): after the ticket planner's pause, the answers to carry are named.
+  const carry = answers.length ? `; the ticket planner paused on ${answers.join(', ')}, and the owner's answer${answers.length === 1 ? '' : 's'} must change the ${type}: settle what ${answers.length === 1 ? 'it answers' : 'they answer'} in the ${type} itself, so its requirements no longer conflict or leave the case open` : '';
+  const what = { write: `write the ${type}`, continue: `continue the ${type} from the owner's new answers in interview.md${carry}${type === 'brief' ? '' : '; where an answer changes what a document you already wrote says (the brief), bring that document in line too, in this launch'}`, fix: `fix the ${type} from what MIRAI's checks found` }[step];
   return [
     `Your step: ${what}, for the initiative ${s.initiative} (round ${round}).`,
     'The input folder holds the interview, the documents as they are, the context files, the template, the checklist and the mirai-write skill, with index.json listing each; read index.json first.',
@@ -219,7 +221,7 @@ async function noraLaunch(ctx, { type, step, extra = {} }) {
   try {
     r = await ctx.launch({
       ...ctx.watch, cwd: ctx.cwd, env: ctx.env, store: s.store, runId: ctx.runId, startRun: !ctx.started, ownsRun: false, launchToken: ctx.nextToken(), agent: NORA_AGENT, progressLabel: ctx.who(NORA_AGENT), role: NORA_ROLE, step: NORA_STEP,
-      prompt: noraPrompt(s, { type, step, round }), item: s.initiative, round, maxTurns: NORA_MAX_TURNS, timeoutMs: ctx.watch.timeoutMs ?? NORA_TIMEOUT_MS, inputs, jsonSchema: NORA_SCHEMA, now: ctx.now,
+      prompt: noraPrompt(s, { type, step, round, answers: step === 'continue' ? ctx.tessAnswers ?? [] : [] }), item: s.initiative, round, maxTurns: NORA_MAX_TURNS, timeoutMs: ctx.watch.timeoutMs ?? NORA_TIMEOUT_MS, inputs, jsonSchema: NORA_SCHEMA, now: ctx.now,
       session: { keep: true, resumeFrom: ctx.lastLaunch },
     });
   } catch (err) {
@@ -347,9 +349,12 @@ async function documentLoop(ctx, type) {
     next = { type, step: 'fix', extra: fixFrom(c) };
   }
   let lintFixes = 0;
+  // 42's P2 third run: a continue after the ticket planner's pause must change the document.
+  const takes = next.step === 'continue' && ctx.tessAnswers?.length ? readDoc(ctx.s, type)?.text ?? null : undefined;
   for (;;) {
     const l = await noraLaunch(ctx, next);
     if (l.end) return l.end;
+    if (takes !== undefined && next.step === 'continue' && (readDoc(ctx.s, type)?.text ?? null) === takes) return { state: 'failed', document: type, why: `the ${type === 'prd' ? 'PRD' : type} didn't take ${ctx.tessAnswers.join(' and ')}'s answer: it is unchanged after her continue step` };
     const c = await checks(ctx, type);
     if (c.stage === 'done') return doneWith(ctx, type, c);
     if (c.stage === 'error') return { state: 'failed', document: type, why: c.why };
@@ -367,6 +372,18 @@ function interviewCycle(s) {
   return i ? contentHash(Buffer.from(i.text, 'utf8')) : null;
 }
 
+// A ticket planner's pause the PRD hasn't taken yet (42's P2 third run, Jet's "A", 2026-11-25): the
+// initiative's last `tess_run` is paused on Q-n, that question is answered in the interview now, and
+// no run of Nora's has ended since. Returns the question ids, or [].
+export function tessAnswersToTake(events, initiative, interview) {
+  const pause = events.filter((e) => e.type === 'tess_run' && e.item === initiative && e.state !== 'running').at(-1);
+  if (pause?.state !== 'paused' || typeof pause.question_id !== 'string') return [];
+  const taken = events.some((e) => e.type === 'nora_run' && e.item === initiative && e.state !== 'running' && e.seq > pause.seq);
+  if (taken) return [];
+  const q = interview?.doc ? questionsOf(interview.doc).find((x) => x.id === pause.question_id) : null;
+  return q?.answer?.text ? [pause.question_id] : [];
+}
+
 // The last run's line for the initiative, from the journal: the `nora_run` event, or null.
 export function lastNoraRun(events, initiative) {
   return events.filter((e) => e.type === 'nora_run' && e.item === initiative).at(-1) ?? null;
@@ -377,7 +394,9 @@ export function lastNoraRun(events, initiative) {
 // `verifyLaunch`, `readerLaunch` and `readerClaude` stand in for Vera's and the reader's in tests.
 export async function runNora({ cwd, env, initiative, nextToken, launch = launchInRun, verify = runVerify, verifyLaunch = null, reader = runReaderTest, readerLaunch = null, readerClaude = null, launchOptions = {}, onStep = () => {}, now = () => new Date() }) {
   const s = noraSubject({ cwd, env, initiative });
-  const before = lastNoraRun(readJournal(s.store).events, initiative);
+  const events = readJournal(s.store).events;
+  const before = lastNoraRun(events, initiative);
+  const tessAnswers = tessAnswersToTake(events, initiative, s.interview);
   const watch = Object.fromEntries(Object.entries(launchOptions).filter(([k]) => LAUNCH_OPTIONS.includes(k)));
   return await withRun({ cwd, env }, async ({ store, runId }) => {
     s.store = store;
@@ -387,7 +406,9 @@ export async function runNora({ cwd, env, initiative, nextToken, launch = launch
       // The cycle of Vera's rounds: the interview as this run starts (your answers change it).
       cycle: interviewCycle(s), rounds: { lint: 0, verify: 0, reader: 0 },
       // A run after a pause continues the document she paused on, from your answers.
-      pausedOn: before?.state === 'paused' ? before.document ?? null : null,
+      // 42's P2 third run: a ticket planner's pause continues the PRD, with the answers named.
+      pausedOn: tessAnswers.length ? 'prd' : before?.state === 'paused' ? before.document ?? null : null,
+      tessAnswers,
     };
     appendEvent(store, { type: 'nora_run', by: 'script', item: initiative, run_id: runId, state: 'running' });
     let end = null;
