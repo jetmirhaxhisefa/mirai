@@ -233,6 +233,27 @@ By hand (you see each refusal yourself):
   edit on a sample PHPUnit file: AC-SAMPLE-1.2 taken out of its TestDox text and its method name;
   AC-SAMPLE-1.1 kept; still a test_ method"). Test `43 (P2's rerun)`.
 
+### P2 at `e8cf212` (2026-11-25, `~/mirai-u43-p2.txt`, home `~/.mirai-probes-IlL9Fd`): two bugs
+
+- The hand edit worked, the build handed over, Rex passed; then the proofs step stopped: "this
+  process already holds …/run.lock (locks are not re-entrant)".
+- **The lock was the probe's:** its proofs-step wrapper called Rex's review itself, and the run
+  doesn't pass its own run to the proofs step, so the review took the lock again. Fixed in the
+  probe: the hand edit and Rex's review of it now happen in the run's review step (its run and
+  lock), right after his first pass.
+- **A real bug behind it, in `mirai run`** (`nextStep`, `src/run/drive.js`), found by the new test:
+  after a failing trace, Kai's fix round hands over new code on top of Rex's earlier *pass*, and the
+  next step was the proofs again (that pass looked current), which refused it (`review-stale`), so
+  the run stopped instead of asking Rex. Now the proofs come next only when the passed review covers
+  the last handed-over commit (the same commit, or after it, as the probe's hand edit is); else Rex
+  reviews first.
+- **Test** `43 (P2 at e8cf212)` (`test/proofs/trace.test.js`): `mirai run` (driveTicket, its one
+  lock) from PMT-31 reviewed: proofs `trace-failed` (AC-PMT-31.2) → fix `handed-over` → review
+  `pass` → proofs `recorded` → ship `opened`; the gate check passes at the branch. Before the fix it
+  stopped `review-stale`.
+- Not cage files: `src/run/drive.js` and `test/probes/trace-probes.js` are outside the cage.
+- On the Mac after the fix: **893/893 pass**, 0 skipped; `--check` exit 0. Queued: `u43-tests-5`.
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`), so a `redteam-full` run is queued with the tests:

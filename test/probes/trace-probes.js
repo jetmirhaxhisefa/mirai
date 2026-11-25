@@ -231,26 +231,30 @@ async function ship(ctx, repo, { p2 }) {
   const fixes = [];
   const steps = {
     ...STEPS,
-    recordProofs: async (o) => {
-      // P2: the first time the ticket reaches the gate, its AC-SAMPLE-1.2 test is taken out by hand.
-      if (p2 && !taken) {
-        taken = true;
-        const files = takeOutTest(ctx);
-        if (!files.length) {
-          ctx.log('p2: no test file of the branch names AC-SAMPLE-1.2 (as "AC-SAMPLE-1.2: …" or a test_ac_sample_1_2_… method), so there is nothing to take out (P1 would fail first)');
-          return { outcome: 'needs-you', why: 'nothing to take out' };
-        }
-        ctx.git('add', '-A');
-        ctx.git('commit', '-qm', 'probe: AC-SAMPLE-1.2\'s test taken out by hand (unit 43, P2)');
-        ctx.log(`p2-hand: AC-SAMPLE-1.2 taken out of ${files.join(', ')}, committed; Rex reviews that commit first`);
-        const rv = await STEPS.runReview({ cwd: o.cwd, env: o.env, ticket: 'SAMPLE-1', launchToken: mintLaunchToken(), launchOptions: opts });
-        ctx.log(`p2-review: ${rv.outcome}${rv.why ? `: ${String(rv.why).slice(0, 300)}` : ''}${rv.blocking?.length ? `; blocking ${rv.blocking.join(', ')}` : ''}`);
-        if (rv.outcome !== 'pass') {
-          ctx.log('p2: Rex caught the missing test before the gate (his findings go to Kai): trace\'s own stop isn\'t exercised in this run');
-          gates.push({ outcome: `review ${rv.outcome}` });
-          return { outcome: rv.outcome === 'changes' ? 'trace-failed' : 'needs-you', why: `Rex: ${rv.outcome}` };
-        }
+    // P2: once Rex has passed the build, its AC-SAMPLE-1.2 test is taken out by hand and committed,
+    // and Rex reviews that commit, inside the run's own review step (its lock and run; P2 at e8cf212
+    // called the review from inside the proofs step, outside the run, and the lock refused it).
+    runReview: async (o) => {
+      const first = await STEPS.runReview(o);
+      if (!p2 || taken || first.outcome !== 'pass') return first;
+      taken = true;
+      const files = takeOutTest(ctx);
+      if (!files.length) {
+        ctx.log('p2: no test file of the branch names AC-SAMPLE-1.2 (as "AC-SAMPLE-1.2: …" or a test_ac_sample_1_2_… method), so there is nothing to take out (P1 would fail first)');
+        return { ...first, outcome: 'needs-you', why: 'nothing to take out' };
       }
+      ctx.git('add', '-A');
+      ctx.git('commit', '-qm', 'probe: AC-SAMPLE-1.2\'s test taken out by hand (unit 43, P2)');
+      ctx.log(`p2-hand: AC-SAMPLE-1.2 taken out of ${files.join(', ')}, committed; Rex reviews that commit first`);
+      const rv = await STEPS.runReview({ ...o, launchToken: mintLaunchToken() });
+      ctx.log(`p2-review: ${rv.outcome}${rv.why ? `: ${String(rv.why).slice(0, 300)}` : ''}${rv.blocking?.length ? `; blocking ${rv.blocking.join(', ')}` : ''}`);
+      if (rv.outcome !== 'pass') {
+        ctx.log('p2: Rex caught the missing test before the gate (his findings go to Kai): trace\'s own stop isn\'t exercised in this run');
+        gates.push({ outcome: `review ${rv.outcome}` });
+      }
+      return rv;
+    },
+    recordProofs: async (o) => {
       const r = await STEPS.recordProofs(o);
       ctx.log(`${label}-gate: ${r.outcome}${r.why ? `: ${String(r.why).slice(0, 400)}` : ''}`);
       traceLog(ctx.log, `${label}-gate`, r);

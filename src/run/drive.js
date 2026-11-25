@@ -104,7 +104,11 @@ export function nextStep({ store, ticket, trust, config, keys }) {
     // changed since, `review-stale`).
     const latest = reviewsOf(store, ticket).at(-1)?.record ?? null;
     const onBranch = latest?.commit && head && (latest.commit === head || isAncestor(store.checkout, latest.commit, head, store.gitEnv));
-    if (latest && onBranch && latest.complete === true && latest.outcome === 'pass') return { step: 'proofs', branch };
+    // Unit 43 (P2): a fix round after a failing trace hands over new code on top of a passed review;
+    // that review covers the code only when the last handed-over commit is the reviewed one (or before it).
+    const handed = last?.outcome === 'handed-over' ? last.commit ?? null : null;
+    const covers = !handed || handed === latest?.commit || isAncestor(store.checkout, handed, latest?.commit, store.gitEnv);
+    if (latest && onBranch && covers && latest.complete === true && latest.outcome === 'pass') return { step: 'proofs', branch };
     if (latest && latest.commit === head && latest.outcome === 'needs-you') return { stop: { kind: 'needs-you', why: `${fullName('mirai-reviewer')}'s review of ${ticket} stopped for you: ${latest.why ?? 'a protected path'}`, next: `mirai show ${ticket}` } };
     return { step: 'review', branch };
   }

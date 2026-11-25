@@ -17,6 +17,11 @@ import { loadSigner } from '../../src/sign/signer.js';
 import { readTicketStatus } from '../../src/store/tickets.js';
 import { resultContext } from '../../src/tests/run.js';
 import { readTraceRecord } from '../../src/trace/gate.js';
+import { recordProofs } from '../../src/proofs/record.js';
+import { driveTicket, STEPS } from '../../src/run/drive.js';
+import { appendEvent } from '../../src/store/journal.js';
+import { commitOf } from '../../src/store/git.js';
+import { openStore } from '../../src/store/home.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../src/trust/snapshot.js';
 import { needsTest } from '../helpers/needs.js';
 import { CASES, casesFolder, claudeWith, done, passed, passing, tty, watch } from './fixture.js';
@@ -185,4 +190,37 @@ launchTest('43 T8: trace(item) is a read-only broker tool in every launch; it re
   assert.equal(cli.code, EXIT.FAILURE);
   assert.match(cli.out, /^trace PMT-31 \(the code\): fail\n/);
   assert.match(cli.out, /ok {7}AC-PMT-31\.1 → tests\/Unit\/RenameTeamTest\.php::AC-PMT-31\.1: renaming keeps the team's name and slug rules \(unit\)/);
+});
+
+// P2's sequence under `mirai run`'s one lock (P2 at e8cf212 stopped on "this process already holds
+// …/run.lock"): the run's proofs step with a failing trace sends the ticket to Kai's fix round, then
+// Rex, then the gate records the proofs with trace pass, and the run ships. Stand-ins: claude, the
+// test runs, the host. Every step here runs inside the run, so a lock taken twice would throw.
+launchTest('43 (P2 at e8cf212): under mirai run\'s lock, a failing trace at the proofs step goes to Kai\'s fix round, then Rex, then the proofs with trace pass, then the MR', async () => {
+  const f = await passed();
+  let gate = 0;
+  const steps = {
+    ...STEPS,
+    probeUsage: async () => ({ outcome: 'ok' }),
+    recordBaseline: async () => ({ baseline: { complete: true }, reused: true }),
+    runFix: (o) => runFix({ ...o, testRun: passing }),
+    recordProofs: (o) => recordProofs({ ...o, run: (gate++ === 0 ? only31 : passing) }),
+    writeRunReport: async () => ({}),
+    shipTicket: async ({ cwd, env, ticket }) => {
+      const store = openStore({ cwd, env });
+      const branch = JSON.parse(readFileSync(buildRecordPath(store, ticket), 'utf8')).branch;
+      const head = commitOf(store.checkout, `refs/heads/${branch}`, store.gitEnv);
+      appendEvent(store, { type: 'pushed', by: 'script', ticket, branch, sha: head, proofs: 'pass' });
+      appendEvent(store, { type: 'mr_opened', by: 'script', ticket, head, target: 'main', number: 7, url: 'https://github.com/acme/app/pull/7' });
+      return { ticket, outcome: 'opened', mr: { number: 7, url: 'https://github.com/acme/app/pull/7' }, head, pushed: true, branch };
+    },
+  };
+  const claude = claudeWith([done, { verdict: 'pass', findings: [] }], ['printf "// AC-PMT-31.2 tests named\\n" >> app/Team.php']);
+  const r = await driveTicket({ cwd: f.root, env: f.env, ticket: 'PMT-31', steps, launchOptions: watch(claude), caffeinate: () => ({ stop: () => {}, note: null }) });
+  assert.equal(r.outcome, 'finished', JSON.stringify(r.stop));
+  assert.deepEqual(r.steps.map((x) => [x.step, x.outcome]), [['proofs', 'trace-failed'], ['fix', 'handed-over'], ['review', 'pass'], ['proofs', 'recorded'], ['ship', 'opened']]);
+  assert.equal(r.mr, 'https://github.com/acme/app/pull/7');
+  assert.equal(readTraceRecord(f.store, 'PMT-31').missing[0].id, 'AC-PMT-31.2');
+  const branch = JSON.parse(readFileSync(buildRecordPath(f.store, 'PMT-31'), 'utf8')).branch;
+  assert.equal(f.check(f.git('rev-parse', branch)).outcome, 'pass');
 });
