@@ -218,6 +218,21 @@ By hand (you see each refusal yourself):
      change only reads names. No case changes; `u43-tests-2`, `u43-baseline-2` and `u43-redteam-2`
      ran at the new head.
 
+### P2's rerun (2026-11-25, at `747f0bf`, `~/mirai-u43-p2.txt`): stopped in the probe
+
+- `u43-tests-3`, `u43-baseline-3` pass; `u43-redteam-3` **GREEN** (only the accepted
+  `h-timeout-link` and `l-cd` fail) at `747f0bf`.
+- P2's hand edit found nothing to take out: Kai named the tests the PHPUnit way
+  (`test_ac_sample_1_2_another_users_task_cant_be_deleted`, Jet's Q3 "A"), and the edit looked only
+  for the text form `AC-SAMPLE-1.2`.
+- **Fixed (test tooling only, no cage file):** `withoutAc` in `test/probes/trace-probes.js` takes the
+  ID out of both forms: the text form (`AC-SAMPLE-1.2: …` in a TestDox or a free name) and the
+  method name (`test_ac_sample_1_2_x` → `test_x`; `…_and_ac_sample_1_2_…` dropped; a method that is
+  only the ID → `test_ac_taken_out_by_the_probe`), so it stays a PHPUnit test that runs and passes
+  and only trace notices. `--check` runs it on a sample PHPUnit file (a third line: "p2 the hand
+  edit on a sample PHPUnit file: AC-SAMPLE-1.2 taken out of its TestDox text and its method name;
+  AC-SAMPLE-1.1 kept; still a test_ method"). Test `43 (P2's rerun)`.
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`), so a `redteam-full` run is queued with the tests:

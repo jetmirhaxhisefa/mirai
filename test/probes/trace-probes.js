@@ -57,11 +57,39 @@ const STANDIN = `sk-ant-oat01-${'Probe_u43_ck'.repeat(4)}`;
 const TICKET_FILE = 'docs/mirai/tickets/SAMPLE-1.md';
 export const REMOVED = 'SAMPLE-1.2-taken-out-by-the-probe';
 
+// A PHPUnit test file as Kai writes it (P1's and P2's reruns), for --check's run of the hand edit.
+export const P2_SAMPLE = `<?php
+class TaskDeleteTest extends TestCase
+{
+    #[TestDox('AC-SAMPLE-1.1: deleting your own task removes it')]
+    public function test_ac_sample_1_1_deleting_your_own_task_removes_it(): void {}
+
+    #[TestDox("AC-SAMPLE-1.2: another user's task can't be deleted")]
+    public function test_ac_sample_1_2_another_users_task_cant_be_deleted(): void {}
+}
+`;
+
 // SAMPLE-1 with two ACs: its third (the 404) taken out.
 export function twoAcs(ticket) {
   const out = ticket.replace(/- AC-SAMPLE-1\.3:[^]*?(?=\n## |\n*$)/, '').replace(/\n{3,}/g, '\n\n');
   if (/AC-SAMPLE-1\.3/.test(out) || !/AC-SAMPLE-1\.2/.test(out)) throw new Error('SAMPLE-1 isn\'t the ticket this probe expects');
   return `${out.replace(/\n+$/, '')}\n`;
+}
+
+// P2's hand edit on one file's text: AC-SAMPLE-1.2 out of every test name, in both forms trace reads
+// (P2's rerun: Kai names PHPUnit tests by their method, Jet's Q3 "A"):
+// - the text form ("AC-SAMPLE-1.2: …", a TestDox or a Pest/Vitest name) → REMOVED;
+// - the snake-case method name: `test_ac_sample_1_2_x` → `test_x`, `…_and_ac_sample_1_2_…` → `…_`,
+//   a method that is only the ID → `test_ac_taken_out_by_the_probe`. The test still runs and passes
+//   (it's still a `test_` method); only trace sees the ID is gone.
+// Returns the text, unchanged when it names neither form.
+export function withoutAc(text) {
+  return text
+    .replaceAll('AC-SAMPLE-1.2', REMOVED)
+    .replace(/_and_ac_sample_1_2(?=_|\b)/g, '')
+    .replace(/\b(test_?)ac_sample_1_2_(?=[A-Za-z0-9])/g, '$1')
+    .replace(/\b(test_?)ac_sample_1_2\b/g, '$1ac_taken_out_by_the_probe')
+    .replace(/\b(?<!test_)ac_sample_1_2_(?=[A-Za-z0-9])/g, 'ac_taken_out_');
 }
 
 // P2's hand edit: every test file the branch changed loses AC-SAMPLE-1.2 from its test names, so no
@@ -76,8 +104,9 @@ export function takeOutTest({ root, git }) {
     } catch {
       continue;
     }
-    if (!text.includes('AC-SAMPLE-1.2')) continue;
-    writeFileSync(join(root, f), text.replaceAll('AC-SAMPLE-1.2', REMOVED));
+    const out = withoutAc(text);
+    if (out === text) continue;
+    writeFileSync(join(root, f), out);
     changed.push(f);
   }
   return changed;
@@ -208,7 +237,7 @@ async function ship(ctx, repo, { p2 }) {
         taken = true;
         const files = takeOutTest(ctx);
         if (!files.length) {
-          ctx.log('p2: no test file of the branch names AC-SAMPLE-1.2, so there is nothing to take out (P1 would fail first)');
+          ctx.log('p2: no test file of the branch names AC-SAMPLE-1.2 (as "AC-SAMPLE-1.2: …" or a test_ac_sample_1_2_… method), so there is nothing to take out (P1 would fail first)');
           return { outcome: 'needs-you', why: 'nothing to take out' };
         }
         ctx.git('add', '-A');
@@ -345,6 +374,11 @@ async function cli() {
       spawnSync('/bin/chmod', ['-R', 'u+rwX', workdir]);
       rmSync(workdir, { recursive: true, force: true });
     }
+    const sample = P2_SAMPLE;
+    const edited = withoutAc(sample);
+    const ok = !/AC-SAMPLE-1\.2|ac_sample_1_2/.test(edited) && /public function test_another_users_task_cant_be_deleted\(\)/.test(edited) && edited.includes('test_ac_sample_1_1_deleting_your_own_task_removes_it');
+    log(`p2 the hand edit on a sample PHPUnit file: ${ok ? 'AC-SAMPLE-1.2 taken out of its TestDox text and its method name; AC-SAMPLE-1.1 kept; still a test_ method' : 'NOT as expected'}`);
+    if (!ok) bad += 1;
     const w3 = tmp();
     try {
       const home = await setHome({ workdir: w3, token: STANDIN });

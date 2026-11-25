@@ -22,7 +22,8 @@ import { MIRAI_COMMAND } from '../../src/adapters/claude-code.js';
 import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { installed } from '../tests/run-fixture.js';
-import { P3_TICKET, REMOVED, p3Auto, setHome, setTrace, shipVerdict, takeOutTest, twoAcs } from '../probes/trace-probes.js';
+import { P2_SAMPLE, P3_TICKET, REMOVED, p3Auto, setHome, setTrace, shipVerdict, takeOutTest, twoAcs, withoutAc } from '../probes/trace-probes.js';
+import { namedIds as idsOf } from '../../src/trace/ticket.js';
 
 // Unit 43: `mirai trace`, the documents' scope and the code's, as pure functions and through the
 // CLI, Tess's run and the epic's approval. No model runs. The ship-time half (the gate, the fix
@@ -362,6 +363,21 @@ test('43 (probes): P3 --auto on a temp home: the probe key approves the PRD, the
   assert.equal(readFileSync(join(workdir, 'app/x.php'), 'utf8'), 'AC-SAMPLE-1.2\n', 'not a test file');
   const importers = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? importers(join(dir, e.name)) : e.name.endsWith('.js') && /trace-probes/.test(readFileSync(join(dir, e.name), 'utf8')) ? [join(dir, e.name)] : []));
   assert.deepEqual(importers(join(REGISTRY_DIR, '..', 'src')), []);
+});
+
+test('43 (P2\'s rerun): the hand edit takes AC-SAMPLE-1.2 out of both forms trace reads, the text and the PHPUnit method, and leaves a test that still runs', () => {
+  const out = withoutAc(P2_SAMPLE);
+  assert.doesNotMatch(out, /AC-SAMPLE-1\.2|ac_sample_1_2/);
+  assert.match(out, /public function test_another_users_task_cant_be_deleted\(\): void/);
+  assert.match(out, /#\[TestDox\("SAMPLE-1\.2-taken-out-by-the-probe: another user's task can't be deleted"\)\]/);
+  assert.match(out, /test_ac_sample_1_1_deleting_your_own_task_removes_it/, 'AC-SAMPLE-1.1 kept');
+  const cand = ['AC-SAMPLE-1.1', 'AC-SAMPLE-1.2'];
+  assert.deepEqual(idsOf('test_another_users_task_cant_be_deleted', cand), [], 'trace no longer reads the ID');
+  assert.equal(withoutAc('public function test_ac_sample_1_1_and_ac_sample_1_2_both(): void'), 'public function test_ac_sample_1_1_both(): void');
+  assert.equal(withoutAc('public function test_ac_sample_1_2(): void'), 'public function test_ac_taken_out_by_the_probe(): void');
+  assert.equal(withoutAc('public function test_ac_sample_1_23_x(): void'), 'public function test_ac_sample_1_23_x(): void', 'another ID left alone');
+  assert.equal(withoutAc("it('AC-SAMPLE-1.2: stays', …)"), `it('${REMOVED}: stays', …)`);
+  assert.equal(withoutAc('nothing here'), 'nothing here');
 });
 
 test('43 (P1 and P2\'s first runs): the probe says PASS only when its pass line holds, else FAIL with why (and exits 1)', () => {
