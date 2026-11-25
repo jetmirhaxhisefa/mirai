@@ -149,6 +149,27 @@ version on her own tier, standard. A run with no fixes: 1 Tess launch, 1 Vera ch
 adds 1 of each. P2's pause adds Nora's continue step (Opus, 1–3 launches with her checks) and a
 second Tess run.
 
+### `--auto` (Jet, 2026-11-25 night): the probes with no typing, test tooling only
+
+`node test/probes/tess-probes.js --yes --auto [--answer <letter>] --probe loop --home <dir>`, for
+P1, P2 and P4 (P3 tests the interview session itself, so `--auto` refuses it with that reason):
+
+- **The PRD's approval** (before her first run, and again after Nora's update on a pause) goes
+  through `mirai approve` with a stand-in terminal, signed with **the probe home's own key**, never
+  yours; a journal note follows each one ("probe --auto: due-dates-prd approved with the probe
+  home's key, not yours (seq n)"). Vera's and the reader's results it needs are the real ones from
+  the runs (the seeded ones only for the PRD the probe starts from). Nothing in `src/` changes:
+  `mirai approve` stays yours, and nothing in `src/` imports the probe (a test checks).
+- **On a pause,** her question is answered in interview.md under its `### Q-n` (`Answer: <letter>.`,
+  her guess unless `--answer` names another, then "probe: answered automatically"), the state set
+  `confirmed` with today's "Confirmed: yes (<date>)", and the lint run; then the loop goes on as
+  with you (commit, Nora, the re-approval, Tess again).
+- **Each auto step prints** `AUTO: …`; at the end a summary for your review: the pause question, the
+  PRD's lines added and removed since the loop started, each ticket (key, type, title, size,
+  after, `e2e`), and Vera's last result on the epic with any open must-fix.
+- **Test** `42 (probes --auto)`: the auto answer writes a confirmed, lint-clean interview; the probe
+  key approves the PRD, with its note; P3 is refused; nothing in `src/` imports it.
+
 ### Before the probes (once, in Terminal)
 
 1. `cd ~/Projects/mirai && git fetch origin unit/42-build`
@@ -272,13 +293,60 @@ reminder job's ticket can't meet both.
      constant, so they can't drift. Nora's prompt had no placement rule either: it has it now.
   2. **MIRAI's message names the place:** the shared check (`checkPause`, used by Nora's and Tess's
      pause ends) finds a named question outside `## Questions` and says so: "she says she paused on
-     Q-8, but interview.md has Q-8, but outside ## Questions (line N, after ## Restatement): it must
+     Q-8, but interview.md has Q-8 outside ## Questions (line N, after ## Restatement): it must
      be the last question inside ## Questions". The run still ends `failed`; MIRAI doesn't move it.
   3. **Tests:** `42 (P2's second run)` (Tess: after the restatement, failed with the message and its
      line; inside `## Questions`, paused; her prompt and both agent files carry the text) and `41
      (42's P2 rerun)` (Nora: the same failure and message; her prompt carries it).
 - Not a cage file: `src/agent/pause.js`, `src/nora/run.js` and `src/tess/run.js` are outside the
   cage; the agents' `.md` prompts aren't cage data (only their `.toml`).
+
+### P2's third run (Jet, 2026-11-25, home `~/.mirai-probes-DuILMO`, at `3315d54`, output `~/mirai-u42-p2.txt`): failed (Nora didn't take the answer; Tess cut from the answer)
+
+- **Tess paused correctly:** Q-8 inside `## Questions`, naming NFR-3, FR-4 and FR-7, options A, B
+  and C; Jet answered A and confirmed.
+- **Nora's run did nothing:** `nora_run` done with 0 launches and every round 0; `prd.md` stayed
+  byte-identical to the seed (no commit touched it after `e3a0594`). Her run continued only a
+  document *she* had paused on (`pausedOn`, from her own last run); a pause of Tess's didn't set it,
+  so every document's checks were reused.
+- **The loop's re-approval step was empty:** the PRD's old approval still matched, so the loop
+  printed the approval command and at once "the PRD is approved again; Tess starts again".
+- **Tess then fixed the gap in a ticket:** her continue run cut 8 tickets following the answer
+  (SAMPLE-6: "One start a day at 18:00 UTC"; its Notes: "The owner answered Q-8 with A … The PRD's
+  FR-4 and it…") while the PRD still contradicted itself: what decision 3 forbids.
+- `mirai show` listed the brief as "changed since approval" (the interview it's signed with had
+  changed).
+- **Fixed (Jet's "A", 2026-11-25):**
+  1. **Nora takes a Tess pause** (`tessAnswersToTake`, `src/nora/run.js`): when the initiative's
+     last `tess_run` is paused on Q-n, that Q-n is answered now, and no run of Nora's has ended
+     since, her run continues the PRD (`step: continue`) with the answer named in her step ("the
+     ticket planner paused on Q-8, and the owner's answer must change the prd: settle what it
+     answers in the prd itself …"), bringing the brief in line in the same launch where the answer
+     changes it; then MIRAI's checks on each changed document, in a new Vera cycle (the interview
+     changed). A PRD unchanged after that launch ends the run `failed`: "the PRD didn't take Q-8's
+     answer: it is unchanged after her continue step". Her agent file says so too.
+  2. **Tess is refused while the PRD is behind the answer** (`prd-behind-answer`, `mirai tickets`
+     on an initiative; not lone tickets): while her last run paused on Q-n and the PRD hasn't been
+     approved since that pause, "the PRD hasn't taken Q-8's answer: …", or while the interview the
+     brief was approved with has changed since, "the interview changed after the brief and the PRD
+     were approved …"; the hint: `/mirai write <initiative>`, then `mirai approve <prd-id> --file …`.
+  3. **The loop** (`afterPause`, `tess-probes.js`) waits for a *new* approval line of the PRD (a seq
+     after the one before Nora), and when Nora's run isn't done it stops with her reason instead of
+     printing the approval command.
+  4. **The brief:** 41's rules are kept. On `standard` one decision approves the brief and the PRD
+     together and binds the interview, so approving the PRD again re-approves the brief with the
+     answered interview (and clears "changed since approval"). On `full` the brief is approved on
+     its own first, as 32's rule already requires (the PRD's approval refuses a brief not approved
+     as it is now).
+  5. **The message wording:** "interview.md has Q-8 outside ## Questions (line N, after ##
+     Restatement): it must be the last question inside ## Questions".
+- **Tests:** `41 (42's P2 third run)` ×2 (Nora continues the PRD with the answer named and changes
+  it, and a later run doesn't continue it again; an unchanged PRD ends failed); 42 T4 (after the
+  answer, Tess is refused with `prd-behind-answer` until the PRD is changed and approved again,
+  then continues); `42 (P2's third run)` ×2 (refused while the brief's interview changed; the loop
+  stops on Nora's failure, times out on the old approval, ends on a new one).
+- **Cage:** none. `src/nora/run.js`, `src/tess/run.js`, `src/agent/pause.js` are outside the cage;
+  the journal's schema is unchanged (her pause already records `question_id`).
 
 ### P3 A technical ticket by hand (a session of yours, then 1 Sonnet launch and 1 Vera check)
 
@@ -541,7 +609,17 @@ The question as asked:
 clean. **The full suite on the Mac** (`caffeinate -i npm test` at `0f8c1fa`): **853/853 pass**, 0
 skipped. After it: test results and PROGRESS only.
 
-**Through the build runner** (a clean export each):
+**Through the build runner** (a clean export each), after Jet's answers:
+- `u42-tests-2`, `u42-baseline-2`, `u42-redteam-2` at `40f237f`: pass, pass, GREEN.
+- `u42-tests-3` at `b45d109`: pass, 858/858.
+- `u42-tests-4`, `u42-baseline-3`, `u42-redteam-3` at `89a4016` (the PRD's testability lint, cage
+  files): pass, pass, GREEN.
+- `u42-tests-5`, `u42-baseline-4`, `u42-redteam-4` at `3397272` (`--answer`, cage files): pass,
+  pass, GREEN.
+- `u42-tests-6` at `3315d54` (the pause's place): queued, running at the time of writing.
+- `u42-tests-7` at the head with P2's third-run fixes and `--auto`: queued.
+
+**Before that:**
 - `u42-tests-1` at `b2fdbb5`: **pass, 853/853**, 16.7 minutes; `u42-baseline-1` pass;
   `u42-redteam-1` **GREEN** (Claude Code 2.1.331).
 - After Jet's answers, on the Mac at `e3f6774`: **857/857 pass**, 0 skipped
