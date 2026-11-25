@@ -113,6 +113,7 @@ The ticket must be `ready-for-dev`. The ticket on the integration branch must be
    - Kai is told each note still holds unless a later note or the ticket says otherwise.
    - Where a note and the approved ticket disagree, Kai follows the ticket, and the reject warns you to edit the ticket instead.
 8. **The gate.** A plan that passes waits for you.
+9. **Test names** (unit 43). Each test row's name starts with the AC it proves and a colon (`AC-SAMPLE-53.2: a day is sent once`), an e2e test's with its journey too (`J-1, AC-SAMPLE-53.1: …`), and the Test ID carries that name. `mirai trace` reads them from the gate's results at ship time ([trace.md](trace.md)); Kai and Rex have the read-only `trace` tool to see what's missing.
 
 ## The plan gate: `mirai approve <ticket> --plan`
 
@@ -196,6 +197,8 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai ticket "the log format in GCP should change to the new structure"   # one ticket by hand: at most 3 questions, then Tess
 /mirai ticket fix SAMPLE-60    # Tess fixes a lone ticket from Vera's findings on it (mirai tickets fix SAMPLE-60)
 /mirai ticket fix SAMPLE-60 "read the X-Cloud-Trace-Context header"   # your answer to an open point in its Notes (--answer)
+/mirai trace due-dates         # the chain of an initiative's documents (docs/trace.md)
+/mirai trace SAMPLE-53        # a ticket's ACs to passing tests named with their IDs (docs/trace.md)
 /mirai reader-test docs/mirai/due-dates/prd.md
 /mirai show overlays          # the project's overlays (docs/overlays.md)
 /mirai show template prd      # a type's template, with the approved overlays

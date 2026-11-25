@@ -32,9 +32,9 @@ const SHAPES = {
 };
 const OWN_NUMBERED = ['UJ', 'FR', 'NFR', 'A', 'DEP', 'PH'];
 const CONTINUED = ['NG', 'R', 'Q'];
-const VERIFIED = /^Verified by: *(.*)$/i;
+export const VERIFIED = /^Verified by: *(.*)$/i;
 // Singular or plural (P1's finding: "API tests that …" read as no method).
-const METHODS = /\b(unit tests?|integration tests?|api tests?|e2e tests?|end-to-end tests?|tests?|measurements?|measured|manual checks?)\b/i;
+export const METHODS = /\b(unit tests?|integration tests?|api tests?|e2e tests?|end-to-end tests?|tests?|measurements?|measured|manual checks?)\b/i;
 const ITEM = /^( *)(?:[-*+]|[0-9]{1,9}[.)])[ \t]+/;
 
 export function checkPrd(doc, def, ctx, add) {
@@ -213,7 +213,7 @@ function definitions(doc) {
 
 // The requirement and AC list items with their full statement (continuation lines joined, the
 // nested items cut off): { prefix, id, parent?, line, statement, lines }.
-function requirementItems(doc) {
+export function requirementItems(doc) {
   const out = [];
   const lines = doc.scan.lines;
   const re = /^( *)(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?:\*\*)?(AC-((?:FR|NFR)-[0-9]+)\.[0-9]+|FR-[0-9]+|NFR-[0-9]+)(?:\*\*)?(?::|[ \t]+—[ \t])[ \t]*(.*)$/;

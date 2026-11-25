@@ -5,6 +5,7 @@ import { checkPrd } from './prd.js';
 import { checkEpic } from './epic.js';
 import { checkInterview } from './interview.js';
 import { testabilityProblems } from './testable.js';
+import { idStabilityProblems } from './ids.js';
 import { DOC_OF_RUNS_AS, ticketTypesOf } from '../tickets/types.js';
 import { checkBusinessChange, checkRequirements } from './requirements.js';
 import { checkBusiness, checkConventions, checkFeatureMap, checkJourneys, checkProject } from './context.js';
@@ -163,6 +164,11 @@ export const CHECKS = Object.freeze({
   // Unit 41: your own requirements list, and a proposal to change business.md.
   requirements: (...a) => checkRequirements(...a),
   'business-change': (...a) => checkBusinessChange(...a),
+  // Unit 43 (Scope 8): retired IDs are never reused; only where the last approved version is known
+  // (approval passes it as `previous`).
+  'id-stability': (doc, def, ctx, add) => {
+    for (const p of idStabilityProblems(doc, ctx.previous)) add(p);
+  },
   // A ticket (story or bug): its repo is one of the config's repos (D-42); it doesn't wait
   // for itself or name a prerequisite twice; under a tickets/ folder its file is <id>.md
   // (design/03, the repo layout).

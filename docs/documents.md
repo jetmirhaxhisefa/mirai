@@ -715,6 +715,23 @@ the HLD and LLD types exist (unit 62).
 
 You should know what gets built, in what order and what to decide, without opening a ticket.
 
+### The chain: `mirai trace`
+
+Approving the set also runs `mirai trace <initiative>` (unit 43, [trace.md](trace.md)): every BR
+of the brief cited by an FR or NFR, every PRD FR, NFR and AC covered by a ticket (`covers_fr`,
+`covers_ac`), and every NFR saying how it's verified. A missing link refuses the approval, named
+with where to fix it. Tess's run already ran it between her launches, so a set she hands over has
+every link; `mirai show <initiative>` shows the result as the documents are now.
+
+**How tests are named.** Each ticket AC is proved by a test whose name starts with its ID and a
+colon: `AC-SAMPLE-53.2: a day is sent once` (`AC-SAMPLE-53.2, AC-SAMPLE-53.3: …` proves both). An
+`e2e: true` ticket's end-to-end test also names its journey: `J-1, AC-SAMPLE-53.1: …`. The plan's
+test list uses the same names. At ship time `mirai trace <ticket>` reads the gate's own results.
+
+**IDs stay.** Approving a PRD, or a set again, compares each FR, NFR and AC (and each ticket key
+and its own ACs) with the version you approved last: an ID that comes back with another meaning is
+refused (`id-stability`). Give a new requirement a new ID.
+
 ### What is generated
 
 The last four sections restate the tickets, so MIRAI writes them, never the author:

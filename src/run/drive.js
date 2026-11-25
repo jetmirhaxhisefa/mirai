@@ -171,7 +171,8 @@ export function afterStep(step, r, ticket) {
     case 'build': return ['handed-over', 'checks-failed'].includes(o) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
     case 'fix': return ['handed-over', 'checks-failed', 'replan'].includes(o) || (o === 'needs-you' && /rounds in one command/.test(why ?? '')) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
     case 'review': return ['pass', 'changes', 'replan'].includes(o) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
-    case 'proofs': return o === 'recorded' ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}); the failing tests are above`);
+    // Unit 43: a failing trace sent the ticket back to the fix loop (or to its re-plan): go on.
+    case 'proofs': return o === 'recorded' || o === 'trace-failed' ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}); the failing tests are above`);
     case 'ship': return ['opened', 'updated', 'unchanged'].includes(o) ? { shipped: true } : stop('needs-you', `mirai show ${ticket}`);
     default: return stop('needs-you', `mirai show ${ticket}`);
   }

@@ -36,6 +36,7 @@ import { documentLine } from '../../store/connectors/links.js';
 import { agentNamer, fullName } from '../../agent/names.js';
 import { applyChanges, changesOf } from '../../lint/requirements.js';
 import { addJourneys, newJourneys } from '../../tickets/journeys.js';
+import { traceDocuments } from '../../trace/documents.js';
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -460,7 +461,9 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   // own list beside it (requirements.md), as `mirai lint` checks it.
   if (pair) refuseOpenProposal(store, base, brief.file.path);
   const requirements = besideText(base, file.path, 'requirements.md');
-  const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [brief.link]: briefText, ...(requirements === null ? {} : { 'requirements.md': requirements }) } }) }];
+  // Unit 43 (Scope 8): the ID-stability lint against the version you last approved.
+  const previous = lastApprovedText(store, conn, 'prd', id, file.path);
+  const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, previous, linked: { [brief.link]: briefText, ...(requirements === null ? {} : { 'requirements.md': requirements }) } }) }];
   const interview = pair ? interviewOf(base, brief.file.path, briefText, registry) : { linked: {}, files: [] };
   if (pair) results.unshift({ path: brief.file.path, errors: lintText(briefText, { source: brief.file.path, registry, project, approving: true, linked: interview.linked }) });
   refuseOnLint(io, results);
@@ -636,8 +639,18 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
   const text = file.bytes.toString('utf8');
   const input = epicInputs(base, file.path, text, registry);
   const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [input.prdLink]: input.prd.bytes.toString('utf8') }, tickets: input.folder }) }];
-  for (const t of input.tickets) results.push({ path: t.path, errors: lintText(t.bytes.toString('utf8'), { source: t.path, registry, project, approving: true }) });
+  // Unit 43 (Scope 8): each ticket's IDs against the version the set's last approval signed.
+  const lastSet = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'epic' && e.item === id && e.decision !== 'rejected').at(-1);
+  const repoStore = !conn || conn.kind === 'repo';
+  for (const t of input.tickets) {
+    const signed = (lastSet?.files ?? []).find((f) => f.path === t.path);
+    const previous = signed && repoStore ? approvedText(store, t.path, signed.content_hash) : null;
+    results.push({ path: t.path, errors: lintText(t.bytes.toString('utf8'), { source: t.path, registry, project, approving: true, previous }) });
+  }
   refuseOnLint(io, results);
+  // Unit 43 (Scope 2): trace's documents scope, once more as the gate (Tess's run already ran it
+  // between her launches): a set with a broken link is refused, each link named with its place.
+  refuseOnTrace(io, traceOfSet({ base, file, text, input, registry }));
   const prdId = typeof input.prdValue.id === 'string' ? input.prdValue.id : null;
   const prdBefore = prdId ? documentApproval(store, prdId, input.prd.bytes) : { approved: false, stale: false };
   if (!prdBefore.approved) {
@@ -709,6 +722,37 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
   } finally {
     prompter.close();
   }
+}
+
+// Unit 43: the epic's set as trace's documents scope reads it: the brief its PRD links (when it
+// reads), the PRD, the epic and every ticket in tickets/ beside it.
+function traceOfSet({ base, file, text, input, registry }) {
+  const dir = posix.dirname(file.path);
+  const prdText = input.prd.bytes.toString('utf8');
+  let brief = null;
+  try {
+    const b = linkedBrief(base, input.prd.path, prdText, registry.documentTypes.prd);
+    brief = { path: b.file.path, text: b.file.bytes.toString('utf8') };
+  } catch {
+    brief = null;
+  }
+  return traceDocuments({
+    initiative: posix.basename(dir), registry, brief, prd: { path: input.prd.path, text: prdText }, epic: { path: file.path, text },
+    tickets: Object.entries(input.folder).map(([p, t]) => ({ path: posix.join(dir, p), text: t })),
+  });
+}
+
+function refuseOnTrace(io, t) {
+  if (t.result !== 'fail') return;
+  for (const m of t.missing.slice(0, 20)) io.stderr.write(`trace: ${plain(m.what)} (${plain(m.where)})\n`);
+  if (t.missing.length > 20) io.stderr.write(`trace: … and ${t.missing.length - 20} more\n`);
+  throw Object.assign(new MiraiError(`the set can't be approved yet: mirai trace finds ${t.missing.length} missing link${t.missing.length === 1 ? '' : 's'}, listed above; nothing was written`, EXIT.BLOCKED), { code: 'trace-fail', hint: `fix them (or run the ticket planner again: mirai tickets ${t.item}), check with mirai trace ${t.item}, then approve again` });
+}
+
+// The text of the document's last accepted approval, from git (on the repo store), or null.
+function lastApprovedText(store, conn, kind, id, path) {
+  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === kind && e.item === id && e.decision !== 'rejected').at(-1);
+  return last && (!conn || conn.kind === 'repo') ? approvedText(store, last.path ?? path, last.content_hash) : null;
 }
 
 // The lines changed since the document's last accepted approval (unit 42, decision 3): the approved

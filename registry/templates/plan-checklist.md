@@ -4,6 +4,7 @@ For the verifier on high-risk tickets. Each line is a yes / no question about th
 
 - Does the Intent say what and why, not how?
 - Does every AC in `acs` have a test at the lowest level that really proves it?
+- Does every test's name start with the AC it proves (`AC-PROJ-12.2: …`), and an e2e test's with its journey too (`J-1, AC-PROJ-12.1: …`), as `mirai trace` reads them?
 - Are characterization tests planned for the existing code the ticket changes, and only for it?
 - Does every new function or method have a stub step before its red test?
 - Is every protected path and new dependency declared, each with a reason?

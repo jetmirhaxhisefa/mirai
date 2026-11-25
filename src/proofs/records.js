@@ -17,6 +17,20 @@ const HASH = /^sha256:[0-9a-f]{64}$/;
 const SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 export const PROOF_NAME = /^(review|gate|qa)-r([1-9][0-9]{0,3})-([0-9a-f]{12})\.json$/;
 export const MAX_PROOF_BYTES = 256 * 1024;
+// Unit 43 (Scope 7): a proof carries `mirai trace`'s result. One minted before trace was built says
+// `trace: "n/a"`; it's still accepted when it was minted before this cut-off, and never after.
+export const TRACE_CUTOFF = '2026-12-01T00:00:00.000Z';
+
+// Whether a proof's trace lets it count: { ok } or { ok: false, why }.
+export function traceAccepted(p) {
+  if (p?.trace === 'n/a') {
+    return typeof p.minted_at === 'string' && p.minted_at < TRACE_CUTOFF
+      ? { ok: true, old: true }
+      : { ok: false, why: `its trace is "n/a", which only a proof minted before ${TRACE_CUTOFF.slice(0, 10)} (when mirai trace was built) may carry` };
+  }
+  if (p?.trace && typeof p.trace === 'object' && p.trace.result === 'pass') return { ok: true };
+  return { ok: false, why: `its trace result is ${p?.trace && typeof p.trace === 'object' ? String(p.trace.result ?? 'missing').slice(0, 20) : 'missing'}, not pass` };
+}
 
 export const proofName = ({ kind, round, codeHash }) => `${kind}-r${round}-${codeHash.slice('sha256:'.length, 'sha256:'.length + 12)}.json`;
 export const proofPath = (ticket, proof) => `${RECORDS_DIR}/${ticket}/${proofName(proof)}`;

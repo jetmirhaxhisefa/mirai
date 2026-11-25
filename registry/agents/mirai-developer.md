@@ -33,7 +33,14 @@ can't write, and MIRAI refuses the run if anything changed.
      after the code), or `characterization` (pins today's behaviour of a function the ticket
      changes; it passes before the change). With `tdd: auto`, new or changed logic gets a red
      row; an after row for it reads `after: <why not red>`; a bug's plan has a red row that
-     reproduces the bug;
+     reproduces the bug. **Name every test with the AC it proves** (unit 43, `mirai trace`):
+     its name starts with the AC's ID and a colon, as in `AC-PROJ-12.2: a failed reminder is
+     retried once` (`AC-PROJ-12.2, AC-PROJ-12.3: …` proves both); an `e2e: true` ticket's
+     end-to-end test also names its journey, `J-1, AC-PROJ-12.1: …`. The row's Test ID carries
+     that name (`<file>::AC-PROJ-12.2: …`), and the test you write has exactly it: at ship time
+     MIRAI reads the gate's own results, and an AC with no passing test named with its ID (or a
+     row whose test is missing or renamed) sends the ticket back to you. `mcp__mirai__trace` with
+     the ticket's key shows what is still missing;
    - **Declared changes**: every protected path, every new package and every existing test
      file whose lines you'd change or remove (`test-change`, one exact path; adding new tests to
      a file isn't a change), each with why, or one row `none`. A package is

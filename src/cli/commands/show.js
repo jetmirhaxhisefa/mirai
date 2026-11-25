@@ -26,6 +26,7 @@ import { hostWords, projectWords } from '../../ship/words.js';
 import { agentNamer } from '../../agent/names.js';
 import { noraStateLines } from '../../nora/state.js';
 import { tessStateLines } from '../../tess/state.js';
+import { traceInitiative } from '../../trace/documents.js';
 import { readyLines } from '../../tickets/pick.js';
 import { readRunState } from '../../store/run.js';
 
@@ -131,6 +132,16 @@ function initiativeOf({ cwd, env, name }) {
       const misses = events.filter((e) => e.type === 'verifier_miss' && e.item === d.id && e.path === d.rel).map((e) => ({ note: e.note ?? null, at: e.ts ?? null }));
       return { ...d, misses, line: documentLine({ store, config, conn, abs: d.path, rel: d.rel, bytes, events }) };
     });
+    // Unit 43 (Scope 2): trace's documents scope, as the documents are now (no model; the full list:
+    // mirai trace <initiative>).
+    if (docs.some((d) => d.type === 'prd')) {
+      try {
+        const t = traceInitiative({ cwd, env, initiative: name, store });
+        nora.push(t.result === 'pass' ? `trace: pass, ${t.links.length} links (mirai trace ${name} lists them)` : `trace: ${t.missing.length} missing link${t.missing.length === 1 ? '' : 's'}, such as "${plain(t.missing[0].what)}": mirai trace ${name}`);
+      } catch {
+        // a display only: mirai trace says why
+      }
+    }
   }
   return { exists, docsRoot: conn.docsRoot, shown: conn.kind === 'local' ? dir : shown, dir, name, docs, nora, store: conn.name };
 }

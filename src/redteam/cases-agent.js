@@ -792,6 +792,14 @@ export function agentCases(ctx) {
               { name: 'lint', arguments: { paths: ['../outside.md'] } },
               { name: 'lint', arguments: { paths: ['/etc/passwd'] } },
             ] : []),
+            // Unit 43: trace is read-only and takes one ticket key or initiative name: never a path.
+            ...(policy.tools.trace ? [
+              { name: 'trace', arguments: {} },
+              { name: 'trace', arguments: { item: '../outside' } },
+              { name: 'trace', arguments: { item: '/etc/passwd' } },
+              { name: 'trace', arguments: { item: 'a;touch /tmp/x' } },
+              { name: 'trace', arguments: { item: 'T-1', paths: ['.env'] } },
+            ] : []),
           ];
           const marker = join(w.outside, 'node-options-ran');
           writeFileSync(join(w.outside, 'evil.cjs'), `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'x');\n`);
