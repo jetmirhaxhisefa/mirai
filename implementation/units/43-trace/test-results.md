@@ -1,6 +1,15 @@
 # Unit 43: test results (2026-11-25)
 
-**Built, waiting for the probes and your approval.** Built on `unit/43-build` from `origin/main`
+**Approved (Jet, 2026-11-25: "approve 43"; P2 "B").** Runner: u43-tests-6 pass at `555f747`;
+u43-baseline-3 pass and u43-redteam-3 GREEN at `747f0bf` (no cage file changed after it, checked
+with `cageOf`); CI on PR #127 green. P1 PASSED (trace pass, 4 links; sample-app PR #19), P3 PASSED.
+**P2 is still to run for real:** its last run stopped on MIRAI's usage guard ("41% of the week is
+left; the next ticket would take it under the reserve of 40%"), not on trace; its whole sequence
+passes in the fake-launcher test `43 (P2 at 167278b)`. Jet's "B": merged now; P2 reruns after the
+weekly limit resets, recorded here; a failure is a follow-up PR. `TRACE_CUTOFF` is
+`2026-11-26T00:00:00.000Z` (the end of the merge day, UTC).
+
+**Built.** Built on `unit/43-build` from `origin/main`
 (`ec9b07c`: 42 merged). The spec's two re-check sections ("Re-checked against 37 as built" and
 "Re-checked against 42 as built", your Q1 "A") are what was built: MIRAI runs trace's documents
 scope between Tess's launches, with the lint, and a missing link goes to her next launch in
