@@ -7,13 +7,18 @@ kind = "document-type"
 schema_version = 1
 name = "interview"
 template = "templates/interview.md"
-template_version = 1
+template_version = 2
 checklist = "templates/interview-checklist.md"
 status = "forbidden"
 required_sections = ["Questions", "Restatement"]
-section_order = ["Questions", "Restatement"]
+# Unit 44: the intake (/mirai-new, /mirai-prd: at most 2 questions and the track) and the
+# look-ahead's assumptions (A-n, approved together), each only when there is one.
+optional_sections = ["Intake", "Assumptions"]
+section_order = ["Intake", "Questions", "Assumptions", "Restatement"]
 # A paused interview has no restatement yet.
-may_be_empty = ["Restatement"]
+may_be_empty = ["Restatement", "Assumptions"]
+# Unit 44: left out entirely when the request has none (no "Not applicable" line).
+may_be_absent = ["Intake", "Assumptions"]
 lint_checks = ["interview"]
 
 # open: questions are being asked; paused: the owner said "pause", or no one could be asked

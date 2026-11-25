@@ -1,5 +1,7 @@
 import { fullName } from '../agent/names.js';
 import { plain } from '../status/text.js';
+import { openQuestions } from '../lint/interview.js';
+import { parseDocument } from '../lint/lint.js';
 
 // Nora's state for an initiative (unit 41, Scope 6 and 7), from the journal only: the last
 // `nora_run` line, and every `template_gap` line filed under the initiative. `mirai show
@@ -56,4 +58,21 @@ export function noraStateLines(events, initiative, { who = (id) => fullName(id),
     for (const g of n.gaps) out.push(`  ${plain(g.template)}: ${plain(g.message)} (put in ${plain(g.section)})`);
   }
   return out;
+}
+
+// A document's "park" (unit 44, decision 2): no state of its own, an interview waiting for you.
+// From interview.md as it is (its text): "waiting for you: 3 questions in interview.md (Q-7…Q-9)",
+// or null when it isn't paused with an open question.
+export function waitingLine(text) {
+  let doc;
+  try {
+    doc = parseDocument(String(text ?? '').replace(/\r\n?/g, '\n'), 'interview.md');
+  } catch {
+    return null;
+  }
+  if (doc?.value?.state !== 'paused') return null;
+  const open = openQuestions(doc);
+  if (!open.length) return null;
+  const span = open.length === 1 ? open[0] : `${open[0]}…${open.at(-1)}`;
+  return `waiting for you: ${open.length} question${open.length === 1 ? '' : 's'} in interview.md (${span}): answer them in your session, then start the writer again`;
 }

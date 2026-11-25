@@ -257,10 +257,12 @@ test('38 T6: GitLab: publish, update, the code-path refusal and the merge run th
   const personal = join(tempDir('glab-personal'), 'glab-personal');
   mkdirSync(personal);
   const p = project('gitlab', { env: { GLAB_CONFIG_DIR: personal } });
-  await p.approvePrd();
+  // Unit 44 (decision 8): approving the PRD publishes it, so the merge request is open already.
+  const approved = await p.approvePrd();
+  assert.match(approved.out, /^published: due-dates, opened \(merge request !1: https:\/\/gitlab\.com\/acme\/app\/-\/merge_requests\/1\)/m);
   await p.approveEpic();
   const first = await p.publish();
-  assert.equal(first.outcome, 'opened');
+  assert.equal(first.outcome, 'unchanged');
   assert.equal(first.mr.url, 'https://gitlab.com/acme/app/-/merge_requests/1');
   writeFileSync(p.at('prd.md'), `${PRD_READY}\n`);
   assert.equal((await p.publish()).outcome, 'updated');

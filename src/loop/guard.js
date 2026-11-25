@@ -29,7 +29,7 @@ export const LOOP_SCHEMA = 1;
 export const ROUND_DEFAULTS = Object.freeze({ rounds: 2, rounds_high_risk: 3 });
 const TICKET = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const COUNTERS = ['rounds_used', 'reviews', 'launches', 'granted', 'replans_used', 'last_settled'];
-const BUDGET = ['turns', 'tokens', 'tokens_cached', 'minutes', 'cost_usd', 'limit_share'];
+export const BUDGET = ['turns', 'tokens', 'tokens_cached', 'minutes', 'cost_usd', 'limit_share'];
 
 const pathOf = (store, ticket) => {
   if (!TICKET.test(ticket ?? '')) throw new TypeError('not a ticket key');

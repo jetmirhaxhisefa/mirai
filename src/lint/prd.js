@@ -7,6 +7,7 @@ import { summaryOf, clip } from './summary.js';
 import { checkPrdRequirements } from './requirements.js';
 import { prdTestabilityProblems } from './testable.js';
 import { isRetired, RETIRED_HINT } from './retired.js';
+import { ACCEPTED_OPEN, checkCarriedAssumptions, checkOpenMarks } from './open.js';
 
 // The PRD's own lint (unit 32; research/13 §7, §9d; Jet's decisions 2026-11-19). What the
 // generic rules can't say:
@@ -188,9 +189,15 @@ export function checkPrd(doc, def, ctx, add) {
     }
   }
 
+  // ---- Unit 44: (open) decisions, and the interview's approved assumptions carried --------------
+  checkOpenMarks(doc, ctx, add, 'prd');
+  checkCarriedAssumptions(doc, ctx, add);
+
   // ---- At approval ---------------------------------------------------------------------
   if (ctx.approving) {
-    const open = defs.filter((d) => d.prefix === 'Q');
+    // Unit 44 (decision 5): an open question the owner accepted as open stays, and is approved.
+    const accepted = new Set(scan.lines.filter((l) => l.kind === 'text' && ACCEPTED_OPEN.test(l.text)).map((l) => l.line));
+    const open = defs.filter((d) => d.prefix === 'Q' && !accepted.has(d.line));
     for (const q of open) add({ code: 'prd-open', line: q.line, column: 1, reason: `${q.id} is still open`, hint: 'answer it, put the answer into the requirements, and remove it before approval' });
     const assumptions = sectionOf('Assumptions');
     const inAssumptions = new Set((assumptions?.lines ?? []).map((l) => l.line));

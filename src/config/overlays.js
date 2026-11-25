@@ -452,6 +452,7 @@ function applyType(o, registry) {
     lint_checks: checks,
     ...(variants ? { variants } : {}),
     ...(core.may_be_empty ? { may_be_empty: keep(core.may_be_empty) } : {}),
+    ...(core.may_be_absent ? { may_be_absent: keep(core.may_be_absent) } : {}),
     ...(core.uncounted_sections ? { uncounted_sections: keep(core.uncounted_sections) } : {}),
   };
   if (!problems.length) {

@@ -321,6 +321,10 @@ export const CONFIG_SCHEMA = {
         // by setting it very high; project layer only.
         verify_fix_rounds: { type: 'integer', min: 0, max: 5 },
         reader_fix_rounds: { type: 'integer', min: 0, max: 5 },
+        // Unit 44 (decision 6): past this many decision questions on one document version, the
+        // author asks one question instead: reopen the brief's interview, or go on. Default 5 (the
+        // code's); ranged; project layer only.
+        max_decision_questions: { type: 'integer', min: 1, max: 20 },
         // Word caps and budgets (unit 32, Jet's decision 6): team policy, so the project layer
         // only (LAYER_KEYS). The registry's numbers are the defaults. Ranged, so a cap can't be
         // switched off by setting it very high.

@@ -23,6 +23,8 @@ When an agent's work is checked and sent back, MIRAI follows fixed rules to deci
 
 They're kept in the store, `<store>/loop/<ticket>.json`, changed under a lock, and written **before** each launch. A launch that crashed counts as having happened. **A resume never resets them:** a restart can't grant new rounds. A counters file MIRAI can't read, or one that's been edited into nonsense, refuses the next launch; it's never reset by guessing.
 
+**A document's books (unit 44).** A brief's or PRD's fix loop runs inside the writer's run, and only its books are kept: `<store>/loop/docs/<id>@v<n>.json`, one per document version (`prd.md` is `@v1`, `prd.v2.draft.md` `@v2`, so a new version gets fresh rounds; a ticket key can't hold `@`, so the two never share a file). They count the rounds each check used (`verify`, `reader_test`): a round is counted when a check runs on a new text after a result with open writing must-fix findings, so a result holding only decisions uses none; the decision questions asked and answered, with your dismissals; the answer runs after the rounds-out step (never a round); and the cost, in the budget fields above. There's no L2, L4 or L5 for documents: the caps are `[docs] verify_fix_rounds` and `reader_fix_rounds`. Your new answers in the interview start a new cycle of rounds; the answer run after the rounds-out step continues the cycle it ran out in. A books file MIRAI can't read refuses, never resets.
+
 ## Budgets
 
 Per ticket and per night, MIRAI records turns, tokens (cached input apart), minutes, the dollar estimate and your usage. **Turns, tokens and minutes have no caps until the calibration run (unit 57):** they're recorded, not enforced.

@@ -10,6 +10,8 @@ import { coverageLines } from '../../proofs/coverage-text.js';
 import { openStore } from '../../store/home.js';
 import { topLevel } from '../../store/git.js';
 import { preCommitCheck } from '../../setup/pre-commit.js';
+import { documentsPreCommit } from '../../hooks/pre-commit.js';
+import { branchKeys } from '../../sign/keys.js';
 
 // mirai hook pre-push <remote> <url> (unit 26a): what MIRAI's pre-push script runs, from the
 // integration branch's sealed copy (the launcher's `hook` rule). git passes the remote and its
@@ -41,8 +43,10 @@ function preCommit(io) {
   try {
     // No store on this machine: no record, so nothing to forward to (the hooks folder is the store's).
     let record = null;
+    let store = null;
     try {
-      record = readHooksRecord(openStore({ cwd: io.cwd, env: io.env }));
+      store = openStore({ cwd: io.cwd, env: io.env });
+      record = readHooksRecord(store);
     } catch {
       record = null;
     }
@@ -57,7 +61,21 @@ function preCommit(io) {
       }
     }
     const root = topLevel(io.cwd, io.env);
+    // Unit 44 (decision 9): a document's state is your signed lines, never its frontmatter.
+    let keys = null;
+    try {
+      keys = store ? branchKeys(store.checkout, store.branch, store.gitEnv) : null;
+    } catch {
+      keys = null;
+    }
+    const docs = documentsPreCommit({ root, env: io.env, store, keys });
+    for (const w of docs.warnings) io.stderr.write(`mirai pre-commit: warning: ${plain(w.path).slice(0, 300)}: ${plain(w.why)}\n  ${plain(w.hint)}\n`);
     const r = preCommitCheck({ root, env: io.env });
+    if (docs.refused.length) {
+      for (const x of docs.refused.slice(0, 20)) io.stderr.write(`mirai pre-commit: refused: ${plain(x.path).slice(0, 300)}:${x.line}: ${plain(x.why)}\n  ${plain(x.hint)}\n`);
+      io.stderr.write(`mirai pre-commit: ${docs.refused.length} file${docs.refused.length === 1 ? '' : 's'} refused; nothing was committed\n`);
+      if (r.ok) return EXIT.BLOCKED;
+    }
     if (r.ok) return EXIT.OK;
     io.stderr.write(`mirai pre-commit: ${r.refused.length} file${r.refused.length === 1 ? '' : 's'} under an agent folder that MIRAI didn't render: new skills, agents, hooks and scripts go in .mirai/custom/\n`);
     for (const x of r.refused.slice(0, 20)) io.stderr.write(`  ${plain(x.path).slice(0, 300)}\n`);

@@ -1,7 +1,8 @@
 import { tableIn } from './checks.js';
 import { clip } from './summary.js';
 import { checkDocument, linkLinesOf } from './rules.js';
-import { listed, openQuestions } from './interview.js';
+import { intakeOf, listed, openQuestions } from './interview.js';
+import { ACCEPTED_OPEN, checkOpenMarks } from './open.js';
 
 // The business brief's own lint (unit 31; research/13 §9b, Jet's decision 2): Lenny's 1-pager
 // plus Shape Up's appetite, no-gos and rabbit holes. What the generic rules can't say:
@@ -79,10 +80,13 @@ export function checkBrief(doc, def, ctx, add) {
     else if (typeof value.track === 'string' && value.track !== named[0]) add({ code: 'brief-track', ...where, reason: `"Appetite and track" says ${named[0]}, the frontmatter says ${value.track}`, hint: 'make them the same' });
   }
 
-  // At approval, no open question is left.
+  // Unit 44 (decision 4): an (open) decision warns, and blocks approval.
+  checkOpenMarks(doc, ctx, add, 'brief');
+
+  // At approval, no open question is left (unit 44: but one the owner accepted as open).
   if (ctx.approving) {
     const open = sectionOf('Open questions');
-    const q = open?.lines.find((l) => l.kind === 'text' && /^ *[-*+] (?:\*\*)?Q-[0-9]+/.test(l.text));
+    const q = open?.lines.find((l) => l.kind === 'text' && /^ *[-*+] (?:\*\*)?Q-[0-9]+/.test(l.text) && !ACCEPTED_OPEN.test(l.text));
     if (q) add({ code: 'brief-open-question', line: q.line, column: 1, reason: 'a brief with an open question can\'t be approved', hint: 'answer it in the detail (or decide it under "Decisions for you"), then remove it' });
   }
 
@@ -111,6 +115,9 @@ function checkInterviewLink(doc, def, ctx, add) {
     add({ code: 'brief-interview', ...at, reason: `${target} is not an interview`, hint: 'link the interview.md the brief came from, or remove the "Interview:" line' });
     return;
   }
+  // Unit 44 (decision 10): the track you confirmed at the intake is the brief's.
+  const intake = intakeOf(found);
+  if (intake?.track && typeof doc.value.track === 'string' && intake.track !== doc.value.track) add({ code: 'brief-track', ...at, reason: `the interview's intake confirmed track ${intake.track}, the brief says ${doc.value.track}`, hint: 'make them the same, or ask the owner again' });
   const errors = checkDocument(found, idef, { registry: ctx.registry, project: ctx.project, linkTarget: () => ({ slugs: null }), readDocument: () => ({ problem: 'unavailable' }) }).filter((p) => p.severity === 'error');
   if (!errors.length) return;
   const open = openQuestions(found);

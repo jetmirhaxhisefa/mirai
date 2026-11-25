@@ -37,6 +37,11 @@ import { agentNamer, fullName } from '../../agent/names.js';
 import { applyChanges, changesOf } from '../../lint/requirements.js';
 import { addJourneys, newJourneys } from '../../tickets/journeys.js';
 import { traceDocuments } from '../../trace/documents.js';
+import { approvedText, changedLines } from '../../util/line-diff.js';
+import { docsPublish } from '../../store/connectors/publish.js';
+import { longRef } from '../../ship/words.js';
+
+export { changedLines };
 
 // mirai approve <ticket> --file <path> (unit 06; D-17, D-34). In a real terminal only. Signs your
 // decision on the file's exact bytes ("accepted as is / edited / rejected", with an optional
@@ -477,6 +482,7 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   // Unit 40: Vera's result for each document this decision approves (on standard, the brief too),
   // before the reader test. Unit 34: the PRD's summary (on standard it covers the brief too) has its
   // reader-test result.
+  // Unit 44: a finding you dismissed ("Vera is wrong") on this version no longer counts (gate.js).
   const briefVera = pair ? verifierFor({ store, config, def: registry.documentTypes.brief, id: briefId, path: brief.file.path, bytes: brief.file.bytes }) : null;
   const vera = verifierFor({ store, config, def, id, path: file.path, bytes: file.bytes });
   const reader = readerFor({ store, config, def, value: fm.value, id, path: file.path, text });
@@ -533,11 +539,31 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
     io.stdout.write(decision === 'rejected'
       ? `recorded: ${pair ? `the brief ${briefId} and the PRD ${id}` : `the PRD ${id}`} rejected (signed with ${signer.keyId}, seq ${seqs.join(', ')})\n`
       : `approved: ${what} (${decision}; signed with ${signer.keyId}, seq ${seqs.join(', ')}); a change to ${pair ? 'either' : 'it'} needs a new approval\n`);
+    // Unit 44 (decision 8): your approval publishes the initiative (38's docs publish). A failed
+    // publish doesn't undo the approval: it says so, and names the command. The documents' lines
+    // come last (38's rule), with their host link once pushed.
+    if (decision !== 'rejected') await publishAfter({ io, file });
     if (pair) io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, brief.file.path), rel: brief.file.path, bytes: brief.file.bytes })}\n`);
     io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: file.bytes })}\n`);
     return EXIT.OK;
   } finally {
     prompter.close();
+  }
+}
+
+// After your approval of a PRD (unit 44, decision 8): 38's publish for its initiative (the folder it
+// is in). On the local store it does nothing, and says so.
+async function publishAfter({ io, file }) {
+  const initiative = posix.basename(posix.dirname(file.path));
+  try {
+    const r = await docsPublish({ cwd: io.cwd, env: io.env, initiative, ...(io.hostOf ? { hostOf: io.hostOf } : {}) });
+    if (r.outcome === 'local') {
+      io.stdout.write(`published: nothing to do (${plain(r.message)})\n`);
+      return;
+    }
+    io.stdout.write(`published: ${plain(initiative)}, ${r.outcome} (${longRef(r.words, r.mr.number)}: ${plain(r.mr.url ?? '')}); MIRAI merges it after the ticket set's approval: mirai docs merge ${plain(initiative)}\n`);
+  } catch (err) {
+    io.stdout.write(`published: not yet: ${plain(String(err.message ?? err)).slice(0, 300)}; your approval stands. Publish it when that's fixed: mirai docs publish ${plain(initiative)}\n`);
   }
 }
 
@@ -769,43 +795,6 @@ function showChangedSince(io, store, conn, id, file) {
   io.stdout.write(`changed since your approval (seq ${last.seq}): ${changes.length} line${changes.length === 1 ? '' : 's'}; the whole file: ${plain(join(store.checkout, file.path))}\n`);
   for (const c of changes.slice(0, 200)) io.stdout.write(`  ${c.sign} ${String(c.line).padStart(4)}  ${plain(c.text)}\n`);
   if (changes.length > 200) io.stdout.write(`  … and ${changes.length - 200} more\n`);
-}
-
-// The file's text at the newest commit where its bytes hash to `hash`, or null.
-function approvedText(store, path, hash) {
-  try {
-    const shas = execFileSync('git', ['log', '--format=%H', '-n', '50', '--', path], { cwd: store.checkout, env: store.gitEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').filter(Boolean);
-    for (const sha of shas) {
-      const bytes = execFileSync('git', ['show', `${sha}:${path}`], { cwd: store.checkout, env: store.gitEnv, maxBuffer: 4 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
-      if (contentHash(bytes) === hash) return bytes.toString('utf8');
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-// A line diff (longest common subsequence): [{ sign: '-' | '+', line, text }], `line` the old
-// file's line for a removal and the new file's for an addition.
-export function changedLines(before, after) {
-  const a = before.replace(/\r\n?/g, '\n').split('\n');
-  const b = after.replace(/\r\n?/g, '\n').split('\n');
-  if (a.length * b.length > 4_000_000) return [{ sign: '+', line: 1, text: '(too long to compare line by line: read the whole file)' }];
-  const n = a.length;
-  const m = b.length;
-  const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
-  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-  const out = [];
-  let i = 0;
-  let j = 0;
-  while (i < n || j < m) {
-    if (i < n && j < m && a[i] === b[j]) {
-      i++;
-      j++;
-    } else if (i < n && (j >= m || lcs[i + 1][j] >= lcs[i][j + 1])) out.push({ sign: '-', line: ++i, text: a[i - 1] });
-    else out.push({ sign: '+', line: ++j, text: b[j - 1] });
-  }
-  return out;
 }
 
 // The epic's new critical journeys and journeys.md as approving the set makes it (unit 42, Scope

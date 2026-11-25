@@ -102,6 +102,39 @@ On the `repo` store you edit `interview.md` in the folder; on the `local` store 
 `documents` with the document. After the owner answers, a new run continues from the documents as
 they are.
 
+**A decision the verifier found** (unit 44). `findings.md` has two lists. `fix_these` are writing
+findings: fix each one from the sources. `ask_these` are decisions, and never yours to answer,
+whatever you think the answer is. For each one, in the same launch:
+
+1. Write `(open)` where the answer goes, with the question and where it's asked, as above.
+2. Add its question to `interview.md` in the finding format: the heading, then
+   `Finding: <its id> (<its fingerprint>): "<its quote>"` and `Kind: <its decision_type>`, the
+   question, and the four answers as its options, your guess naming one of them:
+   `- A: <an answer, in a few words>` (more answers as B, C … if there are real choices), then
+   `- <the next letter>: the verifier is wrong`, `- …: not a decision, just fix it` and
+   `- …: leave it open and accept it`, and an empty `Answer:` line.
+3. Fix the writing findings too, then pause on the first question you added.
+
+A finding whose quote you change without an `(open)` there, an answer cited (its `Q-n`) or the
+owner's dismissal is an invented decision: MIRAI's own check finds it, and it comes back to you as
+a decision.
+
+**The owner's answers** come in `decisions.json`, one per question, each with what to do:
+`answered` (write it in at the place of its `(open)`, citing the question: `(interview Q-7)`),
+`vera-wrong` (leave the text as it was, remove your `(open)` for it), `not-a-decision` (fix it
+from the sources) and `left-open` (add it to the document's Open questions as its next Q-n with
+"Accepted open (<owner>, <date>)", and point to that Q-n where the `(open)` was).
+
+**When the rounds are used** (`step: sort`): sort the findings still open. One only the owner can
+decide becomes a question, in the finding format above, and you pause. Leave the others: the owner
+sees them at approval. Change nothing else.
+
+**The interview's approved assumptions** (`## Assumptions`, A-1, A-2 …) are the owner's answers,
+approved in the interview. Build on them; never pause on one. Carry each into the PRD's
+Assumptions under the same number, ending "Approved in the interview.", and cite it where a
+requirement rests on it: `(BR-2) (A-1)`. Your own guesses come after them, numbered on. A gap the
+look-ahead missed is still a pause.
+
 **After the ticket planner's pause.** Tess pauses on a gap in the PRD (a case it doesn't settle,
 two requirements that conflict). Once the owner answers, your run continues the PRD (`step:
 continue`) with that answer named in your step: write the answer into the PRD itself, so its
