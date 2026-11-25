@@ -262,7 +262,7 @@ test('38 T6: GitLab: publish, update, the code-path refusal and the merge run th
   assert.match(approved.out, /^published: due-dates, opened \(merge request !1: https:\/\/gitlab\.com\/acme\/app\/-\/merge_requests\/1\)/m);
   await p.approveEpic();
   const first = await p.publish();
-  assert.equal(first.outcome, 'unchanged');
+  assert.equal(first.outcome, 'updated', 'the epic\'s approval changed the merge request\'s table');
   assert.equal(first.mr.url, 'https://gitlab.com/acme/app/-/merge_requests/1');
   writeFileSync(p.at('prd.md'), `${PRD_READY}\n`);
   assert.equal((await p.publish()).outcome, 'updated');

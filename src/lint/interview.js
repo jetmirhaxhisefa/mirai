@@ -188,7 +188,7 @@ export function checkInterview(doc, def, ctx, add) {
   // the standard track, never /mirai-new again, so the two paths can't send a request back and forth.
   const intake = intakeOf(doc);
   if (value.for === 'ticket' && questions.length > TICKET_QUESTION_CAP) {
-    add({ code: 'interview-cap', line: questions[TICKET_QUESTION_CAP].line, column: 1, reason: `an interview for one ticket asks at most ${TICKET_QUESTION_CAP} questions; this one has ${questions.length}`, hint: intake ? 'keep the three that matter most, and put the rest in the ticket\'s Notes as "Open: …", or take the standard track instead (an initiative\'s interview, then Nora): change the intake\'s Track to standard and remove for: ticket' : 'keep the three that matter most, and put the rest in the ticket\'s Notes as "Open: …", or ask for an initiative instead (/mirai-new)' });
+    add({ code: 'interview-cap', line: questions[TICKET_QUESTION_CAP].line, column: 1, reason: `an interview for one ticket asks at most ${TICKET_QUESTION_CAP} questions; this one has ${questions.length}`, hint: intake ? 'keep the three that matter most, and put the rest in the ticket\'s Notes as "Open: …", or take the standard track instead (an initiative\'s interview, then the brief and the PRD): change the intake\'s Track to standard and remove for: ticket' : 'keep the three that matter most, and put the rest in the ticket\'s Notes as "Open: …", or ask for an initiative instead (/mirai-new)' });
   }
 
   // ---- Each question -----------------------------------------------------------------------

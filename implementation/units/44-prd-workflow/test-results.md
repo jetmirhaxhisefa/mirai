@@ -155,10 +155,11 @@ no teams, no email; they lint clean, at approval too).
 - `test/store/store.test.js` T10: the event-type list gains `decision_question` and
   `decision_answer`.
 - `test/store/docs-publish.test.js` 38 T6 (GitLab): approving the PRD publishes it, so the merge
-  request is open before the first `publish` (`unchanged`, then `updated`), and the approval's
-  output names it.
+  request is open before the first `publish` (`updated`, since the epic's approval changed its
+  table), and the approval's output names it.
+- `test/detect/detect.test.js` 17a T8: the instruction files a project holds gain
+  `.claude/commands/mirai-new.md` and `mirai-prd.md` (rendered by `mirai init`).
 - `test/lint/template-versions.json`: `interview@v2` (the Intake and Assumptions sections).
-- (the full-suite pins are listed under "The full suite" below)
 
 ## Probes (real)
 
@@ -333,4 +334,11 @@ seam:
 `test/documents/nora.test.js`, `verify.test.js`, `tess.test.js` green (88 with 44's); the touched
 folders (`lint`, `documents`, `store`, `cli`, `mcp`, `adapters`, `install`, `hooks`, `setup`,
 `docs`, `config`, `loop`) green after the pins above; `node test/probes/prd-probes.js --check`:
-four lines, exit 0.
+four lines, exit 0. **The full suite on the Mac** (`caffeinate -i npm test` at `91032cc`): 909/912,
+the three failures pins and one stray persona name in a lint hint (38b T8: "then Nora" became "then
+the brief and the PRD"); after the fix the three files and the touched ones rerun: 103/103. So
+912/912 at the pushed head.
+
+**Through the build runner** (a clean export each), queued at the pushed head: `u44-tests-1`
+(tests), `u44-baseline-1` (baseline) and `u44-redteam-1` (redteam-full: cage files changed, see
+"The red team"). Results to be recorded here.
