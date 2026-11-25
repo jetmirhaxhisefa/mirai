@@ -171,3 +171,7 @@ will add a tool per step later.
    tiers only, as the docs say today; C: drop the personal model keys (a docs fix), project changes
    only. Recommendation: **A**: you can try "Vera on deep" for yourself at once, and propose it to
    the repo with a project `set` once it's proven.
+
+## Re-checked against 43 as built (merged 2026-11-25, PR #127)
+
+- No change: trace runs no model; the steps listed are unchanged (`STEPS`, 15).

@@ -199,3 +199,12 @@ needs your ticket decisions logged to judge whether Tess cuts well (PM-05).
    Recommendation: **A**: decision 1's "never without asking" holds, and the default matches what
    you already chose.
 
+**Re-checked against 43 as built again (merged 2026-11-25, PR #127; after this spec's 42/43 re-check):**
+
+- **Retired IDs:** as noted above; nothing new for tickets (a dropped ticket's key is never
+  reused; tickets have no `Retired` line).
+- **`mirai run` reviews again after a trace fix round** (43, `nextStep`): P2 of this unit (the
+  quick ticket) goes through the same steps; T7's two human actions are unchanged (the extra
+  review is Rex's, not yours).
+- **The `n/a` cut-off** (`TRACE_CUTOFF`, 2026-11-26T00:00Z): every proof this unit's probes mint
+  carries a trace result.

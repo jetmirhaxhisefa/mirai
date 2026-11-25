@@ -436,6 +436,19 @@ one reviewed and approved by you); Q4 "A" (one numbered list, approved together)
    run with and without the look-ahead; pauses counted, Vera's must-fix count and kinds compared.
    Accepted only if pauses fall and Vera is no worse.
 
+**Re-checked against 43 as built (merged 2026-11-25, PR #127):**
+
+- **Retired IDs** (43's Q1 "A"): a PRD version after an approved one keeps every ID; dropping a
+  middle FR, NFR or AC is `- FR-4: Retired — <why>` (`src/lint/retired.js`), and ID stability
+  refuses a retired ID brought back. Nora's prompt already says so. This workflow's re-approval
+  ("shows only what changed", 42) shows a retired line as a change; a Vera finding that asks to
+  delete a requirement is fixed by retiring it, not removing it.
+- **Trace inside Tess's run and at the epic's approval** (43's Q1): no change here (this workflow
+  ends at the approved PRD). Trace's BR → FR link is also checked earlier by Nora's own lint (the
+  PRD's "trace to the brief": every FR names its BR, every BR is served, `src/lint/prd.js`), so a
+  PRD with an uncited BR isn't approved here either.
+- **PHPUnit test names** (43's Q3 "A"): not this unit's.
+
 ## Follow-up
 
 - **`pre-commit` and document approvals (from the spec review, 2026-11-22):** the hook's unsigned-approval check covers `.mirai/records/` only, because document approvals are journal lines in MIRAI's store, not repo files. If approvals are ever committed (38's committed-records idea, 37's `approvals/` pattern), the hook must check them too.
