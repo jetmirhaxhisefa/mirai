@@ -444,9 +444,9 @@ one reviewed and approved by you); Q4 "A" (one numbered list, approved together)
   ("shows only what changed", 42) shows a retired line as a change; a Vera finding that asks to
   delete a requirement is fixed by retiring it, not removing it.
 - **Trace inside Tess's run and at the epic's approval** (43's Q1): no change here (this workflow
-  ends at the approved PRD); the BR → FR link is checked at the epic's approval, so a PRD can be
-  approved with an uncited BR. Nora's lint doesn't run trace; Vera's PRD checklist already asks
-  that every BR is cited.
+  ends at the approved PRD). Trace's BR → FR link is also checked earlier by Nora's own lint (the
+  PRD's "trace to the brief": every FR names its BR, every BR is served, `src/lint/prd.js`), so a
+  PRD with an uncited BR isn't approved here either.
 - **PHPUnit test names** (43's Q3 "A"): not this unit's.
 
 ## Follow-up
