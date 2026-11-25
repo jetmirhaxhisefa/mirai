@@ -102,7 +102,7 @@ test('T2: the agent definition comes from the trust root, with the launch templa
   assert.deepEqual(Object.keys(json), [AGENT]);
   // The launch's tools (21a's R1: --agent narrows the init event's tools to this list): the
   // template's and MIRAI's MCP tools, never the definition's own.
-  assert.deepEqual(json[AGENT].tools, [...readOnly.tools, 'mcp__mirai__log_event', 'mcp__mirai__run_tests'].sort());
+  assert.deepEqual(json[AGENT].tools, [...readOnly.tools, 'mcp__mirai__log_event', 'mcp__mirai__run_tests', 'mcp__mirai__trace'].sort());
   assert.ok(JSON.parse(agentFor(trust, AGENT, { name: 'planner', mode: 'read-only' }, readOnly, { structured: true }).json)[AGENT].tools.includes('StructuredOutput'));
   assert.equal(json[AGENT].model, 'inherit');
   assert.match(json[AGENT].prompt, /^# Kai, MIRAI's developer/);
@@ -172,7 +172,7 @@ launchTest('T5: mirai plan moves the ticket, stores and lints the plan, and stop
   // The launch: Kai, as planner, read-only tools, the schema, the inputs folder.
   const args = claude.args(0);
   assert.equal(args[args.indexOf('--agent') + 1], AGENT);
-  assert.deepEqual(JSON.parse(args[args.indexOf('--agents') + 1])[AGENT].tools, ['Glob', 'Grep', 'Read', 'StructuredOutput', 'mcp__mirai__log_event', 'mcp__mirai__run_tests']);
+  assert.deepEqual(JSON.parse(args[args.indexOf('--agents') + 1])[AGENT].tools, ['Glob', 'Grep', 'Read', 'StructuredOutput', 'mcp__mirai__log_event', 'mcp__mirai__run_tests', 'mcp__mirai__trace']);
   assert.equal(args[args.indexOf('--tools') + 1], 'Glob,Grep,Read');
   assert.deepEqual(JSON.parse(args[args.indexOf('--json-schema') + 1]).required, ['plan']);
   assert.ok(args.includes('--add-dir'));

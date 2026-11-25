@@ -26,7 +26,7 @@ import { hostWords, projectWords } from '../../ship/words.js';
 import { agentNamer } from '../../agent/names.js';
 import { noraStateLines } from '../../nora/state.js';
 import { tessStateLines } from '../../tess/state.js';
-import { traceInitiative } from '../../trace/documents.js';
+import { traceInitiative } from '../../trace/initiative.js';
 import { readyLines } from '../../tickets/pick.js';
 import { readRunState } from '../../store/run.js';
 

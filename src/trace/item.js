@@ -1,10 +1,7 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { buildRecordPath } from '../agent/build.js';
 import { planInputs } from '../agent/inputs.js';
-import { planApproval } from '../agent/plan.js';
-import { readApprovedFile } from '../cli/human-move.js';
 import { readTicketFolder } from '../lint/lint.js';
 import { branchKeys } from '../sign/keys.js';
 import { blobAt, commitOf } from '../store/git.js';
@@ -17,9 +14,36 @@ import { gateCases, keptGateResults, traceTicket } from './ticket.js';
 // is a ticket key. A ticket is read as the integration branch has it (the trust root's base, as its
 // build reads it), with its approved plan and the newest signed gate results for its branch's head
 // (the store's kept gate results: never the work tree, never an agent's own run).
+// It is reached from MIRAI's MCP server (a cage root), so it imports no step of the pipeline (the
+// build, the plan step, the loop guard): it reads their files, read-only.
 
 export const ITEM = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const JOURNEYS = '.mirai/context/journeys.md';
+
+// A regular file in the repo, reached through no link: its text, or null.
+function readPlain(root, rel) {
+  let at = root;
+  for (const part of rel.split('/')) {
+    at = join(at, part);
+    try {
+      if (lstatSync(at).isSymbolicLink()) return null;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return lstatSync(at).isFile() ? readFileSync(at, 'utf8') : null;
+  } catch {
+    return null;
+  }
+}
+const storeText = (store, ticket, name) => {
+  try {
+    return readFileSync(join(store.dir, 'tickets', ticket, name), 'utf8');
+  } catch {
+    return null;
+  }
+};
 
 const isDir = (p) => {
   try {
@@ -33,11 +57,9 @@ const isDir = (p) => {
 export function traceInitiativeIn({ checkout, docsRoot, initiative, registry }) {
   const dir = join(checkout, docsRoot, initiative);
   const read = (name) => {
-    try {
-      return { path: `${docsRoot}/${initiative}/${name}`, text: readApprovedFile(checkout, checkout, `${docsRoot}/${initiative}/${name}`).bytes.toString('utf8') };
-    } catch {
-      return null;
-    }
+    const rel = `${docsRoot}/${initiative}/${name}`;
+    const text = readPlain(checkout, rel);
+    return text === null ? null : { path: rel, text };
   };
   let folder = [];
   try {
@@ -49,15 +71,15 @@ export function traceInitiativeIn({ checkout, docsRoot, initiative, registry }) 
 }
 
 // A ticket's code scope, as it stands: the newest signed gate run of its branch's head, or none yet.
+// The plan is read as the store holds it (its approval is checked where it counts: the gate).
 export function traceTicketIn({ store, trust, ticket }) {
   const config = trustedConfig(trust);
   const keys = branchKeys(store.checkout, trust.branch, store.gitEnv);
-  const approved = planApproval(store, ticket, keys);
-  const plan = approved.ok ? approved.text : null;
-  const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, plan });
+  const plan = storeText(store, ticket, 'plan.md');
+  const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, plan: plan ?? '' });
   let last = null;
   try {
-    last = JSON.parse(readFileSync(buildRecordPath(store, ticket), 'utf8'));
+    last = JSON.parse(storeText(store, ticket, 'build.json'));
   } catch {
     last = null;
   }

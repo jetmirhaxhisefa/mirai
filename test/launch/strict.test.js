@@ -275,7 +275,7 @@ launchTest('T5, T6: the launch: production layout, a private folder, read-only i
   // The hook (unit 13c): the write tools are allowed only by the hook, which runs from the trust
   // root with the launch's read-only policy, checked by its hash. log_event is every launch's
   // (unit 15a); lint is every read-write launch's (unit 41, A2).
-  assert.deepEqual(settings.permissions.allow, ['Bash', 'Glob', 'Grep', 'Read', 'mcp__mirai__log_event', 'mcp__mirai__lint']);
+  assert.deepEqual(settings.permissions.allow, ['Bash', 'Glob', 'Grep', 'Read', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'mcp__mirai__trace']);
   const hook = settings.hooks.PreToolUse[0];
   assert.equal(hook.matcher, 'Read|Glob|Grep|Edit|Write|MultiEdit|NotebookEdit');
   const policyFile = join(plan.launchDir, 'input', 'hook-policy.json');
@@ -334,13 +334,13 @@ test('T7: checkInit passes what was asked for and names every difference; the ve
   const expected = expectedInit({ ...t, tools: ['Bash', 'Read'], agent: 'mirai-dev' }, { cwd: '/Users/dev/app', model: 'claude-x' });
   const builtin = t.builtin.plugins.map((name) => ({ name, path: 'builtin', source: `${name}@builtin` }));
   const good = {
-    type: 'system', subtype: 'init', tools: ['Read', 'Bash', 'mcp__mirai__log_event', 'mcp__mirai__lint'], apiKeySource: 'none', memory_paths: null, permissionMode: 'dontAsk', mcp_servers: [{ name: 'mirai', status: 'connected' }], plugins: builtin,
+    type: 'system', subtype: 'init', tools: ['Read', 'Bash', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'mcp__mirai__trace'], apiKeySource: 'none', memory_paths: null, permissionMode: 'dontAsk', mcp_servers: [{ name: 'mirai', status: 'connected' }], plugins: builtin,
     skills: [...t.builtin.skills], agents: [...t.builtin.agents, 'mirai-dev'], cwd: '/Users/dev/app', model: 'claude-x', claude_code_version: '2.1.310',
   };
   assert.deepEqual(checkInit(good, expected, { version: '2.1.310' }), []);
   assert.throws(() => checkInit(good, expected), /needs the Claude Code version/);
   const cases = [
-    [{ tools: ['Read', 'Bash', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'WebFetch'] }, /tools are/],
+    [{ tools: ['Read', 'Bash', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'mcp__mirai__trace', 'WebFetch'] }, /tools are/],
     [{ mcp_servers: [] }, /mirai isn't connected \(missing\)/],
     [{ apiKeySource: 'ANTHROPIC_API_KEY' }, /apiKeySource/],
     [{ memory_paths: { auto: '/x' } }, /memory/],
@@ -460,23 +460,23 @@ launchTest('14d T8: MIRAI\'s MCP server in the launch: read-only policy and mcp.
   assert.equal(policy.launch_id, plan.launchId);
   assert.ok(!readFileSync(server.args[5], 'utf8').includes(TOKEN));
   const settings = JSON.parse(readFileSync(join(input, 'settings.json'), 'utf8'));
-  assert.deepEqual(settings.permissions.allow, ['Bash', 'Glob', 'Grep', 'Read', 'mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint']);
+  assert.deepEqual(settings.permissions.allow, ['Bash', 'Glob', 'Grep', 'Read', 'mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'mcp__mirai__trace']);
   assert.deepEqual(plan.expectedInit.mcpServers, ['mirai']);
   assert.ok(plan.expectedInit.tools.includes('mcp__mirai__run_tests') && plan.expectedInit.tools.includes('mcp__mirai__run_check'));
   assert.equal(plan.env.MCP_TOOL_TIMEOUT, String(6 * 3600 * 1000));
   // The wiring is the template's, so the canonical hash red-team results are keyed by covers it
   // (review fix): the same template with and without tools hashes differently.
   assert.notEqual(plan.canonicalSha256, canonicalSha256(t));
-  assert.deepEqual(renderStrict(withTests, FACTS).permissions.allow.filter((x) => x.startsWith('mcp__')), ['mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint']);
+  assert.deepEqual(renderStrict(withTests, FACTS).permissions.allow.filter((x) => x.startsWith('mcp__')), ['mcp__mirai__run_tests', 'mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'mcp__mirai__trace']);
   // Probe settings only with a probe's own MIRAI home.
   assert.throws(() => prepareLaunch({ trust, template: withTests, checkout: r.root, env: r.env, probe: { home: '/tmp/x' } }), (err) => err.code === 'bad-probe');
   // Checks only: only run_check.
   const checksOnly = launch({ trust, template: { ...t, mcp: { ...t.mcp, tests: { levels: [], checks: ['lint'] } } }, checkout: r.root, env: r.env });
-  assert.deepEqual(JSON.parse(readFileSync(join(checksOnly.launchDir, 'input', 'settings.json'), 'utf8')).permissions.allow.filter((x) => x.startsWith('mcp__')), ['mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint']);
+  assert.deepEqual(JSON.parse(readFileSync(join(checksOnly.launchDir, 'input', 'settings.json'), 'utf8')).permissions.allow.filter((x) => x.startsWith('mcp__')), ['mcp__mirai__run_check', 'mcp__mirai__log_event', 'mcp__mirai__lint', 'mcp__mirai__trace']);
   // No tests: the server still, with log_event only (unit 15a).
   const none = launch({ trust, template: t, checkout: r.root, env: r.env });
   assert.equal(none.args.includes('--mcp-config'), true);
-  assert.deepEqual(Object.keys(readPolicy(...JSON.parse(readFileSync(join(none.launchDir, 'input', 'mcp.json'), 'utf8')).mcpServers.mirai.args.slice(5, 7)).tools), ['log_event', 'lint']);
+  assert.deepEqual(Object.keys(readPolicy(...JSON.parse(readFileSync(join(none.launchDir, 'input', 'mcp.json'), 'utf8')).mcpServers.mirai.args.slice(5, 7)).tools), ['log_event', 'lint', 'trace']);
   assert.deepEqual(none.expectedInit.mcpServers, ['mirai']);
   // No tool at all (a template without log types): no server, no rules.
   const bare = launch({ trust, template: { ...t, mcp: { tests: null, log: [] } }, checkout: r.root, env: r.env });
@@ -511,7 +511,7 @@ launchTest('15a T7: every launch gets MIRAI\'s server: log_event\'s policy names
   assert.deepEqual(policy.store, { dir: realpathSync(store.dir), repo_id: store.repoId });
   assert.equal(policy.item, 'T-12');
   assert.equal(policy.launch_id, plan.launchId);
-  assert.deepEqual(Object.keys(policy.tools), ['log_event', 'lint']);
+  assert.deepEqual(Object.keys(policy.tools), ['log_event', 'lint', 'trace']);
   const { secrets, ...caps } = policy.tools.log_event;
   assert.deepEqual(caps, { types: ['note', 'template_gap'], max_events: 50, max_message: 4000 });
   assert.deepEqual(secrets.map((x) => x.name), t.secrets.map((x) => x.name));

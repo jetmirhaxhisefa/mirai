@@ -1,15 +1,7 @@
-import { join } from 'node:path';
-
-import { readApprovedFile } from '../cli/human-move.js';
 import { coverage, prdItems, ticketsOf } from '../lint/graph.js';
-import { parseDocument, readTicketFolder } from '../lint/lint.js';
+import { parseDocument } from '../lint/lint.js';
 import { METHODS, requirementItems, VERIFIED } from '../lint/prd.js';
 import { checkIds } from '../lint/rules.js';
-import { checkInitiative } from '../store/connectors/common.js';
-import { docsStoreFor } from '../store/connectors/index.js';
-import { openStore } from '../store/home.js';
-import { effectiveRegistry } from '../trust/overlays.js';
-import { snapshot } from '../trust/snapshot.js';
 
 // `mirai trace <initiative>`, the documents' scope (unit 43; Jet's decision 4, 2026-11-21):
 // - BR → FR: every BR the brief defines is cited by at least one FR or NFR of the PRD;
@@ -95,35 +87,6 @@ export function traceDocuments({ initiative, brief = null, prd = null, epic = nu
   if (!registry.documentTypes.adr) out.notes.push('no ADRs yet: their "Confirmation" checks are traced once ADRs exist (units 62–65)');
   if (!registry.documentTypes['technical-note']) out.notes.push('no technical note yet: the FR → component links are traced once it exists (unit 62b)');
   return { ...out, result: out.missing.length ? 'fail' : 'pass' };
-}
-
-// The trace of an initiative as its documents are now, read from its docs store (repo or local):
-// traceDocuments' result. Refused for a name that isn't an initiative's.
-export function traceInitiative({ cwd, env, initiative, store = openStore({ cwd, env }), trust = snapshot({ cwd, env }) }) {
-  checkInitiative(initiative);
-  const { conn } = docsStoreFor({ cwd, env, store });
-  const registry = effectiveRegistry(trust, store);
-  const read = (abs) => {
-    try {
-      const r = readApprovedFile(conn.base, conn.base, abs);
-      return { path: conn.kind === 'repo' ? conn.relOf(abs) ?? abs : abs, text: r.bytes.toString('utf8') };
-    } catch {
-      return null;
-    }
-  };
-  const dir = conn.dir(initiative);
-  let folder = [];
-  try {
-    folder = readTicketFolder(dir, { root: conn.base }).all;
-  } catch {
-    folder = [];
-  }
-  const tickets = folder.map((t) => read(join(dir, t.path))).filter(Boolean);
-  return traceDocuments({
-    initiative, registry,
-    brief: read(conn.pathOf('brief', initiative)), prd: read(conn.pathOf('prd', initiative)), epic: read(conn.pathOf('epic', initiative)),
-    interview: read(conn.pathOf('interview', initiative)), tickets,
-  });
 }
 
 // The missing links as lint problems (Q1 "A", 2026-11-25): what Tess's next launch gets in lint.json,

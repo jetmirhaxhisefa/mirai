@@ -6,7 +6,7 @@ import { plain } from '../../status/text.js';
 import { docsStoreFor } from '../../store/connectors/index.js';
 import { openStore } from '../../store/home.js';
 import { snapshot } from '../../trust/snapshot.js';
-import { traceInitiative } from '../../trace/documents.js';
+import { traceInitiative } from '../../trace/initiative.js';
 import { ITEM, traceLines, traceTicketIn } from '../../trace/item.js';
 
 // mirai trace <initiative|ticket> (unit 43, Scope 6): the chain, link by link, read-only, no model.
@@ -28,7 +28,7 @@ const isDir = (p) => {
 export default {
   name: 'trace',
   summary: 'Check the chain: an initiative\'s documents (BR → FR → AC → ticket), or a ticket\'s ACs to its passing tests',
-  usage: 'mirai trace <initiative|ticket> [--json]',
+  usage: 'mirai trace <initiative-or-ticket> [--json]',
   positionals: { min: 1, max: 1 },
   options: {
     json: { type: 'boolean', description: 'the result as JSON' },
