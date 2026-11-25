@@ -98,7 +98,16 @@ the proofs, the broker tool). No model runs: fake launchers and 25a's stand-in c
 - `test/proofs/gate.test.js` 25a: the review proof's `trace` is the result, not `"n/a"`; the
   baseline case's failing stand-in run reports its cases too.
 - `test/probes/fix-probes.js`: `setup` takes a stand-in `token` (for `trace-probes.js --check`).
-- FULL-SUITE PINS: see "The full suite".
+- `test/cli/cli.test.js` T14: the command list gains `trace`.
+- `test/mcp/broker.test.js` 15a T1: the tool table gains `trace` (headless and interactive).
+- `test/launch/strict.test.js` (T5/T6, 14d T8, 15a T7, T7's init check), `test/agent/plan.test.js`
+  (T2, T5, the launch's agent tools): every launch's allowed MCP tools and its policy gain
+  `mcp__mirai__trace` / `trace`.
+- `test/mcp/session.test.js` 15b T1, T7, T9: your session's server offers `trace` too (its tools
+  come from the read-write template), so its allow rules gain `mcp__mirai__trace` (10, not 9).
+- `test/documents/overlays.test.js` 37 T3: a story overlay that lists its `lint_checks` keeps
+  MIRAI's new `id-stability` (a project may add a check, never remove one).
+- `test/documents/epic.test.js` 33 T8: `mirai show <initiative>` has one line more, the trace.
 
 ## Probes (real)
 
@@ -191,8 +200,13 @@ This unit touches the red team's cage (`cageOf`), so a `redteam-full` run is que
   `plan.toml` (protected fields, `lint_checks`, a reader).
 - **Code the cage reaches:** `src/lint/checks.js`, `lint.js`, `prd.js`, `ids.js` (new),
   `src/config/registry.js` (`id-stability`, its `CHECK_READS`), `src/config/overlays.js` (a protected
-  field MIRAI's own template leaves out isn't demanded of a replacement), `src/trace/*` (new),
-  `src/redteam/cases-agent.js`.
+  field MIRAI's own template leaves out isn't demanded of a replacement), `src/trace/documents.js`,
+  `item.js` and `ticket.js` (new), and two files the cage didn't hold before, which they read with:
+  `src/agent/inputs.js` (the ticket as the integration branch has it) and `src/agent/tdd.js` (the
+  plan's test rows). The pipeline itself stays outside (18f T1: no `build.js`, `plan.js`,
+  `loop/guard.js`): the tool reads the store's plan and build record as files, and the ship-time
+  half (`src/trace/gate.js`) and the docs-store reader (`src/trace/initiative.js`) aren't reached
+  from the server. `src/redteam/cases-agent.js` changes too.
 - **Cases that change:** `h-server-direct` (MIRAI's MCP server with no model) adds five hostile
   `trace` calls (no item, `../outside`, `/etc/passwd`, `a;touch /tmp/x`, an extra `paths`), each
   must be refused like the `lint` ones. The templates' canonical hash changes (a new `mcp` key), so
@@ -290,4 +304,11 @@ Nothing in trace's path (`src/trace/`, `src/cli/commands/trace.js`, `src/mcp/too
 
 ## The full suite
 
-FULL-SUITE RESULTS: see below.
+**On the Mac** before the runner: `test/documents/trace.test.js` 13/13, `test/proofs/trace.test.js`
+4/4, `test/proofs/gate.test.js` and `coverage.test.js` 13/13; the touched folders' pins above green;
+`node test/probes/trace-probes.js --check`: both lines, exit 0. **The full suite on the Mac**
+(`caffeinate -i npm test` at `ae676f2`): **888/888 pass**, 0 skipped. After it: test results only.
+
+**Through the build runner** (a clean export each), queued at the pushed head: `u43-tests-1`
+(tests), `u43-baseline-1` (baseline) and `u43-redteam-1` (redteam-full: cage files changed, see
+"The red team"). Results: not in yet when this was written.
