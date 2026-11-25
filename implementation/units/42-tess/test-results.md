@@ -1,5 +1,10 @@
 # Unit 42: test results (2026-11-24)
 
+**Approved (Jet, 2026-11-25: "approve 42").** 871/871 through the runner (u42-tests-9 at `7bb8f91`);
+red team GREEN (u42-redteam-4 at `3397272`, 353 runs, Claude Code 2.1.331; no cage file changed
+after it); CI on PR #123 green. P1, P3, P4 passed (Jet's runs); P2 passed on its third auto run
+(Jet's "A"). Follow-ups are under "For later units".
+
 Built on `unit/42-build` from `origin/main` (`b288b84`: 40, 40a, 41 and `--probe loop` merged). The
 spec's last section ("Re-checked against 40, 40a and 41 as built", Jet's Q1–Q3 "A") is what was
 built: Tess's run is MIRAI-driven exactly as Nora's (41's A1, A2, B1, C1), the whole set in one

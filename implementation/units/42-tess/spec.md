@@ -1,7 +1,7 @@
 ---
 unit: "42"
 name: tess
-status: approved (Jet, 2026-11-21: "approve 42"; interview 2026-11-21: Q1 "C", Q2 "A", Q3 "A", restatement "yes"; after his read of the draft: Q4 "A" priority, Q5 "a mix of A and B" ticket types, Q6 "A"; re-checked against 40, 40a and 41 as built, 2026-11-24: Q1 "A" her run is MIRAI-driven like Nora's, Q2 "A" the whole set in one launch, Q3 "A" all seven of 37's items in)
+status: done (Jet, 2026-11-25: "approve 42", the build; spec approved 2026-11-21: "approve 42"; interview 2026-11-21: Q1 "C", Q2 "A", Q3 "A", restatement "yes"; after his read of the draft: Q4 "A" priority, Q5 "a mix of A and B" ticket types, Q6 "A"; re-checked against 40, 40a and 41 as built, 2026-11-24: Q1 "A" her run is MIRAI-driven like Nora's, Q2 "A" the whole set in one launch, Q3 "A" all seven of 37's items in)
 roadmap: design/07-implementation-roadmap.md, row 42; design/01 §5 (tickets) and §7 (`tdd`, `tests`); design/02 (d) (one feature, from idea to live); 09 PM-07 (system-facing criteria); D-41 (strict templates, the template-gap signal); units 19c (`start_agent`, broker tools), 33 (epic, tickets, graph lint), 34 (`mirai-write`), 35 (interview, pause), 36 (journeys), 38 (store, links), 40 (Vera), 41 (Nora, the pause and the run record)
 depends_on: ["19c", "33", "34", "35", "36", "38", "40", "41"]
 ---
