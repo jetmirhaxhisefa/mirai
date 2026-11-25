@@ -36,7 +36,7 @@ import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { passVera } from '../helpers/vera.js';
 import { isWriteStaging } from '../../src/agent/staging.js';
 import { PAUSE_PLACE } from '../../src/agent/pause.js';
-import { prdWithGap } from '../probes/tess-probes.js';
+import { afterPause, autoAnswer, autoApprove, autoRefusal, CASES, prdWithGap } from '../probes/tess-probes.js';
 import { installed } from '../tests/run-fixture.js';
 
 // Unit 42: Tess, the ticket planner. No model runs: fake launchers stand in for MIRAI's launcher
@@ -264,9 +264,43 @@ test('42 T4: a PRD gap: she asks in interview.md, sets it paused; the run ends p
   // next run continues from the documents as they are.
   writeFileSync(join(f.root, D, 'interview.md'), INTERVIEW.replace('## Restatement', Q8.replace('Answer:\n', 'Answer: A.\n')));
   f.git('commit', '-qam', 'answered');
+  // P2's third run (Jet's "A"): she never cuts from an answer the PRD hasn't taken.
+  await assert.rejects(tess(f, { steps: [writeSet()] }), (e) => e.code === 'prd-behind-answer' && /the PRD hasn't taken Q-8's answer/.test(e.message) && /\/mirai write due-dates/.test(e.hint) && /mirai approve due-dates-prd --file docs\/mirai\/due-dates\/prd\.md/.test(e.hint));
+  // Nora brings the PRD in line (41's tests and `41 (42's P2 third run)`); you approve it again.
+  put(f, `${D}/prd.md`, PRD_READY.replace('Day ends: midnight in the team\'s own time zone.', 'Day ends: midnight in the team\'s own time zone, as the owner settled.'));
+  f.git('commit', '-qam', 'the PRD takes Q-8');
+  await passReader(f, `${D}/prd.md`);
+  const again = await tty(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], f.io, ['a', 'due-dates-prd']);
+  assert.equal(again.code, 0, again.err);
   const second = await tess(f, { steps: [writeSet()] });
   assert.equal(second.r.state, 'done', second.r.why);
   assert.deepEqual(second.t.calls.map((c) => indexOf(c).step), ['continue']);
+});
+
+test('42 (P2\'s third run): she is refused while the interview the brief was approved with has changed, even with no pause of hers', async () => {
+  const f = await fixture();
+  put(f, `${D}/interview.md`, INTERVIEW.replace('Answer: A.\n\n## Restatement', 'Answer: A, and recurring tasks later.\n\n## Restatement'));
+  f.git('commit', '-qam', 'an answer changed');
+  await assert.rejects(tess(f, { steps: [writeSet()] }), (e) => e.code === 'prd-behind-answer' && /the interview changed after the brief and the PRD were approved/.test(e.message));
+});
+
+test('42 (P2\'s third run): the probe loop stops when Nora didn\'t take the answer, and waits for a NEW approval of the PRD', async () => {
+  const f = await fixture();
+  const home = { root: f.root, env: f.env, home: f.home };
+  const logs = [];
+  const log = (l) => logs.push(l);
+  const c = CASES.p2;
+  assert.equal(await afterPause(home, c, log, { nora: async () => ({ state: 'failed', why: 'the PRD didn\'t take Q-8\'s answer' }) }), false);
+  assert.match(logs.join('\n'), /stopped: Nora didn't bring the PRD in line, so Tess doesn't start again/);
+  assert.doesNotMatch(logs.join('\n'), /approve due-dates-prd/);
+  // Done, but the old approval still matches: it waits, and times out with no new approval.
+  assert.equal(await afterPause(home, c, () => {}, { nora: async () => ({ state: 'done' }), pollMs: 10, waitMs: 60 }), false);
+  // A new approval line ends the wait.
+  const waiting = afterPause(home, c, () => {}, { nora: async () => ({ state: 'done' }), pollMs: 20, waitMs: 120_000 });
+  await passReader(f, `${D}/prd.md`);
+  const again = await tty(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], f.io, ['a', 'due-dates-prd']);
+  assert.equal(again.code, 0, again.err);
+  assert.equal(await waiting, true);
 });
 
 test('42 T4: a pause her interview doesn\'t show is no pause: the run ends failed', async () => {
@@ -285,7 +319,7 @@ test('42 (P2\'s second run, Jet\'s "A"): a pause question after the restatement 
   }] });
   assert.equal(r.state, 'failed');
   const line = after.split('\n').indexOf('### Q-8: An untestable requirement') + 1;
-  assert.equal(r.why, `she says she paused on Q-8, but interview.md has Q-8, but outside ## Questions (line ${line}, after ## Restatement): it must be the last question inside ## Questions`);
+  assert.equal(r.why, `she says she paused on Q-8, but interview.md has Q-8 outside ## Questions (line ${line}, after ## Restatement): it must be the last question inside ## Questions`);
   assert.ok(read('agents/mirai-ticket-planner.md').includes(PAUSE_PLACE));
   assert.ok(read('agents/mirai-product-manager.md').includes(PAUSE_PLACE), 'one text in both prompts');
   const g = await fixture();
@@ -679,6 +713,36 @@ test('42 (P2 reseeded): the probe\'s PRD lints clean as at approval and holds th
   assert.match(seeded, /^- FR-4: When a day ends/m);
   assert.match(seeded, /^- Day ends: midnight in the team's own time zone\.$/m);
   assert.match(seeded, /^- NFR-3: Every scheduled job, the reminders included, must run once a day at 18:00 UTC/m);
+});
+
+// ---- The probes' --auto (Jet, 2026-11-25 night): test tooling only -----------------------------
+
+test('42 (probes --auto): the auto answer writes a confirmed, lint-clean interview; the probe key approves the PRD, with a note; P3 is refused; nothing in src/ imports it', async () => {
+  const f = await fixture({ approve: false });
+  const home = { root: f.root, env: f.env, home: f.home };
+  put(f, `${D}/interview.md`, INTERVIEW.replace('state: confirmed', 'state: paused').replace('## Restatement', Q8));
+  assert.deepEqual(autoAnswer(home, CASES.p2, 'Q-8', undefined, { today: '2026-11-25' }), { letter: 'A' });
+  const text = readFileSync(join(f.root, D, 'interview.md'), 'utf8');
+  assert.match(text, /^state: confirmed$/m);
+  assert.match(text, /^Answer: A\.\nprobe: answered automatically$/m);
+  assert.match(text, /^Confirmed: yes \(2026-11-25\)$/m);
+  assert.deepEqual(lintText(text, { source: `${D}/interview.md`, registry: REGISTRY }).filter((p) => p.severity === 'error'), []);
+  assert.throws(() => autoAnswer(home, CASES.p2, 'Q-8', 'Z'), /has no option Z|no empty "Answer:" line/);
+  // The PRD approved with the probe home's key (its checks seeded, as the probe home's are).
+  f.git('commit', '-qam', 'answered');
+  passVera(f, `${D}/brief.md`);
+  await passReader(f, `${D}/prd.md`);
+  const logs = [];
+  await autoApprove(home, CASES.p1, (l) => logs.push(l));
+  assert.match(logs.join('\n'), /^AUTO: approved due-dates-prd with the probe key \(seq [0-9]+\)$/m);
+  const events = readJournal(f.store).events;
+  assert.ok(events.some((e) => e.type === 'approval' && e.kind === 'prd' && e.item === 'due-dates-prd'));
+  assert.match(events.filter((e) => e.type === 'note').at(-1).message, /^probe --auto: due-dates-prd approved with the probe home's key, not yours/);
+  assert.match(autoRefusal('p3'), /P3 tests the interview session itself/);
+  assert.equal(autoRefusal('p2'), null);
+  const src = new URL('../../src/', import.meta.url).pathname;
+  const files = readdirSync(src, { recursive: true }).filter((p) => p.endsWith('.js'));
+  assert.deepEqual(files.filter((p) => /(?:from|import)\s*\(?\s*['"][^'"]*(?:test\/probes\/|tess-probes)/.test(readFileSync(join(src, p), 'utf8'))), []);
 });
 
 // ---- P1's run, a finding: Claude Code's write staging ------------------------------------------

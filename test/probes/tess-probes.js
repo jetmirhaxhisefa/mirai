@@ -7,16 +7,20 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { mintLaunchToken } from '../../src/agent/requests.js';
-import { documentApproval } from '../../src/cli/commands/approve.js';
 import { exitCodeOf, formatError, MiraiError } from '../../src/cli/errors.js';
 import { render } from '../../src/install/render.js';
-import { lintText, projectOf } from '../../src/lint/lint.js';
+import { lintText, parseDocument, projectOf } from '../../src/lint/lint.js';
 import { readFrontmatter } from '../../src/lint/frontmatter.js';
 import { runNora } from '../../src/nora/run.js';
 import { resolveClaude } from '../../src/redteam/key.js';
 import { readToken } from '../../src/sign/token.js';
 import { openStore } from '../../src/store/home.js';
-import { readJournal } from '../../src/store/journal.js';
+import { appendEvent, readJournal } from '../../src/store/journal.js';
+import { readVerifyResults } from '../../src/store/verify-results.js';
+import { contentHash } from '../../src/sign/sign.js';
+import { main } from '../../src/cli/main.js';
+import { questionsOf } from '../../src/lint/interview.js';
+import { Readable } from 'node:stream';
 import { runTess } from '../../src/tess/run.js';
 import { tessStateLines } from '../../src/tess/state.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../src/trust/snapshot.js';
@@ -44,6 +48,9 @@ import { setupHome } from './reader-probes.js';
 //   node test/probes/tess-probes.js --check                          (no model: builds each case's home in a temp folder, lints its documents, deletes it)
 //   node test/probes/tess-probes.js --probe home --case p1|p2|p3|p4  (no model: makes the home, prints the steps)
 //   node test/probes/tess-probes.js --yes --probe loop --home <dir>  (her run; after a pause, Nora brings the PRD in line, you approve it again, and her run starts again)
+//   node test/probes/tess-probes.js --yes --auto [--answer <letter>] --probe loop --home <dir>
+//        (P1, P2, P4 with no typing: the probe home's own key approves the PRD, a pause is answered
+//         with her guess or <letter>; then a summary for your review. P3 can't: it tests the session)
 //   node test/probes/tess-probes.js --probe show --home <dir>        (no model: her state, the documents, the ready tickets)
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -234,26 +241,33 @@ async function tessOnce(home, c, log) {
 
 // After a pause (P2's gap): Nora brings the PRD in line with your answer, then you approve the PRD
 // again in Terminal (it shows only what changed); this waits for that approval.
-async function afterPause(home, c, log, { pollMs = 5000, waitMs = 3 * 60 * 60 * 1000 } = {}) {
+// P2's third run (Jet's "A", 2026-11-25): it waits for a NEW approval line of the PRD (a seq after
+// the one there was before Nora), never for the old approval that still matches an unchanged PRD;
+// and when Nora's run isn't done (she didn't take the answer), it stops with her reason.
+export async function afterPause(home, c, log, { pollMs = 5000, waitMs = 3 * 60 * 60 * 1000, nora = runNora, noraOptions = {}, approve = null } = {}) {
   const file = `docs/mirai/${c.initiative}/prd.md`;
-  const approved = () => {
-    const store = openStore({ cwd: home.root, env: home.env });
-    const bytes = readFileSync(join(home.root, file));
-    const id = readFrontmatter(bytes)?.value?.id;
-    return documentApproval(store, id, bytes).approved;
-  };
+  const id = () => readFrontmatter(readFileSync(join(home.root, file)))?.value?.id;
+  const lastSeq = () => readJournal(openStore({ cwd: home.root, env: home.env })).events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'prd' && e.item === id() && e.decision !== 'rejected').at(-1)?.seq ?? 0;
+  const before = lastSeq();
   log('Nora brings the PRD in line with your answer (her continue step, Opus):');
-  const n = await runNora({ cwd: home.root, env: home.env, initiative: c.initiative, nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep: (e) => log(`  Nora: ${e.kind} ${e.type ?? ''} ${e.step ?? ''} ${e.round ?? ''} ${e.outcome ?? e.result ?? (e.must_fix !== undefined ? `${e.must_fix} must-fix` : '')}`) });
+  const n = await nora({ cwd: home.root, env: home.env, initiative: c.initiative, nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep: (e) => log(`  Nora: ${e.kind} ${e.type ?? ''} ${e.step ?? ''} ${e.round ?? ''} ${e.outcome ?? e.result ?? (e.must_fix !== undefined ? `${e.must_fix} must-fix` : '')}`), ...noraOptions });
   log(`Nora: ${n.state}${n.why ? `: ${n.why}` : ''}`);
-  if (n.state !== 'done') return false;
-  log('Now approve the PRD again, in another Terminal window (it shows only the lines that changed since your approval):');
-  log(`   cd ${home.root} && HOME=${home.home} node ${MIRAI} approve due-dates-prd --file ${file}`);
+  if (n.state !== 'done') {
+    log('stopped: Nora didn\'t bring the PRD in line, so Tess doesn\'t start again (decision 3: the PRD takes the answer first).');
+    return false;
+  }
+  // --auto: the probe home's key approves it here (test tooling); else you do, in Terminal.
+  if (approve) await approve();
+  else {
+    log('Now approve the PRD again, in another Terminal window (it shows only the lines that changed since your approval):');
+    log(`   cd ${home.root} && HOME=${home.home} node ${MIRAI} approve ${id()} --file ${file}`);
+  }
   const start = Date.now();
-  while (!approved()) {
+  while (lastSeq() <= before) {
     if (Date.now() - start > waitMs) return false;
     await new Promise((r) => setTimeout(r, pollMs));
   }
-  log('the PRD is approved again; Tess starts again.');
+  log('the PRD is approved again (a new approval); Tess starts again.');
   return true;
 }
 
@@ -275,7 +289,7 @@ function interviewNow(home, c) {
 }
 
 async function cli() {
-  const { values } = parseArgs({ options: { yes: { type: 'boolean' }, check: { type: 'boolean' }, probe: { type: 'string' }, case: { type: 'string' }, home: { type: 'string' } } });
+  const { values } = parseArgs({ options: { yes: { type: 'boolean' }, check: { type: 'boolean' }, probe: { type: 'string' }, case: { type: 'string' }, home: { type: 'string' }, auto: { type: 'boolean' }, answer: { type: 'string' } } });
   const log = (l) => process.stdout.write(`${l}\n`);
   if (values.check) {
     let bad = 0;
@@ -312,7 +326,7 @@ async function cli() {
   }
   if (!values.home || !existsSync(join(values.home, 'repo'))) throw new Error('--home <dir>: the folder --probe home printed');
   const home = homeOf(values.home);
-  const { c } = caseOf(home);
+  const { key, c } = caseOf(home);
   if (probe === 'show') {
     const r = spawnSync(process.execPath, [MIRAI, 'show', c.initiative], { cwd: home.root, env: home.env, encoding: 'utf8' });
     log(`${r.stdout}${r.stderr}`);
@@ -322,12 +336,23 @@ async function cli() {
     process.stderr.write('--yes: Tess\'s run on your Claude subscription: her launches on Sonnet (the tickets step is standard), Vera on each version (Sonnet); after a pause, Nora\'s continue step (Opus)\n');
     return 2;
   }
+  const auto = Boolean(values.auto);
+  if (auto) {
+    const no = autoRefusal(key);
+    if (no) throw new Error(no);
+    if (!c.one && !prdApproved(home, c)) await autoApprove(home, c, log);
+  } else if (values.answer !== undefined) throw new Error('--answer goes with --auto');
+  const startHead = git(home, 'rev-parse', 'HEAD').stdout.trim();
   let pausedBefore = false;
   const r = await probeLoop({
     runOnce: async () => {
-      if (pausedBefore && !(await afterPause(home, c, log))) return { state: 'failed', why: 'the PRD wasn\'t brought in line and approved again' };
+      if (pausedBefore && !(await afterPause(home, c, log, auto ? { approve: () => autoApprove(home, c, log) } : {}))) return { state: 'failed', why: 'the PRD wasn\'t brought in line and approved again' };
       const end = await tessOnce(home, c, log);
       pausedBefore = end.state === 'paused';
+      if (auto && end.state === 'paused') {
+        const a = autoAnswer(home, c, end.question_id, values.answer);
+        log(`AUTO: answered ${end.question_id} with ${a.letter}${values.answer ? '' : ' (her guess)'}; the interview is confirmed and lints clean`);
+      }
       return end;
     },
     interview: () => interviewNow(home, c),
@@ -336,7 +361,96 @@ async function cli() {
     log,
   });
   log(`loop: ${r.state} after ${r.runs} run(s)`);
+  if (auto) for (const l of reviewSummary(home, c, r, startHead)) log(l);
   return r.state === 'done' ? 0 : 1;
+}
+
+// ---- --auto (Jet, 2026-11-25 night): test tooling only ----------------------------------------
+// The probe home's own key signs its approvals, through the CLI with a stand-in terminal, as the
+// suite's tests do; never your key, and nothing in src/ imports this. Each auto approval is followed
+// by a journal note saying so. Vera's and the reader's results are the real ones from the runs
+// (the seeded ones only for the PRD the probe starts from).
+
+export function autoRefusal(key) {
+  return key === 'p3' ? 'P3 tests the interview session itself (its at most 3 questions), so it can\'t run --auto: run it with a session of yours' : null;
+}
+
+const prdFile = (c) => `docs/mirai/${c.initiative}/prd.md`;
+function prdApproved(home, c) {
+  const bytes = readFileSync(join(home.root, prdFile(c)));
+  const id = readFrontmatter(bytes)?.value?.id;
+  return readJournal(openStore({ cwd: home.root, env: home.env })).events.some((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'prd' && e.item === id && e.decision !== 'rejected' && e.content_hash === contentHash(bytes));
+}
+
+// Approves the PRD (on standard, with its brief) as `mirai approve` does, the probe home's key
+// signing, answering "a" and the id at its prompts.
+export async function autoApprove(home, c, log) {
+  const id = readFrontmatter(readFileSync(join(home.root, prdFile(c))))?.value?.id;
+  let out = '';
+  let err = '';
+  const stdin = Readable.from([`a\n${id}\n`]);
+  stdin.isTTY = true;
+  const code = await main(['approve', id, '--file', prdFile(c)], { stdin, stdout: { isTTY: true, write: (s) => (out += s) }, stderr: { write: (s) => (err += s) }, env: home.env, cwd: home.root });
+  if (code !== 0) throw new Error(`AUTO: the approval of ${id} was refused (exit ${code}): ${err.trim() || out.trim()}`);
+  const seq = /seq ([0-9]+)/.exec(out)?.[1] ?? '?';
+  appendEvent(openStore({ cwd: home.root, env: home.env }), { type: 'note', by: 'script', message: `probe --auto: ${id} approved with the probe home's key, not yours (seq ${seq})` });
+  log(`AUTO: approved ${id} with the probe key (seq ${seq})`);
+  const changed = out.split('\n').find((l) => l.startsWith('changed since your approval'));
+  if (changed) log(`AUTO: ${changed}`);
+}
+
+// Answers Q-n in interview.md: `letter` (default: her guess), "probe: answered automatically", the
+// state confirmed with today's "Confirmed: yes (date)", then the lint. Returns { letter }.
+export function autoAnswer(home, c, id, letter = undefined, { today = new Date().toISOString().slice(0, 10) } = {}) {
+  const rel = `docs/mirai/${c.initiative}/interview.md`;
+  const abs = join(home.root, rel);
+  let text = readFileSync(abs, 'utf8');
+  const trust = snapshot({ cwd: home.root, env: home.env });
+  const doc = parseDocument(text, rel);
+  const q = questionsOf(doc).find((x) => x.id === id);
+  if (!q) throw new Error(`AUTO: interview.md has no ${id} inside ## Questions`);
+  const pick = (letter ?? q.guess?.letter ?? '').toUpperCase();
+  if (!q.options.some((o) => o.letter === pick)) throw new Error(`AUTO: ${id} has no option ${pick || '(no guess)'}; give --answer <letter>`);
+  const lines = text.split('\n');
+  const at = q.answer ? q.answer.line - 1 : -1;
+  if (at < 0 || !/^Answer:\s*$/.test(lines[at] ?? '')) throw new Error(`AUTO: ${id} has no empty "Answer:" line to fill`);
+  lines[at] = `Answer: ${pick}.\nprobe: answered automatically`;
+  text = lines.join('\n').replace(/^state: (?:paused|open)$/m, 'state: confirmed');
+  text = /^Confirmed: .*$/m.test(text) ? text.replace(/^Confirmed: .*$/m, `Confirmed: yes (${today})`) : `${text.replace(/\n+$/, '')}\n\nConfirmed: yes (${today})\n`;
+  writeFileSync(abs, text);
+  const errors = lintText(text, { source: rel, registry: trustedRegistry(trust), project: projectOf(trustedConfig(trust)) }).filter((p) => p.severity === 'error');
+  if (errors.length) throw new Error(`AUTO: the answered interview doesn't lint clean: ${errors.map((p) => `${p.line}: ${p.reason}`).join('; ')}`);
+  return { letter: pick };
+}
+
+// What Jet reviews after an auto run: the pause question, Nora's change to the PRD, the tickets and
+// the open findings.
+export function reviewSummary(home, c, r, startHead) {
+  const out = ['', '--- for your review ---'];
+  for (const e of r.ends.filter((x) => x.state === 'paused')) out.push(`pause: ${e.question_id}: ${e.question ?? ''}`);
+  if (!c.one) {
+    const diff = git(home, 'diff', '--numstat', startHead, 'HEAD', '--', prdFile(c)).stdout.trim();
+    out.push(`the PRD: ${diff ? `${diff.split(/\s+/)[0]} lines added, ${diff.split(/\s+/)[1]} removed since the loop started` : 'unchanged since the loop started'}`);
+  }
+  const dir = join(home.root, 'docs', 'mirai', c.one ? 'tickets' : join(c.initiative, 'tickets'));
+  const files = existsSync(dir) ? readdirSync(dir).filter((n) => n.endsWith('.md')).sort((a, b) => a.localeCompare(b, 'en', { numeric: true })) : [];
+  out.push(`tickets: ${files.length}`);
+  for (const n of files) {
+    const t = readFileSync(join(dir, n), 'utf8');
+    let v = {};
+    try {
+      v = parseDocument(t, n).value;
+    } catch {
+      v = {};
+    }
+    const title = /^# (.+)$/m.exec(t)?.[1] ?? '';
+    out.push(`  ${v.id} | ${v.ticket_type ?? v.type} | ${title} | ${v.size} | after ${Array.isArray(v.after) && v.after.length ? v.after.join(', ') : '—'}${v.e2e === true ? ' | e2e: true' : ''}`);
+  }
+  const store = openStore({ cwd: home.root, env: home.env });
+  const epic = c.one ? null : existsSync(join(home.root, 'docs', 'mirai', c.initiative, `epic-${c.initiative}.md`)) ? parseDocument(readFileSync(join(home.root, 'docs', 'mirai', c.initiative, `epic-${c.initiative}.md`), 'utf8'), 'epic').value.id : null;
+  const last = epic ? readVerifyResults(store, epic).at(-1) : null;
+  out.push(last ? `Vera on ${epic}: round ${last.round}, ${last.must_fix} must-fix open${last.must_fix ? `: ${(last.findings ?? []).filter((f) => f.grade === 'must-fix').map((f) => f.what).join(' | ')}` : ''}` : 'Vera: no result on an epic');
+  return out;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
