@@ -155,3 +155,46 @@ needs your ticket decisions logged to judge whether Tess cuts well (PM-05).
 ## Questions for Jet (answered)
 
 1. **Where 45b goes: A** (Jet, 2026-11-24): 45 → 45b → 61–65 + 62b → 46.
+
+## Re-checked against 42 as built (merged, PR #123) and 43 as built (PR #127, not merged yet: re-check again if 43 changes before its merge) (2026-11-25)
+
+- **Trace runs before the signature, not after** (43 as built; 43's Q1 "A"): trace's documents
+  scope runs between Tess's launches (a missing link goes to her next launch through `lint.json`)
+  and again at `mirai approve <epic>`, after the lint and before you sign; a fail refuses the
+  signature. Scope 5's "After the signature: trace's document scope runs" is corrected: **before**
+  the signature, as T6 already tests ("a failing trace refuses the signature"). After the
+  signature come only the docs merge and the tracker publish.
+- **Drops and trace:** after a drop, the re-render and re-lint (Scope 3) also re-run trace, so the
+  screen shows a link the drop broke (an AC no ticket covers now, an NFR whose only covering
+  ticket was dropped through `covers_fr`) before you can sign.
+- **Retired IDs** (43's Q1 "A"): a ticket dropped at the set's approval was never approved, so its
+  key isn't retired and ID stability doesn't apply. A ticket of an **approved** set that's later
+  removed keeps its key reserved (43's ID stability; tickets have no `Retired` line: the key is
+  simply never reused). Tess's prompt says so: never reuse a dropped key in the next round.
+- **Vera's open must-fix at the screen** (42's P1/P4 auto runs: a set can end done with 1 must-fix
+  open after 3 rounds): the screen shows it as today's approval does (40); you may still sign, and
+  the open count is in the signed line (`verifierField`, already built). No new rule.
+- **The release mode in the epic** (42's P4 auto: Vera flagged that the summary didn't name it):
+  `release` is a protected field of the epic template (Scope's 42 note); the epic's summary names
+  it in one line, so Vera stops flagging it. The epic template goes to v3 (42 made it v2).
+- **`mirai tickets` from a Tess pause** (42's decision: the PRD takes the answer first; Nora's
+  continue step; Tess refuses to cut while the PRD is behind an answer): the answered PRD must be
+  approved again before Tess runs; that re-approval completes the track's list again, so Scope
+  1's offer would be shown again. See question 1.
+- **The quick track** (Scope 6, 44's re-check): `/mirai-new` never proposes `quick` for a request
+  its intake found unclear, and 42's "too unclear" outcome from `/mirai-new` offers `standard`, so
+  P2 can't ping-pong. No change here.
+- **Lone tickets and investigations** (42's decisions 2, 6–7): the quick track's ticket is a lone
+  ticket (`docs/mirai/tickets/<KEY>.md`, no epic): no set screen, no docs MR of a set; 43's code
+  scope applies at ship. An `investigation` lone ticket has no build or code MR (42b): T7's "two
+  actions" is for a change ticket.
+
+**Question for Jet (from this re-check):**
+
+1. **The offer after a Tess pause.** Tess paused on the PRD; Nora took your answer; you approve
+   the PRD again. A: the offer still asks, worded "Tess paused on Q-8 for this; continue her run
+   now? [Y/n]" (default yes, since you started her already); B: her run continues by itself after
+   the re-approval (no question); C: the same offer as the first time ("Start Tess …? [y/N]").
+   Recommendation: **A**: decision 1's "never without asking" holds, and the default matches what
+   you already chose.
+
