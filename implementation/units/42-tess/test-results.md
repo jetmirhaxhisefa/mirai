@@ -616,8 +616,10 @@ skipped. After it: test results and PROGRESS only.
   files): pass, pass, GREEN.
 - `u42-tests-5`, `u42-baseline-4`, `u42-redteam-4` at `3397272` (`--answer`, cage files): pass,
   pass, GREEN.
-- `u42-tests-6` at `3315d54` (the pause's place): queued, running at the time of writing.
-- `u42-tests-7` at the head with P2's third-run fixes and `--auto`: queued.
+- `u42-tests-6` at `3315d54` (the pause's place): **pass, 864/864**.
+- `u42-tests-7` at `d57baa8` (P2's third-run fixes, `--auto`; no cage file): **pass, 869/869**.
+- CI on PR #123 at `d57baa8`: both Ubuntu checks green (node 22, node 24). After it: this file
+  only.
 
 **Before that:**
 - `u42-tests-1` at `b2fdbb5`: **pass, 853/853**, 16.7 minutes; `u42-baseline-1` pass;
