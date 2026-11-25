@@ -163,3 +163,39 @@ the proof field waiting for it.
 - **The ID-stability lint** (Scope 8): it gets a `CHECK_READS` entry for the ID sections it reads.
 - **The frontmatter:** it had two `status:` lines (approved and draft). The draft one is removed,
   and `name: trace` is added, as the other specs have.
+
+**Re-checked against 42 as built (2026-11-25; PR #123, not merged yet: re-check again if 42 changes before its merge):**
+
+- **Tess's run is MIRAI-driven** (42's Q1 "A"): MIRAI renders, lints and runs Vera between her
+  launches; she has only the headless `lint` tool. Scope 5's broker tool `trace(item)` stays for
+  Kai and Rex; for Tess, see question 1 below.
+- **NFRs reach tickets through `covers_fr`** (42, 37's item 2: a ticket that delivers an NFR cites
+  its ID). Scope 2's "NFR → a ticket that covers it" reads `covers_fr`, as the coverage check does.
+- **The PRD's ACs are now testability-linted** (42, P2's finding, `prd-ac-untestable`): no change
+  here; trace still checks links, not wording.
+- **Lone tickets** (42's decision 2: `docs/mirai/tickets/<KEY>.md`, no epic, linked to their
+  interview): the documents' scope doesn't apply (no PRD); `mirai trace <ticket>` (the code scope)
+  applies as to any ticket. `mirai trace <initiative>` on a lone ticket's interview folder says so.
+- **Ticket types** (42's decisions 6–7): trace keys on `runs_as`, never the type's name. An
+  `investigation` ticket has no code scope (no tests, no merge; 42b); `mirai trace` says so.
+- **Story and bug are `template_version` 2** (42): Scope 3's protected `e2e`, `tests` and `tdd`
+  (read by `trace`, the 37 re-check) are added to v2; their hashes change again (a v3, or folded
+  into v2 if 43 builds before any v2 ticket exists outside tests: the builder states which).
+- **The epic's "New critical journeys"** (42, epic template v2): a journey proposed there becomes
+  a `J-n` in `journeys.md` when the set is approved; trace's `e2e` link reads `journeys.md`, so it
+  sees it from then.
+- **45 runs trace at the set's approval** (45's Scope 5): that is Scope 2's trigger; one call.
+- **62b's technical note** (approved 2026-11-25): its Coverage maps every FR and NFR to a
+  component. A later link "FR → note component" is a no-op until 62b exists, shown as "no
+  technical note yet", like ADRs.
+- **P3** uses an epic from 42's probes: those homes are deleted; P3 builds one with
+  `test/probes/tess-probes.js --probe home --case p1` and Tess's run, or uses 42's example epic.
+
+**Question for Jet (from this re-check; answered 2026-11-25, "A"):**
+
+1. **Trace inside Tess's run** (answered **A**: MIRAI runs trace's documents scope between her
+   launches, with the lint; a missing link goes to her next launch in `lint.json`; your approval
+   still runs trace once more as the gate). A: MIRAI runs trace's documents scope between her launches, with
+   the lint, and a missing link goes to her next launch in `lint.json` (so you never see a set
+   with a broken link at approval); B: trace runs only at your approval (Scope 2 as written).
+   Recommendation: **A**, the same pattern as the lint (41's A1, 42's Q1).
