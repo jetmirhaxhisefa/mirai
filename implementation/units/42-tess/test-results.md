@@ -363,6 +363,29 @@ reminder job's ticket can't meet both.
   bare letter is for every question; her guess for one it doesn't name), and the review summary
   lists every pause, Tess's and Nora's, with the answer given. Test `42 (P2 auto's run)`.
 
+### P2 auto's third run (2026-11-25 night, at `7bb8f91`, home `~/.mirai-probes-DO9Fpk`, output `~/mirai-u42-p2-auto3.txt`): PASSED (Jet, 2026-11-25, "A")
+
+- **Tess paused on Q-8**, inside `## Questions`, naming FR-4 (the team's midnight) against NFR-3
+  (18:00 UTC), with time-zone examples. `--auto` answered A.
+- **Nora took the answer:** 7 runs, with 8 more pauses of her own (Q-9 to Q-16), each a real gap,
+  each answered with her guess. Q-9's guess (C, personal due dates only) dropped teams and
+  reminders. The PRD changed +69/−58.
+- **The re-approval** showed only the changed lines (127). Tess's next run ended done: 6 tickets
+  (SAMPLE-2..7), Vera 0 must-fix on SAMPLE-1. `loop: done after 2 run(s)`, exit 0.
+- **The fix before it** (probe only, `7bb8f91`): `autoAnswer` answers every open question a pause
+  adds, not only the named one. Test `42 (P2 auto's second run)`.
+- **Why Nora paused 8 times:** the seeded due-dates PRD assumes teams, team leads, assignees and
+  reminder emails; the sample app has none, and business.md says owner-only. See "For later".
+
+### P1 and P4 auto (2026-11-25 night, at `7bb8f91`; homes `~/.mirai-probes-ayprAh`, `-GaoIbN`): regression runs
+
+- **P1:** done, but **1 must-fix open** after Vera's 3 rounds (the epic summary doesn't say who
+  opens the overdue page). The manual P1 needed one fixing round; this run misses that line.
+- **P4:** done, 7 tickets, all Task (right), **1 must-fix open** (the release mode isn't named in
+  the summary).
+- Read as model variance plus Vera's late findings on the epic summary: the convergence issue 44
+  already plans for. Not a 42 blocker (Jet's "A" on P2, 2026-11-25).
+
 ### P3 A technical ticket by hand (a session of yours, then 1 Sonnet launch and 1 Vera check)
 
 1. `--probe home --case p3`, then the printed steps: a new Terminal window, `cd <repo> && claude`,
@@ -615,6 +638,13 @@ The question as asked:
 - **The pilot (Thudos), not a P4b** (Jet's "A", 2026-11-24): Tess's choice among mixed types
   (a Bug, an Investigation beside Tasks) is tested there with Jet's real work.
 - **46 (the inbox):** lists `tess_run` (paused, done, failed) and her `template_gap` lines.
+- **The probe fixture (from P2 auto's third run):** the seeded due-dates PRD should match the
+  sample app (no teams, no email), or the sample app gains teams; otherwise P2 measures the
+  fixture's holes, not Tess.
+- **Tess's ordering:** P2's set is a fully serial `after` chain (2→3→4→5→6→7) again; look at
+  whether independent tickets get parallel `after` lines.
+- **44:** Vera's late must-fix on the epic summary (P1 and P4 auto, 1 open each after 3 rounds);
+  and the look-ahead note's data point: 8 Nora pauses came after the interview in P2.
 
 ## The full suite
 
