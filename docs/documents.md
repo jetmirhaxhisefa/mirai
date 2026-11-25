@@ -577,7 +577,10 @@ The lint checks that:
   ([tickets.md](tickets.md)), so a vague AC can't reach approval, and then Tess;
 - every NFR says how it's verified: its own `AC-NFR-n.m`, or a line `Verified by:` naming a test
   level, a measurement or a manual check;
-- IDs run 1, 2, 3 … with no gap, and an AC's requirement exists.
+- IDs run 1, 2, 3 … with no gap, and an AC's requirement exists. An ID a version you approved had
+  is never renumbered: to drop one, its line stays as `- FR-4: Retired — <why>` (unit 43), which
+  keeps the numbering whole and the ID reserved; no rule for a live requirement applies to it, no
+  ticket covers it, and the ID-stability lint refuses it if it comes back with a meaning.
 
 A sentence that doesn't match its group's shape only warns, until we've seen real PRDs. The
 shapes come from EARS, the Easy Approach to Requirements Syntax (Alistair Mavin and others,
@@ -714,6 +717,24 @@ the HLD and LLD types exist (unit 62).
    from the PRD's and the brief's highest.
 
 You should know what gets built, in what order and what to decide, without opening a ticket.
+
+### The chain: `mirai trace`
+
+Approving the set also runs `mirai trace <initiative>` (unit 43, [trace.md](trace.md)): every BR
+of the brief cited by an FR or NFR, every PRD FR, NFR and AC covered by a ticket (`covers_fr`,
+`covers_ac`), and every NFR saying how it's verified. A missing link refuses the approval, named
+with where to fix it. Tess's run already ran it between her launches, so a set she hands over has
+every link; `mirai show <initiative>` shows the result as the documents are now.
+
+**How tests are named.** Each ticket AC is proved by a test whose name starts with its ID and a
+colon: `AC-SAMPLE-53.2: a day is sent once` (`AC-SAMPLE-53.2, AC-SAMPLE-53.3: …` proves both). An
+`e2e: true` ticket's end-to-end test also names its journey: `J-1, AC-SAMPLE-53.1: …`. The plan's
+test list uses the same names. In PHPUnit, whose report names a test by its method, the method
+starts with the ID in snake case: `test_ac_sample_53_2_a_day_is_sent_once` ([trace.md](trace.md)). At ship time `mirai trace <ticket>` reads the gate's own results.
+
+**IDs stay.** Approving a PRD, or a set again, compares each FR, NFR and AC (and each ticket key
+and its own ACs) with the version you approved last: an ID that comes back with another meaning is
+refused (`id-stability`). Give a new requirement a new ID.
 
 ### What is generated
 

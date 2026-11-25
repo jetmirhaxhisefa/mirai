@@ -54,7 +54,7 @@ export function readPolicy(file, hash) {
 
 // The policy's shape: { schema, kind, checkout, trust_dir, manifest_sha256, home,
 // docker_socket?, store? ({ dir, repo_id }, with log_event), tools: { run_tests?: { levels },
-// run_check?: { checks }, log_event?: { types, max_events, max_message, secrets }, lint?: {} } },
+// run_check?: { checks }, log_event?: { types, max_events, max_message, secrets }, lint?: {}, trace?: {} } },
 // and per kind:
 // - headless (an agent run, unit 15a): repo_state (D-54's hash at the launch), launch_id,
 //   launch_dir, item (null or the launch's ticket or document);
@@ -92,6 +92,9 @@ export function checkPolicy(p) {
   const needsStore = ['start_agent', 'agent_status', 'session_start', 'session_end'].filter((t) => p.tools[t] !== undefined);
   if (needsStore.length && (!abs(p.store?.dir) || !REPO_ID.test(p.store?.repo_id ?? ''))) throw new PolicyError(`the policy's ${needsStore[0]} needs the store`);
   if (p.tools.lint !== undefined && (p.tools.lint === null || typeof p.tools.lint !== 'object' || Object.keys(p.tools.lint).length)) throw new PolicyError('the policy\'s lint takes no settings');
+  // Unit 43: trace reads the store's results and plans, and takes no settings.
+  if (p.tools.trace !== undefined && (p.tools.trace === null || typeof p.tools.trace !== 'object' || Object.keys(p.tools.trace).length)) throw new PolicyError('the policy\'s trace takes no settings');
+  if (p.tools.trace !== undefined && (!abs(p.store?.dir) || !REPO_ID.test(p.store?.repo_id ?? ''))) throw new PolicyError('the policy\'s trace needs the store');
   if (le !== undefined) {
     if (!names(le?.types) || le.types.some((t) => !(p.kind === 'interactive' ? SESSION_LOG_TYPES : LOG_TYPES).includes(t)) || !count(le.max_events, 1000) || !count(le.max_message, 4096)) {
       throw new PolicyError('the policy\'s log_event needs types agents may log and its caps');

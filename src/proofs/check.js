@@ -3,7 +3,7 @@ import { EXIT } from '../cli/exit-codes.js';
 import { verifyBranchRecord } from '../store/branch-record.js';
 import { blobAt, commitOf, lsTree, mergeBase } from '../store/git.js';
 import { codeHash, codePathsHide } from './hash.js';
-import { PROOF_NAME, RECORDS_DIR, readProof } from './records.js';
+import { PROOF_NAME, RECORDS_DIR, readProof, TRACE_CUTOFF, traceAccepted } from './records.js';
 
 // Checking a ticket's proofs at a commit (unit 25a; D-16): what `mirai gate check` runs, and what
 // the pre-push hook (unit 26) and CI (unit 54) will. It needs no store and no private key: the
@@ -14,9 +14,11 @@ import { PROOF_NAME, RECORDS_DIR, readProof } from './records.js';
 // - Every file in `.mirai/records/<ticket>/` must be the branch record or a proof that verifies:
 //   anything else there is `bad-record` (Jet's default: a record alone doesn't make an MR high-risk,
 //   so nothing else may sit beside them).
-// - It passes when a `review` proof and a `gate` proof both carry that hash.
-// Returns { outcome: 'pass' | 'no-proof' | 'stale' | 'bad-record' | 'nothing-to-prove', hash,
-// files, base, matched: { review, gate }, missing, bad, others }.
+// - It passes when a `review` proof and a `gate` proof both carry that hash, and (unit 43, Scope 7)
+//   both carry a `trace` result of pass; `n/a` is accepted only from a proof minted before
+//   TRACE_CUTOFF. Otherwise `no-trace`, with why.
+// Returns { outcome: 'pass' | 'no-proof' | 'stale' | 'bad-record' | 'nothing-to-prove' | 'no-trace',
+// hash, files, base, matched: { review, gate }, missing, bad, others, trace? }.
 export function checkProofs({ root, env, ticket, commit, integration, codePaths, keys, repoId, rules = null, docsRoot = null }) {
   // A code_paths that leaves a protected path out would let a change there pass unproven.
   const hidden = rules ? codePathsHide(codePaths, rules, docsRoot) : [];
@@ -61,16 +63,19 @@ export function checkProofs({ root, env, ticket, commit, integration, codePaths,
       bad(r.reason);
       continue;
     }
-    const p = { path: e.path, kind: r.proof.kind, round: r.proof.round, keyId: r.keyId, codeHash: r.proof.code_hash, ...(r.proof.kind === 'gate' ? { diffCoverage: r.proof.diff_coverage ?? null } : {}) };
+    const p = { path: e.path, kind: r.proof.kind, round: r.proof.round, keyId: r.keyId, codeHash: r.proof.code_hash, trace: traceAccepted(r.proof), traceResult: r.proof.trace, ...(r.proof.kind === 'gate' ? { diffCoverage: r.proof.diff_coverage ?? null } : {}) };
     if (r.proof.code_hash === hash && (r.proof.kind === 'review' || r.proof.kind === 'gate')) {
       // The newest round or attempt of each kind for this hash.
       if (!out.matched[r.proof.kind] || out.matched[r.proof.kind].round < p.round) out.matched[r.proof.kind] = p;
     } else out.others.push(p);
   }
   out.missing = ['review', 'gate'].filter((k) => !out.matched[k]);
+  const untraced = ['review', 'gate'].map((k) => out.matched[k]).filter((m) => m && !m.trace.ok);
+  if (untraced.length) out.trace = { why: `${untraced[0].path}: ${untraced[0].trace.why}`, cutoff: TRACE_CUTOFF };
+  else if (out.matched.gate?.trace.old) out.trace = { old: true, cutoff: TRACE_CUTOFF };
   out.outcome = out.bad.length ? 'bad-record'
     : files.length === 0 ? 'nothing-to-prove'
-      : out.missing.length === 0 ? 'pass'
+      : out.missing.length === 0 ? (untraced.length ? 'no-trace' : 'pass')
         : out.others.length ? 'stale' : 'no-proof';
   return out;
 }

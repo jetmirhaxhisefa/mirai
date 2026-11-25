@@ -44,7 +44,8 @@ export async function tty(argv, { cwd, env }, answers) {
   if (code !== 0) throw new Error(`${argv.join(' ')}: ${err}`);
 }
 
-export function setup({ app, workdir }) {
+// `token` (unit 43's --check): a stand-in instead of your login token, for a home no model runs in.
+export function setup({ app, workdir, token = undefined }) {
   const root = join(workdir, 'repo');
   mkdirSync(join(workdir, 'home'), { recursive: true, mode: 0o700 });
   const home = realpathSync(join(workdir, 'home'));
@@ -60,7 +61,7 @@ export function setup({ app, workdir }) {
   writeFileSync(join(root, 'docs', 'mirai', 'tickets', 'SAMPLE-1.md'), TICKET);
   git('add', '-A');
   git('commit', '-qm', 'probe: refresh, a key and a ticket (unit 21c)');
-  writeToken(env, readToken(process.env));
+  writeToken(env, token ?? readToken(process.env));
   mkdirSync(join(home, '.config', 'mirai'), { recursive: true, mode: 0o700 });
   writeFileSync(join(home, '.config', 'mirai', 'config.toml'), 'schema_version = 1\n[git]\nauthor_name = "MIRAI Probe"\nauthor_email = "probe@example.invalid"\n', { mode: 0o600 });
   mkdirSync(join(home, '.docker', 'run'), { recursive: true });

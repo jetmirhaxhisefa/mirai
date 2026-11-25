@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,14 +32,32 @@ const INIT = '{"type":"system","subtype":"init","permissionMode":"dontAsk"}';
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 // Unit 23: these tests aren't about test-first, so their plan's rows are `after` (one handover);
 // test/agent/tdd.test.js builds from the red rows.
-const PLAN = readFileSync(join(REGISTRY_DIR, 'examples', 'plan.md'), 'utf8').replace(/\| (characterization|red) \|$/gm, '| after: not what this test is about |');
+// Unit 43: its tests are named with their ACs, as mirai trace reads them.
+const PLAN = readFileSync(join(REGISTRY_DIR, 'examples', 'plan.md'), 'utf8').replace(/\| (characterization|red) \|$/gm, '| after: not what this test is about |')
+  .replace('::test_members_stay`', '::AC-PMT-31.1: a renamed team still lists its members`').replace('::test_old_slug_redirects`', '::AC-PMT-31.2: an old slug redirects to the new one`').replace('::test_two_renames`', '::AC-PMT-31.2: two renames both redirect`');
+// Unit 43: the cases each level's gate run reports (its cases.json), named with the ACs.
+export const CASES = Object.freeze({
+  unit: [{ id: 'tests/Unit/RenameTeamTest.php::AC-PMT-31.1: renaming keeps the team\'s name and slug rules', outcome: 'pass' }],
+  feature: [
+    { id: 'tests/Feature/TeamRenameTest.php::AC-PMT-31.1: a renamed team still lists its members', outcome: 'pass' },
+    { id: 'tests/Feature/TeamRenameTest.php::AC-PMT-31.2: an old slug redirects to the new one', outcome: 'pass' },
+    { id: 'tests/Feature/TeamRenameTest.php::AC-PMT-31.2: two renames both redirect', outcome: 'pass' },
+  ],
+});
+// A result folder with its cases.json, and the hash a signed result holds: { dir, cases_sha256 }.
+export function casesFolder(cases) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mirai-43-run-')));
+  const text = `${JSON.stringify({ schema_version: 1, cases })}\n`;
+  writeFileSync(join(dir, 'cases.json'), text);
+  return { dir, cases_sha256: createHash('sha256').update(text).digest('hex') };
+}
 export const CONFIG = '\n[[testing.levels]]\nname = "unit"\ncommand = ["run-tests"]\nservice = "app"\n\n[[testing.levels]]\nname = "feature"\ncommand = ["run-tests"]\nservice = "app"\n\n[compose]\nfiles = ["compose.yml"]\nenv_file = ".env.test"\n';
 const doc = (fm, body) => `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n${body}`;
 const ticketDoc = doc({ id: 'PMT-31', type: 'story', template: 'story@v1', repo: '"."', risk: 'normal', size: 'M', verify: '"Rename a team on staging."', tdd: 'auto' },
   '# Renaming a team hides its members\n\n## Acceptance criteria\n\n- AC-PMT-31.1: the members stay after a rename\n- AC-PMT-31.2: the old slug redirects\n');
 const FILES = { 'docs/mirai/tickets/PMT-31.md': ticketDoc, 'package.json': '{\n  "name": "app",\n  "dependencies": { "express": "^4" }\n}\n', 'app/Team.php': '<?php\n// one\n// two\n', 'tests/Unit/.gitkeep': '', 'tests/Feature/.gitkeep': '' };
 export const PASSED = { state: 'pass', known_failures: [], tests: { total: 3, skipped: 0 } };
-export const passing = async ({ name }) => ({ outcome: 'pass', id: `t-${name}`, tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 } });
+export const passing = async ({ name }) => ({ outcome: 'pass', id: `t-${name}`, tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 }, ...(CASES[name] ? casesFolder(CASES[name]) : {}) });
 
 export async function tty(argv, { cwd, env }, answers = []) {
   // Unit 42 (Jet's answer 3): a lone ticket's approval needs Vera's result; these tests aren't about her.
@@ -72,8 +91,8 @@ export const done = { status: 'done', summary: 'Changed app/Team.php.', tests_ru
 
 // PMT-31 built by Kai and, unless `reviewed: false`, passed by Rex: in-review, on its branch.
 // PMT-31 approved by you, nothing else yet: ready-for-dev (unit 28's run starts here).
-export async function approvedTicket({ config = CONFIG } = {}) {
-  const f = installed({ config, files: FILES });
+export async function approvedTicket({ config = CONFIG, extra = {} } = {}) {
+  const f = installed({ config, files: { ...FILES, ...extra } });
   const key = createKeyPair(f.env);
   writePublicKeyFile(f.root, key.keyId, key.publicPem);
   writeToken(f.env, TOKEN);
@@ -86,8 +105,8 @@ export async function approvedTicket({ config = CONFIG } = {}) {
 }
 export const PLAN_TEXT = PLAN;
 
-export async function passed({ reviewed = true, baseline = { unit: PASSED, feature: PASSED }, config = CONFIG } = {}) {
-  const f = await approvedTicket({ config });
+export async function passed({ reviewed = true, baseline = { unit: PASSED, feature: PASSED }, config = CONFIG, extra = {} } = {}) {
+  const f = await approvedTicket({ config, extra });
   const io = f.io;
   const p = await runPlan({ cwd: f.root, env: f.env, ticket: 'PMT-31', launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions: watch(claudeWith([{ plan: PLAN }])) });
   assert.equal(p.outcome, 'waiting', JSON.stringify(p.problems));
@@ -119,10 +138,10 @@ export function coveringRun(hits) {
   const seen = [];
   const run = async ({ name, coverage }) => {
     seen.push({ name, coverage: Boolean(coverage) });
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mirai-26b-run-')));
+    const { dir, cases_sha256: casesSha } = casesFolder(CASES[name] ?? []);
     const files = hits[name] ?? {};
     writeFileSync(join(dir, 'coverage.json'), `${JSON.stringify({ schema_version: 1, files, unmapped: 0 })}\n`);
-    return { outcome: 'pass', id: `t-${name}`, dir, tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 }, ...(coverage ? { coverage: { state: 'ok', sha256: `c-${name}` } } : {}) };
+    return { outcome: 'pass', id: `t-${name}`, dir, ...(CASES[name] ? { cases_sha256: casesSha } : {}), tests: { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 }, ...(coverage ? { coverage: { state: 'ok', sha256: `c-${name}` } } : {}) };
   };
   return { run, seen };
 }

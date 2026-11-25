@@ -31,6 +31,7 @@ import { effectiveRegistry } from '../trust/overlays.js';
 import { handoffText, resultState, verifyOn } from '../verify/gate.js';
 import { runVerify } from '../verify/run.js';
 import { DOC_OF_RUNS_AS, ticketTypesOf } from '../tickets/types.js';
+import { traceDocuments, traceProblems } from '../trace/documents.js';
 import { renderEpicFile } from './render.js';
 import { checkTessResult, TESS_SCHEMA } from './schema.js';
 
@@ -506,11 +507,23 @@ function checkedFile(s) {
   return s.one ? s.ticket : s.conn.pathOf('epic', s.initiative);
 }
 
+// Unit 43 (Jet's answer A to the re-check's question 1, 2026-11-25): trace's documents scope on the
+// set as it is now, between her launches, with the lint. Its coverage links are 33's graph-lint
+// coverage, so the lint's own coverage problems give way to trace's (one entry per missing link,
+// with where to fix it); every other missing link joins them. Set only: a lone ticket has no PRD.
+export function traceSet(s) {
+  const { epic, tickets } = currentSet(s);
+  const doc = (d) => (d ? { path: d.shown, text: d.text } : null);
+  return traceDocuments({ initiative: s.initiative, registry: s.registry, track: s.track, brief: doc(readDoc(s, 'brief')), prd: doc(s.prd), epic: doc(epic), interview: doc(s.interview), tickets: tickets.map(doc) });
+}
+
 // MIRAI's checks on the set: { stage: 'done' | 'lint' | 'vera' | 'error', … }.
 async function checks(ctx) {
   const { s } = ctx;
-  const errors = lintSet(s);
-  ctx.onStep({ kind: 'lint', errors: errors.length });
+  let errors = lintSet(s);
+  const t = s.one ? null : traceSet(s);
+  if (t?.result === 'fail') errors = [...errors.filter((p) => p.code !== 'graph-coverage'), ...traceProblems(t)];
+  ctx.onStep({ kind: 'lint', errors: errors.length, ...(t ? { trace: t.result, missing: t.missing.length } : {}) });
   if (errors.length) return { stage: 'lint', problems: errors };
   let vera = null;
   if (verifyOn(s.config)) {

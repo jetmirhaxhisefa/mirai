@@ -63,7 +63,7 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
         const onStep = (e) => {
           if (e.kind === 'launch') say(`${who(TESS_AGENT)}: ${e.step} ${what} (round ${e.round}): ${e.outcome === 'ok' ? 'handed over' : e.outcome}`);
           else if (e.kind === 'render') say(`epic render: ${e.problem ? plain(e.problem) : `${e.changed ? 'rendered' : 'already up to date'} from ${e.tickets} ticket${e.tickets === 1 ? '' : 's'}`}`);
-          else if (e.kind === 'lint') say(`lint, ${what}: ${e.errors ? `${e.errors} problem${e.errors === 1 ? '' : 's'}` : 'clean'}`);
+          else if (e.kind === 'lint') say(`lint, ${what}: ${e.errors ? `${e.errors} problem${e.errors === 1 ? '' : 's'}` : 'clean'}${e.trace ? `; trace: ${e.trace === 'pass' ? 'every link there' : `${e.missing} missing link${e.missing === 1 ? '' : 's'}`}` : ''}`);
           else if (e.kind === 'verify') say(`${who(VERIFY_AGENT)}, ${what}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (unchanged since that check)' : ''}`);
         };
         const r = await runTess({

@@ -175,7 +175,7 @@ test('37 T3: an overlay that drops or reorders away a protected section, a renam
   const checks = problemsOf(files({ 'document-types/prd.toml': `${HEAD('prd')}lint_checks = ["summary", "writing"]\n` }));
   assert.ok(checks.some((p) => /lint_checks leaves out MIRAI's "prd" check: a project may add a check, never remove one/.test(p)), JSON.stringify(checks));
   // Adding a check is allowed.
-  assert.deepEqual(problemsOf(files({ 'document-types/story.toml': `${HEAD('story')}lint_checks = ["ticket", "writing"]\n` })), []);
+  assert.deepEqual(problemsOf(files({ 'document-types/story.toml': `${HEAD('story')}lint_checks = ["ticket", "id-stability", "writing"]\n` })), []);
   // A stray template, an unknown type and an unknown section are named too.
   assert.match(problemsOf(files({ 'templates/prd.md': '## X\n' }))[0], /has no \.mirai\/custom\/document-types\/prd\.toml beside it/);
   assert.match(problemsOf(files({ 'document-types/memo.toml': HEAD('memo') }))[0], /there's no document type "memo"/);

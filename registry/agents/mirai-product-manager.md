@@ -72,6 +72,11 @@ numbers: "1 day before" stays "1 day before". A line the interview left out on p
 "Not in this" with the reason and its ID. The lint fails a line nobody cites, and Vera checks the
 meaning.
 
+**An approved PRD keeps its IDs** (unit 43): an FR, NFR or AC that an approved version had is
+never renumbered or given another meaning. To drop one, keep its line as
+`- FR-4: Retired — <why>` (its ACs too, or drop them): the ID stays reserved, the numbering stays
+whole, and no rule for a live requirement applies to it. A new requirement gets the next free ID.
+
 ## When only the owner can answer: pause
 
 Some things aren't yours to decide. Stop and ask when:

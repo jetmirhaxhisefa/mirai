@@ -20,8 +20,8 @@ import { snapshot, trustedConfig, trustedRegistry } from '../../trust/snapshot.j
 //   code, verified with the integration branch's public keys only: for you, and for unit 26's
 //   pre-push hook and unit 54's CI.
 
-const RECORD_EXIT = Object.freeze({ recorded: EXIT.OK, 'gate-failed': EXIT.FAILURE, 'cant-tell': EXIT.NEEDS_HUMAN, parked: EXIT.BLOCKED });
-const CHECK_EXIT = Object.freeze({ pass: EXIT.OK, 'no-proof': EXIT.FAILURE, stale: EXIT.FAILURE, 'bad-record': EXIT.BLOCKED, 'nothing-to-prove': EXIT.FAILURE });
+const RECORD_EXIT = Object.freeze({ recorded: EXIT.OK, 'gate-failed': EXIT.FAILURE, 'trace-failed': EXIT.FAILURE, 'cant-tell': EXIT.NEEDS_HUMAN, parked: EXIT.BLOCKED });
+const CHECK_EXIT = Object.freeze({ pass: EXIT.OK, 'no-proof': EXIT.FAILURE, stale: EXIT.FAILURE, 'bad-record': EXIT.BLOCKED, 'nothing-to-prove': EXIT.FAILURE, 'no-trace': EXIT.FAILURE });
 const SHA_ARG = /^[0-9a-f]{7,64}$/;
 
 export default {
@@ -62,7 +62,14 @@ async function record(ticket, io) {
       for (const l of coverageLines(r.diffCoverage, { files: 20, ticket })) io.stdout.write(`${l}\n`);
       for (const p of r.written) io.stdout.write(`  wrote ${plain(p)}\n`);
       io.stdout.write(`  committed ${r.commit.slice(0, 12)} on the ticket's branch; check it with: mirai gate check ${ticket}\n`);
+      if (r.trace) io.stdout.write(`  trace: pass, ${r.trace.links.filter((l) => l.state === 'pass').length} links (qa: ${r.trace.qa})\n`);
       io.stdout.write(`next: mirai ship ${ticket}\n`);
+    }
+    if (r.trace && r.trace.result === 'fail') {
+      for (const m of r.trace.missing.slice(0, 20)) io.stdout.write(`  missing: ${plain(m.what)} (${plain(m.where)})\n`);
+      io.stdout.write(r.next === 'fix' ? `  nothing was written: each missing link went to the developer as a must-fix; next: mirai fix ${ticket} (or mirai run ${ticket})\n`
+        : r.next === 'replan' ? `  nothing was written: the same links went missing again, so the ticket goes back for its one re-plan: mirai plan ${ticket}\n`
+          : `  nothing was written: ${ticket} is parked; look at it: mirai show ${ticket}\n`);
     }
     if (r.outcome === 'gate-failed') io.stdout.write('  nothing was written: fix the failing tests (mirai fix), then review and record again\n');
     if (r.outcome === 'cant-tell') io.stdout.write('  nothing was written: MIRAI can\'t tell these from the baseline; look at them yourself\n');
@@ -91,5 +98,9 @@ function check(ticket, commit, io) {
   for (const b of r.bad) io.stdout.write(`  not a valid record: ${plain(b.path)} (${plain(b.reason)})\n`);
   if (r.outcome === 'stale') io.stdout.write(`  the proofs there are for other code (${r.others.map((o) => o.codeHash.slice(7, 19)).filter((v, i, a) => a.indexOf(v) === i).join(', ')}): review and record again\n`);
   if (r.outcome === 'no-proof') io.stdout.write(`  mint them: mirai gate record ${ticket}\n`);
+  // Unit 43 (Scope 7): the proofs' trace result, and the cut-off for old proofs.
+  if (r.trace?.why) io.stdout.write(`  trace: refused: ${plain(r.trace.why)}; mint them again: mirai gate record ${ticket}\n`);
+  else if (r.trace?.old) io.stdout.write(`  trace: n/a, accepted: minted before ${r.trace.cutoff.slice(0, 10)}, when mirai trace was built\n`);
+  else if (r.matched.gate) io.stdout.write(`  trace: ${plain(String(r.matched.gate.traceResult?.result ?? 'none'))}${Number.isInteger(r.matched.gate.traceResult?.links) ? `, ${r.matched.gate.traceResult.links} links` : ''}\n`);
   return CHECK_EXIT[r.outcome] ?? EXIT.FAILURE;
 }

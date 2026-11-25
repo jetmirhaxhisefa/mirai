@@ -70,9 +70,10 @@ read_by = ["gate", "approval"]
 name = "Code map"
 read_by = ["lint", "gate"]
 
+# Unit 43 (the 37 re-check): mirai trace reads each row's Test ID and AC.
 [[protected_sections]]
 name = "Test list"
-read_by = ["lint", "gate"]
+read_by = ["lint", "gate", "trace"]
 
 [[protected_sections]]
 name = "Declared changes"

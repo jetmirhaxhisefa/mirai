@@ -511,7 +511,9 @@ test('33 T8: mirai show due-dates lists the brief, the PRD and the epic, each wi
   assert.match(first.out, new RegExp(`^  epic-due-dates\\.md +epic \\(7 tickets\\) +SAMPLE-50 +not approved +${esc(join(dir, 'epic-due-dates.md'))}$`, 'm'));
   // Unit 35: the interview beside the brief is listed with its own state.
   assert.match(first.out, new RegExp(`^  interview\\.md +interview +due-dates-interview +confirmed +${esc(join(dir, 'interview.md'))}$`, 'm'));
-  assert.equal(first.out.split('\n').filter(Boolean).length, 5, 'the tickets are counted on the epic line, not listed');
+  // Unit 43: one line more, the documents' trace as they are now.
+  assert.match(first.out, /^  trace: pass, \d+ links \(mirai trace due-dates lists them\)$/m);
+  assert.equal(first.out.split('\n').filter(Boolean).length, 6, 'the tickets are counted on the epic line, not listed');
   await passReader(f, `${D}/prd.md`);
   await passReader(f, `${D}/epic-due-dates.md`);
   assert.equal((await tty(APPROVE_PRD, f.io, ['a', 'due-dates-prd'])).code, EXIT.OK);

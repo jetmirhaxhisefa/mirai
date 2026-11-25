@@ -411,8 +411,9 @@ function bodyOf(text) {
 // `tickets` (unit 33: an epic's) maps each ticket file's path, relative to the document
 // (tickets/<key>.md), to its text; without it, the checks that need the tickets are skipped.
 // `repo` (unit 36): the repo's top folder, for a context file's checks against the code (at its
-// approval); without it they're skipped.
-export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null, repo = null }) {
+// approval); without it they're skipped. `previous` (unit 43): the text of the document's last
+// approved version, for the ID-stability lint; without it, that lint is skipped.
+export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null, repo = null, previous = null }) {
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
   if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
@@ -473,6 +474,6 @@ export function lintText(text, { source = '<text>', registry, project = projectD
     return { status: 'ok', all };
   };
   const code = repo ? repoReader(repo) : null;
-  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code })) problems.push({ file: source, ...p });
+  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code, previous })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }

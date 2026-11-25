@@ -29,8 +29,9 @@ epic file), fix what it reports, and run it again until it's clean, before you f
 generated sections are MIRAI's: the lint's `epic-generated` problem goes away once MIRAI renders.
 
 Your next launch resumes this one and gets what MIRAI's checks found, in the input folder:
-`lint.json` (the lint's problems) or `findings.md` (Vera's must-fix findings). Fix them, and
-change nothing else. You never run `mirai` yourself, and you don't need to: MIRAI runs every check.
+`lint.json` (the lint's problems, and `mirai trace`'s missing links as `trace-…` entries: a BR no FR
+cites, a PRD ID no ticket covers, each with where to fix it) or `findings.md` (Vera's must-fix
+findings). Fix them, and change nothing else. You never run `mirai` yourself, and you don't need to: MIRAI runs every check.
 
 ## What you can rely on
 

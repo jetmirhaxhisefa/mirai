@@ -30,6 +30,8 @@ import { snapshot, trustedConfig, trustedRegistry } from '../trust/snapshot.js';
 import { codeHash, codePathsHide } from './hash.js';
 import { PROOF_NAME, PROOF_SCHEMA, RECORDS_DIR, proofPath, proofText, signProof } from './records.js';
 import { fullName } from '../agent/names.js';
+import { sendBack, traceAtGate } from '../trace/gate.js';
+import { proofTrace } from '../trace/ticket.js';
 
 // `mirai gate record <ticket>` (unit 25a; D-16, AR3-15; Jet's decisions 2–7): at ship, MIRAI mints
 // the ticket's proofs for its branch's HEAD, in one go:
@@ -45,6 +47,10 @@ import { fullName } from '../agent/names.js';
 // Unit 26b: the test levels whose adapter has coverage run with it, and the gate proof carries
 // the diff coverage from the merge-base to HEAD over every level (`diff_coverage`): a warning,
 // never a reason to refuse (Milestone A).
+// Unit 43 (Scope 4): after every check and level passed, `mirai trace <ticket>` runs on this gate's
+// own results, before any proof is minted. A pass is written into both proofs (`trace`), signed with
+// the rest; a fail mints nothing and sends the ticket back to Kai's fix loop with one must-fix per
+// missing link (src/trace/gate.js), counted by the loop guard.
 // The work tree and the ignored files must be what they were from step 1 to the signature (R3-M8).
 
 const fail = (message, code, exitCode = EXIT.BLOCKED, hint) => Object.assign(new MiraiError(message, exitCode), { code, ...(hint ? { hint } : {}) });
@@ -180,11 +186,19 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
   if (tests.verdict === 'fail') return { ticket, outcome: 'gate-failed', why: tests.runs.filter((x) => x.verdict === 'fail').map((x) => `${x.name}: ${x.why}${x.fresh?.length ? ` (${x.fresh.slice(0, 5).join(', ')})` : ''}`).join('; '), tests, hash: code.hash };
   if (tests.verdict !== 'pass') return { ticket, outcome: 'cant-tell', why: [tests.why, ...tests.runs.filter((x) => x.verdict === 'unknown').map((x) => `${x.name}: ${x.why}`)].filter(Boolean).join('; '), tests, hash: code.hash };
 
+  // Unit 43 (Scope 4): trace, on this run's signed results only (never the work tree).
+  const traced = traceAtGate({ store, trust, config, keys, ticket, results: tests.runs.filter((x) => results.has(x.name)).map((x) => ({ ...results.get(x.name), level: x.name })) });
+  if (traced.result !== 'pass') {
+    if (traced.result === 'n/a') throw fail(`${ticket}: ${traced.why}`, 'no-code-scope', EXIT.BLOCKED);
+    const back = sendBack({ store, ticket, traced, head, config, now });
+    return { ticket, outcome: back.next === 'park' ? 'parked' : 'trace-failed', why: back.why, trace: traced, next: back.next, tests, hash: code.hash };
+  }
+
   // Unit 26b: diff coverage over every level, from the merge-base (decisions 1–4).
   const diffCoverage = diffCoverageOf({ store, config, baseline, results, measures, base, head, codePaths });
 
   // 6. The proofs.
-  const common = { schema: PROOF_SCHEMA, ticket, code_hash: code.hash, base_sha: base, head_sha: head, trust_root_hash: trust.manifestSha256, framework_version: RUNNING_VERSION, framework_hash: frameworkHash(trust, { all: true }), trace: 'n/a', outcome: 'pass', minted_at: now().toISOString() };
+  const common = { schema: PROOF_SCHEMA, ticket, code_hash: code.hash, base_sha: base, head_sha: head, trust_root_hash: trust.manifestSha256, framework_version: RUNNING_VERSION, framework_hash: frameworkHash(trust, { all: true }), trace: proofTrace(traced), outcome: 'pass', minted_at: now().toISOString() };
   const passes = review.record.passes ?? {};
   const launchIds = [...Object.values(passes).map((p) => p?.launch), review.record.check?.launch].filter(Boolean);
   const facts = launchFacts(store, launchIds);
@@ -248,7 +262,7 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
       if (changes.length !== expected.size || changes.some((c) => !expected.has(c))) throw fail('something besides the proofs changed in the work tree', 'dirty', EXIT.BLOCKED, 'look for a process still working in the project; nothing was committed');
     },
   });
-  return { ticket, outcome: 'recorded', hash: code.hash, files: code.files, commit: sha, written, review: review.n, gate: gateProof.round, tests, base, diffCoverage };
+  return { ticket, outcome: 'recorded', hash: code.hash, files: code.files, commit: sha, written, review: review.n, gate: gateProof.round, tests, base, diffCoverage, trace: traced };
 }
 
 // The gate proof's `diff_coverage` (unit 26b). Each test level: its coverage from this run (null

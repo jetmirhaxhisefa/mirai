@@ -24,6 +24,7 @@ These pages say "merge request" for both hosts. On GitHub this is a pull request
 - [model-tiers.md](model-tiers.md): which model runs each step, and how to change it.
 - [loop-rules.md](loop-rules.md): rounds, findings, budgets, your usage caps and parking.
 - [tdd.md](tdd.md): how MIRAI proves a test was written first.
+- [trace.md](trace.md): `mirai trace`, the chain from a business requirement to a passing test named with its AC, at the set's approval and at ship time.
 
 ## Tests
 

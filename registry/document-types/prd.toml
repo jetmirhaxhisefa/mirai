@@ -21,7 +21,7 @@ summary_words = 600
 fixed_parts = ["ID prefixes"]
 # Not counted in the word cap (Jet, 2026-11-20): reference and open items, not requirements.
 uncounted_sections = ["Glossary", "Open questions"]
-lint_checks = ["summary", "writing", "prd"]
+lint_checks = ["summary", "writing", "prd", "id-stability"]
 # Unit 40 (decision 6): Vera checks this type before you approve it; its checklist marks her
 # lines with [vera], and a checklist with none fails the registry check.
 verifier = true

@@ -28,7 +28,7 @@ import { installed, tempDir } from '../tests/run-fixture.js';
 // Unit 25a: `mirai gate record` and `mirai gate check`, with a stand-in claude and test run (no
 // model, no Docker), on a ticket Kai built and Rex passed.
 
-import { PASSED, TOKEN, claudeWith, done, passed, passing, tty, watch } from './fixture.js';
+import { CASES, PASSED, TOKEN, casesFolder, claudeWith, done, passed, passing, tty, watch } from './fixture.js';
 import { needsTest } from '../helpers/needs.js';
 
 // Unit 30a: tests of macOS-only code, left out (and listed) where it can't run.
@@ -48,7 +48,8 @@ launchTest('25a: gate record mints a review and a gate proof for HEAD, signed, i
   const review = JSON.parse(readFileSync(join(f.root, r.written[0]), 'utf8'));
   assert.equal(review.kind, 'review');
   assert.equal(review.code_hash, r.hash);
-  assert.equal(review.trace, 'n/a');
+  // Unit 43 (Scope 4): the trace result, signed with the rest (was 'n/a').
+  assert.deepEqual(review.trace, { result: 'pass', scope: 'ticket', links: 6, qa: 'not built yet' });
   assert.equal(review.findings, undefined, 'a proof holds no findings (Q9)');
   assert.ok(review.signature.key_id);
   const gate = JSON.parse(readFileSync(join(f.root, r.written[1]), 'utf8'));
@@ -112,7 +113,7 @@ launchTest('25a: gate check fails after any code change once proofs exist (stale
 
 launchTest('25a: gate record judges the gate against the merge-base\'s baseline: a new failing test fails it; a known one is listed; a missing level refuses', async () => {
   const f = await passed({ baseline: { unit: { state: 'fail', known_failures: [{ id: 'tests/a.php::old', scope: 'test', kind: 'error', state: 'failing', runs: 10, failed: 10 }], tests: { total: 3, skipped: 0 } }, feature: PASSED } });
-  const failing = (ids) => async ({ name }) => (name === 'unit' ? { outcome: 'fail', id: 't-unit', exit_code: 1, failing: ids.map((id) => ({ id, kind: 'error', message: 'x' })), failing_total: ids.length, tests: { total: 3, passed: 3 - ids.length, failed: ids.length, errors: 0, skipped: 0 } } : passing({ name }));
+  const failing = (ids) => async ({ name }) => (name === 'unit' ? { outcome: 'fail', id: 't-unit', exit_code: 1, failing: ids.map((id) => ({ id, kind: 'error', message: 'x' })), failing_total: ids.length, tests: { total: 3, passed: 3 - ids.length, failed: ids.length, errors: 0, skipped: 0 }, ...casesFolder(CASES.unit) } : passing({ name }));
   const bad = await f.record({ run: failing(['tests/a.php::old', 'tests/a.php::new']) });
   assert.equal(bad.outcome, 'gate-failed');
   assert.match(bad.why, /tests\/a\.php::new/);

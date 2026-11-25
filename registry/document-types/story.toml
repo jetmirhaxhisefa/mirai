@@ -9,7 +9,7 @@ status = "forbidden"
 id_pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
 required_sections = ["Description", "Acceptance criteria"]
 optional_sections = ["Boundaries", "References", "Notes"]
-lint_checks = ["ticket"]
+lint_checks = ["ticket", "id-stability"]
 # Unit 42 (decision 2): a lone ticket, asked for by hand, is checked by Vera against its interview and
 # the context files; a ticket of an epic is checked with its epic (src/verify/run.js).
 verifier = true
@@ -143,3 +143,18 @@ read_by = ["run-pick", "epic-render"]
 [[protected_fields]]
 name = "ticket_type"
 read_by = ["lint", "gate"]
+
+# Unit 43 (the 37 re-check; folded into template v2, see the unit's test results): what `mirai
+# trace` reads. `e2e` asks for a test named with the journey; `tests` and `tdd` say whether a test
+# is the evidence (`tests: optional` needs QA evidence instead, unit 50).
+[[protected_fields]]
+name = "e2e"
+read_by = ["trace", "gate"]
+
+[[protected_fields]]
+name = "tests"
+read_by = ["trace", "gate"]
+
+[[protected_fields]]
+name = "tdd"
+read_by = ["trace", "gate"]

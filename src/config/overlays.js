@@ -351,8 +351,11 @@ function applyType(o, registry) {
       const want = shown(p.name);
       if (!(p.part ? h3 : h2).includes(want)) problems.push(`the template has no "${'#'.repeat(p.part ? 3 : 2)} ${want}": ${protectedName(p)}${want !== p.name ? `, renamed to "${want}",` : ''} can't be dropped`);
     }
+    // Unit 43: a protected field MIRAI's own template leaves out (tdd and tests, written only when
+    // they override the project's setting) isn't demanded of a replacement; it stays protected.
+    const coreFields = templateParts(coreTemplate)?.value ?? {};
     for (const f of core.protected_fields ?? []) {
-      if (f.name !== undefined && !Object.hasOwn(t.value, f.name)) problems.push(`the template's frontmatter has no "${f.name}": the protected field (read by ${readers(f)}) can't be dropped`);
+      if (f.name !== undefined && Object.hasOwn(coreFields, f.name) && !Object.hasOwn(t.value, f.name)) problems.push(`the template's frontmatter has no "${f.name}": the protected field (read by ${readers(f)}) can't be dropped`);
       if (f.link !== undefined && !t.linkLines.includes(f.link)) problems.push(`the template has no "${f.link}:" line under its title: the protected link line (read by ${readers(f)}) can't be dropped`);
     }
     const sections = h2.map(inverse);

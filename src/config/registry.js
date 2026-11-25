@@ -214,7 +214,7 @@ export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date'
 // Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
 // and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint). Unit 35: `interview`.
 // Unit 36: the five context files (src/lint/context.js).
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change']);
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'id-stability']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
@@ -245,6 +245,8 @@ export const CHECK_READS = Object.freeze({
   'feature-map': ['Screens'],
   project: ['Layout', 'Stack', 'Commands', 'Test levels', 'Instructions'],
   conventions: ['Rules'],
+  // Unit 43 (Scope 8, the 37 re-check): the ID-stability lint reads the sections that define IDs.
+  'id-stability': ['Functional requirements', 'Non-functional requirements', 'Acceptance criteria'],
 });
 // The parts (### headings, not sections) a check reads: they may be protected too.
 const CHECK_PARTS = Object.freeze([...SUMMARY_PARTS, 'Capabilities', 'Triggers and states', 'Failures', 'Unchanged behaviour', 'Terms', 'ID prefixes']);

@@ -103,6 +103,9 @@ export const COMMANDS = Object.freeze({
   // Jet's answer 3 (2026-11-24): a lone ticket fixed from the verifier's findings on it (/mirai ticket fix <KEY>).
   // With `answer` (Jet's answer to question 4): your answer to an open point in its Notes, one line.
   'ticket fix': { needs: ['ticket'], opts: ['answer'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket, ...(a.answer ? ['--answer', a.answer] : [])] },
+  // Unit 43: the chain for an initiative (its documents) or a ticket (its ACs to passing tests in the
+  // gate's signed results); read-only, no model. `ticket` carries either name.
+  trace: { quick: true, needs: ['ticket'], argv: (a) => ['trace', a.ticket] },
   detect: { argv: () => ['detect'] },
   // Unit 38: the docs merge request. Neither decides anything new: publish pushes the documents
   // as they are, and merge needs your signed approvals, not a typed key.

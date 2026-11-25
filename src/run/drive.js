@@ -104,7 +104,11 @@ export function nextStep({ store, ticket, trust, config, keys }) {
     // changed since, `review-stale`).
     const latest = reviewsOf(store, ticket).at(-1)?.record ?? null;
     const onBranch = latest?.commit && head && (latest.commit === head || isAncestor(store.checkout, latest.commit, head, store.gitEnv));
-    if (latest && onBranch && latest.complete === true && latest.outcome === 'pass') return { step: 'proofs', branch };
+    // Unit 43 (P2): a fix round after a failing trace hands over new code on top of a passed review;
+    // that review covers the code only when the last handed-over commit is the reviewed one (or before it).
+    const handed = last?.outcome === 'handed-over' ? last.commit ?? null : null;
+    const covers = !handed || handed === latest?.commit || isAncestor(store.checkout, handed, latest?.commit, store.gitEnv);
+    if (latest && onBranch && covers && latest.complete === true && latest.outcome === 'pass') return { step: 'proofs', branch };
     if (latest && latest.commit === head && latest.outcome === 'needs-you') return { stop: { kind: 'needs-you', why: `${fullName('mirai-reviewer')}'s review of ${ticket} stopped for you: ${latest.why ?? 'a protected path'}`, next: `mirai show ${ticket}` } };
     return { step: 'review', branch };
   }
@@ -171,7 +175,8 @@ export function afterStep(step, r, ticket) {
     case 'build': return ['handed-over', 'checks-failed'].includes(o) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
     case 'fix': return ['handed-over', 'checks-failed', 'replan'].includes(o) || (o === 'needs-you' && /rounds in one command/.test(why ?? '')) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
     case 'review': return ['pass', 'changes', 'replan'].includes(o) ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}), then mirai run ${ticket} again`);
-    case 'proofs': return o === 'recorded' ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}); the failing tests are above`);
+    // Unit 43: a failing trace sent the ticket back to the fix loop (or to its re-plan): go on.
+    case 'proofs': return o === 'recorded' || o === 'trace-failed' ? { go: true } : stop('needs-you', `look at it (mirai show ${ticket}); the failing tests are above`);
     case 'ship': return ['opened', 'updated', 'unchanged'].includes(o) ? { shipped: true } : stop('needs-you', `mirai show ${ticket}`);
     default: return stop('needs-you', `mirai show ${ticket}`);
   }
