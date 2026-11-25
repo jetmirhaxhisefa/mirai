@@ -137,8 +137,10 @@ will add a tool per step later.
   live). The tier families (`TIER_FAMILIES`: Haiku, Sonnet, Opus/Fable) are Claude's only: in
   Cursor and Codex a tier can be a GPT, Grok or Composer model, so each adapter needs its own tier
   rule (for those units' interviews).
-- **Cage:** `src/cli/commands/models.js` and the config edit are outside the red team's cage (no
-  launch path); render and the adapters are unchanged. The builder confirms with `cageOf`.
+- **Cage:** `src/cli/commands/models.js` and the config edit are outside the red team's cage, but
+  Scope 6 (launches read your personal models) changes `src/agent/run.js` and the trust code, which
+  are cage roots: the build needs a baseline and a red team. The personal file may change only
+  `[models]` (the allowlist), never what a launch may touch.
 
 ## Questions for Jet
 
