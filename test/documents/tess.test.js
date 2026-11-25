@@ -717,11 +717,25 @@ test('42 (P2 reseeded): the probe\'s PRD lints clean as at approval and holds th
 
 // ---- The probes' --auto (Jet, 2026-11-25 night): test tooling only -----------------------------
 
+test('42 (P2 auto\'s second run): a pause that adds several questions gets each one answered: the named one, the others by --answer or their guess', async () => {
+  const f = await fixture({ approve: false });
+  const home = { root: f.root, env: f.env, home: f.home };
+  const q9 = Q8.replace('\n## Restatement', '');
+  const q10 = Q8.replace('### Q-8: An untestable requirement', '### Q-9: A second question').replace('Guess: A', 'Guess: B').replace('\n## Restatement', '');
+  put(f, `${D}/interview.md`, INTERVIEW.replace('state: confirmed', 'state: paused').replace('## Restatement', `${q9}\n${q10}\n## Restatement`));
+  const a = autoAnswer(home, CASES.p2, 'Q-8', undefined, { today: '2026-11-25', others: (id) => (id === 'Q-9' ? 'A' : undefined) });
+  assert.deepEqual(a, { letter: 'A', answered: { 'Q-8': 'A', 'Q-9': 'A' } });
+  const text = readFileSync(join(f.root, D, 'interview.md'), 'utf8');
+  assert.equal((text.match(/^Answer: A\.\nprobe: answered automatically$/gm) ?? []).length, 2);
+  assert.deepEqual(lintText(text, { source: `${D}/interview.md`, registry: REGISTRY }).filter((p) => p.severity === 'error'), []);
+});
+
+
 test('42 (probes --auto): the auto answer writes a confirmed, lint-clean interview; the probe key approves the PRD, with a note; P3 is refused; nothing in src/ imports it', async () => {
   const f = await fixture({ approve: false });
   const home = { root: f.root, env: f.env, home: f.home };
   put(f, `${D}/interview.md`, INTERVIEW.replace('state: confirmed', 'state: paused').replace('## Restatement', Q8));
-  assert.deepEqual(autoAnswer(home, CASES.p2, 'Q-8', undefined, { today: '2026-11-25' }), { letter: 'A' });
+  assert.deepEqual(autoAnswer(home, CASES.p2, 'Q-8', undefined, { today: '2026-11-25' }), { letter: 'A', answered: { 'Q-8': 'A' } });
   const text = readFileSync(join(f.root, D, 'interview.md'), 'utf8');
   assert.match(text, /^state: confirmed$/m);
   assert.match(text, /^Answer: A\.\nprobe: answered automatically$/m);

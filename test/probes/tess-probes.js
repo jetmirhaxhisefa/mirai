@@ -376,8 +376,9 @@ async function cli() {
   // for every question), else her guess.
   const answerAuto = (end) => {
     const given = answerFor(values.answer, end.question_id);
-    const a = autoAnswer(home, c, end.question_id, given);
-    log(`AUTO: answered ${end.question_id} with ${a.letter}${given ? '' : ' (her guess)'}; the interview is confirmed and lints clean`);
+    const a = autoAnswer(home, c, end.question_id, given, { others: (qid) => answerFor(values.answer, qid) });
+    const extra = Object.entries(a.answered).filter(([qid]) => qid !== end.question_id).map(([qid, l]) => `${qid} with ${l}`);
+    log(`AUTO: answered ${end.question_id} with ${a.letter}${given ? '' : ' (her guess)'}${extra.length ? `, and the other open questions: ${extra.join(', ')}` : ''}; the interview is confirmed and lints clean`);
     return a.letter;
   };
   let pausedBefore = false;
@@ -460,26 +461,37 @@ export async function autoApprove(home, c, log) {
 
 // Answers Q-n in interview.md: `letter` (default: her guess), "probe: answered automatically", the
 // state confirmed with today's "Confirmed: yes (date)", then the lint. Returns { letter }.
-export function autoAnswer(home, c, id, letter = undefined, { today = new Date().toISOString().slice(0, 10) } = {}) {
+// The named question gets `letter` (else her guess); every other open question in ## Questions gets
+// `others(id)` (else its guess), since a pause may add several (P2 auto's second run: Nora's Q-9..Q-11).
+export function autoAnswer(home, c, id, letter = undefined, { today = new Date().toISOString().slice(0, 10), others = () => undefined } = {}) {
   const rel = `docs/mirai/${c.initiative}/interview.md`;
   const abs = join(home.root, rel);
   let text = readFileSync(abs, 'utf8');
   const trust = snapshot({ cwd: home.root, env: home.env });
   const doc = parseDocument(text, rel);
-  const q = questionsOf(doc).find((x) => x.id === id);
+  const all = questionsOf(doc);
+  const q = all.find((x) => x.id === id);
   if (!q) throw new Error(`AUTO: interview.md has no ${id} inside ## Questions`);
-  const pick = (letter ?? q.guess?.letter ?? '').toUpperCase();
-  if (!q.options.some((o) => o.letter === pick)) throw new Error(`AUTO: ${id} has no option ${pick || '(no guess)'}; give --answer <letter>`);
   const lines = text.split('\n');
-  const at = q.answer ? q.answer.line - 1 : -1;
-  if (at < 0 || !/^Answer:\s*$/.test(lines[at] ?? '')) throw new Error(`AUTO: ${id} has no empty "Answer:" line to fill`);
-  lines[at] = `Answer: ${pick}.\nprobe: answered automatically`;
+  const fill = (x, given) => {
+    const pick = (given ?? x.guess?.letter ?? '').toUpperCase();
+    if (!x.options.some((o) => o.letter === pick)) throw new Error(`AUTO: ${x.id} has no option ${pick || '(no guess)'}; give --answer ${x.id}=<letter>`);
+    const at = x.answer ? x.answer.line - 1 : -1;
+    if (at < 0 || !/^Answer:\s*$/.test(lines[at] ?? '')) throw new Error(`AUTO: ${x.id} has no empty "Answer:" line to fill`);
+    lines[at] = `Answer: ${pick}.\nprobe: answered automatically`;
+    return pick;
+  };
+  const answered = {};
+  // Bottom-up, so replacing a line with two keeps the earlier lines' numbers.
+  const open = all.filter((x) => x.id === id || !x.answer?.text).sort((a, b) => b.line - a.line);
+  for (const x of open) answered[x.id] = fill(x, x.id === id ? letter : others(x.id));
+  const pick = answered[id];
   text = lines.join('\n').replace(/^state: (?:paused|open)$/m, 'state: confirmed');
   text = /^Confirmed: .*$/m.test(text) ? text.replace(/^Confirmed: .*$/m, `Confirmed: yes (${today})`) : `${text.replace(/\n+$/, '')}\n\nConfirmed: yes (${today})\n`;
   writeFileSync(abs, text);
   const errors = lintText(text, { source: rel, registry: trustedRegistry(trust), project: projectOf(trustedConfig(trust)) }).filter((p) => p.severity === 'error');
   if (errors.length) throw new Error(`AUTO: the answered interview doesn't lint clean: ${errors.map((p) => `${p.line}: ${p.reason}`).join('; ')}`);
-  return { letter: pick };
+  return { letter: pick, answered };
 }
 
 // What Jet reviews after an auto run: the pause question, Nora's change to the PRD, the tickets and
