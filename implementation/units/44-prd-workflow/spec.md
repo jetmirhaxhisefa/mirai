@@ -382,6 +382,25 @@ existing ledger.
 - **Accepted only if the probes show** fewer pauses than without it, and Vera's findings no worse
   (the must-fix count and the kinds), on the same requests.
 
+**Re-checked against 42 as built (2026-11-25; PR #123, not merged yet):**
+
+- **`quick` → 42's one-ticket path, and back:** 42's A+ rule sends a line "too unclear for 3
+  questions" to `/mirai-new`. A `quick` proposal from `/mirai-new` that reaches that rule would
+  ping-pong. Added: `/mirai-new` never proposes `quick` for a request its intake found unclear;
+  and when 42's path is entered from `/mirai-new`, its "too unclear" outcome offers `standard`
+  (this workflow), never `/mirai-new` again.
+- **The PRD's ACs are testability-linted** (42's P2 finding, `prd-ac-untestable`): Nora's lint
+  (headless and between launches) catches a vague AC; no Vera round is spent on it.
+- **A Tess pause feeds Nora** (42's P2 third run, Jet's "A", being built): after a Tess pause is
+  answered, Nora's run continues the PRD with the answer, and Tess refuses to cut while the PRD is
+  behind an answer. This workflow's routing of decisions (decisions 1–6) applies to those answers
+  too: a Tess question that is a decision is asked as one (its `Kind`).
+- **The "start Tess?" offer** is 45's (approved 2026-11-24): this workflow ends at the approved
+  PRD and leaves the offer to 45, as decision 7 says.
+- **The pause wording** (`PAUSE_PLACE`, shared by Nora and Tess since 42): this unit's
+  decision questions use the same placement.
+- **The look-ahead note** ("To interview before the build") stands; it waits for its interview.
+
 ## Follow-up
 
 - **`pre-commit` and document approvals (from the spec review, 2026-11-22):** the hook's unsigned-approval check covers `.mirai/records/` only, because document approvals are journal lines in MIRAI's store, not repo files. If approvals are ever committed (38's committed-records idea, 37's `approvals/` pattern), the hook must check them too.
