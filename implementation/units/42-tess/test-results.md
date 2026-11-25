@@ -348,6 +348,21 @@ reminder job's ticket can't meet both.
 - **Cage:** none. `src/nora/run.js`, `src/tess/run.js`, `src/agent/pause.js` are outside the cage;
   the journal's schema is unchanged (her pause already records `question_id`).
 
+### P2 auto's run (2026-11-25, at `b5f1dd9`, home `~/.mirai-probes-STqdho`, output `~/mirai-u42-p2-auto.txt`): stopped by the probe loop
+
+- Tess paused on Q-8 (placed right); `--auto` answered A; Nora's continue changed the PRD (+23/−19);
+  Vera found 4 must-fix; Nora's fix launch then **paused on Q-9** (who sees a task: the app has no
+  teams, and business.md says owner-only), a legitimate question, inside `## Questions`.
+- **The loop then stopped** ("Nora didn't bring the PRD in line"): wrong for a pause, which is a
+  normal step of Nora's.
+- **Fixed in the probe only** (`afterPause`, `tess-probes.js`; nothing in `src/`): a Nora run that
+  ends `paused` is handled as a Tess pause is (PAUSED with her question and the session message,
+  or with `--auto` answered and confirmed, then committed), and Nora runs again, her own continue,
+  until she ends done (at most the loop's 8 runs); then the new PRD approval, then Tess. Only a Nora
+  run that ends `failed` stops it. `--answer` takes per-question values (`--answer Q-8=A,Q-9=B`; a
+  bare letter is for every question; her guess for one it doesn't name), and the review summary
+  lists every pause, Tess's and Nora's, with the answer given. Test `42 (P2 auto's run)`.
+
 ### P3 A technical ticket by hand (a session of yours, then 1 Sonnet launch and 1 Vera check)
 
 1. `--probe home --case p3`, then the printed steps: a new Terminal window, `cd <repo> && claude`,
