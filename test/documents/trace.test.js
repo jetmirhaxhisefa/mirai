@@ -22,7 +22,7 @@ import { MIRAI_COMMAND } from '../../src/adapters/claude-code.js';
 import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { installed } from '../tests/run-fixture.js';
-import { P2_SAMPLE, P3_TICKET, REMOVED, p3Auto, setHome, setTrace, shipVerdict, takeOutTest, twoAcs, withoutAc } from '../probes/trace-probes.js';
+import { P2_SAMPLE, P3_TICKET, REMOVED, p3Auto, setHome, setTrace, shipVerdict, takeOutUnder, twoAcs, withoutAc } from '../probes/trace-probes.js';
 import { namedIds as idsOf } from '../../src/trace/ticket.js';
 
 // Unit 43: `mirai trace`, the documents' scope and the code's, as pure functions and through the
@@ -355,12 +355,14 @@ test('43 (probes): P3 --auto on a temp home: the probe key approves the PRD, the
   assert.equal(twoAcs(three), '# T\n\n## Acceptance criteria\n\n- AC-SAMPLE-1.1: a\n  - Given x\n- AC-SAMPLE-1.2: b\n  - Given y\n');
   // P2's hand edit: the branch's test files lose AC-SAMPLE-1.2 from their test names.
   const rel = 'tests/Feature/DeleteTaskTest.php';
-  assert.deepEqual(takeOutTest({ root: workdir, git: () => `${rel}\n` }), [], 'a file that isn\'t there is skipped');
-  put({ root: workdir }, rel, "test('AC-SAMPLE-1.2: another user\\'s task stays')\n");
-  put({ root: workdir }, 'app/x.php', 'AC-SAMPLE-1.2\n');
-  assert.deepEqual(takeOutTest({ root: workdir, git: () => `${rel}\napp/x.php\n` }), [rel]);
-  assert.equal(readFileSync(join(workdir, rel), 'utf8'), `test('${REMOVED}: another user\\'s task stays')\n`);
-  assert.equal(readFileSync(join(workdir, 'app/x.php'), 'utf8'), 'AC-SAMPLE-1.2\n', 'not a test file');
+  const tree = join(workdir, 'tree');
+  mkdirSync(tree);
+  assert.deepEqual(takeOutUnder(tree), [], 'nothing names it: nothing changed');
+  put({ root: tree }, rel, "test('AC-SAMPLE-1.2: another user\\'s task stays')\n");
+  put({ root: tree }, 'app/x.php', 'AC-SAMPLE-1.2\n');
+  assert.deepEqual(takeOutUnder(tree), [rel]);
+  assert.equal(readFileSync(join(tree, rel), 'utf8'), `test('${REMOVED}: another user\\'s task stays')\n`);
+  assert.equal(readFileSync(join(tree, 'app/x.php'), 'utf8'), 'AC-SAMPLE-1.2\n', 'not a test file');
   const importers = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? importers(join(dir, e.name)) : e.name.endsWith('.js') && /trace-probes/.test(readFileSync(join(dir, e.name), 'utf8')) ? [join(dir, e.name)] : []));
   assert.deepEqual(importers(join(REGISTRY_DIR, '..', 'src')), []);
 });

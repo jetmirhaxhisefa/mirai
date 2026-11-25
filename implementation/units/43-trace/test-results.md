@@ -254,6 +254,30 @@ By hand (you see each refusal yourself):
 - Not cage files: `src/run/drive.js` and `test/probes/trace-probes.js` are outside the cage.
 - On the Mac after the fix: **893/893 pass**, 0 skipped; `--check` exit 0. Queued: `u43-tests-5`.
 
+### P2 at `167278b` (2026-11-25, `u43-tests-5` pass): the hand commit isn't a green step
+
+- After the hand edit and its commit, Rex's review refused: "feature/SAMPLE-1-… isn't at SAMPLE-1's
+  last green step". That guard is right (a commit of yours after Kai's hand-over isn't a step MIRAI
+  checked), so nothing in `src/` changes for it.
+- **P2's route now goes through MIRAI's own steps** (the spec's "one AC's test removed … the ship
+  stops, Kai gets the must-fix naming the AC, his fix round adds the test"): Kai's build runs through
+  a stand-in `claude` (`takeOutWrapper`, the probe's) that runs the real one and then, once, takes
+  AC-SAMPLE-1.2 out of the test names his launch wrote, before MIRAI's checks judge the tree and
+  commit it. So the build that reaches Rex and the gate is an ordinary green step, as if Kai had
+  left the ID out. (A named `claude` is MIRAI's own seam for a probe or a test; it's used as given.)
+  Then: Rex, the gate's trace stops the ship naming AC-SAMPLE-1.2, Kai's fix round names the test
+  again (the stand-in edits only once), Rex, the gate, the PR. The hand commit and the extra review
+  are gone from the probe.
+- **Proved from P2's own start** (the earlier test started from "already reviewed", so it missed
+  this): test `43 (P2 at 167278b)` runs `mirai run` from the approved plan, with the stand-in around
+  a fake Kai and test runs that report the tree's PHPUnit methods as the real report does: build
+  `handed-over` → review `pass` → proofs `trace-failed` (every missing link AC-PMT-31.2) → fix
+  `handed-over` → review `pass` → proofs `recorded` (the gate proof's trace `pass`) → ship
+  `opened`; the edit was made once, to `tests/Feature/TeamRenameTest.php`.
+- `--check` gains a line: "p2 the stand-in claude for Kai's build: runs the real one, takes
+  AC-SAMPLE-1.2 out of the tree once, and then never again".
+- Not cage files: only `test/probes/trace-probes.js` and the tests changed.
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`), so a `redteam-full` run is queued with the tests:

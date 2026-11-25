@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
@@ -36,10 +36,12 @@ import { autoApprove, CASES, tessHome } from './tess-probes.js';
 //   builds, reviews, records the proofs (trace runs on the gate's own results) and opens one PR on
 //   your GitHub sample app, on a throwaway base branch (as 27a's P1). Clean-up: the PR closed, the
 //   branches deleted.
-// - P2 (as P1, plus a fix round): before the gate, the probe takes AC-SAMPLE-1.2's test out by hand
-//   (its name loses the ID, so it no longer proves the AC) and commits it; Rex reviews that commit;
-//   the gate's trace stops the ship and sends Kai the must-fix naming AC-SAMPLE-1.2; his fix round
-//   names the test again; Rex, the gate, and the PR.
+// - P2 (as P1, plus a fix round): Kai's build runs through a stand-in claude that, once, takes
+//   AC-SAMPLE-1.2 out of the test names his launch wrote (as if he had left it out), before MIRAI's
+//   checks judge and commit the build; then every step is MIRAI's own: Rex, the gate's trace stops
+//   the ship and sends Kai the must-fix naming AC-SAMPLE-1.2, his fix round names the test again,
+//   Rex, the gate, and the PR. (A hand commit after his hand-over isn't a green step, so Rex's
+//   review rightly refuses one: P2's run at 167278b.)
 // - P3 (no model): 42's example epic and its seven tickets on a P1 home of unit 42 (the PRD approved
 //   with the probe key), with SAMPLE-53's AC-FR-4.5 taken out of its covers_ac. `mirai approve` of
 //   the epic refuses, naming AC-FR-4.5; `mirai trace due-dates` names it with where to fix it.
@@ -83,28 +85,63 @@ export function twoAcs(ticket) {
 //   a method that is only the ID → `test_ac_taken_out_by_the_probe`. The test still runs and passes
 //   (it's still a `test_` method); only trace sees the ID is gone.
 // Returns the text, unchanged when it names neither form.
-export function withoutAc(text) {
+export function withoutAc(text, id = 'AC-SAMPLE-1.2') {
+  const snake = id.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const removed = `${id.slice(3)}-taken-out-by-the-probe`;
   return text
-    .replaceAll('AC-SAMPLE-1.2', REMOVED)
-    .replace(/_and_ac_sample_1_2(?=_|\b)/g, '')
-    .replace(/\b(test_?)ac_sample_1_2_(?=[A-Za-z0-9])/g, '$1')
-    .replace(/\b(test_?)ac_sample_1_2\b/g, '$1ac_taken_out_by_the_probe')
-    .replace(/\b(?<!test_)ac_sample_1_2_(?=[A-Za-z0-9])/g, 'ac_taken_out_');
+    .replaceAll(id, removed)
+    .replace(new RegExp(`_and_${snake}(?=_|\\b)`, 'g'), '')
+    .replace(new RegExp(`\\b(test_?)${snake}_(?=[A-Za-z0-9])`, 'g'), '$1')
+    .replace(new RegExp(`\\b(test_?)${snake}\\b`, 'g'), '$1ac_taken_out_by_the_probe')
+    .replace(new RegExp(`\\b(?<!test_)${snake}_(?=[A-Za-z0-9])`, 'g'), 'ac_taken_out_');
 }
 
-// P2's hand edit: every test file the branch changed loses AC-SAMPLE-1.2 from its test names, so no
-// test proves it any more (as a test taken out or renamed would). Returns the files changed.
-export function takeOutTest({ root, git }) {
-  const files = git('diff', '--name-only', 'main...HEAD').split('\n').filter((p) => /(^|\/)tests?\/|\.(test|spec)\.[a-z]+$|Test\.php$/.test(p));
+const TEST_FILE = /(^|\/)tests?\/|\.(test|spec)\.[a-z]+$|Test\.php$/;
+// Every test file under `root` (its tests/ folders and *.test.*, *.spec.*, *Test.php files; no
+// .git, vendor or node_modules), relative to it.
+export function testFilesUnder(root, rel = '') {
+  const out = [];
+  let names = [];
+  try {
+    names = readdirSync(join(root, rel), { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of names) {
+    const r = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) {
+      if (!['.git', 'vendor', 'node_modules', '.mirai'].includes(e.name)) out.push(...testFilesUnder(root, r));
+    } else if (e.isFile() && TEST_FILE.test(r)) out.push(r);
+  }
+  return out.sort();
+}
+
+// P2 (after its run at 167278b: a hand commit isn't a green step, and MIRAI rightly refuses to
+// review one): the edit is made inside Kai's build, to the tree his launch leaves, before MIRAI's
+// own checks judge it and commit it. Then everything after is MIRAI's own: the checks, the commit,
+// Rex, the gate. A stand-in `claude` runs the real one, then, once (a marker file), takes the AC out
+// of the tests that name it. Returns the wrapper's path.
+export function takeOutWrapper({ dir, real, root, id = 'AC-SAMPLE-1.2', node = process.execPath }) {
+  const mark = join(dir, 'take-out-once');
+  writeFileSync(mark, `${id}\n`);
+  const path = join(dir, 'claude');
+  writeFileSync(path, `#!/bin/sh
+${JSON.stringify(real)} "$@"
+code=$?
+if [ -f ${JSON.stringify(mark)} ]; then
+  ${JSON.stringify(node)} ${JSON.stringify(fileURLToPath(import.meta.url))} --take-out ${JSON.stringify(root)} --id ${JSON.stringify(id)} > ${JSON.stringify(`${mark}.done`)} 2>&1 && rm -f ${JSON.stringify(mark)}
+fi
+exit $code
+`, { mode: 0o755 });
+  return { path, mark, done: `${mark}.done` };
+}
+
+// --take-out <root> --id <AC>: the edit on every test file under root; exit 1 when none named it.
+export function takeOutUnder(root, id = 'AC-SAMPLE-1.2') {
   const changed = [];
-  for (const f of files) {
-    let text;
-    try {
-      text = readFileSync(join(root, f), 'utf8');
-    } catch {
-      continue;
-    }
-    const out = withoutAc(text);
+  for (const f of testFilesUnder(root)) {
+    const text = readFileSync(join(root, f), 'utf8');
+    const out = withoutAc(text, id);
     if (out === text) continue;
     writeFileSync(join(root, f), out);
     changed.push(f);
@@ -226,29 +263,30 @@ async function ship(ctx, repo, { p2 }) {
     return { pass: false, why: gh.problem };
   }
   const cleanups = [() => gh.ghRun('api', '--method', 'DELETE', `repos/${repo}/git/refs/heads/${gh.base}`)];
-  let taken = false;
+  // P2: a stand-in claude that takes AC-SAMPLE-1.2 out of Kai's build's tests, once (takeOutWrapper).
+  const wrapper = p2 ? takeOutWrapper({ dir: ctx.workdir, real: ctx.claude, root: ctx.root }) : null;
   const gates = [];
   const fixes = [];
   const steps = {
     ...STEPS,
-    // P2: once Rex has passed the build, its AC-SAMPLE-1.2 test is taken out by hand and committed,
-    // and Rex reviews that commit, inside the run's own review step (its lock and run; P2 at e8cf212
-    // called the review from inside the proofs step, outside the run, and the lock refused it).
-    runReview: async (o) => {
-      const first = await STEPS.runReview(o);
-      if (!p2 || taken || first.outcome !== 'pass') return first;
-      taken = true;
-      const files = takeOutTest(ctx);
-      if (!files.length) {
-        ctx.log('p2: no test file of the branch names AC-SAMPLE-1.2 (as "AC-SAMPLE-1.2: …" or a test_ac_sample_1_2_… method), so there is nothing to take out (P1 would fail first)');
-        return { ...first, outcome: 'needs-you', why: 'nothing to take out' };
+    runBuild: async (o) => {
+      const r = await STEPS.runBuild(o);
+      if (p2 && wrapper) {
+        let done = '';
+        try {
+          done = readFileSync(wrapper.done, 'utf8').trim();
+        } catch {
+          done = '';
+        }
+        ctx.log(done ? `p2-hand: AC-SAMPLE-1.2 taken out of ${done.split('\n').join(', ')} in Kai's build, before MIRAI's checks; MIRAI's checks and commit judge it as his` : 'p2-hand: no test of Kai\'s build named AC-SAMPLE-1.2, so nothing was taken out');
       }
-      ctx.git('add', '-A');
-      ctx.git('commit', '-qm', 'probe: AC-SAMPLE-1.2\'s test taken out by hand (unit 43, P2)');
-      ctx.log(`p2-hand: AC-SAMPLE-1.2 taken out of ${files.join(', ')}, committed; Rex reviews that commit first`);
-      const rv = await STEPS.runReview({ ...o, launchToken: mintLaunchToken() });
-      ctx.log(`p2-review: ${rv.outcome}${rv.why ? `: ${String(rv.why).slice(0, 300)}` : ''}${rv.blocking?.length ? `; blocking ${rv.blocking.join(', ')}` : ''}`);
-      if (rv.outcome !== 'pass') {
+      ctx.log(`${label}-build: ${r.outcome}${r.why ? `: ${String(r.why).slice(0, 300)}` : ''}`);
+      return r;
+    },
+    runReview: async (o) => {
+      const rv = await STEPS.runReview(o);
+      ctx.log(`${label}-review: ${rv.outcome}${rv.why ? `: ${String(rv.why).slice(0, 300)}` : ''}${rv.blocking?.length ? `; blocking ${rv.blocking.join(', ')}` : ''}`);
+      if (p2 && !gates.length && rv.outcome !== 'pass') {
         ctx.log('p2: Rex caught the missing test before the gate (his findings go to Kai): trace\'s own stop isn\'t exercised in this run');
         gates.push({ outcome: `review ${rv.outcome}` });
       }
@@ -271,7 +309,7 @@ async function ship(ctx, repo, { p2 }) {
   try {
     ctx.log(`${label}-base: ${gh.base}: ${gh.pushed.ok ? 'pushed' : `REFUSED ${gh.pushed.why}`}`);
     if (!gh.pushed.ok) return { pass: false, why: `the base branch wasn't pushed: ${gh.pushed.why}` };
-    const d2 = await driveTicket({ ...io, ticket: 'SAMPLE-1', steps, launchOptions: { ...opts, hostOf: gh.hostOf }, onEvent: events(ctx.log, `${label}-run2`) });
+    const d2 = await driveTicket({ ...io, ticket: 'SAMPLE-1', steps, launchOptions: { ...opts, ...(wrapper ? { claude: wrapper.path } : {}), hostOf: gh.hostOf }, onEvent: events(ctx.log, `${label}-run2`) });
     ctx.log(`${label}-run2: ${d2.outcome}${d2.stop ? ` (${d2.stop.kind}): ${String(d2.stop.why).slice(0, 300)}` : ''}${d2.mr ? `; PR ${d2.mr}` : ''}`);
     const branch = JSON.parse(readFileSync(join(store.dir, 'tickets', 'SAMPLE-1', 'build.json'), 'utf8')).branch;
     cleanups.push(() => gh.ghRun('api', '--method', 'DELETE', `repos/${repo}/git/refs/heads/${branch}`));
@@ -361,9 +399,15 @@ export async function p3Auto(home, log) {
 }
 
 async function cli() {
-  const { values } = parseArgs({ options: { yes: { type: 'boolean' }, check: { type: 'boolean' }, auto: { type: 'boolean' }, probe: { type: 'string' }, app: { type: 'string' }, repo: { type: 'string' } } });
+  const { values } = parseArgs({ options: { 'take-out': { type: 'string' }, id: { type: 'string' }, yes: { type: 'boolean' }, check: { type: 'boolean' }, auto: { type: 'boolean' }, probe: { type: 'string' }, app: { type: 'string' }, repo: { type: 'string' } } });
   const log = (l) => process.stdout.write(`${l}\n`);
   const app = resolve(values.app ?? join(process.env.HOME, 'Projects', 'mirai-sample-app'));
+  // The stand-in claude's step (takeOutWrapper): print the files changed; exit 1 when none.
+  if (values['take-out']) {
+    const changed = takeOutUnder(values['take-out'], values.id ?? 'AC-SAMPLE-1.2');
+    for (const f of changed) log(f);
+    return changed.length ? 0 : 1;
+  }
   if (values.check) {
     let bad = 0;
     const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), 'mirai-u43-check-')));
@@ -383,6 +427,23 @@ async function cli() {
     const ok = !/AC-SAMPLE-1\.2|ac_sample_1_2/.test(edited) && /public function test_another_users_task_cant_be_deleted\(\)/.test(edited) && edited.includes('test_ac_sample_1_1_deleting_your_own_task_removes_it');
     log(`p2 the hand edit on a sample PHPUnit file: ${ok ? 'AC-SAMPLE-1.2 taken out of its TestDox text and its method name; AC-SAMPLE-1.1 kept; still a test_ method' : 'NOT as expected'}`);
     if (!ok) bad += 1;
+    // The stand-in claude P2's build runs through: the real one (here /usr/bin/true), then the edit, once.
+    const w2 = tmp();
+    try {
+      spawnSync('/bin/mkdir', ['-p', join(w2, 'tree', 'tests', 'Feature')]);
+      writeFileSync(join(w2, 'tree', 'tests', 'Feature', 'TaskDeleteTest.php'), P2_SAMPLE);
+      const wr = takeOutWrapper({ dir: w2, real: '/usr/bin/true', root: join(w2, 'tree') });
+      const first = spawnSync(wr.path, ['-p', 'x'], { encoding: 'utf8' });
+      const once = !readFileSync(join(w2, 'tree', 'tests', 'Feature', 'TaskDeleteTest.php'), 'utf8').includes('ac_sample_1_2');
+      writeFileSync(join(w2, 'tree', 'tests', 'Feature', 'TaskDeleteTest.php'), P2_SAMPLE);
+      spawnSync(wr.path, [], { encoding: 'utf8' });
+      const notTwice = readFileSync(join(w2, 'tree', 'tests', 'Feature', 'TaskDeleteTest.php'), 'utf8').includes('ac_sample_1_2');
+      const fine = first.status === 0 && once && notTwice;
+      log(`p2 the stand-in claude for Kai's build: ${fine ? 'runs the real one, takes AC-SAMPLE-1.2 out of the tree once, and then never again' : 'NOT as expected'}`);
+      if (!fine) bad += 1;
+    } finally {
+      rmSync(w2, { recursive: true, force: true });
+    }
     const w3 = tmp();
     try {
       const home = await setHome({ workdir: w3, token: STANDIN });

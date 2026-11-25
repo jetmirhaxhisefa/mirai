@@ -24,7 +24,12 @@ import { commitOf } from '../../src/store/git.js';
 import { openStore } from '../../src/store/home.js';
 import { snapshot, trustedConfig, trustedRegistry } from '../../src/trust/snapshot.js';
 import { needsTest } from '../helpers/needs.js';
-import { CASES, casesFolder, claudeWith, done, passed, passing, tty, watch } from './fixture.js';
+import { approvedTicket, CASES, casesFolder, claudeWith, done, PASSED, passed, passing, PLAN_TEXT, tty, watch } from './fixture.js';
+import { runPlan } from '../../src/agent/plan.js';
+import { writeBaseline } from '../../src/baseline/store.js';
+import { takeOutWrapper } from '../probes/trace-probes.js';
+import { realpathSync, mkdtempSync, readdirSync as readDir } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 // Unit 43 at ship time, on 25a's fixture (PMT-31, built by Kai and passed by Rex, with stand-in
 // claude and test runs): trace on the gate's own results before any proof is minted (T3, T6), the
@@ -223,4 +228,68 @@ launchTest('43 (P2 at e8cf212): under mirai run\'s lock, a failing trace at the 
   assert.equal(readTraceRecord(f.store, 'PMT-31').missing[0].id, 'AC-PMT-31.2');
   const branch = JSON.parse(readFileSync(buildRecordPath(f.store, 'PMT-31'), 'utf8')).branch;
   assert.equal(f.check(f.git('rev-parse', branch)).outcome, 'pass');
+});
+
+// P2 from where the probe starts (its run at 167278b: a hand commit after Kai's hand-over isn't a
+// green step, and Rex's review rightly refuses it). The probe now takes AC-PMT-31.2 out inside Kai's
+// build, through a stand-in claude (the probe's takeOutWrapper) that runs his launch and then edits
+// the tree his launch left, before MIRAI's checks and commit; from there every step is MIRAI's own,
+// under `mirai run`'s one lock. Stand-ins: claude, the test runs (they report the tree's PHPUnit
+// methods, as the real report does), the host.
+const FEATURE = (ids) => `<?php\nclass TeamRenameTest extends TestCase\n{\n${ids.map((m) => `    public function ${m}(): void {}\n`).join('')}}\n`;
+const WRITE_BUILD = [
+  'printf "// renamed\\n" >> app/Team.php',
+  `printf '%s' '${FEATURE(['test_ac_pmt_31_1_keeps_the_name_and_slug_rules'])}' > tests/Unit/RenameTeamTest.php`,
+  `printf '%s' '${FEATURE(['test_ac_pmt_31_1_a_renamed_team_still_lists_its_members', 'test_ac_pmt_31_2_an_old_slug_redirects', 'test_ac_pmt_31_2_two_renames_both_redirect'])}' > tests/Feature/TeamRenameTest.php`,
+].join('\n');
+// Kai's fix round names the tests with AC-PMT-31.2 again (the probe's stand-in edits only once).
+const WRITE_FIX = `printf '%s' '${FEATURE(['test_ac_pmt_31_1_a_renamed_team_still_lists_its_members', 'test_ac_pmt_31_2_an_old_slug_redirects', 'test_ac_pmt_31_2_two_renames_both_redirect'])}' > tests/Feature/TeamRenameTest.php\nprintf "// named\\n" >> app/Team.php`;
+const treeRun = async ({ name, cwd }) => {
+  const dir = name === 'unit' ? 'tests/Unit' : 'tests/Feature';
+  const cases = [];
+  for (const file of readDir(join(cwd, dir)).filter((n) => n.endsWith('.php'))) {
+    for (const m of readFileSync(join(cwd, dir, file), 'utf8').matchAll(/function (test_[A-Za-z0-9_]+)\(/g)) cases.push({ id: `${dir}/${file}::${m[1]}`, outcome: 'pass' });
+  }
+  return { outcome: 'pass', id: `t-${name}`, tests: { total: cases.length, passed: cases.length, failed: 0, errors: 0, skipped: 0 }, ...casesFolder(cases) };
+};
+
+launchTest('43 (P2 at 167278b): from P2\'s start (AC-PMT-31.2 taken out inside Kai\'s build, before MIRAI\'s checks): trace stops the ship, Kai\'s fix names the test again, Rex, the proofs with trace pass, the MR', async () => {
+  const f = await approvedTicket();
+  const io = f.io;
+  const p = await runPlan({ cwd: f.root, env: f.env, ticket: 'PMT-31', launchTokens: [mintLaunchToken(), mintLaunchToken()], launchOptions: watch(claudeWith([{ plan: PLAN_TEXT }])) });
+  assert.equal(p.outcome, 'waiting');
+  assert.equal((await tty(['approve', 'PMT-31', '--plan'], io, ['a', 'PMT-31'])).code, EXIT.OK);
+  const store = openStore(io);
+  writeBaseline(store, { schema_version: 1, sha: snapshot(io).baseSha, levels: { unit: { ...PASSED, tests: { total: 1, skipped: 0 } }, feature: PASSED } }, loadSigner(f.env, store));
+  const kai = claudeWith([done, { verdict: 'pass', findings: [] }, done, { verdict: 'pass', findings: [] }], [WRITE_BUILD, ':', WRITE_FIX, ':']);
+  const wrapper = takeOutWrapper({ dir: realpathSync(mkdtempSync(join(tmpdir(), 'mirai-43-p2-'))), real: kai.path, root: f.root, id: 'AC-PMT-31.2' });
+  const steps = {
+    ...STEPS,
+    probeUsage: async () => ({ outcome: 'ok' }),
+    recordBaseline: async () => ({ baseline: { complete: true }, reused: true }),
+    runBuild: (o) => STEPS.runBuild({ ...o, testRun: treeRun }),
+    runFix: (o) => runFix({ ...o, testRun: treeRun }),
+    recordProofs: (o) => recordProofs({ ...o, run: treeRun }),
+    writeRunReport: async () => ({}),
+    shipTicket: async ({ cwd, env, ticket }) => {
+      const s2 = openStore({ cwd, env });
+      const branch = JSON.parse(readFileSync(buildRecordPath(s2, ticket), 'utf8')).branch;
+      const head = commitOf(s2.checkout, `refs/heads/${branch}`, s2.gitEnv);
+      appendEvent(s2, { type: 'pushed', by: 'script', ticket, branch, sha: head, proofs: 'pass' });
+      appendEvent(s2, { type: 'mr_opened', by: 'script', ticket, head, target: 'main', number: 8, url: 'https://github.com/acme/app/pull/8' });
+      return { ticket, outcome: 'opened', mr: { number: 8, url: 'https://github.com/acme/app/pull/8' }, head, pushed: true, branch };
+    },
+  };
+  const r = await driveTicket({ cwd: f.root, env: f.env, ticket: 'PMT-31', steps, launchOptions: { ...watch(kai), claude: wrapper.path }, caffeinate: () => ({ stop: () => {}, note: null }) });
+  assert.equal(r.outcome, 'finished', JSON.stringify(r.stop));
+  assert.deepEqual(r.steps.map((x) => [x.step, x.outcome]), [['build', 'handed-over'], ['review', 'pass'], ['proofs', 'trace-failed'], ['fix', 'handed-over'], ['review', 'pass'], ['proofs', 'recorded'], ['ship', 'opened']]);
+  // The edit was made once, inside Kai's build, to the files that named the AC.
+  assert.equal(readFileSync(wrapper.done, 'utf8').trim(), 'tests/Feature/TeamRenameTest.php');
+  const record = readTraceRecord(store, 'PMT-31');
+  assert.ok(record.missing.length && record.missing.every((m) => m.id === 'AC-PMT-31.2'), JSON.stringify(record.missing));
+  const branch = JSON.parse(readFileSync(buildRecordPath(store, 'PMT-31'), 'utf8')).branch;
+  assert.match(f.git('log', '--format=%s', `main..${branch}`), /PMT-31: proofs/);
+  const head = f.git('rev-parse', branch);
+  const gate = JSON.parse(f.git('show', `${head}:${f.git('ls-tree', '-r', '--name-only', head, '.mirai/records/PMT-31').split('\n').find((x) => x.includes('/gate-'))}`));
+  assert.equal(gate.trace.result, 'pass');
 });
