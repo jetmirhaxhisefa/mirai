@@ -2,6 +2,7 @@ import { coverage, prdItems, ticketsOf } from '../lint/graph.js';
 import { parseDocument } from '../lint/lint.js';
 import { METHODS, requirementItems, VERIFIED } from '../lint/prd.js';
 import { checkIds } from '../lint/rules.js';
+import { isRetired } from '../lint/retired.js';
 
 // `mirai trace <initiative>`, the documents' scope (unit 43; Jet's decision 4, 2026-11-21):
 // - BR → FR: every BR the brief defines is cited by at least one FR or NFR of the PRD;
@@ -46,7 +47,8 @@ export function traceDocuments({ initiative, brief = null, prd = null, epic = nu
     return { ...out, result: 'fail' };
   }
   const prdDef = registry.documentTypes.prd;
-  const items = requirementItems(p.doc);
+  // Unit 43: a retired ID ("FR-4: Retired — <why>") is in no link: it is reserved, never covered.
+  const items = requirementItems(p.doc).filter((x) => !isRetired(x.statement));
   // ---- BR → FR ------------------------------------------------------------------------------
   const b = ITEM_OF(parse(brief));
   if (b && registry.documentTypes.brief) {

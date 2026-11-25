@@ -1,3 +1,5 @@
+import { retiredIds } from './retired.js';
+
 // The ticket graph lint (unit 33; design/01 §5, §5a, §6; D-09). It runs on an epic, with its
 // tickets (every ticket in <initiative>/tickets/ whose `epic` names it) and its PRD, and checks
 // that the set is complete and can be built:
@@ -31,6 +33,8 @@ export function capsOf(limits = {}) {
 // "Non-functional".
 export function prdItems(up) {
   if (!up) return [];
+  // Unit 43: a retired ID ("FR-4: Retired — <why>") is reserved, never covered.
+  const retired = retiredIds(up.doc);
   const groups = up.doc.scan.headings.filter((h) => h.level <= 3);
   const groupAt = (line) => {
     const h = groups.filter((x) => x.line < line).at(-1);
@@ -39,6 +43,7 @@ export function prdItems(up) {
   const out = [];
   for (const [prefix, kind] of [['FR', 'FR'], ['AC', 'AC'], ['NFR', 'NFR'], ['ACNFR', 'AC']]) {
     for (const [id, at] of up.ids.get(prefix) ?? []) {
+      if (retired.has(id)) continue;
       const parent = kind === 'AC' ? /^AC-(N?FR-[0-9]+)\./.exec(id)?.[1] : undefined;
       out.push({ id, kind, parent, line: at.line, group: prefix === 'NFR' || prefix === 'ACNFR' ? 'Non-functional' : null });
     }

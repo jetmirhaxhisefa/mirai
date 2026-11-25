@@ -6,6 +6,7 @@ import { scanMarkdown, fixedParts } from './markdown.js';
 import { summaryOf, clip } from './summary.js';
 import { checkPrdRequirements } from './requirements.js';
 import { prdTestabilityProblems } from './testable.js';
+import { isRetired, RETIRED_HINT } from './retired.js';
 
 // The PRD's own lint (unit 32; research/13 §7, §9d; Jet's decisions 2026-11-19). What the
 // generic rules can't say:
@@ -56,7 +57,7 @@ export function checkPrd(doc, def, ctx, add) {
   const defs = definitions(doc);
   for (const prefix of OWN_NUMBERED) {
     defs.filter((d) => d.prefix === prefix).forEach((d, i) => {
-      if (d.n !== i + 1) add({ code: 'prd-numbering', line: d.line, column: 1, reason: `${d.id} should be ${prefix}-${i + 1}: ${prefix} IDs run 1, 2, 3 … in order, with no gap`, hint: `renumber, and update every mention of the old ${prefix} IDs` });
+      if (d.n !== i + 1) add({ code: 'prd-numbering', line: d.line, column: 1, reason: `${d.id} should be ${prefix}-${i + 1}: ${prefix} IDs run 1, 2, 3 … in order, with no gap`, hint: `renumber, and update every mention of the old ${prefix} IDs; or, when the missing ID was in a version you approved, keep its line: "${prefix}-${i + 1}: Retired — <why>" (${RETIRED_HINT})` });
     });
   }
   for (const prefix of CONTINUED) {
@@ -74,7 +75,7 @@ export function checkPrd(doc, def, ctx, add) {
     }
     for (const [p, acs] of byParent) {
       acs.forEach((d, i) => {
-        if (d.m !== i + 1) add({ code: 'prd-numbering', line: d.line, column: 1, reason: `${d.id} should be AC-${p}.${i + 1}: a requirement's ACs run .1, .2, .3 …`, hint: 'renumber the ACs under this requirement' });
+        if (d.m !== i + 1) add({ code: 'prd-numbering', line: d.line, column: 1, reason: `${d.id} should be AC-${p}.${i + 1}: a requirement's ACs run .1, .2, .3 …`, hint: `renumber the ACs under this requirement; or, when the missing ID was in a version you approved, keep its line: "AC-${p}.${i + 1}: Retired — <why>"` });
       });
     }
   }
@@ -82,6 +83,9 @@ export function checkPrd(doc, def, ctx, add) {
   // ---- Functional requirements ----------------------------------------------------------
   const frSec = sectionOf('Functional requirements');
   const items = requirementItems(doc);
+  // Unit 43 (Jet's answer 1, "A"): a retired ID keeps its place in the numbering; no rule for a live
+  // requirement applies to it.
+  const live = items.filter((x) => !isRetired(x.statement));
   if (frSec) {
     const h3s = scan.headings.filter((h) => h.level === 3 && h.line > frSec.h.line && (frSec.lines.length === 0 || h.line <= frSec.lines.at(-1).line));
     const names = h3s.map((h) => h.text);
@@ -108,16 +112,16 @@ export function checkPrd(doc, def, ctx, add) {
           add({ code: 'prd-groups', line: h.line, column: 1, reason: '"### Capabilities" has no requirement', hint: 'add "[Actor] can …" requirements, or write: None — <reason>' });
         }
       }
-      for (const fr of frs) {
+      for (const fr of frs.filter((x) => live.includes(x))) {
         const shape = SHAPES[h.text];
         if (!shape.test(fr.statement)) add({ code: 'prd-shape', severity: 'warning', line: fr.line, column: 1, reason: `${fr.id} under "${h.text}" reads "${clip(fr.statement, 50)}"`, hint: `write it as ${shape.want}, or move it to the group it belongs to` });
       }
     });
   }
-  for (const it of items.filter((x) => x.prefix === 'FR' || x.prefix === 'NFR')) {
+  for (const it of live.filter((x) => x.prefix === 'FR' || x.prefix === 'NFR')) {
     if (/\bshall\b/i.test(it.statement)) add({ code: 'prd-must', line: it.line, column: 1, reason: `${it.id} says "shall"`, hint: 'say "must": it is plain, and every reader takes it the same way' });
     if (it.prefix === 'FR' && !/\(BR-[0-9]+(?:, *BR-[0-9]+)*\)(?: *\((?:A|REQ)-[0-9]+(?:, *(?:A|REQ)-[0-9]+)*\))*\.?$/.test(it.statement)) add({ code: 'prd-trace', line: it.line, column: 1, reason: `${it.id} doesn't name the business requirement it serves`, hint: 'end it with the brief\'s BR in brackets, then any assumptions it rests on and the lines of your own list it carries (unit 41): (BR-2), (BR-2) (A-1) or (BR-2) (REQ-23)' });
-    const acs = items.filter((a) => a.prefix === `AC-${it.prefix}` && a.parent === it.id);
+    const acs = live.filter((a) => a.prefix === `AC-${it.prefix}` && a.parent === it.id);
     const verified = it.prefix === 'NFR' ? it.lines.map((l) => VERIFIED.exec(l.replace(ITEM, '').trim())).find(Boolean) : null;
     if (it.prefix === 'NFR') {
       // "Verified by: AC-NFR-2.1" points at the NFR's own AC, which is a method (P2, unit 32).
@@ -128,7 +132,7 @@ export function checkPrd(doc, def, ctx, add) {
       add({ code: 'prd-ac', line: it.line, column: 1, reason: `${it.id} has no acceptance criterion`, hint: `add AC-${it.id}.1 under it: Given …, when …, then …` });
     }
   }
-  for (const ac of items.filter((x) => x.prefix.startsWith('AC-'))) {
+  for (const ac of live.filter((x) => x.prefix.startsWith('AC-'))) {
     const t = ac.statement;
     const missing = ['Given', 'when', 'then'].filter((w) => !new RegExp(`\\b${w}\\b`, 'i').test(t));
     if (missing.length) add({ code: 'prd-ac', line: ac.line, column: 1, reason: `${ac.id} has no ${missing.map((w) => `"${w[0].toUpperCase()}${w.slice(1)}"`).join(' or ')}`, hint: 'write it as: Given <the state>, when <the action>, then <what anyone can check>' });
@@ -136,7 +140,7 @@ export function checkPrd(doc, def, ctx, add) {
 
   // ---- Every BR of the brief is served ----------------------------------------------------
   if (up) {
-    const served = new Set(items.filter((x) => x.prefix === 'FR' || x.prefix === 'NFR').flatMap((x) => x.statement.match(/\bBR-[0-9]+\b/g) ?? []));
+    const served = new Set(live.filter((x) => x.prefix === 'FR' || x.prefix === 'NFR').flatMap((x) => x.statement.match(/\bBR-[0-9]+\b/g) ?? []));
     for (const [br] of up.ids.get('BR') ?? []) {
       if (!served.has(br)) add({ code: 'prd-trace', ...top, reason: `the brief's ${br} isn't served by any FR or NFR`, hint: `add the requirement that delivers ${br}, ending with (${br}); if it's out of scope, the brief must change first` });
     }

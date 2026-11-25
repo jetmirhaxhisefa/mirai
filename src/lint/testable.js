@@ -88,6 +88,11 @@ export function prdTestabilityProblems(doc) {
     const m = PRD_AC.exec(t);
     if (m) {
       ac = { id: m[2], indent: m[1].length };
+      // Unit 43: a retired AC ("Retired — <why>") is no AC to test.
+      if (/^Retired —/.test(m[3].trim())) {
+        ac = null;
+        continue;
+      }
       const reason = untestableReason(m[2], m[3].trim());
       if (reason) out.push({ code: 'prd-ac-untestable', line: l.line, column: 1, reason, hint: TESTABLE_HINT });
       continue;

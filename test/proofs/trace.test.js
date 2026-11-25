@@ -113,25 +113,26 @@ launchTest('43 T7: the gate check accepts a proof only with a trace result of pa
   const fail = f.check();
   assert.equal(fail.outcome, 'no-trace');
   assert.match(fail.trace.why, /its trace result is fail, not pass/);
-  resign(f, r.written, { trace: 'n/a', minted_at: '2026-11-20T10:00:00.000Z' });
+  resign(f, r.written, { trace: 'n/a', minted_at: '2026-11-20T10:00:00.000Z' }); // before any cut-off: 43 was built on 2026-11-25
   const old = f.check();
   assert.equal(old.outcome, 'pass');
   assert.equal(old.trace.old, true);
   const cli = await tty(['gate', 'check', 'PMT-31'], f.io);
   assert.equal(cli.code, EXIT.OK);
-  assert.match(cli.out, /trace: n\/a, accepted: minted before 2026-12-01, when mirai trace was built/);
-  resign(f, r.written, { trace: 'n/a', minted_at: '2026-12-02T10:00:00.000Z' });
+  const day = TRACE_CUTOFF.slice(0, 10);
+  assert.ok(cli.out.includes(`trace: n/a, accepted: minted before ${day}, when mirai trace was built`), cli.out);
+  resign(f, r.written, { trace: 'n/a', minted_at: new Date(Date.parse(TRACE_CUTOFF) + 86_400_000).toISOString() });
   assert.equal(f.check().outcome, 'no-trace');
   const after = await tty(['gate', 'check', 'PMT-31'], f.io);
   assert.equal(after.code, EXIT.FAILURE);
-  assert.match(after.out, /trace: refused: .*its trace is "n\/a", which only a proof minted before 2026-12-01/);
+  assert.ok(after.out.includes(`its trace is "n/a", which only a proof minted before ${day}`), after.out);
   // A proof with no trace at all isn't a proof: MIRAI won't sign one, and a check refuses it.
   const one = JSON.parse(readFileSync(join(f.root, r.written[1]), 'utf8'));
   assert.equal(proofProblem({ ...one, trace: undefined }), 'no trace');
   writeFileSync(join(f.root, r.written[1]), proofText({ ...one, trace: undefined }));
   f.git('commit', '-qam', 'no trace');
   assert.equal(f.check().outcome, 'bad-record');
-  assert.equal(TRACE_CUTOFF, '2026-12-01T00:00:00.000Z');
+  assert.match(TRACE_CUTOFF, /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/, 'a day, at midnight UTC');
   assert.deepEqual(traceAccepted({ trace: { result: 'pass' } }), { ok: true });
 });
 

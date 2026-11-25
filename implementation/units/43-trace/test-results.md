@@ -214,9 +214,9 @@ By hand (you see each refusal yourself):
   3. **P1 and P2 print `pN: PASS` or `pN: FAIL: <why>`** from what the run did (`shipVerdict`: the
      gates in order, the fix rounds, the gate check's word, the PR) and exit 1 unless it's a pass.
      Test `43 (P1 and P2's first runs)`.
-  4. Not a cage file: `src/trace/ticket.js` is reached from the MCP server's `trace` tool, so it is
-     in the cage; its change only reads names. No case changes; `u43-tests-2` re-runs the suite
-     (the red team only if the coordinator wants it for the cage's hash change, see below).
+  4. `src/trace/ticket.js` is reached from the MCP server's `trace` tool, so it is in the cage; its
+     change only reads names. No case changes; `u43-tests-2`, `u43-baseline-2` and `u43-redteam-2`
+     ran at the new head.
 
 ## The red team
 
@@ -303,7 +303,30 @@ Nothing in trace's path (`src/trace/`, `src/cli/commands/trace.js`, `src/mcp/too
 - **P2's "test removed by hand"** takes AC-SAMPLE-1.2 out of the test's name (so no test proves
   it), committed; Rex reviews that commit before the gate (the code changed, so the review is stale).
 
-## Questions for Jet
+## Jet's answers (2026-11-25): Q1 "A", Q2 "A", Q3 "A"
+
+**1: A,** built. A middle FR, NFR or AC of an approved PRD is dropped by keeping its line as
+`- FR-4: Retired — <why>` (`src/lint/retired.js`). The line keeps the numbering whole, so
+`prd-numbering` is satisfied; when there's a gap, its hint now names the form ("or, when the missing
+ID was in a version you approved, keep its line: "FR-4: Retired — <why>""). No rule for a live
+requirement applies to a retired one: not its group's shape, "shall", its BR, its ACs, Given/When/
+Then or the testability lint, not a BR being served by it; 33's coverage (`prdItems`, so the epic's
+graph lint, its Coverage table and trace) leaves it out. ID stability accepts the retiring, and a
+retired ID never comes back: "FR-4 was retired in the version you approved (…); a retired ID never
+comes back". Docs: `docs/documents.md` (the PRD's rules), `docs/trace.md`, Nora's prompt
+(`registry/agents/mirai-product-manager.md`, "An approved PRD keeps its IDs") and the `mirai-write`
+PRD guide. Test `43 (Jet's answer 1, "A")`: the PRD with FR-4 retired lints clean against the
+approved version (no problem at all); FR-4 removed instead fails the numbering lint, naming the
+form; FR-4 given a new meaning after its retiring fails ID stability; trace leaves FR-4 out.
+
+**2: A,** as built: the cut-off is the day 43 merges, set in its approval commit. It is one line,
+`TRACE_CUTOFF` in `src/proofs/records.js` (2026-12-01 until then); the check, its messages, the
+docs (`docs/trace.md` names the constant) and the tests all read it, so the approval commit changes
+only that line.
+
+**3: A,** as built: a PHPUnit test names its AC in its method name, in snake case.
+
+## Questions for Jet (answered above)
 
 1. **Retiring an ID in the middle conflicts with the PRD's numbering lint.** `prd-numbering` says
    FR IDs run 1, 2, 3 … with no gap, so removing FR-4 of seven means renumbering FR-5 → FR-4: the
@@ -354,9 +377,18 @@ Nothing in trace's path (`src/trace/`, `src/cli/commands/trace.js`, `src/mcp/too
 **Through the build runner** (a clean export each), queued at the pushed head: `u43-tests-1`
 (tests), `u43-baseline-1` (baseline) and `u43-redteam-1` (redteam-full: cage files changed, see
 "The red team"). `u43-tests-1` **pass, 888/888**; `u43-baseline-1` pass; `u43-redteam-1` still
-running when the P1/P2 fixes went in.
+running when the P1/P2 fixes went in; it ended INCOMPLETE (`w-git-config` and `adv-linger`
+inconclusive; only the two accepted known limits failed).
 
 **After P1 and P2's first runs** (the PHPUnit names, the probe home's overlays, PASS/FAIL): on the
 Mac at `a84e467`, **890/890 pass**, 0 skipped; `--check` both lines (now with "overlays none"),
-exit 0. Queued at the new head: `u43-tests-2`, and since `src/trace/ticket.js` is a cage file (the
-`trace` tool reaches it), `u43-baseline-2` and `u43-redteam-2`.
+exit 0. At `ac424e5`: `u43-tests-2` pass, `u43-baseline-2` pass, `u43-redteam-2` INCOMPLETE again
+(`w-git-config` inconclusive 2/3; only the accepted known limits `h-timeout-link` and `l-cd`
+failed; no other case red).
+
+**After Jet's answers** (the retired IDs, the cut-off's one line): the touched folders on the Mac
+(`test/lint`, `test/documents`, `test/proofs/trace.test.js`, `test/docs`, `test/redteam`) green;
+the full suite not run on the Mac (the runner and the probes were using it). Queued: `u43-tests-3`.
+Cage files changed again: `src/lint/prd.js`, `graph.js`, `ids.js`, `testable.js` and the new
+`retired.js` are reached from the server's `lint` and `trace` tools; the lint still only reads and
+reports, and no case changes. So `u43-baseline-3` and `u43-redteam-3` are queued with it.

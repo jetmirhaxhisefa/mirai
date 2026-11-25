@@ -293,6 +293,31 @@ test('43 T9: ID stability: an approved PRD\'s FR-4 removed and a different FR-4 
   assert.ok(REGISTRY.documentTypes.story.lint_checks.includes('id-stability'));
 });
 
+test('43 (Jet\'s answer 1, "A"): a middle FR is retired as "FR-4: Retired — <why>": both lints pass; without it the numbering lint names the form; a retired ID can never come back', () => {
+  const lint = (text, previous = PRD_READY) => lintText(text, { source: `${D}/prd.md`, registry: REGISTRY, project: { repos: ['.'] }, previous }).filter((p) => p.severity === 'error');
+  const start = PRD_READY.indexOf('- FR-4: When a day ends');
+  const end = PRD_READY.indexOf('- FR-5: While a task');
+  const block = PRD_READY.slice(start, end);
+  const retired = PRD_READY.replace(block, '- FR-4: Retired — the reminders move to a later release (the owner, 2026-11-25).\n');
+  // Retired: the numbering, the BR, the ACs, testability and ID stability all pass for it.
+  assert.deepEqual(lint(retired).map((p) => `${p.code}: ${p.reason}`), []);
+  // Removed, the later FRs renumbered: the numbering lint (with no gap, it's FR-5 that would move) names the form.
+  const removed = PRD_READY.replace(block, '');
+  const gap = lint(removed).filter((p) => p.code === 'prd-numbering');
+  assert.ok(gap.length, 'a gap');
+  assert.match(gap[0].hint, /"FR-4: Retired — <why>"/);
+  // A retired ID that comes back with a meaning is refused against the version that retired it.
+  const back = retired.replace('- FR-4: Retired — the reminders move to a later release (the owner, 2026-11-25).', '- FR-4: When a lead opens the team page, the system must show a weekly chart. (BR-3)\n  - AC-FR-4.1: Given a lead with a team, when they open the team page, then the chart shows each member\'s finished tasks.');
+  const p = lint(back, retired).filter((x) => x.code === 'id-stability');
+  assert.equal(p.length, 1);
+  assert.match(p[0].reason, /^FR-4 was retired in the version you approved \("Retired — the reminders move/);
+  assert.match(p[0].reason, /a retired ID never comes back/);
+  // Trace and the graph's coverage leave a retired ID out: nothing covers it, and nothing must.
+  const t = traceDocuments(docs({ prd: retired }));
+  assert.ok(!t.links.some((l) => l.from === 'FR-4'), 'FR-4 is in no link');
+  assert.ok(!t.missing.some((m) => /^(AC-)?FR-4\b/.test(m.id)));
+});
+
 // ---- The registry (the 37 re-check) and the session list ---------------------------------------
 
 test('43 (37 re-check): trace reads the plan\'s test list; story and bug protect e2e, tests and tdd, read by trace (folded into v2)', () => {

@@ -1,6 +1,7 @@
 import { readFrontmatter } from './frontmatter.js';
 import { scanMarkdown } from './markdown.js';
 import { requirementItems } from './prd.js';
+import { isRetired } from './retired.js';
 
 // A document's text, parsed as lint.js's parseDocument does (here, so the lint's checks don't import lint.js).
 function parsed(text) {
@@ -69,7 +70,12 @@ export function idStabilityProblems(doc, previous) {
   for (const [id, then] of before) {
     if (!now.has(id)) continue;
     const said = now.get(id);
-    if (overlap(then, said) >= SAME_MEANING) continue;
+    // Unit 43 (Jet's answer 1, "A"): retiring an ID is allowed; bringing a retired one back isn't.
+    if (isRetired(then) && !isRetired(said)) {
+      out.push({ code: 'id-stability', line: lineOf(id), column: 1, reason: `${id} was retired in the version you approved ("${clip(then)}"); a retired ID never comes back: here it says "${clip(said)}"`, hint: `keep "${id}: Retired — …" as it is, and give the new item its own new ID` });
+      continue;
+    }
+    if (isRetired(said) || overlap(then, said) >= SAME_MEANING) continue;
     out.push({
       code: 'id-stability', line: lineOf(id), column: 1,
       reason: `${id} meant "${clip(then)}" in the version you approved; it now says "${clip(said)}": an ID that existed in an approved version never comes back with another meaning`,

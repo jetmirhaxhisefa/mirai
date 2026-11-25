@@ -104,7 +104,8 @@ is minted:
 
 `mirai gate check`, the pre-push hook, `mirai ship` and CI accept a proof only with a `trace`
 result of `pass`. A proof minted before trace was built says `"trace": "n/a"`: it's still accepted
-when it was minted before **2026-12-01** (the cut-off, named in the check's output), and refused
+when it was minted before the day unit 43 merged (the cut-off, `TRACE_CUTOFF` in
+`src/proofs/records.js`, named in the check's output), and refused
 after it. CI checks the proof and never runs trace again.
 
 ## For agents
@@ -119,3 +120,8 @@ Approving a PRD (and a set, again) runs the ID-stability lint against the versio
 last: an FR, NFR or AC, or a ticket key or its own AC, that comes back with another meaning is
 refused (`id-stability`). A rewording keeps most of its words and passes; a new requirement under
 an old number doesn't.
+
+To drop an approved FR, NFR or AC, keep its line as `- FR-4: Retired — <why>` (Jet's answer 1,
+"A"): the numbering stays whole (the numbering lint names this form when there's a gap), the ID
+stays reserved, no ticket covers it and trace leaves it out. A retired ID never comes back: a
+later version giving FR-4 a meaning again is refused against the version that retired it.

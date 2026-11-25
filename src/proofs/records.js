@@ -19,6 +19,8 @@ export const PROOF_NAME = /^(review|gate|qa)-r([1-9][0-9]{0,3})-([0-9a-f]{12})\.
 export const MAX_PROOF_BYTES = 256 * 1024;
 // Unit 43 (Scope 7): a proof carries `mirai trace`'s result. One minted before trace was built says
 // `trace: "n/a"`; it's still accepted when it was minted before this cut-off, and never after.
+// Jet's answer 2 ("A", 2026-11-25): the day unit 43 merges, set in its approval commit; this line
+// is the only place it's written (the check, its messages and the tests all read it).
 export const TRACE_CUTOFF = '2026-12-01T00:00:00.000Z';
 
 // Whether a proof's trace lets it count: { ok } or { ok: false, why }.

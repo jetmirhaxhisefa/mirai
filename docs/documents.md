@@ -577,7 +577,10 @@ The lint checks that:
   ([tickets.md](tickets.md)), so a vague AC can't reach approval, and then Tess;
 - every NFR says how it's verified: its own `AC-NFR-n.m`, or a line `Verified by:` naming a test
   level, a measurement or a manual check;
-- IDs run 1, 2, 3 … with no gap, and an AC's requirement exists.
+- IDs run 1, 2, 3 … with no gap, and an AC's requirement exists. An ID a version you approved had
+  is never renumbered: to drop one, its line stays as `- FR-4: Retired — <why>` (unit 43), which
+  keeps the numbering whole and the ID reserved; no rule for a live requirement applies to it, no
+  ticket covers it, and the ID-stability lint refuses it if it comes back with a meaning.
 
 A sentence that doesn't match its group's shape only warns, until we've seen real PRDs. The
 shapes come from EARS, the Easy Approach to Requirements Syntax (Alistair Mavin and others,

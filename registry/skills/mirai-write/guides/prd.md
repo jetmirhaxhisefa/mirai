@@ -28,6 +28,9 @@ you're given, or `mirai show template prd`, and its checklist, `mirai show check
   "has access" or "viewer" halfway.
 - **On `standard`, the PRD's summary covers the brief too.** Its "Not in this" carries the brief's
   no-gos with their reasons; don't shorten them to IDs.
+- **An approved ID stays.** To drop an FR, NFR or AC a version the owner approved had, keep its
+  line as `- FR-4: Retired — <why>`; never renumber the ones after it. A new requirement gets the
+  next free ID.
 
 ## Examples
 
