@@ -113,7 +113,7 @@ The ticket must be `ready-for-dev`. The ticket on the integration branch must be
    - Kai is told each note still holds unless a later note or the ticket says otherwise.
    - Where a note and the approved ticket disagree, Kai follows the ticket, and the reject warns you to edit the ticket instead.
 8. **The gate.** A plan that passes waits for you.
-9. **Test names** (unit 43). Each test row's name starts with the AC it proves and a colon (`AC-SAMPLE-53.2: a day is sent once`), an e2e test's with its journey too (`J-1, AC-SAMPLE-53.1: …`), and the Test ID carries that name. `mirai trace` reads them from the gate's results at ship time ([trace.md](trace.md)); Kai and Rex have the read-only `trace` tool to see what's missing.
+9. **Test names** (unit 43). Each test row's name starts with the AC it proves and a colon (`AC-SAMPLE-53.2: a day is sent once`), an e2e test's with its journey too (`J-1, AC-SAMPLE-53.1: …`), and the Test ID carries that name. In PHPUnit, whose report names the method, the method name starts with the ID in snake case: `test_ac_sample_53_2_a_day_is_sent_once`. `mirai trace` reads them from the gate's results at ship time ([trace.md](trace.md)); Kai and Rex have the read-only `trace` tool to see what's missing.
 
 ## The plan gate: `mirai approve <ticket> --plan`
 

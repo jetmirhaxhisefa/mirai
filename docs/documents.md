@@ -726,7 +726,8 @@ every link; `mirai show <initiative>` shows the result as the documents are now.
 **How tests are named.** Each ticket AC is proved by a test whose name starts with its ID and a
 colon: `AC-SAMPLE-53.2: a day is sent once` (`AC-SAMPLE-53.2, AC-SAMPLE-53.3: …` proves both). An
 `e2e: true` ticket's end-to-end test also names its journey: `J-1, AC-SAMPLE-53.1: …`. The plan's
-test list uses the same names. At ship time `mirai trace <ticket>` reads the gate's own results.
+test list uses the same names. In PHPUnit, whose report names a test by its method, the method
+starts with the ID in snake case: `test_ac_sample_53_2_a_day_is_sent_once` ([trace.md](trace.md)). At ship time `mirai trace <ticket>` reads the gate's own results.
 
 **IDs stay.** Approving a PRD, or a set again, compares each FR, NFR and AC (and each ticket key
 and its own ACs) with the version you approved last: an ID that comes back with another meaning is

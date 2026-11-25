@@ -101,17 +101,38 @@ function ticketHome({ app, workdir, token }) {
   writeFileSync(join(ctx.root, TICKET_FILE), text);
   // The sample app's planted flaky test out of the clone (as 24a's and 28's probes): not this probe's.
   ctx.git('rm', '-q', '--ignore-unmatch', 'frontend/src/flaky-seed.test.ts');
+  // The sample app's own overlays (37's P2: Rex with Bash) are approved with your key, which a probe
+  // home doesn't have, so they'd refuse Rex's launch (P2's first run): out of the clone.
+  ctx.git('rm', '-r', '-q', '--ignore-unmatch', '.mirai/custom');
   ctx.git('add', '-A');
   ctx.git('commit', '-qm', 'probe: SAMPLE-1 with two ACs (unit 43)');
   return { ...ctx, ticket: text };
 }
 
-// What --check says of a P1/P2 home: SAMPLE-1 has two ACs, and trace (before any gate run) names
-// both, with how their tests must be named. (A person's lone ticket isn't linted at approval, 42's
-// answer 4, so its lint isn't checked here: SAMPLE-1 is the older v1 form.)
+// What --check says of a P1/P2 home: SAMPLE-1 has two ACs, trace (before any gate run) names both,
+// and no overlay is left that the probe key didn't approve. (A person's lone ticket isn't linted at
+// approval, 42's answer 4, so its lint isn't checked here: SAMPLE-1 is the older v1 form.)
 function checkTicketHome(ctx) {
   const t = traceTicket({ ticket: { path: TICKET_FILE, fm: readFrontmatter(ctx.ticket).value, text: ctx.ticket }, cases: [], ranGate: false });
-  return { missing: t.missing.map((m) => m.id) };
+  return { missing: t.missing.map((m) => m.id), overlays: ctx.git('ls-files', '.mirai/custom').trim().split('\n').filter(Boolean) };
+}
+
+// Whether P1 or P2 passed, from what the run did: { pass, why }. `gates`: each gate's result in
+// order; `fixes`: each fix's; `check`: the gate check's outcome word; `mr`: the PR's URL or null.
+export function shipVerdict({ p2, gates, fixes = [], check, mr }) {
+  const both = (r) => ['AC-SAMPLE-1.1', 'AC-SAMPLE-1.2'].every((ac) => r?.trace?.links?.some((l) => l.from === ac && l.state === 'pass'));
+  const last = gates.at(-1);
+  if (p2) {
+    const first = gates[0];
+    if (!first) return { pass: false, why: 'the ticket never reached the gate' };
+    if (first.outcome !== 'trace-failed' || !first.trace?.missing?.some((m) => m.id === 'AC-SAMPLE-1.2')) return { pass: false, why: `the first gate was ${first.outcome}, not a trace failure naming AC-SAMPLE-1.2` };
+    if (!fixes.some((f) => f.outcome === 'handed-over')) return { pass: false, why: 'no fix round handed over after the trace failure' };
+  }
+  if (!last || last.outcome !== 'recorded') return { pass: false, why: last ? `the last gate was ${last.outcome}${last.why ? `: ${String(last.why).slice(0, 200)}` : ''}` : 'the ticket never reached the gate' };
+  if (last.trace?.result !== 'pass' || !both(last)) return { pass: false, why: 'the proofs\' trace isn\'t a pass with both AC links' };
+  if (check !== 'pass') return { pass: false, why: `the gate check says ${check ?? 'nothing'}` };
+  if (!mr) return { pass: false, why: 'no PR was opened' };
+  return { pass: true, why: null };
 }
 
 // The throwaway base on GitHub and a host that opens the PR against it (27a's P1, 28's r1).
@@ -160,23 +181,25 @@ async function ship(ctx, repo, { p2 }) {
   if (d1.stop?.kind !== 'gate-plan') {
     ctx.log(`${label}: the run stopped before the plan gate: ${d1.stop?.why ?? d1.outcome}`);
     ctx.keep = true;
-    return;
+    return { pass: false, why: 'the run stopped before the plan gate' };
   }
   const ap = await term(['approve', 'SAMPLE-1', '--plan'], io, ['a', 'SAMPLE-1']);
   if (ap.code !== 0) throw new Error(`approve the plan: ${ap.err}`);
   note(io, 'probe (unit 43): SAMPLE-1\'s plan approved with the probe home\'s key, not yours');
   ctx.log('AUTO: the plan approved with the probe key');
   const plan = readFileSync(join(store.dir, 'tickets', 'SAMPLE-1', 'plan.md'), 'utf8');
-  const named = (plan.match(/::AC-SAMPLE-1\.[12][^`|]*/g) ?? []).map((x) => x.slice(2).trim());
+  const named = (plan.match(/::(?:AC-SAMPLE-1\.[12]|test_ac_sample_1_[12]_)[^`|]*/g) ?? []).map((x) => x.slice(2).trim());
   ctx.log(`${label}-plan: test names carrying an AC: ${named.length ? named.join(' | ') : 'NONE (Kai\'s plan doesn\'t name its tests with the ACs)'}`);
 
   const gh = githubHost(ctx, store, repo);
   if (gh.problem) {
     ctx.log(`${label}: ${gh.problem}; stopped`);
-    return;
+    return { pass: false, why: gh.problem };
   }
   const cleanups = [() => gh.ghRun('api', '--method', 'DELETE', `repos/${repo}/git/refs/heads/${gh.base}`)];
   let taken = false;
+  const gates = [];
+  const fixes = [];
   const steps = {
     ...STEPS,
     recordProofs: async (o) => {
@@ -195,23 +218,26 @@ async function ship(ctx, repo, { p2 }) {
         ctx.log(`p2-review: ${rv.outcome}${rv.why ? `: ${String(rv.why).slice(0, 300)}` : ''}${rv.blocking?.length ? `; blocking ${rv.blocking.join(', ')}` : ''}`);
         if (rv.outcome !== 'pass') {
           ctx.log('p2: Rex caught the missing test before the gate (his findings go to Kai): trace\'s own stop isn\'t exercised in this run');
+          gates.push({ outcome: `review ${rv.outcome}` });
           return { outcome: rv.outcome === 'changes' ? 'trace-failed' : 'needs-you', why: `Rex: ${rv.outcome}` };
         }
       }
       const r = await STEPS.recordProofs(o);
       ctx.log(`${label}-gate: ${r.outcome}${r.why ? `: ${String(r.why).slice(0, 400)}` : ''}`);
       traceLog(ctx.log, `${label}-gate`, r);
+      gates.push(r);
       return r;
     },
     runFix: async (o) => {
       const r = await STEPS.runFix(o);
       ctx.log(`${label}-fix: ${r.outcome}${r.why ? `: ${String(r.why).slice(0, 300)}` : ''}; rounds ${r.rounds?.length ?? 0}`);
+      fixes.push(r);
       return r;
     },
   };
   try {
     ctx.log(`${label}-base: ${gh.base}: ${gh.pushed.ok ? 'pushed' : `REFUSED ${gh.pushed.why}`}`);
-    if (!gh.pushed.ok) return;
+    if (!gh.pushed.ok) return { pass: false, why: `the base branch wasn't pushed: ${gh.pushed.why}` };
     const d2 = await driveTicket({ ...io, ticket: 'SAMPLE-1', steps, launchOptions: { ...opts, hostOf: gh.hostOf }, onEvent: events(ctx.log, `${label}-run2`) });
     ctx.log(`${label}-run2: ${d2.outcome}${d2.stop ? ` (${d2.stop.kind}): ${String(d2.stop.why).slice(0, 300)}` : ''}${d2.mr ? `; PR ${d2.mr}` : ''}`);
     const branch = JSON.parse(readFileSync(join(store.dir, 'tickets', 'SAMPLE-1', 'build.json'), 'utf8')).branch;
@@ -224,9 +250,10 @@ async function ship(ctx, repo, { p2 }) {
     const t = await term(['trace', 'SAMPLE-1'], io);
     for (const l of t.out.split('\n').filter((x) => x.trim())) ctx.log(`${label}-trace| ${l}`);
     if (d2.outcome !== 'finished') ctx.keep = true;
-    ctx.log(p2
-      ? `${label}: PASS when p2-gate shows trace-failed naming AC-SAMPLE-1.2, then p2-fix handed-over, then p2-gate recorded with trace pass, p2-check pass, and a PR above`
-      : `${label}: PASS when p1-gate is recorded with trace pass and both AC links (AC-SAMPLE-1.1, AC-SAMPLE-1.2), p1-check says pass, and a PR is above`);
+    const checked = /^gate check SAMPLE-1 at [0-9a-f]+: ([a-z-]+)/m.exec(check.out)?.[1] ?? null;
+    const v = shipVerdict({ p2, gates, fixes, check: checked, mr: d2.mr ?? null });
+    ctx.log(v.pass ? `${label}: PASS` : `${label}: FAIL: ${v.why}`);
+    return v;
   } finally {
     for (const c of cleanups) {
       const x = c();
@@ -312,8 +339,8 @@ async function cli() {
       const ctx = ticketHome({ app, workdir, token: STANDIN });
       const c = checkTicketHome(ctx);
       const clean = ctx.git('status', '--porcelain').trim() === '';
-      log(`p1/p2 SAMPLE-1 with two ACs: home built, tree ${clean ? 'clean' : 'NOT clean'}; trace before a gate run names ${c.missing.join(', ')}`);
-      if (!clean || c.missing.join() !== 'AC-SAMPLE-1.1,AC-SAMPLE-1.2') bad += 1;
+      log(`p1/p2 SAMPLE-1 with two ACs: home built, tree ${clean ? 'clean' : 'NOT clean'}, overlays ${c.overlays.length ? c.overlays.join(', ') : 'none'}; trace before a gate run names ${c.missing.join(', ')}`);
+      if (!clean || c.overlays.length || c.missing.join() !== 'AC-SAMPLE-1.1,AC-SAMPLE-1.2') bad += 1;
     } finally {
       spawnSync('/bin/chmod', ['-R', 'u+rwX', workdir]);
       rmSync(workdir, { recursive: true, force: true });
@@ -352,15 +379,18 @@ async function cli() {
   if (!token) throw new Error('no Claude login token: mirai token set');
   const workdir = realpathSync(mkdtempSync(join(process.env.HOME, '.mirai-probes-')));
   const ctx = { log, workdir, keep: false };
+  let passed = false;
   try {
     Object.assign(ctx, ticketHome({ app, workdir, token }), { log, workdir, claude: resolveClaude(process.env).real });
-    await ship(ctx, values.repo ?? 'jetmirhaxhisefa/mirai-sample-app', { p2: values.probe === 'p2' });
+    const v = await ship(ctx, values.repo ?? 'jetmirhaxhisefa/mirai-sample-app', { p2: values.probe === 'p2' });
+    passed = Boolean(v?.pass);
+    if (!v) log(`${values.probe}: FAIL: the probe ended early`);
   } finally {
     spawnSync('/bin/chmod', ['-R', 'u+rwX', workdir]);
     if (ctx.keep) log(`kept for a look: ${workdir} (delete it after: chmod -R u+w ${workdir} && rm -rf ${workdir})`);
     else rmSync(workdir, { recursive: true, force: true });
   }
-  return 0;
+  return passed ? 0 : 1;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -10,7 +10,7 @@ each is under "Changed from the spec", and the open ones under "Questions for Je
 
 ## Tests
 
-`test/documents/trace.test.js` (13 tests: the documents' scope, the code's scope as pure functions,
+`test/documents/trace.test.js` (15 tests: the documents' scope, the code's scope as pure functions,
 Tess's run, the epic's approval, the CLI, ID stability, the registry and the session list, the
 probes' tooling) and `test/proofs/trace.test.js` (4 tests on 25a's fixture: the gate, the fix loop,
 the proofs, the broker tool). No model runs: fake launchers and 25a's stand-in claude and test runs.
@@ -150,7 +150,7 @@ Rex's review of the hand edit, Kai's fix round, Rex again (Sonnet), about 60 min
    `mirai trace SAMPLE-1`, then the clean-up lines.
 3. **Pass when** `p1-gate` is recorded with trace pass and both AC links (AC-SAMPLE-1.1 and
    AC-SAMPLE-1.2, each `ok … → <test>`), `p1-check|` says `pass` with `trace: pass`, and
-   `p1-run2: finished; PR https://github.com/…` is there. Send me `~/mirai-u43-p1.txt`.
+   `p1-run2: finished; PR https://github.com/…` is there: the probe then prints `p1: PASS` and exits 0 (else `p1: FAIL: <why>`, exit 1). Send me `~/mirai-u43-p1.txt`.
 4. The probe deletes its home; a run that stopped short keeps it and prints the delete line.
 
 ### P2 A missing test stops it (Sonnet; about 60 min; no typing)
@@ -161,7 +161,7 @@ Rex's review of the hand edit, Kai's fix round, Rex again (Sonnet), about 60 min
    naming AC-SAMPLE-1.2, `p2-fix: handed-over`, Rex again, `p2-gate: recorded` with trace pass, the
    check and the PR.
 3. **Pass when** the ship stops at the gate with trace naming AC-SAMPLE-1.2, Kai's fix round names
-   the test again, and the ticket then ships (`p2-run2: finished; PR …`). If `p2-review` isn't
+   the test again, and the ticket then ships (`p2-run2: finished; PR …`): the probe prints `p2: PASS` (else `p2: FAIL: <why>`, exit 1). If `p2-review` isn't
    `pass` (Rex caught the missing test first), the run says so: trace's stop wasn't exercised, and
    it's for us to look at, not a pass. Send me `~/mirai-u43-p2.txt`.
 
@@ -186,6 +186,37 @@ By hand (you see each refusal yourself):
    docs/mirai/due-dates/tickets/ (add it to the covers_ac of the ticket that builds it))`.
 5. **Pass when** step 3 refuses naming AC-FR-4.5 and step 4 names it with where to fix it.
 6. Delete the home (the printed `chmod -R u+w <home> && rm -rf <home>`).
+
+### The coordinator's run at `d86d112` (2026-11-25; checkout `~/Projects/mirai-u43`)
+
+- **P3 `--auto`: PASSED** (`~/mirai-u43-p3.txt`).
+- **P1 failed before trace ran** (`~/mirai-u43-p1.txt`, home `~/.mirai-probes-SOqYr6`): Kai named
+  his PHPUnit tests with `#[TestDox('AC-SAMPLE-1.1: …')]` and methods
+  `test_ac_sample_1_1_deleting_your_own_task_removes_it`, then stopped `blocked` (his own plan said
+  to stop if the adapter reads only method names). It does: PHPUnit's JUnit report (`--log-junit`)
+  names each `<testcase>` by its method, never by its TestDox text (the report is kept as
+  `test/fixtures/junit/phpunit-trace-p1.xml`). Decision 2 ("the same in PHPUnit") didn't hold.
+- **P2 failed before the review** (`~/mirai-u43-p2.txt`, home `~/.mirai-probes-mcrkn2`): "the
+  overlay .mirai/custom/agents/mirai-reviewer.toml is not approved". The sample app carries 37's P2
+  overlay (Rex with Bash), approved with your key; a probe home's key can't verify it.
+- **Both printed their failure and exited 0.**
+- **Fixed:**
+  1. **PHPUnit method names count** (`namedIds` in `src/trace/ticket.js`): a method whose name
+     starts with the ID in snake case, after an optional `test_`, each ID ending at `_` or the end
+     (`test_ac_sample_1_1_…` → AC-SAMPLE-1.1; `…_and_ac_sample_1_2_…` both; `test_j_1_…` a journey).
+     Only the ticket's own ACs, its plan's and the journeys are read this way, so
+     `ac_sample_1_12` is never AC-SAMPLE-1.1; camel case isn't read (ambiguous). A plan row written
+     with the TestDox text matches the method in the same file carrying the same IDs. Kai's prompt,
+     the trace fix round's prompt, `docs/trace.md` and `docs/agents.md` say so. Test
+     `43 (P1's finding)` reads P1's real report: both ACs pass, with the plan's TestDox rows.
+  2. **The probe home drops the sample app's overlays** (`git rm -r .mirai/custom` in the clone,
+     committed); `--check` now also says "overlays none".
+  3. **P1 and P2 print `pN: PASS` or `pN: FAIL: <why>`** from what the run did (`shipVerdict`: the
+     gates in order, the fix rounds, the gate check's word, the PR) and exit 1 unless it's a pass.
+     Test `43 (P1 and P2's first runs)`.
+  4. Not a cage file: `src/trace/ticket.js` is reached from the MCP server's `trace` tool, so it is
+     in the cage; its change only reads names. No case changes; `u43-tests-2` re-runs the suite
+     (the red team only if the coordinator wants it for the cage's hash change, see below).
 
 ## The red team
 
@@ -266,6 +297,9 @@ Nothing in trace's path (`src/trace/`, `src/cli/commands/trace.js`, `src/mcp/too
   approval), where the last approved version is known; on the repo store (the approved text is
   read from git). "Another meaning" is a definition sharing less than a third of its words with
   the approved one. See question 1.
+- **PHPUnit tests are named by their method** (P1's finding): `test_ac_sample_1_1_…` stands for
+  AC-SAMPLE-1.1, since PHPUnit's JUnit report never carries the `#[TestDox]` text. The other
+  runners keep the free name, `AC-SAMPLE-1.1: …`. See question 3.
 - **P2's "test removed by hand"** takes AC-SAMPLE-1.2 out of the test's name (so no test proves
   it), committed; Rex reviews that commit before the gate (the code changed, so the review is stale).
 
@@ -289,6 +323,14 @@ Nothing in trace's path (`src/trace/`, `src/cli/commands/trace.js`, `src/mcp/too
    keep 2026-12-01; **C** a framework version instead (a version bump per unit, which MIRAI doesn't
    do today). Recommendation: **A**.
 
+3. **How a PHPUnit test names its AC.** Built: the method name in snake case
+   (`test_ac_sample_1_2_a_day_is_sent_once`), read back to AC-SAMPLE-1.2 for the ticket's own IDs.
+   Options: **A** as built (no runner change; the report PHPUnit already writes); **B** have the
+   phpunit adapter also write PHPUnit's TestDox output and read the `#[TestDox]` text (a second
+   report to map back to files and methods, per PHPUnit version); **C** both. Recommendation:
+   **A**: it reads exactly what the gate's signed JUnit report holds, the same for Laravel's `php
+   artisan test`, and Kai's prompt says the form.
+
 ## For later units
 
 - **50 (Ivy):** switches the QA link on: `qa` becomes the QA evidence's result, `tests: optional`
@@ -304,7 +346,7 @@ Nothing in trace's path (`src/trace/`, `src/cli/commands/trace.js`, `src/mcp/too
 
 ## The full suite
 
-**On the Mac** before the runner: `test/documents/trace.test.js` 13/13, `test/proofs/trace.test.js`
+**On the Mac** before the runner: `test/documents/trace.test.js` 15/15, `test/proofs/trace.test.js`
 4/4, `test/proofs/gate.test.js` and `coverage.test.js` 13/13; the touched folders' pins above green;
 `node test/probes/trace-probes.js --check`: both lines, exit 0. **The full suite on the Mac**
 (`caffeinate -i npm test` at `ae676f2`): **888/888 pass**, 0 skipped. After it: test results only.

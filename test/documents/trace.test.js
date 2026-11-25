@@ -8,6 +8,7 @@ import { loadRegistry } from '../../src/config/registry.js';
 import { REGISTRY_DIR } from '../../src/cli/commands/lint.js';
 import { EXIT } from '../../src/cli/exit-codes.js';
 import { lintText } from '../../src/lint/lint.js';
+import { readJunit } from '../../src/tests/junit.js';
 import { overlap } from '../../src/lint/ids.js';
 import { createKeyPair, writePublicKeyFile } from '../../src/sign/keys.js';
 import { writeToken } from '../../src/sign/token.js';
@@ -21,7 +22,7 @@ import { MIRAI_COMMAND } from '../../src/adapters/claude-code.js';
 import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { installed } from '../tests/run-fixture.js';
-import { P3_TICKET, REMOVED, p3Auto, setHome, setTrace, takeOutTest, twoAcs } from '../probes/trace-probes.js';
+import { P3_TICKET, REMOVED, p3Auto, setHome, setTrace, shipVerdict, takeOutTest, twoAcs } from '../probes/trace-probes.js';
 
 // Unit 43: `mirai trace`, the documents' scope and the code's, as pure functions and through the
 // CLI, Tess's run and the epic's approval. No model runs. The ship-time half (the gate, the fix
@@ -241,6 +242,33 @@ test('43 T5: before unit 50, a tests: optional ticket fails with "QA evidence is
   assert.ok(!t.missing.some((m) => /passing test/.test(m.what)), 'not flagged for a missing test');
 });
 
+test('43 (P1\'s finding): PHPUnit names a test by its method in its JUnit report, never by its TestDox text: test_ac_sample_1_1_… counts for AC-SAMPLE-1.1 (a real report from P1)', () => {
+  const xml = readFileSync(join(REGISTRY_DIR, '..', 'test', 'fixtures', 'junit', 'phpunit-trace-p1.xml'));
+  const r = readJunit(xml, { file: 'file' });
+  assert.equal(r.report, 'ok');
+  // As src/tests/results.js maps them: the project's path, then ::<the case's name>.
+  const cases = r.cases.map((c) => ({ level: 'feature', id: `${c.file.replace('/var/www/html/', 'backend/')}::${c.name}`, file: c.file.replace('/var/www/html/', 'backend/'), name: c.name, outcome: c.outcome }));
+  assert.deepEqual(cases.map((c) => c.name), ['test_ac_sample_1_1_deleting_your_own_task_removes_it', 'test_ac_sample_1_2_another_users_task_cannot_be_deleted']);
+  const ticket = { path: 'docs/mirai/tickets/SAMPLE-1.md', fm: { id: 'SAMPLE-1', type: 'story' }, text: '## Acceptance criteria\n\n- AC-SAMPLE-1.1: deleting your own task removes it\n- AC-SAMPLE-1.2: another user\'s task can\'t be deleted\n' };
+  // Kai's plan as P1 had it: the Test IDs written with the TestDox text.
+  const plan = '---\nid: SAMPLE-1-plan\ntype: plan\nticket: SAMPLE-1\nacs: [AC-SAMPLE-1.1, AC-SAMPLE-1.2]\nrisk: normal\ntdd: auto\ntests: required\nround: 1\n---\n## Test list\n\n| Test | Test ID | Symbol | AC | Level | Kind |\n|---|---|---|---|---|---|\n| one | `backend/tests/Feature/TaskDeleteAcTest.php::AC-SAMPLE-1.1: deleting your own task removes it` | `X` | AC-SAMPLE-1.1 | feature | red |\n| two | `backend/tests/Feature/TaskDeleteAcTest.php::AC-SAMPLE-1.2: another user\'s task can\'t be deleted` | `X` | AC-SAMPLE-1.2 | feature | red |\n';
+  const t = traceTicket({ ticket, plan, cases });
+  assert.equal(t.result, 'pass', JSON.stringify(t.missing));
+  assert.deepEqual(t.links.filter((l) => /^AC-/.test(l.from)).map((l) => [l.from, l.to]), [['AC-SAMPLE-1.1', cases[0].id], ['AC-SAMPLE-1.2', cases[1].id]]);
+  // The method's IDs: only the ticket's own (and its plan's), with a boundary after each.
+  const ids = ['AC-SAMPLE-1.1', 'AC-SAMPLE-1.2', 'AC-SAMPLE-1.12', 'J-1'];
+  assert.deepEqual(namedIds('test_ac_sample_1_12_x', ids), ['AC-SAMPLE-1.12']);
+  assert.deepEqual(namedIds('test_ac_sample_1_1_and_ac_sample_1_2_both', ids), ['AC-SAMPLE-1.1', 'AC-SAMPLE-1.2']);
+  assert.deepEqual(namedIds('test_j_1_ac_sample_1_1_end_to_end', ids), ['J-1', 'AC-SAMPLE-1.1']);
+  assert.deepEqual(namedIds('ac_sample_1_2', ids), ['AC-SAMPLE-1.2'], 'a #[Test] method needs no test_ prefix');
+  assert.deepEqual(namedIds('test_deleting_ac_sample_1_1', ids), [], 'the ID comes first');
+  assert.deepEqual(namedIds('testAcSample11Deleting', ids), [], 'camel case is ambiguous: snake case only');
+  assert.deepEqual(namedIds('test_ac_sample_1_1_x'), [], 'no candidates, no method names');
+  // A method that names no AC doesn't count, and a failed one doesn't either.
+  assert.equal(traceTicket({ ticket, cases: [{ ...cases[0], name: 'test_deleting_your_own_task', id: 'x::test_deleting_your_own_task' }, cases[1]] }).result, 'fail');
+  assert.equal(traceTicket({ ticket, cases: [{ ...cases[0], outcome: 'fail' }, cases[1]] }).result, 'fail');
+});
+
 // ---- T9 ID stability --------------------------------------------------------------------------
 
 test('43 T9: ID stability: an approved PRD\'s FR-4 removed and a different FR-4 added in the next version fails the lint; a rewording doesn\'t', () => {
@@ -309,4 +337,16 @@ test('43 (probes): P3 --auto on a temp home: the probe key approves the PRD, the
   assert.equal(readFileSync(join(workdir, 'app/x.php'), 'utf8'), 'AC-SAMPLE-1.2\n', 'not a test file');
   const importers = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? importers(join(dir, e.name)) : e.name.endsWith('.js') && /trace-probes/.test(readFileSync(join(dir, e.name), 'utf8')) ? [join(dir, e.name)] : []));
   assert.deepEqual(importers(join(REGISTRY_DIR, '..', 'src')), []);
+});
+
+test('43 (P1 and P2\'s first runs): the probe says PASS only when its pass line holds, else FAIL with why (and exits 1)', () => {
+  const ok = { outcome: 'recorded', trace: { result: 'pass', links: [{ from: 'AC-SAMPLE-1.1', state: 'pass' }, { from: 'AC-SAMPLE-1.2', state: 'pass' }] } };
+  const failed = { outcome: 'trace-failed', trace: { result: 'fail', missing: [{ id: 'AC-SAMPLE-1.2' }] } };
+  assert.deepEqual(shipVerdict({ p2: false, gates: [ok], check: 'pass', mr: 'https://github.com/x/y/pull/9' }), { pass: true, why: null });
+  assert.equal(shipVerdict({ p2: false, gates: [], check: 'nothing-to-prove', mr: null }).why, 'the ticket never reached the gate');
+  assert.match(shipVerdict({ p2: false, gates: [ok], check: 'no-trace', mr: 'u' }).why, /gate check says no-trace/);
+  assert.match(shipVerdict({ p2: false, gates: [ok], check: 'pass', mr: null }).why, /no PR/);
+  assert.equal(shipVerdict({ p2: true, gates: [failed, ok], fixes: [{ outcome: 'handed-over' }], check: 'pass', mr: 'u' }).pass, true);
+  assert.match(shipVerdict({ p2: true, gates: [{ outcome: 'review changes' }, ok], fixes: [{ outcome: 'handed-over' }], check: 'pass', mr: 'u' }).why, /not a trace failure naming AC-SAMPLE-1\.2/);
+  assert.match(shipVerdict({ p2: true, gates: [failed], fixes: [], check: 'no-proof', mr: null }).why, /no fix round handed over/);
 });

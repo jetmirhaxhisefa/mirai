@@ -29,16 +29,37 @@ const LEADING = new RegExp(`^\\s*(${ID}(?:\\s*,\\s*${ID})*)\\s*:`);
 const RUNS_AS_OF_DOC = Object.freeze({ story: 'change', bug: 'bug', investigation: 'investigation' });
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// The IDs a test's name starts with: [] when it starts with none. A runner that prefixes the name
-// with its describe blocks ("Reminders › AC-53.2: …", "file > AC-53.2: …") is read at its last part.
-export function namedIds(name) {
+// An ID as a method name spells it (P1's finding, 2026-11-25): lower case, every run of other
+// characters one underscore. AC-SAMPLE-1.2 → ac_sample_1_2; J-1 → j_1.
+export const snakeId = (id) => String(id).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+// The IDs a test's name starts with: [] when it starts with none.
+// - A free name (Vitest, Playwright, Pest): the ID or a list of them, then a colon, "AC-53.2: …",
+//   "AC-53.2, AC-53.3: …", "J-1, AC-53.1: …". A runner that prefixes the name with its describe
+//   blocks ("Reminders › AC-53.2: …", "file > AC-53.2: …") is read at its last part.
+// - A method name (PHPUnit: its JUnit report names a test by its method, never by its TestDox text):
+//   the method starts with the IDs in snake case, after an optional `test_`, each followed by `_`
+//   (or `_and_`) or the end: `test_ac_sample_1_2_a_day_is_sent_once`,
+//   `test_ac_sample_1_2_and_ac_sample_1_3_…`. Only `candidates` are read this way (the ticket's own
+//   ACs, the ACs its plan names, the journeys), so `ac_sample_1_1` is never read as AC-SAMPLE-1.12.
+export function namedIds(name, candidates = []) {
   const text = String(name ?? '');
   const parts = [text, text.split(/\s+(?:›|>)\s+/).at(-1)];
   for (const p of parts) {
     const m = LEADING.exec(p);
     if (m) return m[1].split(',').map((x) => x.trim());
   }
-  return [];
+  if (!candidates.length || !/^[A-Za-z0-9_]+$/.test(text)) return [];
+  const snakes = [...new Set(candidates)].map((id) => [snakeId(id), id]).sort((a, b) => b[0].length - a[0].length);
+  let rest = text.toLowerCase().replace(/^test_?/, '');
+  const out = [];
+  for (;;) {
+    const hit = snakes.find(([s]) => rest === s || rest.startsWith(`${s}_`));
+    if (!hit) break;
+    out.push(hit[1]);
+    rest = rest.slice(hit[0].length).replace(/^_(?:and_)?/, '');
+  }
+  return out;
 }
 
 // The ticket's behaviour: its ticket_type's runs_as when the project names one, else its document type's.
@@ -142,6 +163,15 @@ export function traceTicket({ ticket, plan = null, cases = [], journeys = null, 
   const acs = ownAcs(ticket);
   if (!acs.length) miss(key, `${key} has no acceptance criterion (AC-${key}.n) to trace`, where, 'ac');
   for (const p of problems) miss(key, p, 'the gate\'s results', 'results');
+  // The IDs a method name may spell (snakeId): the ticket's own ACs, the ACs its plan names, the journeys.
+  let planRows = [];
+  try {
+    planRows = plan ? testRows(plan) : [];
+  } catch {
+    planRows = [];
+  }
+  const candidates = [...acs, ...planRows.flatMap((r) => r.acs), ...journeysOf(ticket.text, journeys).defined];
+  const ids = (c) => namedIds(c.name, candidates);
   const passed = cases.filter((c) => c.outcome === 'pass');
   const shown = (c) => c.id ?? c.name;
   if (tests === 'optional') {
@@ -150,10 +180,10 @@ export function traceTicket({ ticket, plan = null, cases = [], journeys = null, 
     return { ...base, tests, result: missing.length ? 'fail' : 'pass', links, missing };
   }
   for (const ac of acs) {
-    const hit = passed.find((c) => namedIds(c.name).includes(ac));
+    const hit = passed.find((c) => ids(c).includes(ac));
     if (hit) links.push({ from: ac, to: shown(hit), state: 'pass', where: hit.level });
     else {
-      const failed = cases.find((c) => namedIds(c.name).includes(ac));
+      const failed = cases.find((c) => ids(c).includes(ac));
       miss(ac, failed ? `${ac} has no passing test: ${shown(failed)} ${failed.outcome === 'skip' ? 'was skipped' : 'failed'} in the gate's run` : `${ac} has no passing test named with its ID in the gate's run${ranGate ? '' : ' (no gate run yet)'}; and no QA evidence (QA isn't built yet, unit 50)`, 'plan.md, Test list', 'test');
     }
   }
@@ -163,8 +193,8 @@ export function traceTicket({ ticket, plan = null, cases = [], journeys = null, 
     if (!j.defined.length) miss(key, `${key} is e2e: true, but .mirai/context/journeys.md defines no journey (J-n) to name its end-to-end test with`, '.mirai/context/journeys.md', 'e2e');
     else {
       const hit = passed.find((c) => {
-        const ids = namedIds(c.name);
-        return ids.some((x) => j.wanted.includes(x)) && ids.some((x) => acs.includes(x));
+        const named = ids(c);
+        return named.some((x) => j.wanted.includes(x)) && named.some((x) => acs.includes(x));
       });
       const label = j.wanted.length === 1 ? j.wanted[0] : `one of ${j.wanted.join(', ')}`;
       if (hit) links.push({ from: `${key} (e2e)`, to: shown(hit), state: 'pass', where: hit.level });
@@ -173,15 +203,20 @@ export function traceTicket({ ticket, plan = null, cases = [], journeys = null, 
   }
   // The plan's test list: each row's test is in the results, passing, named with its AC.
   if (plan) {
-    for (const row of testRows(plan)) {
+    for (const row of planRows) {
       if (row.kind === null || !row.id || !row.acs.length) continue;
-      const found = cases.filter((c) => (row.name === null ? c.file === row.path : c.id === row.id));
+      // The row's test by its Test ID; for PHPUnit, whose report names the method, a row written with
+      // the test's TestDox text ("…::AC-SAMPLE-1.2: …") is the method in the same file that carries
+      // the same IDs.
+      let found = cases.filter((c) => (row.name === null ? c.file === row.path : c.id === row.id));
+      const rowIds = row.name === null ? [] : namedIds(row.name, candidates);
+      if (!found.length && rowIds.length) found = cases.filter((c) => c.file === row.path && ids(c).length && ids(c).every((x) => rowIds.includes(x)) && rowIds.every((x) => ids(c).includes(x)));
       const at = `plan.md, Test list, line ${row.line}`;
       if (!found.length) {
         miss(row.acs[0], `the plan's test "${row.test || row.id}" (${row.id}, for ${row.acs.join(', ')}) isn't in the gate's results: missing, or renamed`, at, 'plan');
         continue;
       }
-      const named = found.filter((c) => namedIds(c.name).some((x) => row.acs.includes(x)));
+      const named = found.filter((c) => ids(c).some((x) => row.acs.includes(x)));
       if (!named.length) miss(row.acs[0], `the plan's test ${row.id} doesn't start its name with its AC (${row.acs.join(', ')}): name it "${row.acs[0]}: …"`, at, 'plan');
       else if (!named.some((c) => c.outcome === 'pass')) miss(row.acs[0], `the plan's test ${row.id} (${row.acs.join(', ')}) didn't pass in the gate's run`, at, 'plan');
       else links.push({ from: `plan: ${row.id}`, to: row.acs.join(', '), state: 'pass', where: at });

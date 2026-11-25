@@ -53,9 +53,23 @@ doesn't apply: trace says so and points at `mirai trace <KEY>`.
   it('AC-SAMPLE-53.2, AC-SAMPLE-53.3: a moved date is sent once, again', …)   // proves both
   ```
 
-  The same in every framework (PHPUnit with Pest or `#[TestDox]`, Vitest, Playwright). A runner
-  that puts its describe blocks in front ("Reminders › AC-SAMPLE-53.2: …") is read at the last
-  part. `retries once (AC-SAMPLE-53.2)` doesn't count: the ID must come first.
+  The same in Pest, Vitest and Playwright. A runner that puts its describe blocks in front
+  ("Reminders › AC-SAMPLE-53.2: …") is read at the last part. `retries once (AC-SAMPLE-53.2)`
+  doesn't count: the ID must come first.
+
+  **PHPUnit** writes a test's method name in its JUnit report, never its `#[TestDox]` text, so
+  there the method name starts with the ID in snake case (lower case, each run of other
+  characters one `_`), after an optional `test_`:
+
+  ```php
+  public function test_ac_sample_53_2_a_day_is_sent_once(): void                 // AC-SAMPLE-53.2
+  public function test_ac_sample_53_2_and_ac_sample_53_3_sent_once_again(): void // both
+  ```
+
+  Only the ticket's own ACs (and those its plan names, and the journeys) are read this way, and each
+  ID must end at a `_` or the name's end, so `test_ac_sample_53_12_…` is AC-SAMPLE-53.12, never
+  .1. Snake case only: `testAcSample532` can't be told apart. A plan row written with the TestDox
+  text matches the method in the same file that carries the same IDs.
 - **An `e2e: true` ticket** also has a passing test named with its journey and an AC ID:
   `J-1, AC-SAMPLE-53.1: …`. The journey is the `J-n` the ticket names, or any in
   `.mirai/context/journeys.md` when it names none.

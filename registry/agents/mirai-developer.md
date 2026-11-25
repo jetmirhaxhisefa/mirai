@@ -36,8 +36,13 @@ can't write, and MIRAI refuses the run if anything changed.
      reproduces the bug. **Name every test with the AC it proves** (unit 43, `mirai trace`):
      its name starts with the AC's ID and a colon, as in `AC-PROJ-12.2: a failed reminder is
      retried once` (`AC-PROJ-12.2, AC-PROJ-12.3: …` proves both); an `e2e: true` ticket's
-     end-to-end test also names its journey, `J-1, AC-PROJ-12.1: …`. The row's Test ID carries
-     that name (`<file>::AC-PROJ-12.2: …`), and the test you write has exactly it: at ship time
+     end-to-end test also names its journey, `J-1, AC-PROJ-12.1: …`. **In PHPUnit** the report
+     names a test by its method, never by its TestDox text, so the method name starts with the ID
+     in snake case: `test_ac_proj_12_2_a_failed_reminder_is_retried_once`
+     (`test_ac_proj_12_2_and_ac_proj_12_3_…` proves both; `test_j_1_ac_proj_12_1_…` for a
+     journey); a `#[TestDox]` text is welcome but doesn't count. The row's Test ID is the name the
+     runner reports (`<file>::AC-PROJ-12.2: …`, or `<file>::test_ac_proj_12_2_…` in PHPUnit), and
+     the test you write has exactly it: at ship time
      MIRAI reads the gate's own results, and an AC with no passing test named with its ID (or a
      row whose test is missing or renamed) sends the ticket back to you. `mcp__mirai__trace` with
      the ticket's key shows what is still missing;

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Tests\Feature\TaskDeleteAcTest" file="/var/www/html/tests/Feature/TaskDeleteAcTest.php" tests="2" assertions="8" errors="0" failures="0" skipped="0" time="0.909819">
+    <testcase name="test_ac_sample_1_1_deleting_your_own_task_removes_it" file="/var/www/html/tests/Feature/TaskDeleteAcTest.php" line="16" class="Tests\Feature\TaskDeleteAcTest" classname="Tests.Feature.TaskDeleteAcTest" assertions="6" time="0.887288"/>
+    <testcase name="test_ac_sample_1_2_another_users_task_cannot_be_deleted" file="/var/www/html/tests/Feature/TaskDeleteAcTest.php" line="32" class="Tests\Feature\TaskDeleteAcTest" classname="Tests.Feature.TaskDeleteAcTest" assertions="2" time="0.022530"/>
+  </testsuite>
+</testsuites>
