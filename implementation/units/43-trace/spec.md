@@ -191,9 +191,11 @@ the proof field waiting for it.
 - **P3** uses an epic from 42's probes: those homes are deleted; P3 builds one with
   `test/probes/tess-probes.js --probe home --case p1` and Tess's run, or uses 42's example epic.
 
-**Question for Jet (from this re-check):**
+**Question for Jet (from this re-check; answered 2026-11-25, "A"):**
 
-1. **Trace inside Tess's run.** A: MIRAI runs trace's documents scope between her launches, with
+1. **Trace inside Tess's run** (answered **A**: MIRAI runs trace's documents scope between her
+   launches, with the lint; a missing link goes to her next launch in `lint.json`; your approval
+   still runs trace once more as the gate). A: MIRAI runs trace's documents scope between her launches, with
    the lint, and a missing link goes to her next launch in `lint.json` (so you never see a set
    with a broken link at approval); B: trace runs only at your approval (Scope 2 as written).
    Recommendation: **A**, the same pattern as the lint (41's A1, 42's Q1).
