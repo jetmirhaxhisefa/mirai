@@ -92,7 +92,9 @@ will add a tool per step later.
   file (comments kept); `set verify standard` (the default) removes the key; `set prd standard` is
   refused with D-14's message; `set nosuch deep` names the steps.
 - **T3 Tier model:** `set standard claude-sonnet-5-5` writes it; `set deep claude-haiku-5-5` is
-  refused (family); an unknown model is handled as question 1 decides.
+  refused (family); a name on no list is refused naming `--check`; `--check` with a stand-in tool
+  that accepts it sets it, one that refuses shows the tool's error; an alias (`opus`) is set with
+  the "not pinned" note; a failing live list falls back to the shipped list and says so.
 - **T4 `--mine`:** `set standard <model> --mine` writes `config.user.toml` (private, 0600), the
   listing shows the source, and a launch (fake launcher) uses it (question 2); the project config
   is unchanged.
@@ -124,18 +126,31 @@ will add a tool per step later.
 - **40, 41, 42:** Vera, Nora and Tess show by persona; no change to them.
 - **43, 44, 45:** unchanged; their steps (`tickets`, `prd`, `verify`) are listed.
 - **57:** calibration later writes the same `models.steps` keys.
-- **71, 73:** the tool column and `--tool`.
+- **71, 73:** the tool column and `--tool`; each adapter's `listModels()` (Cursor live, Codex
+  live). The tier families (`TIER_FAMILIES`: Haiku, Sonnet, Opus/Fable) are Claude's only: in
+  Cursor and Codex a tier can be a GPT, Grok or Composer model, so each adapter needs its own tier
+  rule (for those units' interviews).
 - **Cage:** `src/cli/commands/models.js` and the config edit are outside the red team's cage (no
   launch path); render and the adapters are unchanged. The builder confirms with `cageOf`.
 
 ## Questions for Jet
 
-1. **A model MIRAI doesn't know.** Today MIRAI checks only the name's shape and the family (a
-   `deep` model must be an Opus or Fable). A: also a known-model list in the registry
-   (`registry/models.toml`), updated with MIRAI's releases; a name not on it is refused, and
-   `--unlisted` lets you set it with a warning (for a model released before MIRAI knows it);
-   B: shape and family only, as today (a typo like `claude-opus-5-55` reaches the first launch and
-   fails there); C: the list, with no way past it. Recommendation: **A**.
+1. **A model MIRAI doesn't know** (answered 2026-11-25, **D**, after Jet asked for the tools'
+   own lists and the CLIs were checked): each tool's adapter supplies its known models, live where
+   the tool can list them:
+   - **Claude Code:** the aliases from `claude -p "/model"` (`sonnet`, `opus`, `haiku`, `fable`,
+     `best`, `[1m]` variants, `opusplan`, `default`), plus MIRAI's shipped list of full IDs
+     (`registry/models.toml`, updated with MIRAI's releases); there is no list of full IDs;
+   - **Cursor** (71): `cursor-agent models` (the account's list); **Codex** (73): `codex debug
+     models` (JSON; under `debug`, so it may change between versions);
+   - a name on none of them is refused, unless `--check` proves it with one tiny real call (the
+     tool accepts the name, or `set` refuses with the tool's own error);
+   - a live list that fails (not logged in, a changed command) falls back to the shipped list, and
+     says so;
+   - defaults stay pinned full IDs; an alias may be set, with a one-line note ("not pinned: moves
+     to the newest model; probes and red-team results were measured on the pinned one");
+   - 45b builds Claude Code's lists and the adapter hook (`listModels()`); Cursor's and Codex's
+     come with 71 and 73.
 2. **Your personal override doesn't reach launches today** (found while writing this spec).
    `docs/config.md` says your personal-repo file may set `models.light|standard|deep`, and `mirai
    config show` shows it, but every launch reads only main's project config (`trustedConfig` in
