@@ -36,7 +36,7 @@ import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { passVera } from '../helpers/vera.js';
 import { isWriteStaging } from '../../src/agent/staging.js';
 import { PAUSE_PLACE } from '../../src/agent/pause.js';
-import { afterPause, autoAnswer, autoApprove, autoRefusal, CASES, prdWithGap } from '../probes/tess-probes.js';
+import { afterPause, answerFor, autoAnswer, autoApprove, autoRefusal, CASES, prdWithGap } from '../probes/tess-probes.js';
 import { installed } from '../tests/run-fixture.js';
 
 // Unit 42: Tess, the ticket planner. No model runs: fake launchers stand in for MIRAI's launcher
@@ -743,6 +743,42 @@ test('42 (probes --auto): the auto answer writes a confirmed, lint-clean intervi
   const src = new URL('../../src/', import.meta.url).pathname;
   const files = readdirSync(src, { recursive: true }).filter((p) => p.endsWith('.js'));
   assert.deepEqual(files.filter((p) => /(?:from|import)\s*\(?\s*['"][^'"]*(?:test\/probes\/|tess-probes)/.test(readFileSync(join(src, p), 'utf8'))), []);
+});
+
+test('42 (P2 auto\'s run): a pause of Nora\'s in the loop is answered, Nora runs again, then the new PRD approval lets Tess start; --answer takes per-question values', async () => {
+  assert.deepEqual([answerFor('Q-8=A,Q-9=B', 'Q-9'), answerFor('Q-8=A', 'Q-9'), answerFor('B', 'Q-9'), answerFor(undefined, 'Q-9')], ['B', undefined, 'B', undefined]);
+  const f = await fixture();
+  const home = { root: f.root, env: f.env, home: f.home };
+  // (Here her pause is the interview's next question, Q-8; in P2's run it was Q-9 after Tess's Q-8.)
+  const Q9 = Q8.replace('### Q-8: An untestable requirement', '### Q-8: Who sees a task').replace('AC-FR-4.1', 'FR-1');
+  let runs = 0;
+  const nora = async () => {
+    runs += 1;
+    if (runs === 1) {
+      put(f, `${D}/interview.md`, INTERVIEW.replace('state: confirmed', 'state: paused').replace('## Restatement', Q9));
+      f.git('commit', '-qam', 'her pause');
+      return { state: 'paused', question_id: 'Q-8', question: 'Q-8: Who sees a task — What must the reviewer see for FR-1 to pass?' };
+    }
+    return { state: 'done' };
+  };
+  const pauses = [];
+  const logs = [];
+  const answerPause = (end) => autoAnswer(home, CASES.p2, end.question_id, answerFor('Q-8=B', end.question_id)).letter;
+  const approve = async () => {
+    passVera(f, `${D}/brief.md`);
+    await passReader(f, `${D}/prd.md`);
+    const ok = await tty(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], f.io, ['a', 'due-dates-prd']);
+    assert.equal(ok.code, 0, ok.err);
+  };
+  assert.equal(await afterPause(home, CASES.p2, (l) => logs.push(l), { nora, answerPause, approve, pauses, pollMs: 10, waitMs: 60_000 }), true, logs.join('\n'));
+  assert.equal(runs, 2, 'Nora ran again after her pause was answered');
+  assert.match(logs.join('\n'), /PAUSED \(Nora\) on Q-8: Q-8: Who sees a task/);
+  assert.match(logs.join('\n'), /the PRD is approved again \(a new approval\); Tess starts again/);
+  assert.deepEqual(pauses.map((p) => [p.who, p.question_id, p.answer]), [['Nora', 'Q-8', 'B']]);
+  assert.match(readFileSync(join(f.root, D, 'interview.md'), 'utf8'), /^Answer: B\.$/m);
+  assert.equal(f.git('status', '--porcelain'), '', 'the answer is committed before Nora runs again');
+  // A failed run of Nora's still stops the loop.
+  assert.equal(await afterPause(home, CASES.p2, () => {}, { nora: async () => ({ state: 'failed', why: 'x' }), answerPause, approve }), false);
 });
 
 // ---- P1's run, a finding: Claude Code's write staging ------------------------------------------

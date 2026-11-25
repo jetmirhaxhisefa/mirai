@@ -28,7 +28,7 @@ import { runReaderTest } from '../../src/write/reader.js';
 import { BRIEF_READY, INTERVIEW, PRD_READY } from '../helpers/docs-fixtures.js';
 import { FAKE_CLAUDE, fakeReader } from '../helpers/reader.js';
 import { passVera } from '../helpers/vera.js';
-import { probeLoop } from './loop.js';
+import { probeLoop, waitForConfirmed } from './loop.js';
 import { setupHome } from './reader-probes.js';
 
 // Unit 42's probes: Tess on real models, each in its own probe home under your home folder (its own
@@ -48,7 +48,7 @@ import { setupHome } from './reader-probes.js';
 //   node test/probes/tess-probes.js --check                          (no model: builds each case's home in a temp folder, lints its documents, deletes it)
 //   node test/probes/tess-probes.js --probe home --case p1|p2|p3|p4  (no model: makes the home, prints the steps)
 //   node test/probes/tess-probes.js --yes --probe loop --home <dir>  (her run; after a pause, Nora brings the PRD in line, you approve it again, and her run starts again)
-//   node test/probes/tess-probes.js --yes --auto [--answer <letter>] --probe loop --home <dir>
+//   node test/probes/tess-probes.js --yes --auto [--answer <letter> | --answer Q-8=A,Q-9=B] --probe loop --home <dir>
 //        (P1, P2, P4 with no typing: the probe home's own key approves the PRD, a pause is answered
 //         with her guess or <letter>; then a summary for your review. P3 can't: it tests the session)
 //   node test/probes/tess-probes.js --probe show --home <dir>        (no model: her state, the documents, the ready tickets)
@@ -244,16 +244,44 @@ async function tessOnce(home, c, log) {
 // P2's third run (Jet's "A", 2026-11-25): it waits for a NEW approval line of the PRD (a seq after
 // the one there was before Nora), never for the old approval that still matches an unchanged PRD;
 // and when Nora's run isn't done (she didn't take the answer), it stops with her reason.
-export async function afterPause(home, c, log, { pollMs = 5000, waitMs = 3 * 60 * 60 * 1000, nora = runNora, noraOptions = {}, approve = null } = {}) {
+// P2 auto's run (2026-11-25): a pause of Nora's is a normal step, as Tess's is. It is answered (by
+// you in your session, or with --auto), and Nora runs again (her own continue), until she ends done
+// (at most `maxRuns`). Only a Nora run that ends `failed` stops the loop.
+// `answerPause(end)`: --auto's answer, which returns the letter given; without it the loop prints
+// her question and the message for your session, and waits for your confirmed interview.
+// `pauses`: every pause (Tess's and Nora's), with the answer given, for the review summary.
+export async function afterPause(home, c, log, { pollMs = 5000, waitMs = 3 * 60 * 60 * 1000, nora = runNora, noraOptions = {}, approve = null, answerPause = null, pauses = [], maxRuns = 8, settleMs = 5000 } = {}) {
   const file = `docs/mirai/${c.initiative}/prd.md`;
   const id = () => readFrontmatter(readFileSync(join(home.root, file)))?.value?.id;
   const lastSeq = () => readJournal(openStore({ cwd: home.root, env: home.env })).events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'prd' && e.item === id() && e.decision !== 'rejected').at(-1)?.seq ?? 0;
   const before = lastSeq();
-  log('Nora brings the PRD in line with your answer (her continue step, Opus):');
-  const n = await nora({ cwd: home.root, env: home.env, initiative: c.initiative, nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep: (e) => log(`  Nora: ${e.kind} ${e.type ?? ''} ${e.step ?? ''} ${e.round ?? ''} ${e.outcome ?? e.result ?? (e.must_fix !== undefined ? `${e.must_fix} must-fix` : '')}`), ...noraOptions });
-  log(`Nora: ${n.state}${n.why ? `: ${n.why}` : ''}`);
-  if (n.state !== 'done') {
-    log('stopped: Nora didn\'t bring the PRD in line, so Tess doesn\'t start again (decision 3: the PRD takes the answer first).');
+  let n = null;
+  for (let run = 1; run <= maxRuns; run += 1) {
+    log(run === 1 ? 'Nora brings the PRD in line with your answer (her continue step, Opus):' : `Nora runs again after your answer (run ${run} of at most ${maxRuns}):`);
+    n = await nora({ cwd: home.root, env: home.env, initiative: c.initiative, nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep: (e) => log(`  Nora: ${e.kind} ${e.type ?? ''} ${e.step ?? ''} ${e.round ?? ''} ${e.outcome ?? e.result ?? (e.must_fix !== undefined ? `${e.must_fix} must-fix` : '')}`), ...noraOptions });
+    log(`Nora: ${n.state}${n.why ? `: ${n.why}` : ''}`);
+    if (n.state !== 'paused') break;
+    log('');
+    log(`PAUSED (Nora) on ${n.question_id}: ${n.question ?? ''}`);
+    if (answerPause) {
+      const letter = answerPause(n);
+      pauses.push({ who: 'Nora', question_id: n.question_id, question: n.question ?? '', answer: letter });
+    } else {
+      log('Paste this into your session (one message):');
+      log('');
+      log(`   Nora paused on ${n.question_id}; resume the interview at her question in docs/mirai/${c.initiative}/interview.md, then confirm the restatement. Don't commit and don't start anyone: the probe does both.`);
+      log('');
+      const w = await waitForConfirmed({ interview: () => interviewNow(home, c), log, pollMs, settleMs, waitMs });
+      if (!w.ok) {
+        log(`stopped: ${w.why}.`);
+        return false;
+      }
+      pauses.push({ who: 'Nora', question_id: n.question_id, question: n.question ?? '', answer: answerOf(home, c, n.question_id) });
+    }
+    commit(home, `probe: the interview after Nora's ${n.question_id}, as it was answered`);
+  }
+  if (n?.state !== 'done') {
+    log(n?.state === 'paused' ? `stopped: Nora still paused after ${maxRuns} runs: look at the pauses above.` : 'stopped: Nora didn\'t bring the PRD in line, so Tess doesn\'t start again (decision 3: the PRD takes the answer first).');
     return false;
   }
   // --auto: the probe home's key approves it here (test tooling); else you do, in Terminal.
@@ -343,16 +371,23 @@ async function cli() {
     if (!c.one && !prdApproved(home, c)) await autoApprove(home, c, log);
   } else if (values.answer !== undefined) throw new Error('--answer goes with --auto');
   const startHead = git(home, 'rev-parse', 'HEAD').stdout.trim();
+  const pauses = [];
+  // --auto's answer to one pause: --answer's value for that question (Q-8=A,Q-9=B, or one letter
+  // for every question), else her guess.
+  const answerAuto = (end) => {
+    const given = answerFor(values.answer, end.question_id);
+    const a = autoAnswer(home, c, end.question_id, given);
+    log(`AUTO: answered ${end.question_id} with ${a.letter}${given ? '' : ' (her guess)'}; the interview is confirmed and lints clean`);
+    return a.letter;
+  };
   let pausedBefore = false;
   const r = await probeLoop({
     runOnce: async () => {
-      if (pausedBefore && !(await afterPause(home, c, log, auto ? { approve: () => autoApprove(home, c, log) } : {}))) return { state: 'failed', why: 'the PRD wasn\'t brought in line and approved again' };
+      if (pausedBefore && !(await afterPause(home, c, log, { pauses, ...(auto ? { approve: () => autoApprove(home, c, log), answerPause: answerAuto } : {}) }))) return { state: 'failed', why: 'the PRD wasn\'t brought in line and approved again' };
       const end = await tessOnce(home, c, log);
       pausedBefore = end.state === 'paused';
-      if (auto && end.state === 'paused') {
-        const a = autoAnswer(home, c, end.question_id, values.answer);
-        log(`AUTO: answered ${end.question_id} with ${a.letter}${values.answer ? '' : ' (her guess)'}; the interview is confirmed and lints clean`);
-      }
+      if (auto && end.state === 'paused') pauses.push({ who: 'Tess', question_id: end.question_id, question: end.question ?? '', answer: answerAuto(end) });
+      else if (end.state === 'paused') pauses.push({ who: 'Tess', question_id: end.question_id, question: end.question ?? '', answer: null });
       return end;
     },
     interview: () => interviewNow(home, c),
@@ -361,7 +396,8 @@ async function cli() {
     log,
   });
   log(`loop: ${r.state} after ${r.runs} run(s)`);
-  if (auto) for (const l of reviewSummary(home, c, r, startHead)) log(l);
+  for (const p of pauses) if (p.answer === null) p.answer = answerOf(home, c, p.question_id);
+  if (auto) for (const l of reviewSummary(home, c, r, startHead, pauses)) log(l);
   return r.state === 'done' ? 0 : 1;
 }
 
@@ -370,6 +406,29 @@ async function cli() {
 // suite's tests do; never your key, and nothing in src/ imports this. Each auto approval is followed
 // by a journal note saying so. Vera's and the reader's results are the real ones from the runs
 // (the seeded ones only for the PRD the probe starts from).
+
+// --answer's value for one question: "Q-8=A,Q-9=B" names each; a bare letter is for every question;
+// undefined (her guess) for one it doesn't name.
+export function answerFor(spec, id) {
+  if (typeof spec !== 'string' || spec.trim() === '') return undefined;
+  if (!spec.includes('=')) return spec.trim();
+  for (const part of spec.split(',')) {
+    const [q, a] = part.split('=').map((x) => x.trim());
+    if (q === id && a) return a;
+  }
+  return undefined;
+}
+
+// The answer interview.md holds for Q-n now (its letter, or its words), or null.
+export function answerOf(home, c, id) {
+  try {
+    const rel = `docs/mirai/${c.initiative}/interview.md`;
+    const q = questionsOf(parseDocument(readFileSync(join(home.root, rel), 'utf8'), rel)).find((x) => x.id === id);
+    return q?.answer?.text || null;
+  } catch {
+    return null;
+  }
+}
 
 export function autoRefusal(key) {
   return key === 'p3' ? 'P3 tests the interview session itself (its at most 3 questions), so it can\'t run --auto: run it with a session of yours' : null;
@@ -425,9 +484,10 @@ export function autoAnswer(home, c, id, letter = undefined, { today = new Date()
 
 // What Jet reviews after an auto run: the pause question, Nora's change to the PRD, the tickets and
 // the open findings.
-export function reviewSummary(home, c, r, startHead) {
+export function reviewSummary(home, c, r, startHead, pauses = null) {
   const out = ['', '--- for your review ---'];
-  for (const e of r.ends.filter((x) => x.state === 'paused')) out.push(`pause: ${e.question_id}: ${e.question ?? ''}`);
+  if (pauses) for (const p of pauses) out.push(`pause (${p.who}): ${p.question_id}: ${p.question} — answered ${p.answer ?? '(not yet)'}`);
+  else for (const e of r.ends.filter((x) => x.state === 'paused')) out.push(`pause: ${e.question_id}: ${e.question ?? ''}`);
   if (!c.one) {
     const diff = git(home, 'diff', '--numstat', startHead, 'HEAD', '--', prdFile(c)).stdout.trim();
     out.push(`the PRD: ${diff ? `${diff.split(/\s+/)[0]} lines added, ${diff.split(/\s+/)[1]} removed since the loop started` : 'unchanged since the loop started'}`);
