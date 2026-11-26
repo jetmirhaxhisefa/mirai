@@ -1,0 +1,14 @@
+# The models MIRAI knows for each tool (unit 45b; Jet's answer 1 "D", 2026-11-25). `mirai models set`
+# refuses a model on none of a tool's lists, unless `--check` proves it with one tiny real call.
+# Claude Code has no command that lists full model IDs: its aliases are the ones its /model menu
+# offers; the full IDs are MIRAI's own list, updated with MIRAI's releases. Cursor's and Codex's lists
+# come live from their CLIs (units 71 and 73).
+kind = "models"
+schema_version = 1
+
+[claude-code]
+# Full IDs, pinned: what MIRAI's defaults, probes and red-team results are measured on.
+models = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-2", "claude-fable-5-1"]
+# Aliases: each moves to the newest model of its kind (not pinned). The 1M-context forms
+# ("sonnet[1m]") are left out: a launch takes a plain model id only (src/agent/run.js).
+aliases = ["haiku", "sonnet", "opus", "fable", "best", "default", "opusplan"]

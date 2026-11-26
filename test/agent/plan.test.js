@@ -534,3 +534,17 @@ launchTest('30c T8: mirai show and the report count parks by reason', async () =
   assert.deepEqual(d.parks, [{ reason: 'bad-plan', count: 1 }]);
   assert.match(showText(d), /· parks: bad-plan ×1/);
 });
+
+launchTest('45b T4: your personal file\'s step tier reaches a launch: the model passed and the run line\'s reason name it; the project config is untouched', async () => {
+  const f = await repo();
+  writeFileSync(join(f.store.dir, 'config.user.toml'), 'schema_version = 1\n[models.steps]\nplan = "deep"\n', { mode: 0o600 });
+  const claude = claudeAnswering([{ plan: PLAN }]);
+  const r = await plan(f, claude);
+  assert.equal(r.outcome, 'waiting', JSON.stringify(r.problems));
+  const args = claude.args(0);
+  assert.equal(args[args.indexOf('--model') + 1], 'claude-opus-5-5');
+  const { readdirSync: rd } = await import('node:fs');
+  const lines = rd(join(f.store.dir, 'runs')).flatMap((n) => readFileSync(join(f.store.dir, 'runs', n), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))).filter((e) => e.event === 'agent_run');
+  assert.match(lines.at(-1).tier_reason, /plan: deep from your personal file/);
+  assert.equal(f.git('status', '--porcelain', '--', '.mirai/config.toml').trim(), '');
+});

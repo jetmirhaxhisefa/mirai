@@ -221,6 +221,8 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai doctor                 # or: /mirai doctor --fix
 /mirai report                 # --json; --m1 for the acceptance rate
 /mirai detect
+/mirai models                 # which model runs each step; --json
+/mirai models set verify deep # a step's tier, or a tier's model; mine: true for your personal file
 /mirai config check
 /mirai config show
 /mirai protected

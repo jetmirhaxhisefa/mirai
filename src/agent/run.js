@@ -34,6 +34,8 @@ import { loadRecordSigner } from '../sign/signer.js';
 import { progressLine, progressTracker } from './progress.js';
 import { checkIgnoredCheckable, checkNothingHidden, checkPendingIgnored, findRole, IGNORED_ENTRY_BUDGET, ignoredState, recordPendingIgnored, scopeViolations, trustedRoles } from './scope.js';
 import { familyNote, pickTier, pickVerifier } from './tiers.js';
+import { knownModel, shippedModels } from './models.js';
+import { personalWhy, withPersonalModels } from '../config/personal-models.js';
 
 // One agent run (unit 19a; D-12): the checks, the process, the end, the log. MIRAI's whole cage is in
 // prepareLaunch; this decides whether to start at all, watches the first event, and leaves a true
@@ -287,7 +289,8 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   const role = findRole(trustedRoles(trust), roleName);
   const mode = role.mode;
   const modeTemplate = trustedStrict(trust, mode);
-  const config = trustedConfig(trust);
+  // Unit 45b (Scope 6; Jet's answer 2 "A"): your personal models on top of main's, for your launches.
+  const { config, personal } = withPersonalModels(trustedConfig(trust), store, { known: knownIn(trust) });
   const agentDef = agent === null ? null : agentFor(trust, agent, role, modeTemplate, { structured: jsonSchema !== null, store });
   // Unit 37: an agent whose overlay changes its tools runs under its own template.
   const template = agentDef?.template ?? modeTemplate;
@@ -314,6 +317,8 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
     if (v.tier !== picked.tier) Object.assign(picked, { tier: v.tier, why: `${picked.why}; up to ${v.tier}, the author's tier` });
   }
   if (!model) throw new UsageError(`no model for the tier ${picked.tier} in the trust root's config`);
+  const mine = personalWhy(personal, { step: picked.step, tier: picked.tier, model });
+  if (mine) picked.why = `${picked.why}; ${mine}`;
   if (!MODEL.test(model)) throw new UsageError(`the model ${JSON.stringify(model.slice(0, 40))} isn't a plain model id`);
   const changes = workTreeChanges(store.checkout, store.gitEnv);
   if (changes.length) throw refuse(`the work tree has ${changes.length} uncommitted change(s), so what an agent changes couldn't be told apart`, 'dirty-tree', 'commit or stash them first');
@@ -638,4 +643,16 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     // Only the run's owner ends it: inside unit 28's run, the next launch carries on (19c review).
     if (ownsRun) writeRunState(store, endState, { clear: true });
   }
+}
+
+// The model names MIRAI knows, from main's framework copy (registry/models.toml), for the check of
+// your personal models; null (no check) for a framework copy from before unit 45b.
+export function knownIn(trust) {
+  let list;
+  try {
+    list = shippedModels(join(trust.dir, 'tree', '.mirai', 'framework', 'registry'));
+  } catch {
+    return null;
+  }
+  return (model) => knownModel(list, model).known;
 }
