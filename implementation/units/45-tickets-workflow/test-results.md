@@ -59,7 +59,23 @@ request); `u45-tests-2`, `u45-baseline-2` and `u45-redteam-2` are queued at `225
 
 - **P1 PRD to merged set** (`test/probes/tickets-probes.js --probe p1 --yes --auto`): the sample
   app, real Tess, Vera and the reader test; the docs MR on a stand-in GitHub over a local bare repo
-  (38's probes proved the real hosts). Running now; the result goes here.
+  (38's probes proved the real hosts). **Run 1 (2026-11-26, at `225f1f8`, `~/mirai-u45-p1.txt`):
+  7 of 8 checks pass; "drop" couldn't run.**
+  - The offer: `y` started her run in that terminal. She cut 9 tickets; Vera found 2 must-fix, she
+    fixed them, and round 2 passed.
+  - The screen: the probe's rule picks a drop only when the ticket blocks nothing and another ticket
+    covers every ID it covers. Her real set had no such ticket (a good set has none), so it dropped
+    nothing and split SAMPLE-2. Nothing was signed, `ticket-notes.md` was written, and the decision
+    was logged.
+  - Her `notes` run split SAMPLE-2 (10 tickets). Vera found 1 must-fix, she fixed it, round 2 passed.
+  - `a` signed the set (`release: per-ticket`); MIRAI published and **merged the docs pull request
+    at the published head, documents only**; `mirai show` lists the split and the release mode.
+  - **The drop, checked on the kept home with no model:** dropping SAMPLE-10 (it blocks nothing)
+    would leave FR-8 and its two ACs uncovered; the screen listed the three gaps, said "the drop was
+    undone: SAMPLE-10 is back, and the epic as it was", wrote nothing (exit 4), and left the tree
+    clean. A clean drop is T3's (a duplicated ticket).
+  - Verdict: the flow passes; a real drop of a ticket the set needs is refused, as it should be.
+    Kept home: `~/.mirai-probes-d1Dv2g` (delete with your OK).
 - **P2 the quick ticket**: waits for question 1.
 
 ## Changed from the spec
