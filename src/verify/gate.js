@@ -10,6 +10,25 @@ import { readTicketFolder } from '../lint/lint.js';
 import { plain } from '../status/text.js';
 import { subjectHash, verifyResultFor } from '../store/verify-results.js';
 import { findingLines, mustFix, normal, suggestions } from './findings.js';
+import { fingerprintOf } from '../docs/route.js';
+import { readBooks, versionOf } from '../loop/docs.js';
+
+// Unit 44: the fingerprints you dismissed on this version of a document ("Vera is wrong", its
+// books), or null.
+export function dismissedFor(store, id, path) {
+  try {
+    const b = readBooks(store, id, versionOf(path));
+    return b.dismissed.length ? new Set(b.dismissed.map((d) => d.fingerprint)) : null;
+  } catch {
+    return null;
+  }
+}
+// A result as it stands for you: the must-fix findings you dismissed taken out (the stored result,
+// and so its hash, unchanged).
+export function standing(stored, dismissed) {
+  const gone = dismissed?.size ? (stored.findings ?? []).filter((f) => f.grade === 'must-fix' && dismissed.has(fingerprintOf(f))) : [];
+  return gone.length ? { ...stored, findings: stored.findings.filter((f) => !gone.includes(f)), must_fix: stored.must_fix - gone.length, dismissed: gone.length } : stored;
+}
 
 // Vera as a gate (unit 40; Jet's decisions 1, 2 and 5). The order is the lint, then Vera, then the
 // reader test (where the type has one), then you. Here: the rounds (settings), whether a type is
@@ -54,13 +73,18 @@ const refuse = (message, code, hint) => Object.assign(new MiraiError(message, EX
 // `early` (unit 42, Jet's answer 3): a person's own lone ticket may be approved anyway right after
 // her first check, with must-fix findings open: the state is then `early`, shown with each finding,
 // and the signed line records her result (its hash names the findings you approved over).
-export function verifierFor({ store, config, def, id, path, bytes, files = [], early = false }) {
+// Unit 44: `dismissed`, the fingerprints you dismissed on this version ("Vera is wrong", the document's
+// books), which no longer count; a result whose open must-fix findings are all decisions is yours to
+// decide at once (state `decisions`: decision 1, they go to you in any round).
+export function verifierFor({ store, config, def, id, path, bytes, files = [], early = false, dismissed = null }) {
   if (!isVeraType(def)) return null;
   if (!verifyOn(config)) return { off: true };
-  const entry = verifyResultFor(store, id, subjectHash(bytes, files));
-  if (!entry) throw refuse(`${path} has no result from ${fullName(VERIFY_AGENT)} for it as it is now; nothing was written`, 'no-verify', `run: mirai verify ${path}, then approve again`);
-  const state = resultState(entry, config);
+  const stored = verifyResultFor(store, id, subjectHash(bytes, files));
+  if (!stored) throw refuse(`${path} has no result from ${fullName(VERIFY_AGENT)} for it as it is now; nothing was written`, 'no-verify', `run: mirai verify ${path}, then approve again`);
+  const entry = standing(stored, dismissed ?? dismissedFor(store, id, path));
+  let state = resultState(entry, config);
   if (state === 'open' && early) return { entry, state: 'early' };
+  if (state === 'open' && mustFix(entry.findings ?? []).every((f) => f.kind === 'decision')) state = 'decisions';
   if (state === 'open') {
     throw refuse(`${personaOf(VERIFY_AGENT) ?? VERIFY_AGENT} has ${entry.must_fix} must-fix finding${entry.must_fix === 1 ? '' : 's'} open on ${path} (round ${entry.round} of ${runsOf(config, 'verify')}): the author fixes them first; nothing was written`, 'verify-open', `fix them, run mirai verify ${path}, then approve again (mirai verify ${path} --handoff gives them as the author's next run takes them)`);
   }
@@ -76,7 +100,9 @@ export function verifierLines(v, who = (id) => fullName(id)) {
   const e = v.entry;
   const tips = suggestions(e.findings ?? []).length;
   if (v.state === 'pass') return [`${name}: passed (${tips} suggestion${tips === 1 ? '' : 's'}; round ${e.round}, model ${plain(e.model)})`, ...(e.findings ?? []).flatMap((f) => findingLines(f).map(plain))];
-  const out = [v.state === 'early'
+  const out = [v.state === 'decisions'
+    ? `${name}: ${e.must_fix} finding${e.must_fix === 1 ? '' : 's'} open, each a decision only you can make (round ${e.round}, model ${plain(e.model)})`
+    : v.state === 'early'
     ? `${name}: ${e.must_fix} finding${e.must_fix === 1 ? '' : 's'} open after her check (round ${e.round}, model ${plain(e.model)}); this is your own ticket, so you may approve it anyway now`
     : `${name}: ${e.must_fix} finding${e.must_fix === 1 ? '' : 's'} open after the last round (round ${e.round}, model ${plain(e.model)})`];
   for (const f of mustFix(e.findings ?? [])) out.push(...findingLines(f).map(plain));
@@ -86,7 +112,12 @@ export function verifierLines(v, who = (id) => fullName(id)) {
 }
 
 // The approval line's field: the result's hash, so the signed line records what you saw.
-export const verifierField = (v) => (v?.entry ? { verifier: v.entry.hash } : {});
+// Unit 44 (Scope 8): approved with must-fix findings open, the line names each one's fingerprint.
+export const verifierField = (v) => {
+  if (!v?.entry) return {};
+  const open = mustFix(v.entry.findings ?? []).map(fingerprintOf);
+  return { verifier: v.entry.hash, ...(open.length ? { vera_open: [...new Set(open)] } : {}) };
+};
 
 // An epic's ticket files ([{ path, bytes }]), which Vera's check covers with it: every ticket in
 // tickets/ beside it whose `epic` is the epic's id, read as approval reads them (epicInputs).
@@ -100,9 +131,11 @@ export function epicTicketFiles(base, epicPath, id) {
 // Vera pass, or her last round, for the document as it is now. Off with `[docs] verify = false`.
 export function checkVeraFirst({ store, config, def, id, path, bytes, files = [] }) {
   if (!isVeraType(def) || !verifyOn(config)) return null;
-  const entry = verifyResultFor(store, id, subjectHash(bytes, files));
-  if (!entry) throw refuse(`${path} has no result from ${fullName(VERIFY_AGENT)} for it as it is now, and the reader test comes after her; nothing was run`, 'verify-first', `run: mirai verify ${path}, then the reader test`);
-  if (resultState(entry, config) === 'open') throw refuse(`${path} has ${entry.must_fix} must-fix finding${entry.must_fix === 1 ? '' : 's'} open from ${fullName(VERIFY_AGENT)} (round ${entry.round} of ${runsOf(config, 'verify')}), and the reader test reads the summary her fixes leave; nothing was run`, 'verify-first', `fix them, run mirai verify ${path}, then the reader test`);
+  const stored = verifyResultFor(store, id, subjectHash(bytes, files));
+  if (!stored) throw refuse(`${path} has no result from ${fullName(VERIFY_AGENT)} for it as it is now, and the reader test comes after her; nothing was run`, 'verify-first', `run: mirai verify ${path}, then the reader test`);
+  // Unit 44: your dismissals don't count, and a result whose open findings are all decisions is yours.
+  const entry = standing(stored, dismissedFor(store, id, path));
+  if (resultState(entry, config) === 'open' && !mustFix(entry.findings ?? []).every((f) => f.kind === 'decision')) throw refuse(`${path} has ${entry.must_fix} must-fix finding${entry.must_fix === 1 ? '' : 's'} open from ${fullName(VERIFY_AGENT)} (round ${entry.round} of ${runsOf(config, 'verify')}), and the reader test reads the summary her fixes leave; nothing was run`, 'verify-first', `fix them, run mirai verify ${path}, then the reader test`);
   return entry;
 }
 

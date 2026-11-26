@@ -66,6 +66,9 @@ reaches you (unit 40).
 - [vera] Does every claim added since the last check cite a source (the brief, the interview, a
   context file, an approved document, the code)? One that no source holds is an
   invented decision: a must-fix decision finding (unit 44).
+- [vera] Is every assumption the owner approved in the interview (`upstream-interview.md`, its
+  `## Assumptions`, A-1, A-2 …) reflected in the PRD under the same A-n, and none contradicted by a
+  requirement? A dropped or contradicted one is a must-fix, `against` the interview's line (unit 44).
 - [vera] Are the non-goals the things a reader would otherwise expect, so the agents don't build them?
 - [vera] Would an agent cutting tickets from this PRD have to guess anything? Name it.
 - [vera] Is anything left from the template: a guidance line, a placeholder, the sample id?

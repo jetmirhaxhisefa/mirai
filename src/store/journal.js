@@ -118,6 +118,9 @@ export const EVENT_TYPES = Object.freeze({
       // Unit 40: the verifier's result you saw at approval (its hash in the store's record), on the
       // line of a document she checks: a brief, a PRD, an epic, a context file you approve.
       verifier: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
+      // Unit 44 (Scope 8): approved anyway with the verifier's must-fix findings open: each one's
+      // fingerprint (its quote and its what), so the signed line names what you approved over.
+      vera_open: { type: 'array', items: { type: 'string', pattern: /^fp-[0-9a-f]{16}$/, patternHint: 'fp-<16 hex>' } },
     },
     required: ['item', 'kind', 'path', 'content_hash', 'decision', 'answered_after_s'],
     check(e, report) {
@@ -129,6 +132,7 @@ export const EVENT_TYPES = Object.freeze({
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
       if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
+      if (e.vera_open !== undefined && e.verifier === undefined) report('vera_open', 'vera_open goes with the verifier result it comes from');
     },
   },
   // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.
@@ -236,6 +240,35 @@ export const EVENT_TYPES = Object.freeze({
       if (e.open !== undefined && e.state !== 'done') report('open', 'only a done run lists what it left open');
       if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
     },
+  },
+  // Unit 44 (Scope 6): a decision a document's check found, sent to you as an interview question
+  // (`decision_question`), and your answer to it (`decision_answer`). `item` is the document's id;
+  // `version` its version (prd.md is 1, prd.v2.draft.md 2); `question_id` the interview's Q-n;
+  // `fingerprint` the finding's (its quote and its what); `round` the check's round. They feed the
+  // review's "Decision questions" row (design/13).
+  decision_question: {
+    privileged: true,
+    fields: {
+      initiative: { type: 'string', pattern: /^[a-z0-9][a-z0-9._-]{0,63}$/, patternHint: 'an initiative' },
+      version: { type: 'integer', min: 1 },
+      round: { type: 'integer', min: 0 },
+      question_id: { type: 'string', pattern: /^Q-[0-9]{1,4}$/, patternHint: 'Q-n' },
+      decision_type: { type: 'enum', values: ['scope', 'audience', 'money-legal', 'number', 'conflict', 'trade-off', 'other', 'invented', 'reopen'] },
+      fingerprint: { type: 'string', pattern: /^fp-[0-9a-f]{16}$/, patternHint: 'fp-<16 hex>' },
+      source: { type: 'enum', values: ['verifier', 'mirai', 'rounds-out', 'too-many'] },
+    },
+    required: ['item', 'initiative', 'version', 'question_id', 'decision_type'],
+  },
+  decision_answer: {
+    privileged: true,
+    fields: {
+      initiative: { type: 'string', pattern: /^[a-z0-9][a-z0-9._-]{0,63}$/, patternHint: 'an initiative' },
+      version: { type: 'integer', min: 1 },
+      question_id: { type: 'string', pattern: /^Q-[0-9]{1,4}$/, patternHint: 'Q-n' },
+      answer_type: { type: 'enum', values: ['answered', 'vera-wrong', 'not-a-decision', 'left-open', 'reopen', 'go-on'] },
+      fingerprint: { type: 'string', pattern: /^fp-[0-9a-f]{16}$/, patternHint: 'fp-<16 hex>' },
+    },
+    required: ['item', 'initiative', 'version', 'question_id', 'answer_type'],
   },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },

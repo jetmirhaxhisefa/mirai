@@ -1,7 +1,7 @@
 ---
 id: due-dates-interview
 type: interview
-template: interview@v1
+template: interview@v2
 state: confirmed
 owner: mirai-product-manager
 created: "2026-11-19"

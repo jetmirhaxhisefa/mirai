@@ -291,6 +291,70 @@ The steps, in order:
 7. **She's done:** your session says "the brief and the PRD are ready to approve", with each
    file's full path and link. You approve them as always (on standard, one decision for both).
 
+**The way in: `/mirai-new "<request>"` (unit 44).** The neutral way to start new work, in your
+session (`/mirai new "<request>"` in the `/mirai` file does the same). The session reads the
+context files, asks at most 2 intake questions (options and its guess, one at a time), and proposes
+a track with its reason ("standard: a new screen and a new rule; no new service"). You confirm it:
+
+- `quick`: one ticket, by hand (below): at most 3 questions, then Tess writes the lone ticket. It
+  never proposes `quick` for a request its intake found unclear, and a quick request that needs
+  more is offered `standard`, never `/mirai-new` again;
+- `standard`: the interview, then Nora writes a brief and a lite PRD, approved in one decision;
+- `full`: the brief approved first, then a full PRD.
+
+The intake goes at the top of `interview.md` (`## Intake`: the `I-n` questions, `Track: <track>,
+because …` and `Track confirmed: yes (date)`), and the brief's "Appetite and track" says the same
+(the lint checks it). `/mirai-prd "<request>"` skips the track question: `standard`, or `full` if
+you say so.
+
+**The look-ahead.** Before the restatement, the interview reads the PRD's checklist against your
+answers, to ask now what Nora would otherwise pause on after you've left. A gap it is unsure of
+becomes a real question; one it is confident of becomes an assumption with its source, in one
+numbered list under `## Assumptions` that you approve with "ok" or correct by number ("2: in UTC").
+`mirai lint` refuses a confirmed interview with an assumption you didn't approve. Nora treats them
+as your answers: the PRD carries each under the same `A-n` ("Approved in the interview."), and
+cites it where a requirement rests on one; Vera checks none is dropped or contradicted.
+
+**Writing or decision.** Vera labels each finding: `writing` when a source that exists gives the
+fix (wording, structure, a missing ID, a summary that doesn't match a sourced detail), `decision`
+when it needs a new fact or a choice (scope, users or markets, money or law, a number no source
+gives, two sources that disagree, a trade-off), with a one-line reason; when in doubt, `decision`.
+MIRAI routes them (`findings.md`, two lists):
+
+- **writing** findings go to Nora's next launch to fix, within `[docs] verify_fix_rounds`;
+- **decisions** go to you at once, in any round, and use no round. Nora never answers one: she
+  writes `(open)` where the answer goes (`… is (open) — EU only, or EU and US? Asked in
+  interview.md Q-7.`), adds the question to `interview.md` with `Finding:` and `Kind:`, and pauses.
+  A fix that changes a decision's text with no `(open)`, no cited answer and no dismissal is an
+  invented decision: MIRAI flags it, and it comes back as a decision.
+
+**The four answers.** Every question from a finding has the same four kinds of answer: **your
+answer** (Nora writes it in, citing the question); **"Vera is wrong"** (the finding is dismissed
+for this version of the document, matched by its quote and its wording, and not raised again);
+**"not a decision, just fix it"** (it goes back to Nora as a writing finding); **"leave it open and
+accept it"** (it moves to the document's Open questions, "Accepted open (<you>, <date>)", and the
+text points to that `Q-n`). The session writes the `Answer type:` under your answer.
+
+**Too many.** With more than `[docs] max_decision_questions` (default 5) decisions asked on one
+version, answered or not, MIRAI asks one question instead: reopen the brief interview, or go on
+with them one by one. Questions that come one or two per round count too.
+
+**The rounds-out step.** When the rounds are used and writing findings are still open, Nora sorts
+them: what only you can decide becomes a question (as above), the rest stays as Vera's open
+findings. After your answers, one answer run applies them (not a round), Vera checks once more, and
+the documents go to approval with "Vera: N findings open" if any are left. `mirai show
+<initiative>` says "waiting for you: N questions in interview.md (Q-7…Q-9)" while she waits.
+
+**Approval publishes.** `(open)` anywhere in the brief or the PRD refuses the approval, listing each
+with its `Q-n`. Approving anyway with Vera's must-fix findings open records each one's fingerprint
+in your signed line (`vera_open`). After the signed lines, your approval runs `mirai docs publish
+<initiative>` (on the `local` store it does nothing, and says so); a failed publish doesn't undo the
+approval, and names the command to run. The docs merge request is merged only after the ticket
+set's approval, as before. Tess starts when you start her (unit 45 will offer it).
+
+**The commit hook.** A hand-written `status` in a brief or a PRD, or a changed record under
+`.mirai/records/`, is refused at commit: see [pre-commit.md](pre-commit.md).
+
 **Your own list, line by line.** The PRD cites each `REQ-n` on the FR, NFR or AC that carries it
 (`(BR-2) (REQ-23)`). The lint fails a line no requirement cites (unless "Not in this" lists it with
 the reason) and a `REQ-n` the list doesn't define. Vera gets the list as a fourth input: a line

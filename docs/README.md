@@ -35,6 +35,7 @@ These pages say "merge request" for both hosts. On GitHub this is a pull request
 ## Review, ship and merge
 
 - [pre-push.md](pre-push.md): the check git runs before every push.
+- [pre-commit.md](pre-commit.md): the check git runs before every commit: a hand-written status, a changed record, an approval a commit makes stale.
 - [ship.md](ship.md): `mirai ship`, which pushes the branch and opens the merge request.
 - [review-mr.md](review-mr.md): `mirai review-mr` and `mirai merge`.
 - [report.md](report.md): `mirai report`, the M1 acceptance rate and `mirai feedback`.

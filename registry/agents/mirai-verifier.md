@@ -70,6 +70,10 @@ Each finding is one of two kinds, with a one-line `kind_reason`:
   gives (limits, targets, SLAs); two sources that disagree; a trade-off between two requirements.
   Give its `decision_type`: `scope`, `audience`, `money-legal`, `number`, `conflict`,
   `trade-off` or `other`.
+- **A market or a group of people no source names is `audience`, never `writing`**, even when it
+  reads like wording: a country or region, a language, a locale's date or number format, a user
+  group. "Shown in the date format of people in the EU and the US", with no source naming the US,
+  is an `audience` decision; fixing it as wording would let the author pick a market.
 - **When in doubt: `decision`.** The author never answers a decision; the approver does.
 - **An invented decision** (`decision_type: invented`) is a claim **added since your last check**
   that no source holds, written as if it were settled. Use it only when `index.json` gives you an
@@ -88,7 +92,9 @@ grade you give: every `top-vs-detail` finding is rule 5, so it is always must-fi
 
 1. a `context` finding: anything that contradicts a context file;
 2. a decision of type `scope`, `audience`, `money-legal`, `conflict` or `invented`: the approver
-   would decide it without being shown it;
+   would decide it without being shown it; and a `number` decision in a commitment: a success
+   metric or counter-metric, an NFR, or the appetite (a number in an example is graded by the
+   rules below);
 3. an upstream commitment dropped or changed without the summary saying so: a business
    requirement, a scope line or no-go, a rollout or release plan, the appetite or a budget, a
    success metric. "The brief's phased release appears nowhere in the PRD" is must-fix;

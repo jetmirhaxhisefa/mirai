@@ -11,7 +11,7 @@ import { repoIdentity } from '../store/home.js';
 import { remotes, topLevel } from '../store/git.js';
 import { hostWords, wordsFor } from '../ship/words.js';
 import { buildBundle } from '../adapters/bundle.js';
-import { ADAPTER, commandPath, instructionBlock, interactiveDenies, interactivePath, interactiveSkillsOff, isManaged, isMiraiName, MIRAI_COMMAND, renderAgent } from '../adapters/claude-code.js';
+import { ADAPTER, commandPaths, commandText, instructionBlock, interactiveDenies, interactivePath, interactiveSkillsOff, isManaged, isMiraiName, renderAgent } from '../adapters/claude-code.js';
 import { LOCK_FILE, checkLock, entriesHash, filesUnder, hookEntry, mcpEntry, readLock, renderedHash, settingsHash, skillOffEntry, skillOffName, updateLock, replaceFile, noLinks, sha256 } from './lock.js';
 import { AGENTS_WARN_BYTES, BlockError, blockOf, localInstructions, renderBlock, withBlock } from './agents-block.js';
 
@@ -267,16 +267,16 @@ export function renderPlan({ root, registryDir, config, configBytes, local, lock
       add(path, f.bytes, { path, mark: 'rendered', sha256: renderedHash(f.bytes), from }, existing, now, now === renderedHash(f.bytes));
     }
   }
-  // `/mirai` in your sessions (unit 21f): the one command file, from the adapter.
-  const command = commandPath(profile);
-  if (command) {
+  // `/mirai` in your sessions (unit 21f): the command file, from the adapter; unit 44 adds
+  // `/mirai-new` and `/mirai-prd` beside it.
+  for (const command of commandPaths(profile)) {
     paths.add(command);
     noLinks(root, profile.interactive.commands);
     noLinks(root, command);
     const existing = existsSync(join(root, command)) ? { bytes: readFileSync(join(root, command)) } : null;
     if (existing && !lstatSync(join(root, command)).isFile()) throw new BlockError(`${command} is not a file`, { code: 'not-file' });
-    if (existing && !listed(command)) throw new BlockError(`${command} isn't listed in ${LOCK_FILE}, so MIRAI won't overwrite it`, { code: 'conflict', hint: 'rename it (it\'s where MIRAI puts /mirai), or remove it' });
-    const bytes = Buffer.from(MIRAI_COMMAND, 'utf8');
+    if (existing && !listed(command)) throw new BlockError(`${command} isn't listed in ${LOCK_FILE}, so MIRAI won't overwrite it`, { code: 'conflict', hint: `rename it (it's where MIRAI puts /${command.split('/').at(-1).replace(/\.md$/, '')}), or remove it` });
+    const bytes = Buffer.from(commandText(command.split('/').at(-1)), 'utf8');
     const now = existing ? renderedHash(existing.bytes) : null;
     add(command, bytes, { path: command, mark: 'rendered', sha256: renderedHash(bytes), from: [inRegistry(registry.adapterFiles[ADAPTER])] }, existing, now, now === renderedHash(bytes));
   }

@@ -1,7 +1,7 @@
 ---
 id: initiative-interview
 type: interview
-template: interview@v1
+template: interview@v2
 state: confirmed
 owner: mirai-product-manager
 created: "2026-01-01"
@@ -20,8 +20,35 @@ line below; keep the headings. mirai lint flags any line or the id left word for
 - An open question keeps an empty "Answer:" line. "explain" and "pause" are not answers.
 - The lint fails any interview that isn't confirmed, and the brief beside it can't be approved
   until it is.
+- Intake (unit 44): only when the request came in through /mirai-new or /mirai-prd. At most 2
+  questions (### I-1, ### I-2, in the questions' format), then the track you propose with its
+  reason, and the owner's yes to it. Leave the section out otherwise.
+- Assumptions (unit 44): before the restatement, read the PRD's checklist against the answers;
+  ask what your guess is shaky on, and list what you're confident of as A-1, A-2 …, each with its
+  source. The owner approves the list with "ok" (Approved: yes on each) or corrects it by number
+  (Approved: corrected: <their words>). Leave the section out when there are none.
+- A question from a verifier finding (unit 44) adds Finding:, Kind: and, once answered, Answer
+  type:, and its options are always the four answers.
 -->
 # Interview: the request, in a few words
+
+## Intake
+
+<!-- done when: at most two intake questions, each with options, a guess and the owner's answer; the track proposed with its reason; the owner's yes to the track with its date -->
+### I-1: How big it is
+
+What does the request change?
+
+- A: one screen or rule, as one ticket
+- B: a new screen and a new rule
+
+Guess: B, because of what you read in the code.
+
+Answer: The owner's reply, in their words.
+
+Track: standard, because of a one-line reason.
+
+Track confirmed: yes (2026-01-01)
 
 ## Questions
 
@@ -44,6 +71,11 @@ The question, in one sentence?
 Guess: A, because of what you read in the code, the docs or the sources.
 
 Answer: The owner's reply, in their words.
+
+## Assumptions
+
+<!-- done when: each item of the PRD's checklist the answers leave open is a question above (a shaky guess) or an assumption here (a confident one); each assumption has its source; the owner approved the list with "ok", or corrected one by number -->
+- A-1: What you take as true, in one sentence. Source: where it comes from (business.md, the code, an answer). Approved: yes
 
 ## Restatement
 

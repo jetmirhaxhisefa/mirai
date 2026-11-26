@@ -325,6 +325,9 @@ const DOCUMENT_TYPE = {
     section_order: sectionList,
     // Sections that may stay empty, such as a plan's logs, filled later (unit 08b).
     may_be_empty: sectionList,
+    // Unit 44: optional sections a document may leave out entirely, with no "Not applicable" line
+    // (an interview's Intake and Assumptions, only there when the request has them).
+    may_be_absent: sectionList,
     // Sections inside the frozen block, in order, between the frozen markers (unit 08b).
     frozen_sections: sectionList,
     status: { type: 'enum', values: ['required', 'forbidden'] },
@@ -505,7 +508,7 @@ function checkDocumentType(def, path, report) {
     if (field?.type !== 'enum' || !field.required || (field.values ?? []).join('\n') !== names.join('\n')) report('variants', 'a type with variants needs a required enum field "variant" listing them, in order', `add [frontmatter.fields.variant] with values = ${JSON.stringify(names)} and required = true`, 'required');
   }
 
-  for (const key of ['may_be_empty', 'frozen_sections', 'uncounted_sections']) {
+  for (const key of ['may_be_empty', 'may_be_absent', 'frozen_sections', 'uncounted_sections']) {
     (Array.isArray(def[key]) ? def[key] : []).forEach((name, i) => {
       if (!seen.has(name)) report(`${key}[${i}]`, `${key}[${i}] is not one of the listed sections`, undefined, 'unknown-section');
     });

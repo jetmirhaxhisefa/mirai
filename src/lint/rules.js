@@ -425,6 +425,7 @@ function checkSections(doc, def, add) {
   for (const name of order) {
     if (!firstOf.has(name)) {
       if (otherVariants.has(name) && !ownVariant.has(name)) continue;
+      if ((def.may_be_absent ?? []).includes(name)) continue;
       const isOptional = !required.includes(name) && !ownVariant.has(name);
       add({
         code: 'missing-section', ...where,
@@ -547,7 +548,12 @@ export function checkIds(doc, def, add, upstream) {
     if (l.kind !== 'text' && l.kind !== 'heading') continue;
     if (fixed.some((f) => l.line > f.start && l.line < f.end)) continue;
     for (const k of kinds) {
-      for (const m of l.text.matchAll(k.search)) mentions.push({ kind: k, id: m[0], line: l.line, column: colOf(l.text, m.index) });
+      for (const m of l.text.matchAll(k.search)) {
+        // Unit 44: "interview.md Q-7" (or "interview Q-7") names the interview's own question, not this
+        // document's ID: an (open) decision points to where it's asked.
+        if (/\binterview(?:\.md)?[ \t]+$/i.test(l.text.slice(Math.max(0, m.index - 16), m.index))) continue;
+        mentions.push({ kind: k, id: m[0], line: l.line, column: colOf(l.text, m.index) });
+      }
       // Definitions: at the start of a heading, a list item or a table's first cell.
       const lead = k.defined_by === 'heading' ? (l.kind === 'heading' ? /^ {0,3}#{1,6}[ \t]+(?:\*\*)?/.exec(l.text) : null)
         : k.defined_by === 'bullet' ? (l.kind === 'text' ? /^ *(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?:\*\*)?/.exec(l.text) : null)

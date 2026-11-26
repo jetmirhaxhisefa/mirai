@@ -65,11 +65,25 @@ export function quoteLine(text, quote, near = 1) {
 // kept beside it (`vera_grade`). The other rules of her list (an upstream commitment dropped, a
 // builder left asking) need judgement, and stay hers.
 export const MUST_FIX_TYPES = Object.freeze(['scope', 'audience', 'money-legal', 'conflict', 'invented']);
-export function regraded(f) {
+// Unit 44 (Jet, 2026-11-26, P1's counter-metric, Q3 "B"): a `number` decision is must-fix when
+// its quote sits in a commitment: a success metric or counter-metric (the brief's Success, an
+// SM-n), an NFR (its section, an NFR-n) or the appetite. A number in an example stays hers to grade.
+export const COMMITMENT_SECTIONS = Object.freeze(['Success', 'Non-functional requirements', 'Appetite and track']);
+export function inCommitment(text, line, quote = '') {
+  if (/\b(SM|NFR)-[0-9]{1,4}\b/.test(quote)) return true;
+  const lines = String(text ?? '').split('\n');
+  for (let i = Math.min(line, lines.length) - 1; i >= 0; i -= 1) {
+    const h = /^## +(.+?)\s*$/.exec(lines[i]);
+    if (h) return COMMITMENT_SECTIONS.includes(h[1]);
+    if (i === line - 1 && /^\s*-\s+(SM|NFR)-[0-9]{1,4}\b/.test(lines[i])) return true;
+  }
+  return false;
+}
+export function regraded(f, { commitment = false } = {}) {
   if (f.grade === 'must-fix') return f;
   // P2's third run: a top-vs-detail finding graded suggestion (the summary claimed more than FR-36
   // held); decision 5 makes a top part that hides or adds something must-fix, which is that layer.
-  const rule = f.layer === 'context' ? 'a context finding' : f.layer === 'top-vs-detail' ? 'a top-vs-detail finding' : f.kind === 'decision' && MUST_FIX_TYPES.includes(f.decision_type) ? `a ${f.decision_type} decision` : null;
+  const rule = f.layer === 'context' ? 'a context finding' : f.layer === 'top-vs-detail' ? 'a top-vs-detail finding' : f.kind === 'decision' && MUST_FIX_TYPES.includes(f.decision_type) ? `a ${f.decision_type} decision` : f.kind === 'decision' && f.decision_type === 'number' && commitment ? 'a number decision in a commitment' : null;
   return rule ? { ...f, grade: 'must-fix', vera_grade: f.grade, graded_by: rule } : f;
 }
 
@@ -161,7 +175,7 @@ export function findingsFrom(structured, files) {
         if (out.layer !== 'checklist') Object.assign(out, { vera_layer: out.vera_layer ?? out.layer, layer: 'checklist' });
       }
     }
-    findings.push(regraded(out));
+    findings.push(regraded(out, { commitment: inCommitment(own.text, line, f.where.quote) }));
   }
   return { findings, dropped };
 }

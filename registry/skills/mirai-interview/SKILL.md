@@ -21,6 +21,44 @@ confirmed.
 **Don't use it** for a clear, self-contained request ("rename this field"), a pure question
 ("how does the lint count words?"), or a mechanical change (a rename, a move, formatting).
 
+## The intake (/mirai-new, /mirai-prd)
+
+`/mirai-new "<request>"` is the neutral way in (`/mirai new` in the `/mirai` file). Before the
+interview, propose how much process the request needs:
+
+1. **Read first**: the context files and the code the request names.
+2. **At most 2 intake questions**, in the questions' format (options, your guess, one at a time),
+   only about what decides the track: how much it changes, and whether it needs a decision of the
+   owner's. Fewer is better; none is fine.
+3. **Propose a track, with its reason**, and ask the owner to confirm it:
+   - `quick`: one ticket (a story, a bug, a technical change) that needs no PRD;
+   - `standard`: a brief and a lite PRD, approved together ("standard: a new screen and a new
+     rule; no new service");
+   - `full`: the brief approved first, then a full PRD.
+
+   **Never propose `quick` for a request your intake found unclear.** The one-ticket path asks at
+   most 3 questions.
+4. **Record it** at the top of `interview.md`, under `## Intake` (before `## Questions`): the
+   intake questions as `### I-1`, `### I-2`, then
+
+   ```markdown
+   Track: standard, because a new screen and a new rule; no new service.
+
+   Track confirmed: yes (2026-11-25)
+   ```
+
+   The brief's "Appetite and track" and its `track` say the same; the lint checks both.
+5. **Then:**
+   - `quick`: go on with "One ticket by hand" below, in the same `interview.md` with `for: ticket`.
+     If you then see that 3 questions can't settle it, offer the `standard` track (change the
+     intake's track to standard, drop `for: ticket`, and go on with the interview), never
+     `/mirai-new` again;
+   - `standard` or `full`: go on with the interview, the look-ahead included, then hand over to
+     Nora.
+
+`/mirai-prd "<request>"` skips the track question: the track is `standard`, unless the owner says
+`full`. Write the intake with no question, its track line and the owner's yes.
+
 ## Before you ask
 
 1. **Look the facts up yourself.** Read the code, the docs, the brief's sources and past
@@ -153,6 +191,37 @@ kind won't help.
 
 There is no limit on the number of questions.
 
+## The look-ahead (before the restatement)
+
+The writer (Nora) turns the interview into a brief and a PRD after the owner has walked away. Each
+gap she meets then stops her work until the owner comes back. So before the restatement, look
+ahead: read the PRD's checklist (`.mirai/framework/registry/templates/prd-checklist.md`, the
+`[vera]` lines) against the answers so far, the way she and the verifier will read them.
+
+For each item the answers leave open (who can see what, what happens at a limit, a time zone, what
+someone who loses access still sees, how a success metric is measured …):
+
+- **your guess is shaky** (no source points one way, or two would): ask it as a real question, as
+  above, one at a time;
+- **your guess is confident** (a source says it: business.md, journeys.md, the code, an earlier
+  answer): write it as an assumption, with that source.
+
+Then show the owner the whole list at once, numbered, and ask: "ok, or correct any by number":
+
+```markdown
+## Assumptions
+
+- A-1: Only the task's owner sees its due date, as today's tasks. Source: the code (TaskPolicy). Approved: yes
+- A-2: A due date is a calendar day in the owner's time zone. Source: Q-2. Approved: corrected: in UTC
+```
+
+On "ok", write `Approved: yes` on each. A correction by number ("2: in UTC") is an answer: write
+`Approved: corrected: <their words>`, and fold it into the restatement. Put the list under
+`## Assumptions`, right before `## Restatement`. `mirai lint` fails a confirmed interview with an
+assumption that isn't approved. Never invent one to fill a gap: every assumption is shown and
+approved, and a gap the look-ahead missed is still the writer's pause later. Leave the section out
+when there is none. There is no cap on the list, and no approving one at a time.
+
 ## The restatement
 
 Write back what the owner wants, in the owner's words, as six lines:
@@ -247,6 +316,45 @@ change that needs no PRD.
 5. **Tell the owner** its path and link, and the approval command: they approve it on its own
    (`mirai approve <KEY> --file docs/mirai/tickets/<KEY>.md`). It gets its own branch, and its
    documents travel in its code merge request.
+
+## Questions from a finding
+
+When the verifier's check of a document finds a decision only the owner can make (a scope, the
+users or markets, money or law, a number no source gives, two sources that disagree, a trade-off),
+Nora writes `(open)` in the document and asks it in `interview.md`, with two more lines:
+
+```markdown
+### Q-7: US orders and VAT
+
+Finding: F2 (fp-0123456789abcdef): "The PRD charges VAT on every order"
+Kind: audience
+
+Do the tax rules cover orders from the EU only, or from the EU and the US?
+
+- A: EU only for now
+- B: EU and US
+- C: the verifier is wrong
+- D: not a decision, just fix it
+- E: leave it open and accept it
+
+Guess: A, because business.md names EU customers only.
+
+Answer:
+```
+
+Ask it as any question, with all its options. The four kinds of answer:
+
+- **an answer** (A or B here): it becomes the owner's source; Nora writes it in;
+- **"the verifier is wrong"**: the finding is dismissed for this version, and not raised again;
+- **"not a decision, just fix it"**: it goes back to Nora as a writing finding;
+- **"leave it open and accept it"**: it moves to the document's Open questions, marked accepted by
+  the owner.
+
+Write the owner's answer after `Answer:`, and under it `Answer type: answered`, `vera-wrong`,
+`not-a-decision` or `left-open`, for the option they chose. **Too many:** when a document has more
+decisions than the project allows (`[docs] max_decision_questions`, 5 by default), MIRAI asks one
+question instead (`Kind: reopen`): reopen the brief interview (A), or go on with them (B). On A,
+resume the interview where it missed something, then hand over again.
 
 ## Pause and resume
 

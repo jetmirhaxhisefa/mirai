@@ -192,6 +192,8 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai epic render docs/mirai/due-dates/epic-due-dates.md
 /mirai verify docs/mirai/due-dates/prd.md      # Vera checks it (docs/documents.md, "Vera")
 /mirai requirements due-dates  # numbers your own list in requirements.md (REQ-1, REQ-2 …)
+/mirai new "tasks need due dates"   # the neutral way in (also /mirai-new): at most 2 intake questions, a track you confirm, then the interview
+/mirai prd "tasks need due dates"   # straight to the interview and a PRD (also /mirai-prd): standard, or full if you say so
 /mirai write due-dates         # Nora writes the brief and the PRD (docs/documents.md, "From request to approval")
 /mirai tickets due-dates       # Tess cuts the approved PRD into an epic and its tickets (docs/tickets.md)
 /mirai ticket "the log format in GCP should change to the new structure"   # one ticket by hand: at most 3 questions, then Tess

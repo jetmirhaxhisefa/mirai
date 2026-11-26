@@ -99,7 +99,10 @@ export function checkSummary(doc, def, ctx, add) {
   };
   if (decisions) {
     const shown = idsIn(decisions.lines);
+    // Unit 44 (decision 5): an open question the owner accepted as open is decided: it stays open.
+    const accepted = new Set(detail.filter((l) => l.kind === 'text' && /\bAccepted open \([^)]*\b[0-9]{4}-[0-9]{2}-[0-9]{2}\)/.test(l.text)).map((l) => l.line));
     for (const q of definedIn('Q')) {
+      if (accepted.has(q.line)) continue;
       if (!shown.has(q.id)) add({ code: 'summary-decision', line: q.line, column: 1, reason: `the open question ${q.id} isn't under "Decisions for you"`, hint: `add it there with its options and your recommendation, or answer it in the detail and remove ${q.id}` });
     }
     for (const l of detail) {

@@ -24,7 +24,7 @@ import { documentLine } from '../../store/connectors/links.js';
 import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js';
 import { hostWords, projectWords } from '../../ship/words.js';
 import { agentNamer } from '../../agent/names.js';
-import { noraStateLines } from '../../nora/state.js';
+import { noraStateLines, waitingLine } from '../../nora/state.js';
 import { tessStateLines } from '../../tess/state.js';
 import { traceInitiative } from '../../trace/initiative.js';
 import { readyLines } from '../../tickets/pick.js';
@@ -119,6 +119,13 @@ function initiativeOf({ cwd, env, name }) {
       runState = null;
     }
     nora = events.some((e) => (e.type === 'nora_run' || e.type === 'template_gap') && e.item === name) ? noraStateLines(events, name, { who: agentNamer(), runState }) : [];
+    // Unit 44 (decision 2): a document's park is an interview waiting for you.
+    try {
+      const w = waitingLine(readApprovedFile(conn.base, conn.base, conn.relOf(conn.pathOf('interview', name)) ?? conn.pathOf('interview', name)).bytes.toString('utf8'));
+      if (w) nora.push(w);
+    } catch {
+      // no interview, or not a file: nothing waits
+    }
     // Unit 42 (Scope 2, 5, 9): the ticket planner's state, and the ready tickets in the run's pick order.
     nora.push(...tessStateLines(events, name, { who: agentNamer(), runState }), ...readyLines({ store, dir, base: conn.base, events }));
     docs = documentRows({ store, conn, initiative: name }).map((d) => {

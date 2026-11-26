@@ -528,10 +528,20 @@ async function checks(ctx) {
   let vera = null;
   if (verifyOn(s.config)) {
     const file = checkedFile(s);
-    const v = await ctx.verify({ cwd: ctx.cwd, env: ctx.env, file, cycle: ctx.cycle, launchToken: ctx.nextToken(), launchOptions: ctx.watch, ...(ctx.verifyLaunch ? { launch: ctx.verifyLaunch } : {}), run: { store: s.store, runId: ctx.runId }, authorLaunch: ctx.lastLaunch, now: ctx.now });
+    // Unit 44 (40's P3, Jet's "B"; 42's late findings on the epic's summary): from her second check in
+    // this run's cycle, Vera gets her previous findings and the diff since, and checks those.
+    let text = null;
+    try {
+      text = readFileSync(file, 'utf8');
+    } catch {
+      text = null;
+    }
+    const previous = text !== null && ctx.veraLast && (ctx.veraLast.entry.cycle ?? null) === (ctx.cycle ?? null) ? ctx.veraLast : null;
+    const v = await ctx.verify({ cwd: ctx.cwd, env: ctx.env, file, cycle: ctx.cycle, launchToken: ctx.nextToken(), launchOptions: ctx.watch, ...(ctx.verifyLaunch ? { launch: ctx.verifyLaunch } : {}), run: { store: s.store, runId: ctx.runId }, authorLaunch: ctx.lastLaunch, ...(previous ? { previous } : {}), now: ctx.now });
     if (!v.entry) return { stage: 'error', why: `the verifier's check of ${s.conn.relOf(file) ?? file} ended ${v.outcome}${v.why ? `: ${oneLine(v.why, 300)}` : ''}` };
     if (!v.reused) ctx.rounds.verify += 1;
     vera = v.entry;
+    if (text !== null) ctx.veraLast = { text, entry: vera };
     ctx.onStep({ kind: 'verify', round: vera.round, must_fix: vera.must_fix, reused: Boolean(v.reused) });
     const earlier = v.reused && (vera.cycle ?? null) !== ctx.cycle && (vera.must_fix ?? 0) > 0;
     if (earlier || resultState(vera, s.config) === 'open') return { stage: 'vera', entry: vera, shown: s.conn.relOf(file) ?? file };

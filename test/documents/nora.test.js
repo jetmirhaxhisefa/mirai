@@ -488,7 +488,8 @@ test('41 (P4\'s run, Jet\'s "A"): your new answers start a new cycle of Vera\'s 
   const vera = fakeVera((o) => (o.item === 'due-dates-brief' && !answered ? { findings: [finding] } : { findings: [] }));
   let b = 0;
   const brief = (o, fx) => {
-    put(fx, `${D}/brief.md`, `${BRIEF_READY}${'\n'.repeat(b++)}`);
+    // Unit 44: after the last round she sorts what's left (the rounds-out step), changing nothing.
+    if (indexOf(o).step !== 'sort') put(fx, `${D}/brief.md`, `${BRIEF_READY}${'\n'.repeat(b++)}`);
     return result();
   };
   const paused = (o, fx) => {
