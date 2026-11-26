@@ -1,7 +1,7 @@
 ---
 unit: "61"
 name: adr
-status: approved (Jet, 2026-11-26: "approve 133"; interview 2026-11-26: Q1–Q5 "A", restatement "yes"; after the web research in research.md)
+status: done (Jet, 2026-11-26: "approve 61", built and probed; spec approved 2026-11-26: "approve 133"; interview 2026-11-26: Q1–Q5 "A", restatement "yes"; after the web research in research.md)
 roadmap: design/07-implementation-roadmap.md, row 61 (build order: right after 45 and 45b, Jet 2026-11-24); design/01 §4 (design: HLD, ADR, LLD), §5a (trace); design/03 (ADR: MADR 4.0.0); AR-28; D-20 (a project's existing numbering and format win); units 31 (templates), 34 (`mirai-write`), 37 (overlays), 40 (Vera), 43 (trace), 62b (the technical note), 62 (HLD), 64 (Arlo), 65 (the design workflow), 60/67 (releases)
 depends_on: ["31", "34", "37", "40", "43"]
 ---

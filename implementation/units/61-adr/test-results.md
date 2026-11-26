@@ -1,6 +1,6 @@
 # Unit 61: test results (2026-11-26)
 
-**Waiting for your approval.** The runner is green at `a67ccdd` (948 tests, baseline, red team GREEN); CI on PR #140 green; P1 and P2 passed. Built on `unit/61-build` from
+**Approved** (Jet, 2026-11-26: "approve 61"). The runner is green at `a67ccdd` (948 tests, baseline, red team GREEN); CI on PR #140 green; P1 and P2 passed. Built on `unit/61-build` from
 `origin/main` (`f413a6f`: 45b merged, its re-checks merged).
 
 ## What was built
