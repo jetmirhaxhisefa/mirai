@@ -10,6 +10,7 @@ import { contentHash } from '../sign/sign.js';
 import { PROOF_NAME, RECORDS_DIR, readProof } from '../proofs/records.js';
 import { nextDraftName } from '../status/documents.js';
 import { versionOf } from '../loop/docs.js';
+import { signedHashes, typoFixOnly } from '../adr/adr.js';
 
 // The documents' part of MIRAI's pre-commit (unit 44, decision 9): a document's state comes from
 // your signed lines in the journal, never from its frontmatter, and a change to the signed records
@@ -78,6 +79,16 @@ export function documentsPreCommit({ root, env, store = null, keys = null, regis
     const value = fm?.value ?? {};
     const def = typeof value.type === 'string' && Object.hasOwn(registry.documentTypes, value.type) ? registry.documentTypes[value.type] : null;
     if (!def) continue;
+    // Unit 61 (Jet's "A"): an ADR keeps its status in the file, written only by MIRAI at your
+    // signature; a person or an agent writes only `proposed`, and an accepted ADR takes typo and
+    // link fixes only.
+    if (def.name === 'adr') {
+      const why = adrCommitProblem({ root, env, path, bytes, value, events: journal() });
+      if (why) {
+        refused.push({ path, line: fm.positions?.get('status')?.line ?? 1, ...why });
+        continue;
+      }
+    }
     if ((def.status ?? 'required') === 'forbidden' && Object.hasOwn(value, 'status')) {
       refused.push({ path, line: fm.positions?.get('status')?.line ?? 1, why: `a ${def.name} keeps no status in its frontmatter (status: ${String(value.status).slice(0, 40)}): its state comes from your signed approvals in MIRAI's journal`, hint: `take the status line out; approve it with: mirai approve ${typeof value.id === 'string' ? value.id : '<id>'} --file ${path}` });
       continue;
@@ -97,6 +108,30 @@ export function documentsPreCommit({ root, env, store = null, keys = null, regis
     warnings.push({ path, why: `this commit makes your approval of the ${last.kind} ${value.id} (seq ${last.seq}) stale`, hint: `write a new draft beside it${draft ? ` (${posix.basename(draft)})` : ''}, or approve it again: mirai approve ${value.id} --file ${path}` });
   }
   return { refused, warnings };
+}
+
+// Why a staged ADR can't be committed, or null: { why, hint }. Bytes you signed (MIRAI wrote the
+// status at your approval or review) always pass. Otherwise its status must be `proposed`, and an
+// ADR accepted in HEAD takes only typo and link fixes (its status unchanged).
+export function adrCommitProblem({ root, env, path, bytes, value, events }) {
+  const signed = signedHashes(events, path);
+  const hash = contentHash(bytes);
+  if (signed.some((x) => x.hash === hash)) return null;
+  const head = blobAt(root, 'HEAD', path, env, { maxBytes: MAX });
+  let before = null;
+  try {
+    before = head ? readFrontmatter(head)?.value ?? null : null;
+  } catch {
+    before = null;
+  }
+  const id = typeof value.id === 'string' ? value.id : '<id>';
+  if (before && before.type === 'adr' && before.status && before.status !== 'proposed') {
+    const fix = typoFixOnly(head.toString('utf8'), bytes.toString('utf8'));
+    if (fix.ok) return null;
+    return { why: `the ADR ${id} is ${before.status} in HEAD, and this changes it beyond typo and link fixes (${fix.why})`, hint: before.status === 'accepted' ? `an accepted decision is final: supersede it, with a new ADR that has supersedes: ${id} (mirai adr new <slug>); unstage this change: git restore --staged ${path}` : `a ${before.status} ADR stays as it is; unstage this change: git restore --staged ${path}` };
+  }
+  if (value.status !== 'proposed') return { why: `an ADR's status is written only by MIRAI, at your signature (status: ${String(value.status).slice(0, 40)})`, hint: `write status: proposed, then approve it: mirai approve ${id} --file ${path}` };
+  return null;
 }
 
 // Why a staged file under .mirai/records/ isn't a record MIRAI signed, or null when it verifies.

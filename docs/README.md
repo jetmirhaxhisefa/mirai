@@ -15,6 +15,7 @@ These pages say "merge request" for both hosts. On GitHub this is a pull request
 
 ## Documents and tickets
 
+- [adr.md](adr.md): architecture decision records: when to write one, the template, approval and the status in the file, the index, your own ADRs, what agents read, `mirai adr review`.
 - [documents.md](documents.md): the document types, the summary for approval, the lint and the reader test.
 - [tickets.md](tickets.md): Tess, the ticket planner; testable acceptance criteria, priority and order, the run's pick, and the project's ticket types (unit 42).
 - [context.md](context.md): the project's context files in `.mirai/context/`, what the lint checks in them and how you approve them.

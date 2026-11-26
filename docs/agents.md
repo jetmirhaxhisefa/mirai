@@ -223,6 +223,10 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai detect
 /mirai models                 # which model runs each step; --json
 /mirai models set verify deep # a step's tier, or a tier's model; mine: true for your personal file
+/mirai adr                    # the ADRs; --json (unit 61)
+/mirai adr index              # renders docs/decisions/README.md
+/mirai adr new                # slug: reminder-queue; initiative and supersedes optional
+/mirai adr review             # the ADRs in force and their triggers (marking is signed in your terminal)
 /mirai config check
 /mirai config show
 /mirai protected

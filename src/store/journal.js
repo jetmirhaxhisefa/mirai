@@ -90,7 +90,11 @@ export const EVENT_TYPES = Object.freeze({
       // `business-change` (unit 41): a proposal to change business.md you approved, which MIRAI
       // applied; `files` holds business.md as it became, and the context line beside it, signed in
       // the same step, names the proposal (`proposal`).
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay', 'business-change'] },
+      // `adr` (unit 61): an architecture decision record you accepted or rejected; MIRAI wrote the
+      // status into the file first, so `content_hash` is of the file with it. A superseding ADR's
+      // line lists the old one in `files`, as MIRAI marked it superseded, so one signature covers
+      // both.
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay', 'business-change', 'adr'] },
       proposal: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
       template_version: { type: 'integer', min: 1 },
       template_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
@@ -133,15 +137,17 @@ export const EVENT_TYPES = Object.freeze({
     check(e, report) {
       if (e.reason !== undefined && e.decision === 'accepted') report('reason', 'a reason goes with edited or rejected only');
       if (e.kind === 'epic' && e.files === undefined) report('files', 'an epic\'s approval lists its ticket files');
-      if (e.files !== undefined && !['epic', 'brief', 'overlay', 'business-change'].includes(e.kind)) report('files', 'files goes with an epic\'s, a brief\'s, an overlay\'s or a business change\'s approval only');
+      if (e.files !== undefined && !['epic', 'brief', 'overlay', 'business-change', 'adr'].includes(e.kind)) report('files', 'files goes with an epic\'s, a brief\'s, an overlay\'s, a business change\'s or a superseding ADR\'s approval only');
       if (e.proposal !== undefined && e.kind !== 'context') report('proposal', 'proposal goes with a context file\'s approval only');
       if ((e.template_version !== undefined || e.template_hash !== undefined) && e.kind !== 'overlay') report('template_hash', 'template_version and template_hash go with an overlay\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
-      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
+      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket', 'adr'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
       if (e.vera_open !== undefined && e.verifier === undefined) report('vera_open', 'vera_open goes with the verifier result it comes from');
       if ((e.release_mode !== undefined || e.dropped !== undefined) && e.kind !== 'epic') report('release_mode', 'release_mode and dropped go with a ticket set\'s approval only');
       if (e.release_reason !== undefined && e.release_mode === undefined) report('release_reason', 'release_reason goes with the release mode it explains');
+      if (e.kind === 'adr' && e.decision === 'edited') report('decision', 'an ADR is accepted or rejected');
+      if (e.kind === 'adr' && e.decision === 'rejected' && e.reason === undefined) report('reason', 'a rejected ADR keeps your reason, so it isn\'t proposed again');
     },
   },
   // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.
@@ -184,7 +190,7 @@ export const EVENT_TYPES = Object.freeze({
   verifier_miss: {
     privileged: true,
     fields: {
-      kind: { type: 'enum', values: ['brief', 'prd', 'epic', 'business', 'journeys', 'conventions'] },
+      kind: { type: 'enum', values: ['brief', 'prd', 'epic', 'business', 'journeys', 'conventions', 'adr'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
       note: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
       verifier: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
@@ -295,6 +301,23 @@ export const EVENT_TYPES = Object.freeze({
       round: { type: 'integer', min: 1 },
     },
     required: ['item', 'ticket', 'decision', 'reason', 'epic', 'round'],
+  },
+  // Unit 61 (Scope 8): your review of an accepted ADR (`mirai adr review`, and the release record,
+  // 60/67): `still-true`, or `deprecated` with your reason, which MIRAI wrote into the file first.
+  // `item` is the ADR's id, `path` its file, `content_hash` its bytes as reviewed.
+  adr_review: {
+    privileged: true,
+    human: true,
+    fields: {
+      path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo' },
+      content_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
+      verdict: { type: 'enum', values: ['still-true', 'deprecated'] },
+      reason: { type: 'string', pattern: /^(?=[^]*\S)[^\n\r]{1,500}$/, patternHint: 'one line' },
+    },
+    required: ['item', 'path', 'content_hash', 'verdict'],
+    check(e, report) {
+      if (e.verdict === 'deprecated' && e.reason === undefined) report('reason', 'a deprecated ADR keeps your reason');
+    },
   },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },

@@ -1,4 +1,7 @@
 {
+  "adr": {
+    "1": "sha256:1ad5e2fddace4f49d8b32861ad90485442c49b5232358e824d66325cf43bc7cf"
+  },
   "brief": {
     "1": "sha256:8dc15a87c6c61a1414a0f418bdf0f8210d6a6981c0115490c666108432ea3cdf"
   },

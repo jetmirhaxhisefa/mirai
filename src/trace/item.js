@@ -104,7 +104,7 @@ export function traceItem({ store, trust, registry, item }) {
 // The trace as lines for a person: the result, each link, the notes.
 export function traceLines(t) {
   const out = [`trace ${t.item} (${t.scope === 'ticket' ? 'the code' : 'the documents'}): ${t.result}${t.why ? `: ${t.why}` : ''}`];
-  for (const l of t.links) out.push(l.state === 'pass' ? `  ok       ${l.from} → ${l.to}${l.where ? ` (${l.where})` : ''}` : `  missing  ${l.what} (fix in: ${l.where})`);
+  for (const l of t.links) out.push(l.state === 'pass' ? `  ok       ${l.from} → ${l.to}${l.where ? ` (${l.where})` : ''}` : l.state === 'pending' ? `  pending  ${l.what}` : `  missing  ${l.what} (fix in: ${l.where})`);
   if (t.scope === 'ticket' && t.result !== 'n/a') out.push(`  qa: ${t.qa}`);
   for (const n of [...(t.notes ?? []), ...(t.note ? [t.note] : [])]) out.push(`  note: ${n}`);
   return out;

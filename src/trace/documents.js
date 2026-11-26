@@ -3,6 +3,7 @@ import { parseDocument } from '../lint/lint.js';
 import { METHODS, requirementItems, VERIFIED } from '../lint/prd.js';
 import { checkIds } from '../lint/rules.js';
 import { isRetired } from '../lint/retired.js';
+import { confirmationsOf, testsFor } from '../adr/confirm.js';
 
 // `mirai trace <initiative>`, the documents' scope (unit 43; Jet's decision 4, 2026-11-21):
 // - BR → FR: every BR the brief defines is cited by at least one FR or NFR of the PRD;
@@ -11,7 +12,10 @@ import { isRetired } from '../lint/retired.js';
 //   covers_fr (42, 37's item 2);
 // - NFR → its "Verified by" method, or its own ACs (32's rule), and when the method is a test,
 //   a ticket that covers it (the coverage above);
-// - ADR "Confirmation" → a named check: a no-op until ADRs exist (62–65), shown as "no ADRs yet";
+// - ADR "Confirmation" → what checks it (unit 61, Scope 4), for each of the initiative's ADRs in
+//   force: `check: <name>` passes when the project's [checks] has it; `test: <id>` when a ticket of
+//   the initiative passed the gate with a test named for it (pending until one has shipped);
+//   `review: …` goes to the reviewer's checklist. Anything else is a missing link;
 // - FR → a technical note's component: a no-op until 62b, shown as "no technical note yet".
 // A lone ticket's interview folder (`for: ticket`, no PRD) has no documents' scope: its ticket is
 // traced on its own (the code's scope). No model runs.
@@ -22,7 +26,7 @@ const IDS_OF = (doc, def) => checkIds(doc, def, () => {}, null);
 // The trace of an initiative's documents, from their texts: { result, scope: 'initiative', item,
 // links, missing, notes }. Each document: { path, text } or null. `tickets`: every ticket file
 // in the initiative's tickets/ folder: [{ path, text }]. `registry`: the effective registry.
-export function traceDocuments({ initiative, brief = null, prd = null, epic = null, tickets = [], interview = null, registry, track = null }) {
+export function traceDocuments({ initiative, brief = null, prd = null, epic = null, tickets = [], interview = null, registry, track = null, adrs = null, checks = null, adrTests = null }) {
   const out = { scope: 'initiative', item: initiative, links: [], missing: [], notes: [] };
   const parse = (d) => {
     if (!d) return null;
@@ -85,10 +89,40 @@ export function traceDocuments({ initiative, brief = null, prd = null, epic = nu
       else miss(item.id, `${item.id} isn't covered by any ticket`, `${e.path.replace(/[^/]*$/, '')}tickets/ (add it to the ${field} of the ticket that builds it)`, 'coverage');
     }
   }
-  // ---- Not built yet: ADR Confirmations (62–65) and the technical note (62b) -------------------
+  // ---- ADR "Confirmation" → what checks it (unit 61) ------------------------------------------
   if (!registry.documentTypes.adr) out.notes.push('no ADRs yet: their "Confirmation" checks are traced once ADRs exist (units 62–65)');
+  else if (adrs === null) out.notes.push('the ADRs weren\'t read here: their Confirmation links aren\'t checked');
+  else traceConfirmations({ out, adrs: adrs.filter((a) => a.mirai && a.initiative === initiative && (a.status === 'accepted' || a.status === 'proposed')), checks: checks ?? [], adrTests, ok, miss });
+  // ---- Not built yet: the technical note (62b) ----------------------------------------------
   if (!registry.documentTypes['technical-note']) out.notes.push('no technical note yet: the FR → component links are traced once it exists (unit 62b)');
   return { ...out, result: out.missing.length ? 'fail' : 'pass' };
+}
+
+// Each ADR's Confirmation lines as links. `adrTests`: { shipped, names } from the gate runs of the
+// initiative's tickets, or null when not read.
+function traceConfirmations({ out, adrs, checks, adrTests, ok, miss }) {
+  for (const a of adrs) {
+    let doc = null;
+    try {
+      doc = parseDocument(a.text, a.path);
+    } catch {
+      doc = null;
+    }
+    const lines = doc ? confirmationsOf(doc.scan) : [];
+    if (!lines.length) miss(a.id, `${a.id} has no Confirmation MIRAI can follow (check:, test: or review:)`, a.path, 'adr');
+    for (const c of lines) {
+      if (c.form === null) miss(a.id, `${a.id}'s Confirmation "${c.text.slice(0, 60)}" names nothing MIRAI can find`, a.path, 'adr');
+      else if (c.form === 'check') {
+        if (checks.includes(c.what)) ok(a.id, `check: ${c.what}`, a.path);
+        else miss(a.id, `${a.id}'s Confirmation names the check ${c.what}, which isn't in the project's [checks]`, '.mirai/config.toml', 'adr');
+      } else if (c.form === 'test') {
+        const found = adrTests ? testsFor(adrTests.names, a.id) : [];
+        if (found.length) ok(a.id, `test: ${found.slice(0, 3).join(', ')}${found.length > 3 ? ` and ${found.length - 3} more` : ''}`, a.path);
+        else if (!adrTests || !adrTests.shipped.length) out.links.push({ from: a.id, to: null, state: 'pending', where: a.path, what: `${a.id}'s test isn't seen yet: no ticket of the initiative has passed the gate` });
+        else miss(a.id, `no test named for ${a.id} passed in the gate's results (${adrTests.shipped.length} ticket${adrTests.shipped.length === 1 ? '' : 's'} shipped): name one test_${a.id.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_…`, a.path, 'adr');
+      } else ok(a.id, `review: ${c.what.slice(0, 100)} (the reviewer checks it)`, a.path);
+    }
+  }
 }
 
 // The missing links as lint problems (Q1 "A", 2026-11-25): what Tess's next launch gets in lint.json,

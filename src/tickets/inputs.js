@@ -1,6 +1,8 @@
 import { documentApproval } from '../cli/commands/approve.js';
 import { readApprovedFile } from '../cli/human-move.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
+import { adrSettings, adrState, listAdrs, signedCopyOf, workTreeReader } from '../adr/adr.js';
+import { readJournal } from '../store/journal.js';
 
 // The documents a track needs approved before the ticket planner cuts (unit 45, decision 2; Jet,
 // 2026-11-24): data, not code, so a document type plugs in when its unit lands.
@@ -31,9 +33,11 @@ export function inputsOf(config, track) {
 //   `approved` (as it is now), `unapproved` (with `id`, `shown`, `stale`), `absent` (the type exists,
 //   the document doesn't: `shown` its path), or `no-type` (MIRAI hasn't the type yet: `unit`).
 // `readDoc(type)` returns { value, bytes, shown } or null; it's given so this works for either store.
-export function inputStates({ store, registry, config, track, readDoc }) {
+export function inputStates({ store, registry, config, track, readDoc, initiative = null }) {
   return inputsOf(config, track).map((type) => {
     if (!registry.documentTypes[type]) return { type, state: 'no-type', unit: UNIT_OF[type] ?? null };
+    // Unit 61 (45's re-check): ADRs are many files in the ADR folder, not one beside the PRD.
+    if (type === 'adr') return adrInputState({ store, config, initiative });
     let d = null;
     try {
       d = readDoc(type);
@@ -79,4 +83,21 @@ export function readInput(conn, initiative, type) {
     value = {};
   }
   return { value, bytes: read.bytes, shown: conn.kind === 'repo' ? conn.relOf(abs) ?? abs : abs };
+}
+
+// The initiative's ADRs as an input (unit 61): approved when each one you decided (accepted or
+// rejected, by your signed line, as it is now or by a typo fix) and none is still proposed; an
+// initiative with no ADR needs none. Unapproved names the first one left, with its file.
+export function adrInputState({ store, config, initiative }) {
+  if (!initiative || !store) return { type: 'adr', state: 'approved', id: null, shown: null, none: true };
+  const s = adrSettings(config);
+  const own = listAdrs(workTreeReader(store.checkout), s).filter((a) => a.mirai && a.initiative === initiative);
+  if (!own.length) return { type: 'adr', state: 'approved', id: null, shown: null, none: true };
+  const { events } = readJournal(store);
+  const copies = signedCopyOf(store);
+  for (const a of own) {
+    const st = adrState({ events, path: a.path, bytes: a.bytes, approvedTextOf: copies });
+    if (st.state === 'unsigned' || st.state === 'changed' || a.status === 'proposed') return { type: 'adr', state: 'unapproved', id: a.id, shown: a.path, stale: st.state === 'changed' };
+  }
+  return { type: 'adr', state: 'approved', id: own.map((a) => a.id).join(', '), shown: s.folder };
 }

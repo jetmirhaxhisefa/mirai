@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdtempSync, openSync, readSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 
 import { StoreError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
@@ -779,12 +779,15 @@ const shQuote = (s) => `'${String(s).replace(/'/g, '\'\\\'\'')}'`;
 // `hash-object -w --stdin`, `update-index --index-info`, `write-tree`,
 // `rev-parse <commit>^{tree}` and `commit-tree`. Returns { sha, same } (same: the tree is the
 // parent's, so there is nothing to commit and `sha` is the parent).
-export function docsCommit(root, env, { parent, folder, files, message, author, committer }) {
+// Unit 61: `extra` ({ folder, files }) adds or replaces files in one other folder (the ADR folder),
+// without taking out the rest of it: an initiative's ADRs ride in its docs merge request.
+export function docsCommit(root, env, { parent, folder, files, message, author, committer, extra = null }) {
   checkGuards(root);
   checkRepo(root, env);
   if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(parent)) throw new StoreError('not a commit id', { code: 'bad-ref' });
   const safe = (p) => typeof p === 'string' && /^[A-Za-z0-9._/@+-]{1,400}$/.test(p) && !p.split('/').some((x) => x === '' || x === '.' || x === '..');
   if (!safe(folder) || files.some((f) => !safe(f.path) || !f.path.startsWith(`${folder}/`))) throw new StoreError('a docs commit holds files of its folder only', { code: 'bad-path' });
+  if (extra && (!safe(extra.folder) || extra.folder === folder || extra.folder.startsWith(`${folder}/`) || folder.startsWith(`${extra.folder}/`) || extra.files.some((f) => !safe(f.path) || posix.dirname(f.path) !== extra.folder))) throw new StoreError('a docs commit\'s other folder holds its own files only', { code: 'bad-path' });
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'mirai-docs-index-')));
   const index = { GIT_INDEX_FILE: join(tmp, 'index') };
   const run = (args, opts = {}) => {
@@ -795,7 +798,7 @@ export function docsCommit(root, env, { parent, folder, files, message, author, 
   try {
     run(['read-tree', parent]);
     run(['rm', '--cached', '-r', '-q', '--force', '--ignore-unmatch', '--', `:(literal)${folder}`]);
-    const lines = files.map((f) => `100644 ${run(['hash-object', '-w', '--stdin'], { input: f.bytes })}\t${f.path}\n`).join('');
+    const lines = [...files, ...(extra?.files ?? [])].map((f) => `100644 ${run(['hash-object', '-w', '--stdin'], { input: f.bytes })}\t${f.path}\n`).join('');
     if (lines) run(['update-index', '--index-info'], { input: lines });
     const tree = run(['write-tree']);
     if (tree === run(['rev-parse', `${parent}^{tree}`])) return { sha: parent, same: true };

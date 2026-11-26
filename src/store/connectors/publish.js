@@ -21,6 +21,7 @@ import { appendEvent, readJournal } from '../journal.js';
 import { checkInitiative, readUnder } from './common.js';
 import { openDocsStore } from './index.js';
 import { approvalGaps, documentRows } from './state.js';
+import { adrSettings, indexPathOf, initiativeAdrPaths, listAdrs, renderIndex, treeReader, workTreeReader } from '../../adr/adr.js';
 
 // The docs merge request (unit 38, Scope 4; Jet's decisions 1 and 3). One per initiative:
 // - `mirai docs publish <initiative>` commits the initiative's folder under the docs root on
@@ -88,8 +89,33 @@ const readdirSorted = (d) => readdirSync(d).filter((n) => !n.startsWith('.')).so
 
 // The docs-only rule (the roadmap's done-when): every path the docs branch changes against its
 // base on the integration branch is inside the initiative's folder.
-export function outsideFolder(names, folder) {
-  return names.filter((n) => !n.startsWith(`${folder}/`));
+export function outsideFolder(names, folder, allowed = []) {
+  const also = new Set(allowed);
+  return names.filter((n) => !n.startsWith(`${folder}/`) && !also.has(n));
+}
+
+// Unit 61 (45's re-check, Jet's "A"): the ADR folder's files the initiative's docs merge request
+// carries: its ADRs, the ones they superseded (from your signed lines), and the index as it is with
+// them, on top of the integration branch's folder. { folder, files: [{ path, bytes }] }; no files
+// when the initiative has no ADR.
+function adrFilesFor({ store, config, initiative, tip, events }) {
+  const s = adrSettings(config);
+  const work = workTreeReader(store.checkout);
+  const paths = initiativeAdrPaths(listAdrs(work, s), events, initiative);
+  const files = paths.map((path) => ({ path, bytes: work.read(path) })).filter((f) => f.bytes);
+  if (!files.length) return { folder: s.folder, files: [] };
+  const atTip = treeReader({ lsTree, catBlobs }, store.checkout, tip, store.gitEnv, files);
+  files.push({ path: indexPathOf(atTip, s), bytes: Buffer.from(renderIndex(listAdrs(atTip, s))) });
+  return { folder: s.folder, files };
+}
+
+// The ADR folder's paths a docs merge request may change at `head`: the initiative's ADRs as they
+// are there, the ones their signed lines superseded, and the index.
+function adrPathsAt({ store, config, initiative, head, events }) {
+  const s = adrSettings(config);
+  const atHead = treeReader({ lsTree, catBlobs }, store.checkout, head, store.gitEnv);
+  const paths = initiativeAdrPaths(listAdrs(atHead, s), events, initiative);
+  return { s, reader: atHead, index: indexPathOf(atHead, s), paths: [...paths, indexPathOf(atHead, s)] };
 }
 
 // The merge request's description: each document with its approval state, from the journal.
@@ -131,13 +157,14 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
   const parent = local ?? tip;
   const who = identity(env, config);
   const message = `Docs: ${initiative}\n\nThe documents of ${initiative}, published by MIRAI (mirai docs publish).\n`;
-  const made = docsCommit(store.checkout, store.gitEnv, { parent, folder, files, message, ...who });
+  const adr = adrFilesFor({ store, config, initiative, tip, events: readJournal(store).events });
+  const made = docsCommit(store.checkout, store.gitEnv, { parent, folder, files, message, ...who, ...(adr.files.length ? { extra: adr } : {}) });
   const head = made.sha;
 
   // Documents only, checked on the commit about to be pushed: nothing has left the machine yet.
   const base = mergeBase(store.checkout, tip, head, store.gitEnv);
   const names = base ? changedNames(store.checkout, base, head, store.gitEnv) : [];
-  const outside = outsideFolder(names, folder);
+  const outside = outsideFolder(names, folder, adr.files.map((f) => f.path));
   if (!base || outside.length) {
     throw Object.assign(fail(`a docs ${w.long} carries documents only, and ${branch} changes ${outside.length ? `${outside.length} path${outside.length === 1 ? '' : 's'} outside ${folder}/: ${outside.slice(0, 20).join(', ')}` : `no history shared with ${integration}`}; nothing was pushed`, 'not-docs-only', `take those changes off ${branch} (they belong on a code branch), then publish again`), { paths: outside });
   }
@@ -162,7 +189,7 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
   }
 
   const title = cleanTitle(`Docs: ${initiative}`);
-  const body = describe({ store, conn, initiative, files });
+  const body = describe({ store, conn, initiative, files: [...files, ...adr.files] });
   const mr = host.findMr(branch);
   if (mr?.state === 'closed') throw fail(`the docs ${w.long} for ${initiative} (${mr.url}) is closed`, 'mr-closed', 'closing it was your decision, and MIRAI never reopens it: reopen it on the host, then publish again');
   if (mr?.state === 'locked') throw fail(`the docs ${w.long} ${mr.url} is locked: GitLab is merging it`, 'mr-locked', 'run it again in a minute');
@@ -180,7 +207,7 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
     if (edited) host.updateMr(number, { title, body });
     outcome = pushed || edited ? 'updated' : 'unchanged';
   }
-  const fileHashes = files.map((f) => ({ path: f.path, content_hash: contentHash(f.bytes) }));
+  const fileHashes = [...files, ...adr.files].map((f) => ({ path: f.path, content_hash: contentHash(f.bytes) }));
   appendEvent(store, { type: 'docs_published', by: 'script', item: initiative, branch, head, number, ...(url ? { url } : {}), files: fileHashes });
   const rows = new Map(documentRows({ store, conn, initiative }).map((r) => [r.rel, r.state]));
   return { outcome, branch, head, pushed, mr: { number, url }, files: files.map((f) => ({ path: f.path, abs: join(conn.base, f.path), state: rows.get(f.path) ?? (f.path.includes('/tickets/') ? 'with its epic' : '—') })), folder: conn.dir(initiative), config, store, remoteUrl: s.remoteUrl, words: w };
@@ -241,12 +268,19 @@ export async function docsMerge({ cwd, env, initiative, hostOf = hostFor, now = 
   // Documents only, again, at the head.
   const tip = host.branchTip(integration);
   const base = tip && commitOf(store.checkout, tip, store.gitEnv) ? mergeBase(store.checkout, tip, live.head, store.gitEnv) : mergeBase(store.checkout, store.branch, live.head, store.gitEnv);
-  const outside = base ? outsideFolder(changedNames(store.checkout, base, live.head, store.gitEnv), folder) : ['(no shared history)'];
+  const adrAt = adrPathsAt({ store, config, initiative, head: live.head, events });
+  const outside = base ? outsideFolder(changedNames(store.checkout, base, live.head, store.gitEnv), folder, adrAt.paths) : ['(no shared history)'];
   if (outside.length) throw fail(`the docs ${w.long} changes ${outside.length} path${outside.length === 1 ? '' : 's'} outside ${folder}/: ${outside.slice(0, 20).join(', ')}; nothing was merged`, 'not-docs-only', `a docs ${w.long} carries documents only`);
 
   // Your signed approvals against the files at the head, and the lint.
   const files = filesAt(store, live.head, folder);
-  const gaps = approvalGaps({ store, docs: files, events, words: w });
+  const adrDocs = adrAt.paths.filter((p) => p !== adrAt.index).map((p) => ({ rel: p, bytes: adrAt.reader.read(p) })).filter((d) => d.bytes);
+  const gaps = approvalGaps({ store, docs: [...files, ...adrDocs], events, words: w });
+  // The index at the head is the index of the ADRs there.
+  if (adrDocs.length) {
+    const index = adrAt.reader.read(adrAt.index);
+    if (!index || index.toString('utf8') !== renderIndex(listAdrs(adrAt.reader, adrAt.s))) gaps.push({ path: adrAt.index, gap: 'the ADR index isn\'t the index of the ADRs at the head', hint: `mirai docs publish ${initiative} renders it again` });
+  }
   const lint = lintAt({ cwd, env, store, config, conn, files });
   for (const line of lint.skipped) log(line);
   for (const p of lint.errors.slice(0, 20)) gaps.push({ path: `${p.file}:${p.line}`, gap: `a lint error: ${p.reason}`, hint: 'fix it, run mirai lint, approve again if it changed an approved file, then publish again' });

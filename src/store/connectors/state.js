@@ -9,6 +9,7 @@ import { readTicketFolder } from '../../lint/lint.js';
 import { ticketsOf } from '../../lint/graph.js';
 import { fieldsOf } from './common.js';
 import { hostWords } from '../../ship/words.js';
+import { adrState, signedCopyOf } from '../../adr/adr.js';
 
 // The state of a store's documents (unit 38): for `query`, `mirai show <initiative>` and a docs
 // merge request's description, from your signed approvals in the journal (D-34), and the gaps that
@@ -104,6 +105,15 @@ export function approvalGaps({ store, docs, events = null, words = hostWords(nul
           if (extra.length) gaps.push({ path: d.rel, gap: `no ticket-set approval for ${extra.join(', ')}: the epic ${id}'s approval doesn't cover ${extra.length === 1 ? 'it' : 'them'}`, hint: `mirai approve ${id} --file ${d.rel}` });
         }
       }
+      continue;
+    }
+    // Unit 61: an ADR the docs merge request carries: as you last signed it (its approval, or
+    // marked superseded by a newer one's approval), never proposed.
+    if (type === 'adr') {
+      const st = adrState({ events: journal, path: d.rel, bytes: d.bytes, approvedTextOf: signedCopyOf(store) });
+      const last = st.last;
+      if (!last) gaps.push({ path: d.rel, gap: `a missing approval: the ADR ${id ?? '(no id)'} is ${typeof d.fm.status === 'string' ? d.fm.status : 'not decided'}, with no signed line of yours`, hint: `mirai approve ${id ?? '<id>'} --file ${d.rel}` });
+      else if (st.state === 'changed') gaps.push({ path: d.rel, gap: `changed after your signature: the ADR ${id} isn't the file you signed (seq ${last.seq}): ${st.why}`, hint: d.fm.status === 'accepted' ? 'an accepted ADR changes by typo and link fixes only, and is merged as you signed it: restore it, or supersede it with a new ADR' : `mirai approve ${id} --file ${d.rel}` });
       continue;
     }
     if (type === 'story' || type === 'bug') continue; // below, once every epic is read

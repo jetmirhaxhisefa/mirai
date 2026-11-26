@@ -27,6 +27,7 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | `business-change` | a proposal to change `business.md`, which you approve on its own; approving it applies it | `docs/mirai/<initiative>/business-change.md` | "From request to approval", below |
 | `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
 | `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
+| `adr` | one hard architecture decision: its options, the choice and its cost; project-wide, its status in the file, written by MIRAI at your signature | `docs/decisions/ADR-<n>-<slug>.md` (`[adr] folder`), with the index `README.md` | [adr.md](adr.md) |
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
 | `ticket-notes` | your notes from a ticket set's approval screen: each ticket to merge, split or change, in your words; MIRAI writes it, Tess's next run reads it; never approved | `docs/mirai/<initiative>/ticket-notes.md` | [tickets.md](tickets.md), "From approved documents to an approved set" |
 | `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |

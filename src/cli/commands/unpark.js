@@ -62,7 +62,7 @@ export default {
     // Unit 30c (F23): a plan that failed the lint twice goes back for a re-plan, with your note as
     // a review note Kai reads; in-progress would be a dead end (`mirai plan` starts from
     // ready-for-dev).
-    const badPlan = current.status?.park_reason === 'bad-plan';
+    const badPlan = current.status?.park_reason === 'bad-plan' || current.status?.park_reason === 'adr-conflict';
     const to = badPlan ? 'ready-for-dev' : acceptIds && stand.length === 0 ? 'in-review' : 'in-progress';
     if (badPlan) io.stdout.write(`then: ready-for-dev, for a re-plan that reads your note (mirai plan ${ticket})\n`);
     if (disputed) io.stdout.write(`${acceptIds ? `dropped: ${acceptIds.join(', ')}\n` : ''}${stand.length ? `stand (${who('mirai-developer')} fixes them next): ${stand.map((x) => x.id).join(', ')}\n` : ''}then: ${to === 'in-review' ? `in-review, for ${who('mirai-reviewer')}'s next round (mirai review ${ticket})` : `in-progress, for ${who('mirai-developer')} (mirai fix ${ticket})`}\n`);

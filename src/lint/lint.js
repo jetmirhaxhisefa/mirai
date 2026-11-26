@@ -10,6 +10,7 @@ import { frameworkDefaults } from '../config/defaults.js';
 import { isContextFile } from './context.js';
 import { repoReader } from './repo.js';
 import { ticketDefOf } from '../tickets/types.js';
+import { adrSettings, indexProblem, listAdrs, workTreeReader } from '../adr/adr.js';
 
 // Linting files (unit 07b).
 // - Inside the docs root (`[docs] root`, default docs/mirai) every Markdown file is a MIRAI
@@ -68,6 +69,12 @@ export function lintPaths({ root, paths = [], files = null, registry, docsRoot, 
       visit(rel, 'file');
     }
   }
+  // Unit 61 (Scope 5): the ADR index matches the ADRs beside it, when the folder was linted.
+  const s = adrSettings({ adr: project.adr });
+  if ([...seen].some((rel) => rel.startsWith(`${s.folder}/`))) {
+    const p = indexProblem(workTreeReader(realRoot), s);
+    if (p) result.problems.push({ severity: 'error', file: p.path, line: 1, column: 1, code: p.code, reason: p.reason, hint: 'MIRAI renders it: mirai adr index' });
+  }
   result.problems.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line || a.column - b.column));
   return result;
 }
@@ -78,7 +85,7 @@ export function projectDefaults() {
 
 // What the checks need from a checked config.
 export function projectOf(config) {
-  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])), limits: { ...(config.docs?.limits ?? {}) }, ticketTypes: Array.isArray(config.tickets?.types) ? config.tickets.types : null, checks: Object.fromEntries(Object.entries(config.checks ?? {}).map(([name, c]) => [name, [...((Array.isArray(c) ? c : c?.command) ?? [])]])) };
+  return { repos: (config.repos ?? []).map((r) => r.name), levels: (config.testing?.levels ?? []).map((l) => l.name), adapters: Object.fromEntries((config.testing?.levels ?? []).map((l) => [l.name, l.adapter ?? null])), limits: { ...(config.docs?.limits ?? {}) }, ticketTypes: Array.isArray(config.tickets?.types) ? config.tickets.types : null, checks: Object.fromEntries(Object.entries(config.checks ?? {}).map(([name, c]) => [name, [...((Array.isArray(c) ? c : c?.command) ?? [])]])), adr: { ...(config.adr ?? {}) } };
 }
 
 const toPosix = (p) => p.split(sep).join('/');
@@ -241,10 +248,14 @@ export function lintFile(file, ctx) {
   const linkTarget = (path) => resolveLink(dirname(abs), path, ctx);
   const readDocument = (path) => readLinked(dirname(abs), path, ctx);
   const readTickets = () => readTicketFolder(dirname(abs), ctx);
-  const template = inside ? templateOf(type, own, ctx) : null;
+  // Unit 61: an ADR lives outside the docs root (its own folder), and is still a MIRAI document whose
+  // template text must be replaced.
+  const template = inside || type === 'adr' ? templateOf(type, own, ctx) : null;
   // Unit 36: a context file is checked against the repo's code.
   const repo = isContextFile(file) ? (ctx.repo ??= repoReader(ctx.root)) : null;
-  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry, repo })) problems.push({ file, ...p });
+  // Unit 61: an ADR is checked against the other ADRs of its folder (supersedes).
+  const adr = type === 'adr' ? adrContext(ctx.project, dirname(file).split(sep).join('/'), workTreeReader(ctx.root)) : {};
+  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry, repo, ...adr })) problems.push({ file, ...p });
   return { linted: true, problems };
 }
 
@@ -413,7 +424,7 @@ function bodyOf(text) {
 // `repo` (unit 36): the repo's top folder, for a context file's checks against the code (at its
 // approval); without it they're skipped. `previous` (unit 43): the text of the document's last
 // approved version, for the ID-stability lint; without it, that lint is skipped.
-export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null, repo = null, previous = null }) {
+export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null, repo = null, previous = null, adrRoot = null }) {
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
   if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
@@ -474,6 +485,16 @@ export function lintText(text, { source = '<text>', registry, project = projectD
     return { status: 'ok', all };
   };
   const code = repo ? repoReader(repo) : null;
-  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code, previous })) problems.push({ file: source, ...p });
+  // Unit 61: an ADR, with the other ADRs of its folder when `adrRoot` (the repo) is given.
+  const adr = type === 'adr' && adrRoot ? adrContext(project, dirname(source), workTreeReader(adrRoot)) : {};
+  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code, previous, ...adr })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
+}
+
+// The ADR folder's settings and its ADRs, for an ADR's checks (unit 61): the project's [adr]
+// folder when the file is in it, else the file's own folder with the project's numbering.
+function adrContext(project, folder, reader) {
+  const base = adrSettings({ adr: project?.adr });
+  const s = { ...base, folder };
+  return { adrSettings: s, adrs: listAdrs(reader, s) };
 }
