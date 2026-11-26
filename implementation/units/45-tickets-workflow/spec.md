@@ -208,3 +208,31 @@ needs your ticket decisions logged to judge whether Tess cuts well (PM-05).
   review is Rex's, not yours).
 - **The `n/a` cut-off** (`TRACE_CUTOFF`, 2026-11-26T00:00Z): every proof this unit's probes mint
   carries a trace result.
+
+## Re-checked against 44 as built (merged 2026-11-26, PR #132)
+
+- **The PRD's approval already publishes** (44's decision 8, `publishAfter` in
+  `src/cli/commands/approve.js`): it opens or updates the initiative's docs MR and says "MIRAI merges
+  it after the ticket set's approval: mirai docs merge <initiative>". Scope 1's offer comes after
+  that line and after the documents' lines (38's rule: they come last), so the order on screen is
+  approved → published → documents → "Start Tess …? [y/N]". Scope 5's merge is the one that line
+  promises; nothing else changes.
+- **Every approval that completes the track's list publishes first** (the technical note, 62b; the
+  HLD, ADRs and LLD, 61–63): the same `publishAfter`, so the docs MR holds every input Tess cut from
+  before her set is signed and merged.
+- **Vera's decisions on the set** (44's gate state `decisions`): when every open must-fix finding on
+  the epic is a decision, the screen shows "each a decision only you can make" and lets you sign;
+  the signed line names each one's fingerprint (`vera_open`). Answer one with `c` (change): the note
+  goes to Tess. Writing findings still refuse the signature as before.
+- **A change round is a new cycle:** 44 gave Tess's checks Vera's incremental re-check within one
+  cycle (`ctx.veraLast`); Tess's run after your change notes is a new cycle, so Vera checks the set
+  in full. That's right: your notes can change any ticket.
+- **`ticket-notes` keeps no status:** its type is `status = "forbidden"` like every other type, so
+  44's `pre-commit` refuses a hand-set status in it.
+- **`mirai show`:** 44's "waiting for you" line (an interview's open Q-n, Tess's pauses included)
+  stays first; the `ticket_decision` lines (Scope 4) go after Tess's state lines.
+- **The quick track as built** (`/mirai-new`): at most 2 intake questions, your confirmed track,
+  then "One ticket by hand" (at most 3 questions) in `interview.md` with `for: ticket`, ending with
+  `mirai tickets <folder> --one`; if 3 questions can't settle it, it offers `standard`, never
+  `/mirai-new` again. T7's two human actions are the ticket's signature and your merge of its code
+  MR; the answers in your session are the request itself and aren't counted.

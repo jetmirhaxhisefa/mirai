@@ -175,3 +175,9 @@ will add a tool per step later.
 ## Re-checked against 43 as built (merged 2026-11-25, PR #127)
 
 - No change: trace runs no model; the steps listed are unchanged (`STEPS`, 15).
+
+## Re-checked against 44 as built (merged 2026-11-26, PR #132)
+
+- No new step: Nora's look-ahead runs in your session (the `mirai-interview` skill); her decision
+  answers, continue and fix runs are the `prd` step; Vera's incremental re-check is the `verify`
+  step. 44's only new key, `[docs] max_decision_questions`, isn't a model key. Nothing changes here.

@@ -131,3 +131,15 @@ short technical note before its tickets.
 - **Kai's plan gate and Rex:** new inputs and one flag each; no cage change expected beyond the
   plan template (a protected field) — the builder confirms with `cageOf`.
 - **42 (Tess):** her inputs gain the note when it's approved.
+
+## Re-checked against 44 as built (merged 2026-11-26, PR #132)
+
+- **Publishing:** the note's approval publishes the initiative (44's `publishAfter`) before 45's
+  offer to start Tess, so the docs MR holds the note Tess cuts from.
+- **`(open)`:** the tech-note lint uses 44's `checkOpenMarks`: a choice the writer can't settle is
+  written `(open)` with its question, warns, and blocks approval.
+- **Vera's findings:** 44's routing and grading apply to her tech-note checks. "A decision that
+  passes the ADR test but is only a line" is `writing` (the fix is to write the ADR), so it refuses
+  approval; "which approach" is a `decision`, shown to you at approval. A `number` decision quoting
+  an `NFR-n` in Coverage is must-fix (44's Q3 "B": a number in a commitment).
+- **Status:** `status = "forbidden"`, like every type; 44's `pre-commit` refuses a hand-set one.
