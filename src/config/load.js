@@ -189,7 +189,7 @@ function layerMessage(kind, path) {
   if (kind === 'project') return [`${shown} is a personal setting`, shown.startsWith('git.') ? `move ${shown} to [git] in ~/.config/mirai/config.toml` : `move [${shown.split('.')[0]}] to ~/.config/mirai/config.toml`];
   return [
     `${shown} can't be set in a personal file`,
-    kind === 'personal-global' ? 'this file holds only [subscription], [usage], [signing], [claude_code], git.allow_repo_config, git.author_name, git.author_email and tests.max_parallel' : 'this file holds only models.light, models.standard, models.deep and run.stop_by',
+    kind === 'personal-global' ? 'this file holds only [subscription], [usage], [signing], [claude_code], git.allow_repo_config, git.author_name, git.author_email and tests.max_parallel' : 'this file holds only models.light, models.standard, models.deep, models.steps, run.stop_by, run.on_limit and run.max_wait_minutes',
   ];
 }
 

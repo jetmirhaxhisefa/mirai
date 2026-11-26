@@ -8,6 +8,8 @@ import { MiraiError, UsageError } from '../cli/errors.js';
 import { readApprovedFile } from '../cli/human-move.js';
 import { baseForArg, docsStoreFor } from '../store/connectors/index.js';
 import { pickTier } from '../agent/tiers.js';
+import { knownIn } from '../agent/run.js';
+import { withPersonalModels } from '../config/personal-models.js';
 import { parseDocument } from '../lint/lint.js';
 import { aliased } from '../lint/rules.js';
 import { summaryOf } from '../lint/summary.js';
@@ -215,8 +217,10 @@ export async function runReaderTest({ cwd, env, file, launch = runClaude, claude
   const base = baseForArg(conn, cwd, file);
   checkVeraFirst({ store, config, def, id, path, bytes: read.bytes, files: def.name === 'epic' ? epicTicketFiles(base, path, id) : [] });
 
-  const picked = pickTier({ config, step: STEP });
-  const model = config.models?.[picked.tier];
+  // Unit 45b (Scope 6): your personal models on top of main's, for your launches.
+  const mine = withPersonalModels(config, store, { known: knownIn(trust) });
+  const picked = pickTier({ config: mine.config, step: STEP });
+  const model = mine.config.models?.[picked.tier];
   if (!model) throw new UsageError(`no model for the tier ${picked.tier} in the trust root's config`);
   const token = readToken(env);
   if (!token) throw refuse('there is no Claude login token for agent runs', 'no-token', 'in your terminal: claude setup-token, then mirai token set', EXIT.NEEDS_HUMAN);

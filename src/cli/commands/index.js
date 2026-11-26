@@ -36,6 +36,7 @@ import docs from './docs.js';
 import epic from './epic.js';
 import feedback from './feedback.js';
 import merge from './merge.js';
+import models from './models.js';
 import reviewMr from './review-mr.js';
 import report from './report.js';
 import sessionServer from './session-server.js';
@@ -51,4 +52,4 @@ import version from './version.js';
 // The real command list, fixed in code: a file dropped into this folder does nothing.
 // Later units add their commands here, by name. `help` is added by main.js, because it
 // needs the router itself.
-export const COMMANDS = [agent, approve, baseline, branchCmd, build, config, custom, detect, discard, docs, doctor, drop, epic, feedback, fix, gate, hook, init, key, lint, log, merge, plan, protectedCmd, readerTest, redteam, render, report, requirements, resume, review, reviewMr, run, sandbox, session, sessionServer, setup, ship, show, status, test, tickets, token, trace, trust, unpark, verify, version, write];
+export const COMMANDS = [agent, approve, baseline, branchCmd, build, config, custom, detect, discard, docs, doctor, drop, epic, feedback, fix, gate, hook, init, key, lint, log, merge, models, plan, protectedCmd, readerTest, redteam, render, report, requirements, resume, review, reviewMr, run, sandbox, session, sessionServer, setup, ship, show, status, test, tickets, token, trace, trust, unpark, verify, version, write];

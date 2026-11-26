@@ -14,6 +14,51 @@ Your config maps three tiers to models. The defaults are:
 
 Any model may go on any tier (D-58). `mirai config check` shows which model each tier uses and where that was set, and warns when one is outside its tier's usual family. A run says so too.
 
+## Seeing and changing models: `mirai models`
+
+`mirai models` (in your session `/mirai models`) shows, in one table, which model runs every step:
+
+```
+step              agent                         tier      model              tool         from
+prd               Nora (mirai-product-manager)  deep      claude-opus-5-5    Claude Code  default (must stay deep)
+tickets           Tess (mirai-ticket-planner)   standard  claude-sonnet-5-5  Claude Code  default
+verify            Vera (mirai-verifier)         deep      claude-opus-5-5    Claude Code  .mirai/config.toml:14
+…
+tier      model                 from
+light     claude-haiku-5-5      default
+standard  claude-sonnet-5-5     your personal file
+deep      claude-opus-5-5       default
+
+one tier up for high risk or size L (not for steps that are already deep)
+```
+
+It shows what launches use: main's config, with your personal models on top. When your work tree's
+`.mirai/config.toml` changes `[models]` and isn't on main yet, it says so. `--json` gives the same
+for scripts. Nobody edits `[models]` by hand; `mirai models set` (in your session `/mirai models
+set`) does it:
+
+| Command | Changes | Rules |
+|---|---|---|
+| `mirai models set <step> <tier>` | the step's tier (`models.steps.<step>`); its default removes the key | `prd`, `design` and `review-high-risk` stay `deep` (D-14) |
+| `mirai models set <tier> <model>` | the tier's model (`models.<tier>`) | the model is of the tier's family (`light` a Haiku, `standard` a Sonnet, `deep` an Opus or Fable), and one MIRAI knows |
+| either, with `--mine` | your personal file (`config.user.toml` in this repo's store, private), for **your own launches** only | the same rules; the project config is untouched |
+
+**Known models.** `set` takes pinned full IDs only, such as `claude-sonnet-5-5`. For Claude Code,
+MIRAI ships the list (`registry/models.toml`, updated with MIRAI's releases): Claude Code has no
+command that lists full IDs. An alias (`sonnet`, `opus`, `best` …) is refused, naming the full ID to
+use: it moves to the newest model of its kind, and every launch checks that Claude Code runs exactly
+the model it asked for, so a run's line always names the model that did the work, and a new model
+release never changes your agents until you `set` it. A full ID on no list is refused, unless
+`--check` proves it with one tiny real call: the tool answers with it, or `set` refuses with the
+tool's own error. Cursor and Codex bring their own lists (units 71 and 73); `--tool` takes
+`claude-code` only today.
+
+**When a change applies.** A project `set` writes `.mirai/config.toml`, runs `mirai render` (the
+agents' files carry their models, and the lock must match), shows the diff and the commit to make.
+MIRAI never commits it. Launches use it once it's on main: they run from main's snapshot. A
+`--mine` change applies to your next launch: its run line names it ("verify: deep from your
+personal file"). Skills have no model of their own: they run on your session's model.
+
 ## How a step's tier is picked (`mirai agent run`)
 
 1. **The step's default.** Each role has a step, and a run can name another with `--step`. A project can set its own defaults in `[models.steps]`. MIRAI's are provisional until the calibration run (unit 57).

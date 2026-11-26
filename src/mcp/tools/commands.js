@@ -29,6 +29,8 @@ const ITEM = /^(?![-/])(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+/-]{1,300}(?:#[A-
 // One line of your words (a summary, where an item goes): no line breaks or control characters.
 const LINE = /^[^\u0000-\u001f\u007f]{1,300}$/;
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._|*()-]{0,99}$/;
+// Unit 45b: a step, a tier or a model id, as a launch takes one (src/agent/run.js).
+const MODEL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 const STAGE = /^(scan|migrate|context|connect|finish)$/;
 // The arguments a command may take besides those it needs (unit 39's optional ones).
 const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop', 'answer']);
@@ -78,6 +80,10 @@ export const COMMANDS = Object.freeze({
   'review-mr': { quick: true, needs: ['ticket'], flags: ['diff', 'json'], argv: (a) => ['review-mr', a.ticket, ...(a.diff ? ['--diff'] : []), ...(a.json ? ['--json'] : [])] },
   // Unit 29a: the last run's report, or the M1 rate (read-only; it saves a report not saved yet).
   report: { quick: true, flags: ['json', 'm1'], argv: (a) => ['report', ...(a.json ? ['--json'] : []), ...(a.m1 ? ['--m1'] : [])] },
+  // Unit 45b: which model runs each step, and a change of one (it writes the project config or your
+  // personal file and renders; it never commits). Not a gate: the change is a normal committed one.
+  models: { quick: true, flags: ['json'], argv: (a) => ['models', ...(a.json ? ['--json'] : [])] },
+  'models set': { quick: true, needs: ['target', 'value'], flags: ['mine', 'check'], argv: (a) => ['models', 'set', a.target, a.value, ...(a.mine ? ['--mine'] : []), ...(a.check ? ['--check'] : [])] },
   'config check': { quick: true, argv: () => ['config', 'check'] },
   'config show': { quick: true, argv: () => ['config', 'show'] },
   protected: { quick: true, argv: () => ['protected'] },
@@ -180,7 +186,13 @@ export function checkCommand(args) {
   const out = { command };
   for (const k of Object.keys(args)) {
     if (k === 'command') continue;
-    if (!['ticket', 'level', 'file', 'type', 'initiative', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'one', 'path', 'stage', ...OPTIONAL].includes(k)) return { refused: `${k} isn't an argument here` };
+    if (!['ticket', 'level', 'file', 'type', 'initiative', 'recheck', 'kept', 'confirm', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'one', 'path', 'stage', 'target', 'value', 'mine', 'check', ...OPTIONAL].includes(k)) return { refused: `${k} isn't an argument here` };
+  }
+  // Unit 45b: a step or a tier, and a tier or a model id.
+  for (const k of ['target', 'value']) {
+    if (args[k] === undefined) continue;
+    if (typeof args[k] !== 'string' || !MODEL_WORD.test(args[k])) return { refused: `${k} must be a step, a tier or a model id` };
+    out[k] = args[k];
   }
   // Unit 39's arguments.
   if (args.path !== undefined) {
@@ -228,7 +240,7 @@ export function checkCommand(args) {
     if (command !== 'redteam run' || typeof args.confirm !== 'string' || !CODE.test(args.confirm)) return { refused: 'confirm is the one-time code redteam run gave you' };
     out.confirm = args.confirm;
   }
-  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'one']) {
+  for (const flag of ['recheck', 'kept', 'abandon', 'full', 'json', 'docs', 'm1', 'fix', 'diff', 'one', 'mine', 'check']) {
     if (args[flag] === undefined) continue;
     if (typeof args[flag] !== 'boolean') return { refused: `${flag} is true or false` };
     if (!(spec.flags ?? []).includes(flag)) return { refused: `${command} doesn't take ${flag}` };
@@ -236,7 +248,7 @@ export function checkCommand(args) {
   }
   if (!Object.hasOwn(GATES, command)) {
     for (const need of spec.needs ?? []) if (out[need] === undefined) return { refused: `${command} needs ${need}` };
-    for (const k of ['ticket', 'level', 'file', 'type', 'initiative', 'path', 'stage']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
+    for (const k of ['ticket', 'level', 'file', 'type', 'initiative', 'path', 'stage', 'target', 'value']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
   }
   return { args: out };
 }
@@ -266,6 +278,10 @@ export const miraiCommand = Object.freeze({
       m1: { type: 'boolean', description: 'with report: the M1 acceptance rate over every ticket merged or closed on the host' },
       diff: { type: 'boolean', description: 'with review-mr: the whole diff of the code' },
       one: { type: 'boolean', description: 'with tickets: the one lone ticket the folder\'s short interview asks for (unit 42)' },
+      target: { type: 'string', pattern: MODEL_WORD.source, description: 'with models set: a step (verify) or a tier (standard) (unit 45b)' },
+      value: { type: 'string', pattern: MODEL_WORD.source, description: 'with models set: the step\'s tier (deep) or the tier\'s model (claude-sonnet-5-5)' },
+      mine: { type: 'boolean', description: 'with models set: your personal file, for your own launches' },
+      check: { type: 'boolean', description: 'with models set: prove a model MIRAI doesn\'t know with one tiny real call' },
       fix: { type: 'boolean', description: 'with doctor: repair what\'s safe (a dead process\'s locks, the run state, the branch registry)' },
       path: { type: 'string', pattern: ITEM.source, description: 'an item\'s path in the repo, for custom add, setup decide and setup defer (unit 39)' },
       stage: { type: 'string', enum: ['scan', 'migrate', 'context', 'connect', 'finish'], description: 'a setup stage, for setup start and setup done' },

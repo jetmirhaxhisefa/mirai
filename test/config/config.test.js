@@ -160,8 +160,8 @@ test('T6: personal keys are refused in the project file, project keys in persona
   assert.equal(a.errors[0].hint, 'move [usage] to ~/.config/mirai/config.toml');
   const b = problems({ personal: 'schema_version = 1\n[gates]\nplan = "auto"\n[checks]\nlint = ["true"]\n' });
   assert.deepEqual(reasons(b), ["gates can't be set in a personal file", "checks can't be set in a personal file"]);
-  const steps = problems({ personal: 'schema_version = 1\n[models.steps]\nbuild = "light"\n' });
-  assert.deepEqual(reasons(steps), ["models.steps can't be set in a personal file"]);
+  // Unit 45b (Jet's answer 2 "A"): your step tiers may be in your personal file, for your own launches.
+  assert.equal(loadConfig(repo({ personal: 'schema_version = 1\n[models.steps]\nbuild = "light"\n' }).files).config.models.steps.build, 'light');
   const c = problems({ global: 'schema_version = 1\n[git]\nintegration_branch = "x"\n[models]\nlight = "y"\n' });
   assert.deepEqual(reasons(c), ["git.integration_branch can't be set in a personal file", "models can't be set in a personal file"]);
   // Unit 14b: [git] allow_repo_config is yours, never the project's; and never for a key that runs code.

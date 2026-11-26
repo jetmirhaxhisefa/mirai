@@ -12,7 +12,7 @@ A whole list (an array) is replaced, never merged.
 | File | Where | Shared? | What it may set |
 |---|---|---|---|
 | **Project** | `.mirai/config.toml` in the repo | yes, committed | team policy: every table except your personal ones below |
-| **Personal repo** | `config.user.toml` in this repo's store (`~/Library/Application Support/mirai/<repo-id>/store/`) | no, yours | `models.light`, `models.standard`, `models.deep`, `run.stop_by`, `run.on_limit`, `run.max_wait_minutes` |
+| **Personal repo** | `config.user.toml` in this repo's store (`~/Library/Application Support/mirai/<repo-id>/store/`) | no, yours | `models.light`, `models.standard`, `models.deep`, `models.steps.*` (your own launches; see [model-tiers.md](model-tiers.md)), `run.stop_by`, `run.on_limit`, `run.max_wait_minutes` |
 | **Personal global** | `~/.config/mirai/config.toml` | no, yours, all your projects | `[subscription]`, `[usage]`, `[signing]`, `[claude_code]`, `git.allow_repo_config`, `git.author_name`, `git.author_email`, `tests.max_parallel` |
 
 - **Order:** MIRAI's defaults, then the project file, then the personal repo file, then the personal global file.
@@ -61,21 +61,21 @@ A whole list (an array) is replaced, never merged.
 | `models.alternates.light` | project | none | A different `light` model a verifier uses first, so a check isn't run by the author's own model. |
 | `models.alternates.standard` | project | none | A different `standard` model a verifier uses first, so a check isn't run by the author's own model. |
 | `models.alternates.deep` | project | none | A different `deep` model a verifier uses first, so a check isn't run by the author's own model. |
-| `models.steps.prd` | project | `"deep"` | The tier that runs writing a PRD; it must stay `"deep"`. |
-| `models.steps.design` | project | `"deep"` | The tier that runs writing a design; it must stay `"deep"`. |
-| `models.steps.tickets` | project | `"standard"` | The tier that runs splitting work into tickets; one tier up for high risk or size L. |
-| `models.steps.verify` | project | `"standard"` | The tier that runs verifying another agent's work; one tier up for high risk or size L. |
-| `models.steps.plan` | project | `"standard"` | The tier that runs planning a ticket; one tier up for high risk or size L. |
-| `models.steps.replan` | project | `"deep"` | The tier that runs re-planning a ticket after a repeated failure; one tier up for high risk or size L. |
-| `models.steps.build` | project | `"standard"` | The tier that runs building a ticket's code; one tier up for high risk or size L. |
-| `models.steps.review` | project | `"standard"` | The tier that runs reviewing a ticket's change; one tier up for high risk or size L. |
-| `models.steps.review-high-risk` | project | `"deep"` | The tier that runs reviewing a high-risk change; it must stay `"deep"`. |
-| `models.steps.qa` | project | `"standard"` | The tier that runs the QA agent's E2E work; one tier up for high risk or size L. |
-| `models.steps.commit-message` | project | `"light"` | The tier that runs writing a commit message; one tier up for high risk or size L. |
-| `models.steps.mr-description` | project | `"light"` | The tier that runs writing an MR description; one tier up for high risk or size L. |
-| `models.steps.report-summary` | project | `"light"` | The tier that runs summarising a run's report; one tier up for high risk or size L. |
-| `models.steps.parking-note` | project | `"light"` | The tier that runs writing a parked ticket's note; one tier up for high risk or size L. |
-| `models.steps.reader-test` | project | `"standard"` | The tier that runs the reader test's fresh agent, which reads only a summary; one tier up for high risk or size L. |
+| `models.steps.prd` | project, personal repo | `"deep"` | The tier that runs writing a PRD; it must stay `"deep"`. |
+| `models.steps.design` | project, personal repo | `"deep"` | The tier that runs writing a design; it must stay `"deep"`. |
+| `models.steps.tickets` | project, personal repo | `"standard"` | The tier that runs splitting work into tickets; one tier up for high risk or size L. |
+| `models.steps.verify` | project, personal repo | `"standard"` | The tier that runs verifying another agent's work; one tier up for high risk or size L. |
+| `models.steps.plan` | project, personal repo | `"standard"` | The tier that runs planning a ticket; one tier up for high risk or size L. |
+| `models.steps.replan` | project, personal repo | `"deep"` | The tier that runs re-planning a ticket after a repeated failure; one tier up for high risk or size L. |
+| `models.steps.build` | project, personal repo | `"standard"` | The tier that runs building a ticket's code; one tier up for high risk or size L. |
+| `models.steps.review` | project, personal repo | `"standard"` | The tier that runs reviewing a ticket's change; one tier up for high risk or size L. |
+| `models.steps.review-high-risk` | project, personal repo | `"deep"` | The tier that runs reviewing a high-risk change; it must stay `"deep"`. |
+| `models.steps.qa` | project, personal repo | `"standard"` | The tier that runs the QA agent's E2E work; one tier up for high risk or size L. |
+| `models.steps.commit-message` | project, personal repo | `"light"` | The tier that runs writing a commit message; one tier up for high risk or size L. |
+| `models.steps.mr-description` | project, personal repo | `"light"` | The tier that runs writing an MR description; one tier up for high risk or size L. |
+| `models.steps.report-summary` | project, personal repo | `"light"` | The tier that runs summarising a run's report; one tier up for high risk or size L. |
+| `models.steps.parking-note` | project, personal repo | `"light"` | The tier that runs writing a parked ticket's note; one tier up for high risk or size L. |
+| `models.steps.reader-test` | project, personal repo | `"standard"` | The tier that runs the reader test's fresh agent, which reads only a summary; one tier up for high risk or size L. |
 
 ## [dependencies]
 

@@ -1,7 +1,7 @@
 ---
 unit: "45b"
 name: models
-status: approved (Jet, 2026-11-25: "approve 130"; interview 2026-11-23, roadmap row 45b; questions 1 "D" and 2 "A" answered 2026-11-25)
+status: done (Jet, 2026-11-26: "approve 45b", built and probed; spec approved 2026-11-25: "approve 130"; interview 2026-11-23, roadmap row 45b; questions 1 "D" and 2 "A" answered 2026-11-25)
 roadmap: design/07-implementation-roadmap.md, row 45b; D-14 (tiers, judgement steps deep), D-58; units 03b (config), 05a (the personal-repo file), 11 (render, the lock's bundle hash), 19b (`pickTier`, alternates), 21a (each agent's model in its file), 21f (the session list), 40 (Vera), 41 (Nora)
 depends_on: ["03b", "05a", "11", "19b", "21a", "21f", "40", "41"]
 ---

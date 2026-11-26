@@ -11,7 +11,8 @@ import { checkTicketTypes } from '../tickets/types.js';
 export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.integration_branch', 'git.host', 'git.host_url', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
     'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*', 'tickets.*'],
-  'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'run.stop_by', 'run.on_limit', 'run.max_wait_minutes'],
+  // Unit 45b (Jet's answer 2 "A"): your step tiers too, for your own launches.
+  'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'models.steps.*', 'run.stop_by', 'run.on_limit', 'run.max_wait_minutes'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel', 'signing.unlock', 'claude_code.move'],
 });
 
