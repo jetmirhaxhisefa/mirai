@@ -183,3 +183,19 @@ ADRs and never repeats them.
 None open: the interview settled Q1–Q5. The build-level choices (the example's feature, the
 optional sections' order, the reason's minimum length) are defaults; the builder records any
 change.
+
+## Re-checked against 45 as built (merged 2026-11-26, PR #136)
+
+- **The name and path match 45's list:** `hld` in `[tickets.inputs].full`, read at
+  `docs/mirai/<initiative>/hld.md`. Until this unit, 45 prints "no HLD yet (unit 62)"; once the
+  type exists, an HLD not approved as it is now refuses `mirai tickets` on `full`.
+- **The offer to start Tess** (`tessOffer` in `src/cli/commands/approve.js`) runs today only after a
+  PRD's approval. This type's approval calls it too, after the publish and before the documents'
+  lines (45's order), so approving the last document the track needs asks to start her.
+- **An approved type:** `documentApproval` and the approval line's `kind` know `brief`, `prd` and
+  `epic` only (`DOCUMENTS` in `approve.js`, the journal's `kind` enum); this type joins both, or 45's
+  input check (`src/tickets/inputs.js`) can never see it approved.
+- **The docs merge:** `approvalGaps` (`src/store/connectors/state.js`) refuses a document type it
+  doesn't check ("has no approval MIRAI checks before a docs merge"); this type joins its approved
+  types, checked as the PRD is (your last approval matches the file at the head).
+- **Tess's input:** 45 passes it to her as `hld.md`; Scope 6's Kai input is new.

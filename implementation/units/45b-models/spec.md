@@ -181,3 +181,8 @@ will add a tool per step later.
 - No new step: Nora's look-ahead runs in your session (the `mirai-interview` skill); her decision
   answers, continue and fix runs are the `prd` step; Vera's incremental re-check is the `verify`
   step. 44's only new key, `[docs] max_decision_questions`, isn't a model key. Nothing changes here.
+
+## Re-checked against 45 as built (merged 2026-11-26, PR #136)
+
+- No new step: Tess's `notes` run is the `tickets` step; the set's screen, the publish and the merge
+  launch no agent. Nothing changes here.
