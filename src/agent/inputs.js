@@ -8,6 +8,8 @@ import { sameKey } from '../lint/checks.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { TICKET_ID } from '../status/ticket-file.js';
 import { catBlobs, lsTree } from '../store/git.js';
+import { adrSettings, listAdrs, treeReader } from '../adr/adr.js';
+import { adrInputs } from '../adr/context.js';
 
 // The input folder for a ticket's launch (unit 21a; R3-C3, 15a). Everything comes from one commit
 // of the integration branch, the trust root's own (D-54), never the work tree: a branch can't plant
@@ -72,7 +74,7 @@ export function ticketAcs(ticket) {
 // `approved(id)`: whether a sibling's plan carries your approval; only those are given.
 // `plan` (unit 21b, the build): the approved plan's verified text. Then the inputs are the plan,
 // the sole source of truth (design/01 §7), the ticket and the conventions only.
-export function planInputs({ root, env, commit, ticketId, config, store, template = '', limits = INPUT_LIMITS, approved = () => false, plan = null, extra = [] }) {
+export function planInputs({ root, env, commit, ticketId, config, store, template = '', limits = INPUT_LIMITS, approved = () => false, plan = null, extra = [], adrContext = plan === null }) {
   const docsRoot = config.docs?.root ?? 'docs/mirai';
   const docs = documentsAt(root, commit, docsRoot, env);
   const byId = (id) => docs.filter((d) => d.fm && sameKey(d.fm.id, id));
@@ -107,9 +109,15 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
     if (epic) want('epic.md', epic.path, `its epic, ${epicId}`, epic.text);
     else missing.push({ id: epicId, why: 'its epic is not on the integration branch' });
   }
+  // Unit 61: the project's ADR folder at the same commit; an accepted ADR there comes with the ADR
+  // context below, any other one it names here.
+  const adrSet = forPlan || adrContext ? listAdrs(treeReader({ lsTree, catBlobs }, root, commit, env), adrSettings(config)) : [];
   for (const adr of forPlan ? ids(fm.governed_by).filter((x) => DOC_ID.test(x)) : []) {
+    const inFolder = adrSet.find((a) => sameKey(a.id, adr));
+    if (inFolder?.status === 'accepted' && adrContext) continue;
     const d = byId(adr)[0];
     if (d) want(fileName('adr', adr), d.path, `governed_by ${adr}`, d.text);
+    else if (inFolder) want(fileName('adr', adr), inFolder.path, `governed_by ${adr} (${inFolder.status})`, inFolder.text);
     else missing.push({ id: adr, why: 'governed_by names a document that is not on the integration branch' });
   }
   for (const ref of forPlan ? [...ids(fm.covers_fr).filter((x) => DOC_ID.test(x)), ...ids(fm.covers_ac).filter((x) => AC_ID.test(x))] : []) {
@@ -141,6 +149,15 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
     }
   }
 
+  // Unit 61 (decision 5): for the plan and the review, the ADR index and the accepted ADRs that
+  // touch the ticket (its initiative, the FRs it covers, governed_by, the components it or its plan
+  // names) and the last three, from the same commit. Before the conventions and sibling plans.
+  if (adrContext) {
+    const adrs = adrSet;
+    const rel = ticket.path.startsWith(`${docsRoot}/`) ? ticket.path.slice(docsRoot.length + 1).split('/') : [];
+    const initiative = rel.length > 2 && rel[1] === 'tickets' ? rel[0] : null;
+    for (const x of adrInputs(adrs, { initiative, ids: ids(fm.covers_fr), governedBy: ids(fm.governed_by), text: `${ticket.text}\n${plan ?? ''}` })) want(x.name, x.from, x.why, x.text);
+  }
   // Unit 30c: files the caller adds (your review notes), right after the ticket's own.
   for (const x of extra) want(x.name, x.from, x.why, x.text);
   // Fill to the cap, index.json included: what doesn't fit is left out whole, and named.

@@ -353,3 +353,41 @@ test('45 T6: signing the set publishes the initiative and MIRAI merges its docs 
   assert.match(again.out, /^published: not yet: the host's main has commits this clone doesn't; your approval stands\. When that's fixed: mirai docs publish due-dates, then mirai docs merge due-dates$/m);
   assert.equal(readJournal(p.store).events.filter((e) => e.type === 'docs_merged').length, 1);
 });
+
+test('61 (45\'s re-check, Jet\'s "A"): an initiative\'s ADRs ride in its docs MR with the index; a proposed one is a gap; once signed it merges; another ADR folder file is still refused', async () => {
+  const p = project('github');
+  const ADR = read('examples/adr.md');
+  const A1 = 'docs/decisions/ADR-0001-reminder-queue.md';
+  mkdirSync(join(p.root, 'docs/decisions'), { recursive: true });
+  writeFileSync(join(p.root, A1), ADR);
+  // Another initiative's ADR in the work tree: not this MR's.
+  writeFileSync(join(p.root, 'docs/decisions/ADR-0002-other.md'), ADR.replace('id: ADR-0001', 'id: ADR-0002').replace('initiative: due-dates', 'initiative: other'));
+  await p.approvePrd();
+  const pub = await p.publish();
+  const paths = pub.files.map((f) => f.path);
+  assert.ok(paths.includes(`${D}/prd.md`));
+  const head = readJournal(p.store).events.filter((e) => e.type === 'docs_published').at(-1);
+  const sent = head.files.map((f) => f.path);
+  assert.ok(sent.includes(A1), sent.join(', '));
+  assert.ok(sent.includes('docs/decisions/README.md'));
+  assert.equal(sent.includes('docs/decisions/ADR-0002-other.md'), false);
+  assert.match(p.bareGit('show', `refs/heads/docs/due-dates:docs/decisions/README.md`), /\| \[ADR-0001\]\(ADR-0001-reminder-queue\.md\) \| Send due-date reminders from a queue worker \| proposed \|/);
+  // Another file of the ADR folder on the docs branch: refused before the push.
+  const kept = p.git('rev-parse', 'refs/heads/docs/due-dates');
+  commitOnBranch(p, 'docs/due-dates', 'docs/decisions/ADR-0003-sneaked.md', 'x\n');
+  assert.match((await refused(() => p.publish(), 'not-docs-only')).message, /outside docs\/mirai\/due-dates\/: docs\/decisions\/ADR-0003-sneaked\.md; nothing was pushed/);
+  p.git('update-ref', 'refs/heads/docs/due-dates', kept);
+  // Proposed: a gap at the merge.
+  await p.approveEpic().catch(() => {});
+  const gaps = (await refused(() => p.merge(), 'docs-gaps')).gaps.map((g) => `${g.path}: ${g.gap}`).join('\n');
+  assert.match(gaps, /docs\/decisions\/ADR-0001-reminder-queue\.md: a missing approval: the ADR ADR-0001 is proposed, with no signed line of yours/);
+  // Signed: the ADR (status accepted, as signed) and the index merge with the documents.
+  veraBefore(['approve', 'ADR-0001', '--file', A1], { root: p.root, env: p.env });
+  const ok = await p.run(['approve', 'ADR-0001', '--file', A1], ['a', 'ADR-0001']);
+  assert.equal(ok.code, EXIT.OK, ok.err);
+  assert.match(ok.out, /^published: due-dates, updated/m);
+  const done = await p.merge();
+  assert.equal(done.outcome, 'merged');
+  assert.match(p.bareGit('show', `main:${A1}`), /^status: accepted$/m);
+  assert.equal(p.bareGit('ls-tree', '--name-only', 'main', 'docs/decisions/').split('\n').sort().join(','), 'docs/decisions/ADR-0001-reminder-queue.md,docs/decisions/README.md');
+});

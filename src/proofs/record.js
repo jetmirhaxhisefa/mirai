@@ -32,6 +32,8 @@ import { PROOF_NAME, PROOF_SCHEMA, RECORDS_DIR, proofPath, proofText, signProof 
 import { fullName } from '../agent/names.js';
 import { sendBack, traceAtGate } from '../trace/gate.js';
 import { proofTrace } from '../trace/ticket.js';
+import { recordAdrTests } from '../adr/evidence.js';
+import { gateCases } from '../trace/ticket.js';
 
 // `mirai gate record <ticket>` (unit 25a; D-16, AR3-15; Jet's decisions 2–7): at ship, MIRAI mints
 // the ticket's proofs for its branch's HEAD, in one go:
@@ -192,6 +194,13 @@ export async function recordProofs({ cwd, env, ticket, unattended = false, run =
     if (traced.result === 'n/a') throw fail(`${ticket}: ${traced.why}`, 'no-code-scope', EXIT.BLOCKED);
     const back = sendBack({ store, ticket, traced, head, config, now });
     return { ticket, outcome: back.next === 'park' ? 'parked' : 'trace-failed', why: back.why, trace: traced, next: back.next, tests, hash: code.hash };
+  }
+
+  // Unit 61 (Scope 4): the tests that name an ADR, for trace's Confirmation links.
+  try {
+    recordAdrTests(store, ticket, head, gateCases(tests.runs.filter((x) => results.has(x.name)).map((x) => ({ ...results.get(x.name), level: x.name }))).cases);
+  } catch {
+    // trace shows the Confirmation as not yet seen; the gate itself passed
   }
 
   // Unit 26b: diff coverage over every level, from the merge-base (decisions 1–4).

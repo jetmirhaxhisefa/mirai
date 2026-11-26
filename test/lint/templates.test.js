@@ -41,15 +41,17 @@ function lintDocs(files, repos = ['.', 'api']) {
 const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: text }, repos).map((p) => `${p.line}:${p.column} ${p.code}`);
 
 test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and the five context files, templates that match their types, and known checks', () => {
-  // Unit 41: your requirements list and a business.md proposal.
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'interview', 'investigation', 'journeys', 'plan', 'prd', 'project', 'requirements', 'story', 'ticket-notes']);
+  // Unit 41: your requirements list and a business.md proposal. Unit 61: the ADR.
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['adr', 'brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'interview', 'investigation', 'journeys', 'plan', 'prd', 'project', 'requirements', 'story', 'ticket-notes']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);
     const fm = readFrontmatter(template);
     assert.equal(fm.value.type, name);
     assert.equal(fm.value.template, `${name}@v${def.template_version}`);
-    assert.ok(!Object.hasOwn(fm.value, 'status'), `${name}: its status lives in the store`);
+    // Unit 61 (Jet's "A"): the ADR keeps its status in the file, and its template is proposed.
+    if (def.status === 'forbidden') assert.ok(!Object.hasOwn(fm.value, 'status'), `${name}: its status lives in the store`);
+    else assert.equal(fm.value.status, def.states.initial, `${name}: its template starts in its first state`);
     const h2 = scanMarkdown(fm.body).headings.filter((h) => h.level === 2).map((h) => h.text);
     assert.deepEqual(h2, def.section_order ?? [...def.required_sections, ...def.optional_sections], name);
     // A template is a valid document of its type where it lives, outside the docs root.
@@ -59,6 +61,9 @@ test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and t
     const beside = { '/registry/templates/brief.md': read('templates/brief.md'), '/registry/templates/prd.md': read('templates/prd.md'), '/registry/templates/interview.md': read('templates/interview.md') };
     const problems = lintDocs({ [`/registry/templates/${name}.md`]: template, ...beside }).filter((p) => p.file === `registry/templates/${name}.md`);
     if (name === 'epic') assert.ok(problems.length > 0 && problems.every((p) => /^graph-|^epic-generated$|^empty-section$/.test(p.code)), JSON.stringify(problems.filter((p) => !/^graph-|^epic-generated$|^empty-section$/.test(p.code))));
+    // Unit 61: an ADR lives outside the docs root, where its template text is still checked (so its
+    // own template is all leftovers), and its PRD line points into an initiative that isn't here.
+    else if (name === 'adr') assert.ok(problems.length > 0 && problems.every((p) => /^template-text$|^missing-file$/.test(p.code)), JSON.stringify(problems.filter((p) => !/^template-text$|^missing-file$/.test(p.code))));
     else assert.deepEqual(problems, [], `${name} template`);
     assert.ok(read(def.checklist).startsWith('# '));
   }

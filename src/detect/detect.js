@@ -17,6 +17,7 @@ import { readCompose, worktreeReasons } from './compose.js';
 import { checkDraft, differences, draftText, draftValue, entryProblem, levelEntry } from './draft.js';
 import { branchPattern, commitFormat, g8 } from './git.js';
 import { instructionFacts } from './instructions.js';
+import { adrFolderOf } from './adr.js';
 import { findLevels, serviceFor, uniqueName } from './levels.js';
 import { commitRuleFiles, findStacks, stackChecks } from './stacks.js';
 import { blobReader, readTree, shownDir } from './walk.js';
@@ -186,6 +187,8 @@ export async function detect({ cwd, env, docker = {}, call = dockerCall, now = (
     levels, checks, gate_scripts: scripts,
     git: { branches, commits, commit_rules: rules, g8: g },
     instructions, gaps,
+    // Unit 61: the project's own ADR folder, when it has one.
+    adr: adrFolderOf(tree.files),
   };
   const value = draftValue(facts, { integrationBranch: trust.branch });
   const text = draftText(value, facts, { now: now() });

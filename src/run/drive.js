@@ -62,6 +62,7 @@ export const LOOP_PARKS = Object.freeze(['cap', 'repeat', 'no-progress']);
 export function unparkCommand(ticket, reason) {
   if (reason === 'disputed') return `mirai unpark ${ticket} --retry (or --accept <finding-id>, as mirai show ${ticket} names them)`;
   if (reason === 'deps-review') return `mirai unpark ${ticket} --accept-deps (after reading the package change in mirai show ${ticket})`;
+  if (reason === 'adr-conflict') return `mirai unpark ${ticket} --retry (back to ready-for-dev, after you change the ticket or supersede the ADR; then mirai plan ${ticket})`;
   if (reason === 'bad-plan') return `mirai unpark ${ticket} --retry (back to ready-for-dev; then mirai plan ${ticket}, which reads your note)`;
   if (LOOP_PARKS.includes(reason)) return `mirai drop ${ticket} (the loop guard parked it; granting more rounds comes with unit 46)`;
   return `mirai unpark ${ticket} --retry`;

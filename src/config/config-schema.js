@@ -10,7 +10,7 @@ import { checkTicketTypes } from '../tickets/types.js';
 // (D-57); personal files can't change team policy. `*` allows every key below a table.
 export const LAYER_KEYS = Object.freeze({
   project: ['schema_version', 'preset', 'git.integration_branch', 'git.host', 'git.host_url', 'git.branch_pattern', 'git.trailer', 'git.commit_format', 'git.committer_email', 'models.*', 'loop.*', 'testing.*', 'checks.*', 'compose.*', 'repos',
-    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*', 'tickets.*'],
+    'workspace.*', 'resources.*', 'gate.*', 'gates.*', 'retention.*', 'run.*', 'docs.*', 'sandbox.*', 'tickets.*', 'adr.*'],
   // Unit 45b (Jet's answer 2 "A"): your step tiers too, for your own launches.
   'personal-repo': ['schema_version', 'models.light', 'models.standard', 'models.deep', 'models.steps.*', 'run.stop_by', 'run.on_limit', 'run.max_wait_minutes'],
   'personal-global': ['schema_version', 'subscription.*', 'usage.*', 'git.allow_repo_config', 'git.author_name', 'git.author_email', 'tests.max_parallel', 'signing.unlock', 'claude_code.move'],
@@ -352,6 +352,16 @@ export const CONFIG_SCHEMA = {
       },
     },
     retention: { type: 'table', fields: { days: { type: 'integer', min: 1, max: 3650 }, auto: { type: 'boolean' } } },
+    // Unit 61 (Scope 6, D-20): where the project's ADRs live and how they are numbered: the first
+    // number as the project writes it ("ADR-0001", "adr-0001", "0001"). `mirai detect` drafts both
+    // from an ADR folder it finds.
+    adr: {
+      type: 'table',
+      fields: {
+        folder: { type: 'string', check: relativePath },
+        numbering: { type: 'string', pattern: /^[A-Za-z]{0,8}-?0{0,5}1$/, patternHint: 'the first number as your ADRs write it, such as "ADR-0001", "adr-0001" or "0001"' },
+      },
+    },
     // Unit 42: tickets. `key_prefix`, the ticket keys' prefix (PROJ in PROJ-12; the tracker's project
     // key once a tracker is connected, 38). `types` (Jet's decisions 6 and 7): the project's ticket
     // types, each with a name, what it's for, and the MIRAI behaviour it runs as; with none, Story,

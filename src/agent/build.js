@@ -404,7 +404,7 @@ export function preflight({ cwd, env, store, ticket, unattended, state = 'in-pro
   const trust = snapshot({ cwd, env });
   const config = trustedConfig(trust);
   const registry = trustedRegistry(trust);
-  const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, plan: approved.text, limits });
+  const given = planInputs({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, ticketId: ticket, config, store, plan: approved.text, limits, adrContext: state === 'in-review' });
   const record = ticketRecord(store, ticket, keys);
   if (!record.approved || record.approved.content_hash !== contentHash(given.ticket.bytes)) throw fail(`${ticket} on the integration branch isn't the file you approved`, 'ticket-changed', EXIT.BLOCKED, `read it and approve it as merged: mirai approve ${ticket} --file ${given.ticket.path}`);
   let fm = {};

@@ -4,6 +4,7 @@ import { checkBrief } from './brief.js';
 import { checkPrd } from './prd.js';
 import { checkEpic } from './epic.js';
 import { checkInterview } from './interview.js';
+import { checkAdr } from './adr.js';
 import { testabilityProblems } from './testable.js';
 import { idStabilityProblems } from './ids.js';
 import { DOC_OF_RUNS_AS, ticketTypesOf } from '../tickets/types.js';
@@ -166,6 +167,8 @@ export const CHECKS = Object.freeze({
   'business-change': (...a) => checkBusinessChange(...a),
   // Unit 43 (Scope 8): retired IDs are never reused; only where the last approved version is known
   // (approval passes it as `previous`).
+  // Unit 61: the architecture decision record.
+  adr: (...a) => checkAdr(...a),
   'id-stability': (doc, def, ctx, add) => {
     for (const p of idStabilityProblems(doc, ctx.previous)) add(p);
   },

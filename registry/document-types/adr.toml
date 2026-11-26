@@ -1,0 +1,157 @@
+# An architecture decision record (unit 61; Jet's interview 2026-11-26, research in
+# implementation/units/61-adr/research.md): one hard decision, its real options (the rejected ones
+# too), the choice and its consequences, the bad ones included. MADR 4.0.0 at its core, with a
+# Y-statement summary and a required Confirmation (how compliance is checked).
+# - Project-wide, not per initiative: it lives in the ADR folder ([adr] folder, default
+#   docs/decisions), numbered ([adr] numbering, default ADR-0001), with the index README.md beside
+#   it that MIRAI renders (mirai adr index).
+# - Only a decision that passes the gate gets one, and `gate` names the tests it passes. Everything
+#   else is one line in the HLD or the technical note.
+# - The one type that keeps its status in the file (Jet's "A", 61's re-check against 44): MADR's
+#   `status`, written only by MIRAI at your signature; a person or an agent writes only `proposed`
+#   (the pre-commit hook refuses any other change). Your signed lines stay the truth: the field
+#   mirrors them.
+# - Immutable once accepted: only typo and link fixes; a change of decision is a new ADR with
+#   `supersedes`, and approving it marks the old one superseded.
+kind = "document-type"
+schema_version = 1
+name = "adr"
+template = "templates/adr.md"
+template_version = 1
+checklist = "templates/adr-checklist.md"
+status = "required"
+id_pattern = "[A-Za-z]{0,8}-?[0-9]{1,6}"
+required_sections = ["Summary", "Context and problem", "Options considered", "Decision", "Consequences", "Confirmation"]
+optional_sections = ["Revisit when", "Links"]
+# Optional sections are left out entirely when they don't apply (no "Not applicable" line).
+may_be_absent = ["Revisit when", "Links"]
+section_order = ["Summary", "Context and problem", "Options considered", "Decision", "Consequences", "Confirmation", "Revisit when", "Links"]
+# About one page (decision 4): past 600 words the lint warns; past 900 it fails.
+document_words = 900
+document_warn_words = 600
+uncounted_sections = ["Links"]
+lint_checks = ["adr"]
+# Vera checks it before you approve it (decision 6); her lines are [vera] in the checklist.
+verifier = true
+
+# The line under the title that links the PRD of the initiative it came from; the FR and NFR IDs
+# its Context cites must be that PRD's. Required when `initiative` is set (the adr check).
+[[upstream_link]]
+label = "PRD"
+type = "prd"
+required = false
+
+[states]
+names = ["proposed", "accepted", "rejected", "deprecated", "superseded"]
+initial = "proposed"
+
+[[states.transitions]]
+from = "proposed"
+to = "accepted"
+human_only = true
+
+[[states.transitions]]
+from = "proposed"
+to = "rejected"
+human_only = true
+
+[[states.transitions]]
+from = "accepted"
+to = "superseded"
+human_only = true
+
+[[states.transitions]]
+from = "accepted"
+to = "deprecated"
+human_only = true
+
+[frontmatter.fields.date]
+type = "date"
+required = true
+
+[frontmatter.fields.decision_makers]
+type = "list"
+required = true
+
+[frontmatter.fields.confidence]
+type = "enum"
+values = ["high", "medium", "low"]
+required = true
+
+# The ADR test it passes (decision 2): at least one.
+[frontmatter.fields.gate]
+type = "list"
+values = ["hard-to-reverse", "cross-cutting", "nfr", "external", "first-of-kind"]
+required = true
+
+# The initiative it came from (its folder under the docs root); empty for a project-wide one.
+[frontmatter.fields.initiative]
+type = "string"
+
+# The ADR this one replaces (its id), and, written by MIRAI when a newer one is accepted, the one
+# that replaced it.
+[frontmatter.fields.supersedes]
+type = "string"
+
+[frontmatter.fields.superseded_by]
+type = "string"
+
+# Your one-line reason, written by MIRAI with a rejected or deprecated status.
+[frontmatter.fields.status_reason]
+type = "string"
+
+# What it governs (paths or component names): an agent working on one of them gets it in full.
+[frontmatter.fields.components]
+type = "list"
+
+# Cited from the PRD in Context and problem; never defined here.
+[[ids]]
+prefix = "FR"
+pattern = "FR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+[[ids]]
+prefix = "NFR"
+pattern = "NFR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay may rename one
+# through its map: Thudos's "Validation" for "Confirmation").
+
+[[protected_sections]]
+name = "Summary"
+read_by = ["lint", "approval"]
+
+[[protected_sections]]
+name = "Options considered"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Consequences"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Confirmation"
+read_by = ["lint", "trace"]
+
+[[protected_sections]]
+name = "Revisit when"
+read_by = ["approval"]
+
+[[protected_fields]]
+name = "gate"
+read_by = ["lint"]
+
+[[protected_fields]]
+name = "initiative"
+read_by = ["approval", "tickets", "trace"]
+
+[[protected_fields]]
+name = "supersedes"
+read_by = ["approval", "lint"]
+
+[[protected_fields]]
+name = "components"
+read_by = ["run-pick"]

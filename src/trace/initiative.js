@@ -8,6 +8,9 @@ import { openStore } from '../store/home.js';
 import { effectiveRegistry } from '../trust/overlays.js';
 import { snapshot } from '../trust/snapshot.js';
 import { traceDocuments } from './documents.js';
+import { trustedConfig } from '../trust/snapshot.js';
+import { adrSettings, listAdrs, workTreeReader } from '../adr/adr.js';
+import { readAdrTests } from '../adr/evidence.js';
 
 // `mirai trace <initiative>` and `mirai show <initiative>` (unit 43): the documents' scope, read from
 // the project's docs store (the repo, or MIRAI's local store). Kept apart from documents.js, which
@@ -35,10 +38,15 @@ export function traceInitiative({ cwd, env, initiative, store = openStore({ cwd,
     folder = [];
   }
   const tickets = folder.map((t) => read(join(dir, t.path))).filter(Boolean);
+  // Unit 61: the ADRs (from the repo's ADR folder), the project's checks and the gate's ADR tests.
+  const config = trustedConfig(trust);
+  const adrs = listAdrs(workTreeReader(store.checkout), adrSettings(config));
+  const keys = folder.map((t) => t.value?.id).filter((id) => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(id));
   return traceDocuments({
     initiative, registry,
     brief: read(conn.pathOf('brief', initiative)), prd: read(conn.pathOf('prd', initiative)), epic: read(conn.pathOf('epic', initiative)),
     interview: read(conn.pathOf('interview', initiative)), tickets,
+    adrs, checks: Object.keys(config.checks ?? {}), adrTests: readAdrTests(store, keys),
   });
 }
 

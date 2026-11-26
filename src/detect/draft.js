@@ -50,6 +50,8 @@ export function draftValue(facts, { integrationBranch }) {
     v.testing = { levels: facts.levels.map(levelEntry) };
   }
   if (facts.checks.length) v.checks = Object.fromEntries(facts.checks.map((c) => [c.name, checkEntry(c)]));
+  // Unit 61 (D-20): the project's ADR folder and numbering win.
+  if (facts.adr) v.adr = { folder: facts.adr.folder, numbering: facts.adr.numbering };
   return v;
 }
 
@@ -89,6 +91,7 @@ export function draftText(value, facts, { now }) {
     }
   }
   out.push(...gaps('checks'));
+  if (value.adr) out.push('', '[adr]', note(`from ${facts.adr.files} ADR file${facts.adr.files === 1 ? '' : 's'} in ${facts.adr.folder}/: MIRAI numbers new ones after them and never rewrites them`), `folder = ${val(value.adr.folder)}`, `numbering = ${val(value.adr.numbering)}`);
   const rest = facts.gaps.filter((g) => !['git', 'stacks', 'compose', 'levels', 'checks'].includes(g.topic));
   if (rest.length) out.push('', ...rest.map((g) => note(`check: ${g.text}`)));
   return `${out.join('\n')}\n`;
@@ -125,5 +128,7 @@ export function differences(draft, current) {
   for (const name of [...new Set([...dl.keys(), ...cl.keys()])]) add(`testing.levels.${name}`, pick(dl.get(name)), pick(cl.get(name)));
   const checks = (c) => (c === undefined ? undefined : Array.isArray(c) ? { command: c } : pick(c));
   for (const name of [...new Set([...Object.keys(draft.checks ?? {}), ...Object.keys(current.checks ?? {})])]) add(`checks.${name}`, checks(draft.checks?.[name]), checks(current.checks?.[name]));
+  add('adr.folder', draft.adr?.folder, current.adr?.folder);
+  add('adr.numbering', draft.adr?.numbering, current.adr?.numbering);
   return out;
 }

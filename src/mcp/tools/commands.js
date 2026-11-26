@@ -33,7 +33,7 @@ const WORD = /^[A-Za-z0-9][A-Za-z0-9._|*()-]{0,99}$/;
 const MODEL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 const STAGE = /^(scan|migrate|context|connect|finish)$/;
 // The arguments a command may take besides those it needs (unit 39's optional ones).
-const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop', 'answer']);
+const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop', 'answer', 'slug', 'supersedes', 'adr']);
 // What the red team costs, as the terminal says it before its y/N.
 export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Opus), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
 // One-time codes for a red-team run, kept in this server only, for ten minutes.
@@ -84,6 +84,13 @@ export const COMMANDS = Object.freeze({
   // personal file and renders; it never commits). Not a gate: the change is a normal committed one.
   models: { quick: true, flags: ['json'], argv: (a) => ['models', ...(a.json ? ['--json'] : [])] },
   'models set': { quick: true, needs: ['target', 'value'], flags: ['mine', 'check'], argv: (a) => ['models', 'set', a.target, a.value, ...(a.mine ? ['--mine'] : []), ...(a.check ? ['--check'] : [])] },
+  // Unit 61: the ADRs, their index, a new one from the template (it writes the repo's ADR folder
+  // only), and the ones in force with their triggers. Approving one and marking one deprecated are
+  // signed in your terminal (gates).
+  adr: { quick: true, flags: ['json'], argv: (a) => ['adr', ...(a.json ? ['--json'] : [])] },
+  'adr index': { quick: true, argv: () => ['adr', 'index'] },
+  'adr new': { quick: true, takes: ['initiative'], opts: ['slug', 'supersedes'], argv: (a) => ['adr', 'new', a.slug, ...(a.initiative ? ['--initiative', a.initiative] : []), ...(a.supersedes ? ['--supersedes', a.supersedes] : [])] },
+  'adr review': { quick: true, opts: ['adr'], argv: (a) => ['adr', 'review', ...(a.adr ? [a.adr] : []), '--list'] },
   'config check': { quick: true, argv: () => ['config', 'check'] },
   'config show': { quick: true, argv: () => ['config', 'show'] },
   protected: { quick: true, argv: () => ['protected'] },
@@ -248,7 +255,9 @@ export function checkCommand(args) {
   }
   if (!Object.hasOwn(GATES, command)) {
     for (const need of spec.needs ?? []) if (out[need] === undefined) return { refused: `${command} needs ${need}` };
-    for (const k of ['ticket', 'level', 'file', 'type', 'initiative', 'path', 'stage', 'target', 'value']) if (out[k] !== undefined && !(spec.needs ?? []).includes(k)) return { refused: `${command} doesn't take ${k}` };
+    for (const k of ['ticket', 'level', 'file', 'type', 'initiative', 'path', 'stage', 'target', 'value']) if (out[k] !== undefined && ![...(spec.needs ?? []), ...(spec.takes ?? [])].includes(k)) return { refused: `${command} doesn't take ${k}` };
+    // Unit 61: adr new needs its slug.
+    if (command === 'adr new' && out.slug === undefined) return { refused: 'adr new needs slug' };
   }
   return { args: out };
 }
@@ -295,6 +304,9 @@ export const miraiCommand = Object.freeze({
       note: { type: 'string', description: 'with setup decide: one line on what became of it, such as "used as a source for conventions-app.md" with drop' },
       drop: { type: 'boolean', description: 'with setup decide: the item is dropped' },
       summary: { type: 'string', description: 'with setup decide: what the item does, from the research (one line)' },
+      slug: { type: 'string', pattern: WORD.source, description: 'with adr new: the new ADR\'s file name after its number, such as reminder-queue (unit 61)' },
+      supersedes: { type: 'string', pattern: WORD.source, description: 'with adr new: the accepted ADR it replaces, such as ADR-0003' },
+      adr: { type: 'string', pattern: WORD.source, description: 'with adr review: one ADR\'s id; without it, every ADR in force' },
       answer: { type: 'string', pattern: LINE.source, description: 'with ticket fix: your answer to an open point in the ticket\'s Notes, in your words (one line, unit 42)' },
       n: { type: 'integer', description: 'with setup checklist: a line you mark done' },
     },

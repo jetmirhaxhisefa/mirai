@@ -44,6 +44,7 @@ import { renderEpicFile } from '../../tess/render.js';
 import { inputStates, missingLine, missingOf, notBuiltLine, readInput } from '../../tickets/inputs.js';
 import { lastTessRun } from '../../tess/run.js';
 import { isQuickTicket } from '../../tickets/quick.js';
+import { approveAdr } from './approve-adr.js';
 
 // Unit 45 (Scope 6): a quick ticket's plan gate is auto, but nothing signs an auto approval yet.
 export const QUICK_AUTO = 'the quick track\'s plan gate is auto for this ticket, but MIRAI can\'t sign an automatic approval yet (unit 55), so you approve it';
@@ -60,7 +61,7 @@ const DECISIONS = { a: 'accepted', e: 'edited', r: 'rejected' };
 // Unit 37: the trust root's registry with your approved overlays applied; an overlay of one of
 // `types` that's skipped (not approved as it is now) gets its one line, so you know MIRAI's type
 // is what's checked.
-function withOverlays(trust, store, io, types) {
+export function withOverlays(trust, store, io, types) {
   const r = trustedOverlays(trust, store);
   for (const x of r.skipped.filter((y) => y.kind === 'document-type' && types.includes(y.name))) io.stderr.write(`${plain(x.line)}\n`);
   return r.registry;
@@ -68,8 +69,8 @@ function withOverlays(trust, store, io, types) {
 
 export default {
   name: 'approve',
-  summary: 'Approve a ticket, a plan, a brief, a PRD, an epic with its tickets, a context file, or an overlay, signed, in a real terminal',
-  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md> | mirai approve --file .mirai/context/<file>.md | mirai approve --file .mirai/custom/<overlay>',
+  summary: 'Approve a ticket, a plan, a brief, a PRD, an epic with its tickets, an ADR, a context file, or an overlay, signed, in a real terminal',
+  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md> | mirai approve <adr-id> --file <docs/decisions/ADR-n-slug.md> | mirai approve --file .mirai/context/<file>.md | mirai approve --file .mirai/custom/<overlay>',
   positionals: { min: 0, max: 1 },
   options: {
     file: { type: 'string', description: 'the ticket file you approve' },
@@ -101,6 +102,8 @@ export default {
     if (ticket === undefined) throw new UsageError(`name the ${documentTypeOf(file.bytes) ?? 'ticket'}'s key or id before --file`, `mirai approve <key-or-id> --file ${args.values.file}`);
     // Unit 31: a document (a brief; unit 32: a PRD), not a ticket.
     const docType = documentTypeOf(file.bytes);
+    // Unit 61: an ADR, in the project's ADR folder.
+    if (docType === 'adr') return approveAdr({ id: ticket, file, store, io, now, fileArg: args.values.file, base, conn });
     if (DOCUMENTS.has(docType)) return approveDocument({ id: ticket, type: docType, file, store, io, now, fileArg: args.values.file, base, conn });
     const current = ticketNow(store, ticket, keys);
     // A ticket already ready-for-dev may be approved again, as merged (unit 21a: a plan refuses a
@@ -377,7 +380,7 @@ async function approveDocument({ id, type, file, store, io, now, fileArg, base =
 
 // The lint as at approval, for one or more files: every error is listed, and nothing is written
 // while any is left (31; unit 32: a PRD and its brief are refused together).
-function refuseOnLint(io, results) {
+export function refuseOnLint(io, results) {
   const failing = results.map((r) => ({ ...r, errors: r.errors.filter((p) => p.severity === 'error') })).filter((r) => r.errors.length);
   if (!failing.length) return;
   for (const r of failing) for (const p of r.errors.slice(0, 10)) io.stderr.write(`${r.path}:${p.line}: ${p.reason}${p.hint ? ` (${p.hint})` : ''}\n`);
@@ -569,11 +572,11 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
 // built yet skipped, with a warning naming its unit): asks whether to start her now, [y/N]; after her
 // pause on this PRD (45's re-check Q1 "A"), whether to continue her run, [Y/n]. Not complete: says
 // what's still needed. Returns the initiative to start, or null.
-async function tessOffer({ io, prompter, store, conn, registry, config, initiative, track }) {
+export async function tessOffer({ io, prompter, store, conn, registry, config, initiative, track }) {
   if (!conn || (track !== 'standard' && track !== 'full')) return null;
   let states;
   try {
-    states = inputStates({ store, registry, config, track, readDoc: (type) => readInput(conn, initiative, type) });
+    states = inputStates({ store, registry, config, track, readDoc: (type) => readInput(conn, initiative, type), initiative });
   } catch {
     return null;
   }
@@ -604,7 +607,7 @@ async function tessOffer({ io, prompter, store, conn, registry, config, initiati
 }
 
 // Starts her run in this terminal, as `mirai tickets <initiative>` does (tests give io.startTess).
-async function startTess(io, initiative) {
+export async function startTess(io, initiative) {
   if (io.startTess) return io.startTess(initiative, io);
   const { createTicketsCommand } = await import('./tickets.js');
   return createTicketsCommand().run({ positionals: [initiative], values: {} }, io);
@@ -612,8 +615,12 @@ async function startTess(io, initiative) {
 
 // After your approval of a PRD (unit 44, decision 8): 38's publish for its initiative (the folder it
 // is in). On the local store it does nothing, and says so.
-async function publishAfter({ io, file }) {
-  const initiative = posix.basename(posix.dirname(file.path));
+export async function publishAfter({ io, file }) {
+  return publishAfterInitiative({ io, initiative: posix.basename(posix.dirname(file.path)) });
+}
+
+// Unit 61: an ADR's approval publishes the initiative its `initiative` field names.
+export async function publishAfterInitiative({ io, initiative }) {
   try {
     const r = await docsPublish({ cwd: io.cwd, env: io.env, initiative, ...(io.hostOf ? { hostOf: io.hostOf } : {}) });
     if (r.outcome === 'local') {
@@ -659,7 +666,7 @@ const readerField = (reader) => (reader?.entry ? { reader_test: reader.entry.has
 
 // ---- Vera at approval (unit 40, Scopes 5 and 8) ------------------------------------------------
 
-function showVerifier(io, vera, who = undefined) {
+export function showVerifier(io, vera, who = undefined) {
   const lines = verifierLines(vera, who);
   if (lines.length) io.stdout.write(`${lines.join('\n')}\n`);
 }
@@ -667,10 +674,10 @@ function showVerifier(io, vera, who = undefined) {
 // Decision 7: a rejection of a document whose Vera result passed is her miss, recorded against the
 // type with the problem you named (your reason) and the result's hash. MIRAI's lines, written with
 // your signed rejection. [{ item, kind, path, vera }] → the events.
-function missesOf(docs, reason) {
+export function missesOf(docs, reason) {
   return docs.filter((d) => d.vera?.state === 'pass').map((d) => checkEvent({ type: 'verifier_miss', by: 'script', item: d.item, kind: d.kind, path: d.path, ...(reason ? { note: reason } : {}), verifier: d.vera.entry.hash }));
 }
-function showMisses(io, misses) {
+export function showMisses(io, misses) {
   for (const m of misses) io.stdout.write(`recorded as a miss of ${fullName('mirai-verifier')}: she passed ${plain(m.path)}, and you rejected it${m.note ? ` (${plain(m.note)})` : ''}\n`);
 }
 

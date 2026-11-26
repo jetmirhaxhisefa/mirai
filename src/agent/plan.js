@@ -15,6 +15,7 @@ import { scanMarkdown } from '../lint/markdown.js';
 import { beforeLaunch, readLoop, settleLaunch } from '../loop/guard.js';
 import { usageCheck, usageStop } from '../loop/ledger.js';
 import { parkTicket } from '../loop/park.js';
+import { ADR_RULES } from '../adr/context.js';
 import { TICKET } from '../status/machines.js';
 import { move } from '../status/move.js';
 import { verifyPlanApproval } from '../lint/frozen.js';
@@ -119,6 +120,9 @@ export function planFrom(result, { via = 'schema' } = {}) {
     text = blocks[0][1];
   }
   text = text.replace(/\r\n/g, '\n');
+  // Unit 61 (decision 5): no plan, because it would go against an accepted ADR.
+  const conflict = ADR_CONFLICT.exec(text.trim());
+  if (conflict) return { conflict: { adr: conflict[1], why: conflict[2].trim().slice(0, 300) } };
   if (!text.endsWith('\n')) text += '\n';
   if (Buffer.byteLength(text) > PLAN_MAX_BYTES) return { problem: `the plan is larger than ${PLAN_MAX_BYTES / 1024} KiB` };
   if (text.includes('\0')) return { problem: 'the plan has a NUL character' };
@@ -182,6 +186,10 @@ export function gateFor({ preset, text, quick = false }) {
   return { gate: why.length ? 'human' : 'auto', required: required.length > 0, why };
 }
 
+// Kai's answer instead of a plan when the ticket can't be planned without going against an
+// accepted ADR (unit 61): one line, the ADR's id and why.
+export const ADR_CONFLICT = /^ADR-CONFLICT:[ \t]*([A-Za-z0-9][A-Za-z0-9._-]{0,63}):[ \t]*(\S[^\n]*)$/;
+
 export function planPrompt({ ticket, fields, via, problems = null, notes = 0 }) {
   const out = via === 'schema'
     ? 'Return the whole plan, frontmatter first, as your structured output\'s `plan`.'
@@ -195,6 +203,9 @@ export function planPrompt({ ticket, fields, via, problems = null, notes = 0 }) 
     '',
     out,
     'Change nothing in the project.',
+    '',
+    ADR_RULES,
+    `To stop on an ADR, return instead of the plan exactly one line: ADR-CONFLICT: <the ADR's id>: <why the ticket can't be planned within it>${via === 'schema' ? ' (as your structured output\'s `plan`)' : ' (as the only fenced ```markdown block)'}.`,
   ];
   if (notes > 0) {
     lines.push('', `Your reviewer rejected or sent back earlier plans for ${ticket}: review-notes.md in the input folder holds ${notes === 1 ? 'the note' : `all ${notes} notes`}, oldest first. Each still holds unless a later note or the ticket says otherwise; where a note and the approved ticket disagree, follow the ticket and say so in Design notes.`);
@@ -350,6 +361,17 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
           return result;
         }
         const got = planFrom(r, { via });
+        // Unit 61: a conflict with an accepted ADR parks the ticket for you (decision_type adr-conflict).
+        if (got.conflict) {
+          toInProgress();
+          parkTicket(store, ticket, { reason: 'adr-conflict', why: `${got.conflict.adr}: ${got.conflict.why}`, evidence: [`tickets/${ticket}/plan.md`] });
+          result.outcome = 'parked';
+          result.decision_type = 'adr-conflict';
+          result.conflict = got.conflict;
+          result.why = `parked: adr-conflict (${got.conflict.adr}: ${got.conflict.why})`;
+          endState = 'finished';
+          return result;
+        }
         let text = null;
         if (got.problem) problems = Object.assign([{ line: 1, reason: got.problem }], { text: String(r.text ?? '').slice(0, 20_000) });
         else {

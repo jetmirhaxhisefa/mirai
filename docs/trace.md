@@ -29,7 +29,10 @@ what proves it, or `missing` with what's missing and where to fix it. A missing 
   `covers_fr`.
 - **NFR → how it's verified:** a "Verified by:" line naming a test level, a measurement or a manual
   check, or the NFR's own ACs.
-- **ADR "Confirmation" → a named check:** not built yet; trace says "no ADRs yet" (units 62–65).
+- **ADR "Confirmation" → what checks it** (unit 61): for each of the initiative's ADRs (accepted or
+  proposed), `check: <name>` links when `[checks]` has it; `test: <id>` when a ticket of the
+  initiative passed the gate with a test named for the ADR (`pending` until one has shipped);
+  `review: …` links, and the reviewer checks it. Anything else is missing ([adr.md](adr.md)).
 - **FR → a technical note's component:** not built yet; trace says "no technical note yet" (62b).
 
 When it runs:

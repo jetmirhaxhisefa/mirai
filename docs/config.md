@@ -237,6 +237,16 @@ Unit 42 ([tickets.md](tickets.md)). Team policy: the project file only.
 | `tickets.types[].checklist` | project | none | Extra checklist lines for the type, one line each; read by Tess with the type. |
 | `tickets.types[].tracker_type` | project | none | The issue type a tracker uses when the ticket is published (unit 38's trackers). |
 
+## [adr]
+
+Where the project's ADRs live and how they're numbered (unit 61; [adr.md](adr.md)). `mirai detect`
+drafts both from an ADR folder the project already has.
+
+| Key | Who may set it | Default | What it does |
+|---|---|---|---|
+| `adr.folder` | project | `docs/decisions` | The folder of the ADRs and their index (`README.md`), relative to the repo's top. |
+| `adr.numbering` | project | `ADR-0001` | The first number as the project writes it (`ADR-0001`, `adr-0001`, `0001`): new ADRs continue after the highest in the folder, in the same form. |
+
 ## [retention]
 
 | Key | Who may set it | Default | What it does |

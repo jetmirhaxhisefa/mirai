@@ -45,7 +45,7 @@ export const DOCUMENT = machine('document', {
 // `deps-review` (unit 30b): an approved package's install would change an existing version, take
 // a package from outside the registry, or add more than max_added.
 // `sign-proofs`: proofs are signed from your terminal only until row 29b's machine key.
-export const PARK_REASONS = Object.freeze(['cap', 'budget', 'repeat', 'no-progress', 'environment', 'rebase-conflict', 'bad-plan', 'scope', 'disputed', 'high-risk-review', 'bad-verdict', 'sign-proofs', 'deps-review']);
+export const PARK_REASONS = Object.freeze(['cap', 'budget', 'repeat', 'no-progress', 'environment', 'rebase-conflict', 'bad-plan', 'scope', 'disputed', 'high-risk-review', 'bad-verdict', 'sign-proofs', 'deps-review', 'adr-conflict']);
 
 // Why a ticket goes back to planning: you rejected the plan, or the same failure repeated
 // (a bad plan). The orchestrator gets one re-plan per ticket, whatever the reason.
