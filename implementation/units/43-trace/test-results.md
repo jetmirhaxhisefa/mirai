@@ -3,10 +3,18 @@
 **Approved (Jet, 2026-11-25: "approve 43"; P2 "B").** Runner: u43-tests-6 pass at `555f747`;
 u43-baseline-3 pass and u43-redteam-3 GREEN at `747f0bf` (no cage file changed after it, checked
 with `cageOf`); CI on PR #127 green. P1 PASSED (trace pass, 4 links; sample-app PR #19), P3 PASSED.
-**P2 is still to run for real:** its last run stopped on MIRAI's usage guard ("41% of the week is
-left; the next ticket would take it under the reserve of 40%"), not on trace; its whole sequence
-passes in the fake-launcher test `43 (P2 at 167278b)`. Jet's "B": merged now; P2 reruns after the
-weekly limit resets, recorded here; a failure is a follow-up PR. `TRACE_CUTOFF` is
+**P2 closed (Jet, 2026-11-26: "A")** on its real run of 2026-11-26 (`~/mirai-u43-p2.txt`, Sonnet,
+from `main` at `f413a6f`): the AC-SAMPLE-1.2 test renamed inside Kai's build; **Rex caught it in
+review** (`changes`, blocking f1), Kai's fix round put it back, Rex passed, the gate recorded trace
+pass (4 links) and the ticket shipped (sample-app PR #20). The probe's own rule calls that a FAIL
+(trace's stop wasn't reached, since Rex compares the change with the plan's test list); Jet's "A":
+it closes P2, since it proves both layers on a real run, and trace's own stop is proved by the
+fake-launcher test `43 (P2 at 167278b)` and by P3. The earlier run had stopped on MIRAI's usage
+guard, not on trace.
+**Follow-up found by it:** after the ship, `mirai trace SAMPLE-1` says `fail` ("no gate run of
+feature/SAMPLE-1-… at its head yet"), though the gate recorded trace pass and `mirai gate check`
+passes: the item trace looks for a gate run at the branch's head, which MIRAI's records commit
+moved. It misreports a shipped ticket; nothing is blocked. `TRACE_CUTOFF` is
 `2026-11-26T00:00:00.000Z` (the end of the merge day, UTC).
 
 **Built.** Built on `unit/43-build` from `origin/main`
