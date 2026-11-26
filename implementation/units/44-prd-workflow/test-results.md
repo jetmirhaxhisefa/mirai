@@ -1,6 +1,16 @@
 # Unit 44: test results (2026-11-26)
 
-**Waiting for the probes and your approval.** Built on `unit/44-build` from `origin/main`
+**Approved (Jet, 2026-11-26: "approve 44").** Runner: u44-tests-4 pass at `2a1884d` (the head;
+u44-tests-2 and -3 pass before it); u44-baseline-1 pass and u44-redteam-1 GREEN at `aab2213` (no
+cage file changed after it, checked with `cageOf`); CI on PR #132 green. The look-ahead is accepted
+(Nora's pauses 5 → 0, Vera no worse); P1 PASSED (rerun after Q3: 0 suggestions at approval); P2
+PASSED on rerun 3 (every rule, evidence in `~/mirai-probe-evidence/p2-2026-11-26T08-00-33-213Z`).
+Jet's answers on the way: Q1 "A" (the cap counts every question asked on a version), Q2 "A" (a
+decision never passes as a writing fix), Q3 "B" (an unsourced number in a commitment is must-fix);
+details under "The real runs". Share of the week: not recorded (the homes were deleted and the
+journal keeps no cost).
+
+Built on `unit/44-build` from `origin/main`
 (`6209a8c`: 42 and 43 merged), with `origin/unit/43-rechecks` merged in (PR #131: the re-check
 notes). The spec's later sections are what was built, in their order: "To interview before the
 build", "Re-checked against 42 as built", "The look-ahead" (your Q1–Q4 and the statement of intent)
