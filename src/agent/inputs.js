@@ -8,7 +8,7 @@ import { sameKey } from '../lint/checks.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { TICKET_ID } from '../status/ticket-file.js';
 import { blobAt, catBlobs, lsTree } from '../store/git.js';
-import { documentApproval } from '../cli/commands/approve.js';
+import { documentApproval } from '../documents/approval.js';
 import { adrSettings, listAdrs, treeReader } from '../adr/adr.js';
 import { adrInputs } from '../adr/context.js';
 

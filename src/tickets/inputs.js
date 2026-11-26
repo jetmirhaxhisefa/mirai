@@ -1,4 +1,4 @@
-import { documentApproval } from '../cli/commands/approve.js';
+import { documentApproval } from '../documents/approval.js';
 import { readApprovedFile } from '../cli/human-move.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { adrSettings, adrState, listAdrs, signedCopyOf, workTreeReader } from '../adr/adr.js';

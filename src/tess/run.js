@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { EXIT } from '../cli/exit-codes.js';
 import { MiraiError, UsageError } from '../cli/errors.js';
 import { readApprovedFile } from '../cli/human-move.js';
-import { documentApproval } from '../cli/commands/approve.js';
+import { documentApproval } from '../documents/approval.js';
 import { commitFormat, identity, messageFor, subjectFor } from '../agent/commit.js';
 import { LAUNCH_OPTIONS, namerOf } from '../agent/plan.js';
 import { fullName, personaOf } from '../agent/names.js';

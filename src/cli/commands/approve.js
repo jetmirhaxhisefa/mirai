@@ -45,6 +45,7 @@ import { inputStates, missingLine, missingOf, notBuiltLine, readInput } from '..
 import { lastTessRun } from '../../tess/run.js';
 import { isQuickTicket } from '../../tickets/quick.js';
 import { approveAdr } from './approve-adr.js';
+import { DOCUMENTS, documentApproval } from '../../documents/approval.js';
 import { approveTechNote } from './approve-tech-note.js';
 import { approvedTechNote } from '../../agent/inputs.js';
 import { techNoteFlags } from '../../agent/tech-note.js';
@@ -321,7 +322,7 @@ function noteAgainstTicketFile(store, keys, ticket, reason) {
 // The document types approved with --file that aren't tickets. More come with B's units (epic,
 // HLD …); each is approved on its exact bytes, after the lint as at approval. Unit 32 adds the
 // PRD, approved with its brief (approvePrd).
-const DOCUMENTS = new Set(['brief', 'prd', 'epic', 'tech-note']);
+// DOCUMENTS: src/documents/approval.js (unit 62b).
 
 function documentTypeOf(bytes) {
   try {
@@ -700,17 +701,8 @@ export function showMisses(io, misses) {
   for (const m of misses) io.stdout.write(`recorded as a miss of ${fullName('mirai-verifier')}: she passed ${plain(m.path)}, and you rejected it${m.note ? ` (${plain(m.note)})` : ''}\n`);
 }
 
-// Whether `bytes` are the document `id` as you last approved it: { approved, stale, seq }.
-// Only your signed lines count (readJournal verifies them); your last decision on the document
-// is the one that holds. `files` (unit 35: a brief's interview, from briefFiles) are the other
-// files its line binds, as they are now, [{ path, bytes }]: the same paths with the same bytes,
-// or it's stale. Left out, only the document's own bytes are compared.
-export function documentApproval(store, id, bytes, files) {
-  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && DOCUMENTS.has(e.kind) && e.kind !== 'epic' && e.item === id).at(-1);
-  if (!last || last.decision === 'rejected') return { approved: false, stale: false, seq: last?.seq ?? null };
-  const same = last.content_hash === contentHash(bytes) && (files === undefined || signatureOf(last.files ?? []) === signatureOf(fileHashes(files)));
-  return { approved: same, stale: !same, seq: last.seq };
-}
+// documentApproval lives in src/documents/approval.js (unit 62b), re-exported here.
+export { documentApproval };
 
 // ---- The epic (unit 33, Scope 6) -----------------------------------------------------------
 
