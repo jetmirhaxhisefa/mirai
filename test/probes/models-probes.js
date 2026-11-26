@@ -14,7 +14,7 @@ import { openStore } from '../../src/store/home.js';
 import { readJournal } from '../../src/store/journal.js';
 import { runTess } from '../../src/tess/run.js';
 import { runVerify } from '../../src/verify/run.js';
-import { tessHome } from './tess-probes.js';
+import { autoApprove, tessHome } from './tess-probes.js';
 
 // Unit 45b's probes (spec "Probes (real)"), each in a probe home of 42's (the sample app, MIRAI, a
 // key, your token, a kept Claude Code), with the red-team gate stubbed green as 42's are.
@@ -76,11 +76,15 @@ export async function p1(home, log, fakes = {}) {
 export async function p2(home, log, fakes = {}) {
   const checks = {};
   const cfg = readFileSync(join(home.root, '.mirai', 'config.toml'), 'utf8');
+  // The PRD Tess cuts from is the probe's input: approved with the probe home's key (42's --auto).
+  await autoApprove(home, { initiative: 'due-dates' }, log);
   const set = await term(home, ['models', 'set', 'standard', 'sonnet', '--mine']);
   log(set.out.trim() || set.err.trim());
   checks.set = set.code === 0 && /your personal file/.test(set.out);
   const r = await runTess({ cwd: home.root, env: home.env, initiative: 'due-dates', nextToken: () => mintLaunchToken(), launchOptions: { status: green }, ...(fakes.launch ? { launch: fakes.launch, verifyLaunch: fakes.verifyLaunch } : {}) });
   log(`Tess: ${r.state}${r.why ? `: ${r.why}` : ''}`);
+  // Her run must finish: a launch the model check refused isn't a pass (P2's first real run).
+  checks.ran = r.state === 'done' || r.state === 'paused';
   const line = runLines(home).filter((e) => e.step === 'tickets').at(-1);
   log(`her run line: tier ${line?.tier}, model ${line?.model}${line?.model_used ? ` (reported ${line.model_used})` : ''}; ${line?.tier_reason ?? ''}`);
   checks.model = line?.model === 'sonnet' && /standard: sonnet from your personal file/.test(line?.tier_reason ?? '');
@@ -107,7 +111,7 @@ async function cli() {
   try {
     checks = await probe(home, log);
   } catch (err) {
-    log(`stopped: ${formatError(err).trim()}`);
+    log(`stopped: ${formatError(err, process.env).trim()}`);
     checks = { ran: false };
   }
   for (const [k, v] of Object.entries(checks)) log(`${v ? 'pass' : 'FAIL'}  ${k}`);
@@ -123,7 +127,7 @@ async function cli() {
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(new URL(import.meta.url).pathname)) {
   cli().then((code) => process.exit(code), (err) => {
-    process.stderr.write(formatError(err));
+    process.stderr.write(formatError(err, process.env));
     process.exit(exitCodeOf(err));
   });
 }
