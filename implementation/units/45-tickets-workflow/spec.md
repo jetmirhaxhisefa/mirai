@@ -1,7 +1,7 @@
 ---
 unit: "45"
 name: tickets-workflow
-status: approved (Jet, 2026-11-24: "approve 45"; interview 2026-11-24: Q1 "the approval asks; tickets are their own command and workflow", Q2 "A", Q3 "A", Q4 "yes", Q5 "yes", restatement "yes"; spec Q1 "A")
+status: done (Jet, 2026-11-26: "approve 45", the build, with P2 after unit 55 ("A"); spec approved 2026-11-24: "approve 45"; interview 2026-11-24: Q1 "the approval asks; tickets are their own command and workflow", Q2 "A", Q3 "A", Q4 "yes", Q5 "yes", restatement "yes"; spec Q1 "A")
 roadmap: design/07-implementation-roadmap.md, row 45 (and notes on rows 61–65, a new row 62b, a new row "talk to an agent directly"); design/01 §5 (tickets), §12a (release modes), §16 (gates); design/02 (gates by track, U4; the docs MR, V3, D-56); design/13 §2 ("Ticket decisions"), §3; units 33 (epic approval), 38 (`mirai docs merge`), 40 (Vera), 42 (Tess), 43 (trace), 44 (`/mirai-new`, the quick request)
 depends_on: ["33", "38", "40", "42", "43", "44"]
 ---

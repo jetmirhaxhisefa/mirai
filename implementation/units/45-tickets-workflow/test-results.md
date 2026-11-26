@@ -1,6 +1,6 @@
 # Unit 45: test results (2026-11-26)
 
-**Waiting for your approval.** Runner green, P1 recorded, question 1 answered ("A"). Built on
+**Approved (Jet, 2026-11-26: "approve 45").** Runner green, P1 recorded, question 1 answered ("A": P2 after unit 55). Built on
 `unit/45-build` from `origin/main` (`eea4341`: 44 merged, its re-checks merged, 62's spec merged).
 The spec's sections are what was built, with its re-checks against 42, 43 and 44 as built.
 
