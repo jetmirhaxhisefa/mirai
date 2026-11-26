@@ -143,3 +143,22 @@ short technical note before its tickets.
   approval; "which approach" is a `decision`, shown to you at approval. A `number` decision quoting
   an `NFR-n` in Coverage is must-fix (44's Q3 "B": a number in a commitment).
 - **Status:** `status = "forbidden"`, like every type; 44's `pre-commit` refuses a hand-set one.
+
+## Re-checked against 45 as built (merged 2026-11-26, PR #136)
+
+- **The name and path match 45's list:** `tech-note` in `[tickets.inputs].standard`, read at
+  `docs/mirai/<initiative>/tech-note.md` (`readInput`). Until this unit, 45 prints "no technical
+  note yet (unit 62b)"; once the type exists, a missing or unapproved note refuses `mirai tickets`.
+  **`required_from = "64"`** (Scope 5) isn't in 45: 45 refuses as soon as the type exists. This unit
+  adds that marker to `src/tickets/inputs.js`: before 64, a missing note is a warning, not a refusal.
+- **The offer to start Tess** (`tessOffer` in `src/cli/commands/approve.js`) runs today only after a
+  PRD's approval. This type's approval calls it too, after the publish and before the documents'
+  lines (45's order), so approving the last document the track needs asks to start her.
+- **An approved type:** `documentApproval` and the approval line's `kind` know `brief`, `prd` and
+  `epic` only (`DOCUMENTS` in `approve.js`, the journal's `kind` enum); this type joins both, or 45's
+  input check (`src/tickets/inputs.js`) can never see it approved.
+- **The docs merge:** `approvalGaps` (`src/store/connectors/state.js`) refuses a document type it
+  doesn't check ("has no approval MIRAI checks before a docs merge"); this type joins its approved
+  types, checked as the PRD is (your last approval matches the file at the head).
+- **Tess's input:** 45 already passes an approved input other than the PRD to her as
+  `tech-note.md` ("the tickets follow it"); her prompt names it.

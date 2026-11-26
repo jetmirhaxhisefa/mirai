@@ -214,3 +214,24 @@ Scope 4, the index's format, `[adr]` keys) are defaults; the builder records any
    writes it) shows each status; a project's existing ADRs keep their own lines, read once at
    import. Recommendation: **A**: ADRs are read outside MIRAI (on GitHub, by other teams, by tools
    that read MADR), and existing folders like Thudos's already carry the field.
+
+## Re-checked against 45 as built (merged 2026-11-26, PR #136)
+
+- **45's inputs read one file per type** (`docs/mirai/<initiative>/<type>.md`); ADRs are many files
+  in the ADR folder. This unit gives `adr` its own reader in `src/tickets/inputs.js`: the
+  initiative's ADRs (by their `initiative` field), approved when each is `accepted` or `rejected` by
+  your signed line and none is `proposed`; none at all counts as approved (an initiative may need no
+  ADR).
+- **An approved type, the offer:** as 62b's and 62's notes say (`DOCUMENTS`, the journal's `kind`,
+  `tessOffer` after the approval).
+- **The docs merge carries one folder** (the initiative's, 38's "documents only"; `outsideFolder`
+  refuses anything else), and ADRs live in `docs/decisions/`. See question 1.
+
+**Question for Jet (from this re-check):**
+
+1. **How an initiative's ADRs reach `main`.** A: the initiative's docs MR also carries the ADRs it
+   proposes (their files in the ADR folder, each with your signed approval checked at the merge, as
+   the initiative's documents are); still documents only. B: each ADR approval opens its own small
+   docs MR for the ADR folder, merged at once. C: ADRs go with the code MR of the ticket that
+   needs them. Recommendation: **A**: one MR per initiative stays the rule, the HLD and its ADRs
+   land together, and the merge's checks already exist.
