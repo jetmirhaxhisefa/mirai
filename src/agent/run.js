@@ -654,5 +654,5 @@ export function knownIn(trust) {
   } catch {
     return null;
   }
-  return (model) => knownModel(list, model).known;
+  return (model) => { const k = knownModel(list, model); return k.known && !k.alias; };
 }

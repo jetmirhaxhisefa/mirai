@@ -7,7 +7,7 @@ import { ConfigError, MiraiError, UsageError } from '../errors.js';
 import { plain, shown } from '../../status/text.js';
 import { fullName } from '../../agent/names.js';
 import { pickTier } from '../../agent/tiers.js';
-import { checkModel, claudeAliases, DEFAULT_TOOL, inFamily, knownModel, listModels, NOT_PINNED, TOOLS } from '../../agent/models.js';
+import { checkModel, DEFAULT_TOOL, inFamily, knownModel, listModels, pinnedFor, TOOLS } from '../../agent/models.js';
 import { frameworkDefaults, JUDGEMENT_STEPS, STEP_DEFAULTS, STEPS, TIER_FAMILIES } from '../../config/defaults.js';
 import { setKey } from '../../config/edit.js';
 import { loadConfig, PROJECT_CONFIG } from '../../config/load.js';
@@ -59,7 +59,7 @@ function state(io) {
   }
   const registryDir = io.registryDir ?? REGISTRY_DIR;
   const listed = listModels({ registryDir });
-  const { config, personal } = withPersonalModels(main ?? tree.config, store, { known: (m) => knownModel(listed, m).known });
+  const { config, personal } = withPersonalModels(main ?? tree.config, store, { known: (m) => { const k = knownModel(listed, m); return k.known && !k.alias; } });
   const behind = main !== null && JSON.stringify(projectModels(tree.config)) !== JSON.stringify(projectModels(main));
   return { store, tree, main, mainWhy, config, personal, behind, registry: loadRegistry(registryDir) };
 }
@@ -127,14 +127,13 @@ async function set(io, target, value, { mine, check }) {
     key = target;
     remove = value === STEP_DEFAULTS[target];
   } else if (TIERS.includes(target)) {
-    const listed = listModels({ registryDir, live: io.modelsLive ?? null });
-    if (listed.note) notes.push(listed.note);
-    let k = knownModel(listed, value);
-    if (!k.known && !io.modelsLive && !check) {
-      // MIRAI's shipped list doesn't have it: Claude Code's own list (its aliases), live.
-      const live = listModels({ registryDir, live: () => claudeAliases(resolveClaude(io.env).real, io.env) });
-      if (live.note) notes.push(live.note);
-      k = knownModel(live, value);
+    const listed = listModels({ registryDir });
+    const k = knownModel(listed, value);
+    // Jet's answer (2026-11-26, "A"): pinned full IDs only. Every launch checks that the model Claude
+    // Code runs is exactly the one asked for, so an alias could be set but never launched.
+    if (k.alias) {
+      const full = pinnedFor(listed, value);
+      throw Object.assign(new MiraiError(`${shown(value)} is an alias: it moves to the newest model of its kind, and a launch runs only the exact model it asks for; nothing was written`, EXIT.BLOCKED), { hint: full ? `use its full ID: mirai models set ${target} ${full}` : `use a full ID, such as ${frameworkDefaults().models[target]}` });
     }
     if (!inFamily(target, value)) throw new MiraiError(`${shown(value)} isn't ${TIER_FAMILIES[target].label}, so it can't be the ${target} tier's model; nothing was written`, EXIT.BLOCKED);
     if (!k.known) {
@@ -143,14 +142,15 @@ async function set(io, target, value, { mine, check }) {
       if (!r.ok) throw new MiraiError(`${TOOLS[DEFAULT_TOOL]} refused ${shown(value)}: ${plain(r.why)}; nothing was written`, EXIT.BLOCKED);
       notes.push(`checked: ${TOOLS[DEFAULT_TOOL]} answered with ${value}`);
     }
-    if (k.alias) notes.push(`${value} is an alias, ${NOT_PINNED}`);
     table = 'models';
     key = target;
     remove = value === frameworkDefaults().models[target];
   } else {
     throw new UsageError(`${shown(target)} is neither a step nor a tier`, `steps: ${STEPS.join(', ')}; tiers: ${TIERS.join(', ')}`);
   }
-  if (mine) return setMine(io, { table, key, value: remove ? null : value, notes, registryDir });
+  // In your personal file the value is always written: removing it would fall back to the project's
+  // value, which may not be the default.
+  if (mine) return setMine(io, { table, key, value, notes, registryDir });
   return setProject(io, { table, key, value: remove ? null : value, notes, target, shownValue: value });
 }
 
@@ -200,7 +200,7 @@ function setMine(io, { table, key, value, notes, registryDir }) {
   writeFileSync(abs, edit.text, { mode: 0o600 });
   try {
     const list = listModels({ registryDir });
-    personalModels(store, { known: (m) => knownModel(list, m).known || m === value });
+    personalModels(store, { known: (m) => { const k = knownModel(list, m); return (k.known && !k.alias) || m === value; } });
   } catch (err) {
     if (exists) writeFileSync(abs, before, { mode: 0o600 });
     else writeFileSync(abs, 'schema_version = 1\n', { mode: 0o600 });

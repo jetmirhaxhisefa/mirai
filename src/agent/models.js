@@ -11,7 +11,6 @@ import { TIER_FAMILIES } from '../config/defaults.js';
 
 export const TOOLS = Object.freeze({ 'claude-code': 'Claude Code' });
 export const DEFAULT_TOOL = 'claude-code';
-export const NOT_PINNED = 'not pinned: it moves to the newest model of its kind; probes and red-team results were measured on the pinned one';
 
 // MIRAI's shipped list for a tool: { models, aliases }.
 export function shippedModels(registryDir, tool = DEFAULT_TOOL) {
@@ -19,28 +18,15 @@ export function shippedModels(registryDir, tool = DEFAULT_TOOL) {
   return { models: [...(t.models ?? [])], aliases: [...(t.aliases ?? [])] };
 }
 
-// The tool's list: { models, aliases, source: 'live' | 'shipped', note }. Claude Code's live part
-// is its aliases from `claude -p "/model"`; a run that fails (not logged in, a changed command)
-// falls back to the shipped list and says so. `live` is given in tests (a stand-in), or false.
-export function listModels({ registryDir, tool = DEFAULT_TOOL, live = null }) {
-  const shipped = shippedModels(registryDir, tool);
-  if (!live) return { ...shipped, source: 'shipped', note: null };
-  let aliases = null;
-  try {
-    aliases = live();
-  } catch {
-    aliases = null;
-  }
-  if (!Array.isArray(aliases) || !aliases.length) return { ...shipped, source: 'shipped', note: `${TOOLS[tool]}'s own list didn't answer, so MIRAI's shipped list is used` };
-  return { models: shipped.models, aliases: [...new Set([...aliases, ...shipped.aliases.filter((a) => aliases.includes(a))])], source: 'live', note: null };
-}
+// The tool's list: { models, aliases }. Claude Code's is MIRAI's shipped list (it has no command that
+// lists full IDs); Cursor (71) and Codex (73) bring live lists through their own `listModels`.
+export const listModels = ({ registryDir, tool = DEFAULT_TOOL }) => shippedModels(registryDir, tool);
 
-// Claude Code's live aliases: the words its /model menu shows that are aliases MIRAI knows the shape
-// of; the 1M-context forms are left out (a launch takes a plain model id only).
-export function claudeAliases(claude, env) {
-  const r = spawnSync(claude, ['-p', '/model'], { env, encoding: 'utf8', timeout: 30_000 });
-  if (r.status !== 0) throw new Error(r.stderr || 'claude -p /model failed');
-  return [...new Set((r.stdout.match(/\b(haiku|sonnet|opus|fable|best|default|opusplan)\b(?!\[)/gi) ?? []).map((w) => w.toLowerCase()))];
+// The pinned full ID an alias stands for today, for the refusal's words: the shipped model whose name
+// has the alias's family word (the newest listed first), or null.
+export function pinnedFor(list, alias) {
+  const word = String(alias).toLowerCase();
+  return list.models.find((m) => m.includes(`-${word}-`)) ?? null;
 }
 
 // Is `model` on the tool's list? { known, alias }.

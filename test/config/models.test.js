@@ -93,37 +93,39 @@ test('45b T2: a step\'s tier: set writes only that key (comments kept) and rende
   assert.match(nosuch.err, /steps: prd, design, tickets/);
 });
 
-test('45b T3: a tier\'s model: set writes it; off its family refused; an unknown name refused naming --check; --check proves or refuses with the tool\'s words; an alias gets the "not pinned" note; a failing live list falls back', async () => {
+test('45b T3: a tier\'s model: set writes a full ID; off its family refused; an alias refused naming its full ID (Jet\'s "A"); an unknown name refused naming --check; --check proves or refuses with the tool\'s words', async () => {
   const f = installed();
-  const live = { modelsLive: () => ['sonnet', 'opus', 'haiku'] };
-  const ok = await run(f, ['models', 'set', 'deep', 'claude-fable-5-1'], live);
+  const ok = await run(f, ['models', 'set', 'deep', 'claude-fable-5-1']);
   assert.equal(ok.code, EXIT.OK, ok.err);
   assert.match(cfg(f), /\[models\]\ndeep = "claude-fable-5-1"/);
   f.git('add', '-A');
   f.git('commit', '-qm', 'fable');
-  const family = await run(f, ['models', 'set', 'deep', 'claude-haiku-5-5'], live);
+  const family = await run(f, ['models', 'set', 'deep', 'claude-haiku-5-5']);
   assert.equal(family.code, EXIT.BLOCKED);
   assert.match(family.err, /isn't an Opus or Fable model, so it can't be the deep tier's model/);
-  const unknown = await run(f, ['models', 'set', 'standard', 'claude-sonnet-9-9'], live);
+  // An alias: refused, naming the full ID to use; `best` has no family word, so the tier's default.
+  const alias = await run(f, ['models', 'set', 'standard', 'sonnet']);
+  assert.equal(alias.code, EXIT.BLOCKED);
+  assert.match(alias.err, /"?sonnet"? is an alias: it moves to the newest model of its kind, and a launch runs only the exact model it asks for; nothing was written/);
+  assert.match(alias.err, /use its full ID: mirai models set standard claude-sonnet-5-5/);
+  assert.match((await run(f, ['models', 'set', 'deep', 'best'])).err, /use a full ID, such as claude-opus-5-5/);
+  assert.equal(f.git('status', '--porcelain').trim(), '');
+  const unknown = await run(f, ['models', 'set', 'standard', 'claude-sonnet-9-9']);
   assert.equal(unknown.code, EXIT.BLOCKED);
   assert.match(unknown.err, /isn't a model MIRAI knows for Claude Code/);
   assert.match(unknown.err, /mirai models set standard claude-sonnet-9-9 --check/);
-  const refused = await run(f, ['models', 'set', 'standard', 'claude-sonnet-9-9', '--check'], { ...live, modelCheck: () => ({ status: 1, stderr: 'API Error: model not found: claude-sonnet-9-9', stdout: '' }) });
+  const refused = await run(f, ['models', 'set', 'standard', 'claude-sonnet-9-9', '--check'], { modelCheck: () => ({ status: 1, stderr: 'API Error: model not found: claude-sonnet-9-9', stdout: '' }) });
   assert.equal(refused.code, EXIT.BLOCKED);
   assert.match(refused.err, /Claude Code refused claude-sonnet-9-9: API Error: model not found/);
-  const proved = await run(f, ['models', 'set', 'standard', 'claude-sonnet-9-9', '--check'], { ...live, modelCheck: () => ({ status: 0, stderr: '', stdout: 'ok' }) });
+  const proved = await run(f, ['models', 'set', 'standard', 'claude-sonnet-9-9', '--check'], { modelCheck: () => ({ status: 0, stderr: '', stdout: 'ok' }) });
   assert.equal(proved.code, EXIT.OK, proved.err);
   assert.match(proved.out, /checked: Claude Code answered with claude-sonnet-9-9/);
-  f.git('add', '-A');
-  f.git('commit', '-qm', 'checked');
-  const alias = await run(f, ['models', 'set', 'standard', 'sonnet'], live);
-  assert.equal(alias.code, EXIT.OK, alias.err);
-  assert.match(alias.out, /note: sonnet is an alias, not pinned: it moves to the newest model of its kind/);
-  f.git('add', '-A');
-  f.git('commit', '-qm', 'alias');
-  const fallback = await run(f, ['models', 'set', 'light', 'claude-haiku-5-5'], { modelsLive: () => { throw new Error('not logged in'); } });
-  assert.equal(fallback.code, EXIT.OK, fallback.err);
-  assert.match(fallback.out, /Claude Code's own list didn't answer, so MIRAI's shipped list is used|already the default/);
+  // An alias in your personal file is refused at a launch too.
+  const store = openStore({ cwd: f.root, env: f.env });
+  writeFileSync(personalPath(f), 'schema_version = 1\n[models]\nstandard = "sonnet"\n', { mode: 0o600 });
+  const { knownModel, shippedModels } = await import('../../src/agent/models.js');
+  const list = shippedModels(join(f.root, '.mirai', 'framework', 'registry'));
+  assert.throws(() => personalModels(store, { known: (m) => { const k = knownModel(list, m); return k.known && !k.alias; } }), /isn't a model MIRAI knows/);
 });
 
 test('45b T4: --mine writes your private personal file, the listing names it, your launches use it, a personal judgement step off deep is refused; the project config is unchanged', async () => {

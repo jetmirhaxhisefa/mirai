@@ -43,14 +43,15 @@ set`) does it:
 | `mirai models set <tier> <model>` | the tier's model (`models.<tier>`) | the model is of the tier's family (`light` a Haiku, `standard` a Sonnet, `deep` an Opus or Fable), and one MIRAI knows |
 | either, with `--mine` | your personal file (`config.user.toml` in this repo's store, private), for **your own launches** only | the same rules; the project config is untouched |
 
-**Known models.** For Claude Code, MIRAI ships a list of pinned full IDs (`registry/models.toml`,
-updated with MIRAI's releases) and takes Claude Code's aliases (`sonnet`, `opus`, `haiku`, `fable`,
-`best`, `default`, `opusplan`) from its `/model` menu; when that list doesn't answer, the shipped
-list is used, and `set` says so. A name on neither is refused, unless `--check` proves it with one
-tiny real call: the tool answers with it, or `set` refuses with the tool's own error. An alias may
-be set, with a note: it isn't pinned, so it moves to the newest model of its kind, and the probes
-and red-team results were measured on the pinned one. Cursor and Codex bring their own lists
-(units 71 and 73); `--tool` takes `claude-code` only today.
+**Known models.** `set` takes pinned full IDs only, such as `claude-sonnet-5-5`. For Claude Code,
+MIRAI ships the list (`registry/models.toml`, updated with MIRAI's releases): Claude Code has no
+command that lists full IDs. An alias (`sonnet`, `opus`, `best` …) is refused, naming the full ID to
+use: it moves to the newest model of its kind, and every launch checks that Claude Code runs exactly
+the model it asked for, so a run's line always names the model that did the work, and a new model
+release never changes your agents until you `set` it. A full ID on no list is refused, unless
+`--check` proves it with one tiny real call: the tool answers with it, or `set` refuses with the
+tool's own error. Cursor and Codex bring their own lists (units 71 and 73); `--tool` takes
+`claude-code` only today.
 
 **When a change applies.** A project `set` writes `.mirai/config.toml`, runs `mirai render` (the
 agents' files carry their models, and the lock must match), shows the diff and the commit to make.

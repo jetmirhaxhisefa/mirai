@@ -21,9 +21,9 @@ import { autoApprove, tessHome } from './tess-probes.js';
 // - P1: `mirai models`, `mirai models set verify deep`, the commit "merged" (the home works on main's
 //   snapshot: the probe commits on main), then one Vera check (Opus). Pass when the listing showed
 //   the change and its source, and her run line names Opus.
-// - P2: `mirai models set standard sonnet --mine` (Claude Code's alias for its newest Sonnet: another
-//   Sonnet than the pinned one), then one Tess run. Pass when her run line names it, says it came
-//   from your personal file, and the project config is unchanged.
+// - P2: `mirai models set standard claude-sonnet-5-5 --mine` (the shipped list has one Sonnet; an alias
+//   is refused, Jet's "A"), then one Tess run. Pass when her run finishes, her run line says the model
+//   came from your personal file, and the project config is unchanged.
 
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 const gitEnvOf = (home) => ({ PATH: '/usr/bin:/bin', HOME: home.home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
@@ -78,7 +78,7 @@ export async function p2(home, log, fakes = {}) {
   const cfg = readFileSync(join(home.root, '.mirai', 'config.toml'), 'utf8');
   // The PRD Tess cuts from is the probe's input: approved with the probe home's key (42's --auto).
   await autoApprove(home, { initiative: 'due-dates' }, log);
-  const set = await term(home, ['models', 'set', 'standard', 'sonnet', '--mine']);
+  const set = await term(home, ['models', 'set', 'standard', 'claude-sonnet-5-5', '--mine']);
   log(set.out.trim() || set.err.trim());
   checks.set = set.code === 0 && /your personal file/.test(set.out);
   const r = await runTess({ cwd: home.root, env: home.env, initiative: 'due-dates', nextToken: () => mintLaunchToken(), launchOptions: { status: green }, ...(fakes.launch ? { launch: fakes.launch, verifyLaunch: fakes.verifyLaunch } : {}) });
@@ -87,7 +87,7 @@ export async function p2(home, log, fakes = {}) {
   checks.ran = r.state === 'done' || r.state === 'paused';
   const line = runLines(home).filter((e) => e.step === 'tickets').at(-1);
   log(`her run line: tier ${line?.tier}, model ${line?.model}${line?.model_used ? ` (reported ${line.model_used})` : ''}; ${line?.tier_reason ?? ''}`);
-  checks.model = line?.model === 'sonnet' && /standard: sonnet from your personal file/.test(line?.tier_reason ?? '');
+  checks.model = line?.model === 'claude-sonnet-5-5' && /standard: claude-sonnet-5-5 from your personal file/.test(line?.tier_reason ?? '');
   checks.projectUnchanged = readFileSync(join(home.root, '.mirai', 'config.toml'), 'utf8') === cfg && git(home, 'status', '--porcelain', '--', '.mirai/config.toml').stdout.trim() === '';
   const tessEnd = readJournal(openStore({ cwd: home.root, env: home.env })).events.filter((e) => e.type === 'tess_run').at(-1);
   if (tessEnd?.model) log(`tess_run line: ${tessEnd.tier}, ${tessEnd.model}`);
