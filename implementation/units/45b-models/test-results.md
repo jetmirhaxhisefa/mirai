@@ -1,6 +1,6 @@
 # Unit 45b: test results (2026-11-26)
 
-**Waiting for the runner and your approval.** P1 and P2 passed. Built on `unit/45b-build` from
+**Waiting for your approval.** The runner is green at `30cf264` (tests, baseline, red team GREEN); P1 and P2 passed. Built on `unit/45b-build` from
 `origin/main` (`37679ea`: 45 merged, its re-checks merged).
 
 ## What was built
@@ -33,8 +33,19 @@
 The cage changes: `src/agent/run.js` (a cage root: launches read your personal models), its new
 imports `src/agent/models.js` and `src/config/personal-models.js`, `src/config/config-schema.js`
 (the personal-repo allowlist), `src/config/load.js` (a message) and `src/mcp/tools/commands.js`
-(two session commands). A baseline and `redteam-full` are queued with the tests. Your personal
-file can change only `[models]` (the allowlist), never what a launch may touch.
+(two session commands). Your personal file can change only `[models]` (the allowlist), never what
+a launch may touch.
+
+## The runner (at `30cf264`)
+
+| Job | Result |
+|---|---|
+| `u45b-tests-2` | pass: 935 tests, 0 failed (22.6 min) |
+| `u45b-baseline-2` | pass (5.2 min; the sample app's seeded known failure and flaky test, as always) |
+| `u45b-redteam-2` | **RED TEAM: GREEN**, 350 runs, S1–S6 ok (15.3 min) |
+
+An earlier round at `7b22950` (`u45b-redteam-1`) was also green; the cage files changed after it,
+so `redteam-2` is the one that counts.
 
 ## Probes (real)
 
