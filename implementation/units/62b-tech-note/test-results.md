@@ -55,8 +55,8 @@ prompts, the gate), the plan template. A baseline and `redteam-full` go with the
     (made ADR-0001), the 422 message nowhere on screen.
   - The last run: the note passed (2 suggestions); the ADR had one decision open for you (the list
     marks lateness on a read, and the header goes with writes only). The approval signed the note
-    and accepted ADR-0001 on the same screen. Would you approve it in about five minutes: the note
-    is `implementation/units/62b-tech-note/p1/own-note-final.md`.
+    and accepted ADR-0001 on the same screen. **Your read** (Jet, 2026-11-26: "ok sounds good"):
+    you'd approve the final note (`implementation/units/62b-tech-note/p1/own-note-final.md`).
 - **P2 PASSED** (`~/mirai-u62b-p2.txt`, then `~/mirai-u62b-p2-kai.txt`): Tess cut 4 tickets from the
   PRD and the note, **every ticket naming the note's components, all 7 of them covered**; the set
   signed; then Kai's plan of SAMPLE-2 (resumed in the same home, after the probe's missing ticket
