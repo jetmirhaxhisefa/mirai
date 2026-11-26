@@ -64,8 +64,7 @@ prompts, the gate), the plan template. A baseline and `redteam-full` go with the
   at the gate with D-3's own words, and the gate was yours ("it departs from the technical note
   (D-3)").
 
-The kept homes (stopped runs): `~/.mirai-probes-R7RqQh`, `-7o26Zj`, `-SzOwbQ`, `-PPv23X`, `-72mpRO`,
-`-uhfvuc`, `-8y3gBb`. Delete them with your OK.
+The kept homes of the stopped runs were deleted once done (Jet, 2026-11-26: delete probe homes when they're no longer needed).
 
 ## Changed from the spec
 
