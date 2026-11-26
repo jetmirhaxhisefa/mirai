@@ -90,11 +90,12 @@ export const EVENT_TYPES = Object.freeze({
       // `business-change` (unit 41): a proposal to change business.md you approved, which MIRAI
       // applied; `files` holds business.md as it became, and the context line beside it, signed in
       // the same step, names the proposal (`proposal`).
+      // `tech-note` (unit 62b): a technical note you approved, after its PRD.
       // `adr` (unit 61): an architecture decision record you accepted or rejected; MIRAI wrote the
       // status into the file first, so `content_hash` is of the file with it. A superseding ADR's
       // line lists the old one in `files`, as MIRAI marked it superseded, so one signature covers
       // both.
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay', 'business-change', 'adr'] },
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay', 'business-change', 'adr', 'tech-note'] },
       proposal: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
       template_version: { type: 'integer', min: 1 },
       template_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
@@ -132,17 +133,21 @@ export const EVENT_TYPES = Object.freeze({
       // Unit 45 (decision 4): the tickets you dropped at this screen before signing (each also has
       // its ticket_decision line); the set signed is what was left.
       dropped: { type: 'array', items: f.ticket },
+      // Unit 62b (Scope 6): a plan you accepted though it departs from the technical note: the D-n
+      // it departs from ("none" when it cites none of them), with your reason in `reason`.
+      departures: { type: 'array', items: { type: 'string', pattern: /^(?:D-[0-9]{1,4}|none)$/, patternHint: 'D-n' } },
     },
     required: ['item', 'kind', 'path', 'content_hash', 'decision', 'answered_after_s'],
     check(e, report) {
-      if (e.reason !== undefined && e.decision === 'accepted') report('reason', 'a reason goes with edited or rejected only');
+      if (e.reason !== undefined && e.decision === 'accepted' && e.departures === undefined) report('reason', 'a reason goes with edited or rejected only');
+      if (e.departures !== undefined && (e.kind !== 'plan' || e.decision !== 'accepted' || e.reason === undefined)) report('departures', 'departures go with an accepted plan, with your reason');
       if (e.kind === 'epic' && e.files === undefined) report('files', 'an epic\'s approval lists its ticket files');
       if (e.files !== undefined && !['epic', 'brief', 'overlay', 'business-change', 'adr'].includes(e.kind)) report('files', 'files goes with an epic\'s, a brief\'s, an overlay\'s, a business change\'s or a superseding ADR\'s approval only');
       if (e.proposal !== undefined && e.kind !== 'context') report('proposal', 'proposal goes with a context file\'s approval only');
       if ((e.template_version !== undefined || e.template_hash !== undefined) && e.kind !== 'overlay') report('template_hash', 'template_version and template_hash go with an overlay\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
-      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket', 'adr'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
+      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket', 'adr', 'tech-note'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
       if (e.vera_open !== undefined && e.verifier === undefined) report('vera_open', 'vera_open goes with the verifier result it comes from');
       if ((e.release_mode !== undefined || e.dropped !== undefined) && e.kind !== 'epic') report('release_mode', 'release_mode and dropped go with a ticket set\'s approval only');
       if (e.release_reason !== undefined && e.release_mode === undefined) report('release_reason', 'release_reason goes with the release mode it explains');
@@ -190,7 +195,7 @@ export const EVENT_TYPES = Object.freeze({
   verifier_miss: {
     privileged: true,
     fields: {
-      kind: { type: 'enum', values: ['brief', 'prd', 'epic', 'business', 'journeys', 'conventions', 'adr'] },
+      kind: { type: 'enum', values: ['brief', 'prd', 'epic', 'business', 'journeys', 'conventions', 'adr', 'tech-note'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
       note: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
       verifier: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },

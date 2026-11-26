@@ -5,13 +5,15 @@ kind = "document-type"
 schema_version = 1
 name = "plan"
 template = "templates/plan.md"
-template_version = 1
+template_version = 2
 checklist = "templates/plan-checklist.md"
 status = "forbidden"
 id_pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,58}-plan"
 required_sections = ["Intent", "Boundaries", "Edge cases", "Code map", "Tasks", "Test list", "Declared changes", "Verification", "Implementation log", "Change log", "Review triage log"]
-optional_sections = ["Design notes"]
-section_order = ["Intent", "Boundaries", "Edge cases", "Code map", "Tasks", "Test list", "Declared changes", "Verification", "Design notes", "Implementation log", "Change log", "Review triage log"]
+optional_sections = ["Design notes", "Technical note"]
+# Unit 62b: a plan of a ticket with no technical note leaves the section out.
+may_be_absent = ["Technical note"]
+section_order = ["Intent", "Boundaries", "Edge cases", "Code map", "Tasks", "Test list", "Declared changes", "Verification", "Design notes", "Technical note", "Implementation log", "Change log", "Review triage log"]
 frozen_sections = ["Intent", "Boundaries", "Edge cases"]
 may_be_empty = ["Implementation log", "Change log", "Review triage log"]
 lint_checks = ["plan"]
@@ -105,4 +107,10 @@ read_by = ["gate"]
 
 [[protected_fields]]
 name = "ticket_type"
+read_by = ["gate"]
+
+# Unit 62b: the decisions of the approved technical note this plan relies on, and any it departs
+# from; the plan gate reads it (a departure is flagged, never blocking).
+[[protected_sections]]
+name = "Technical note"
 read_by = ["gate"]

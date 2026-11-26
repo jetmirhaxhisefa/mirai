@@ -19,6 +19,12 @@ export const DEFAULT_INPUTS = Object.freeze({
 
 // The unit that brings each type not built yet, for the warning.
 export const UNIT_OF = Object.freeze({ 'tech-note': '62b', hld: '62', adr: '61', lld: '63' });
+// Unit 62b (decision 5, Scope 5): a type needed only from a later unit on. Until that unit is
+// built, a missing document is a warning, and an approved one is still the planner's input. The
+// technical note is required once the architect (64) writes it.
+export const REQUIRED_FROM = Object.freeze({ 'tech-note': '64' });
+// The units of REQUIRED_FROM that are built: 64 adds itself here.
+export const UNITS_BUILT = Object.freeze([]);
 const WORDS = Object.freeze({ prd: 'PRD', 'tech-note': 'technical note', hld: 'HLD', adr: 'ADR', lld: 'LLD' });
 export const wordsOf = (type) => WORDS[type] ?? type;
 
@@ -33,7 +39,7 @@ export function inputsOf(config, track) {
 //   `approved` (as it is now), `unapproved` (with `id`, `shown`, `stale`), `absent` (the type exists,
 //   the document doesn't: `shown` its path), or `no-type` (MIRAI hasn't the type yet: `unit`).
 // `readDoc(type)` returns { value, bytes, shown } or null; it's given so this works for either store.
-export function inputStates({ store, registry, config, track, readDoc, initiative = null }) {
+export function inputStates({ store, registry, config, track, readDoc, initiative = null, built = UNITS_BUILT }) {
   return inputsOf(config, track).map((type) => {
     if (!registry.documentTypes[type]) return { type, state: 'no-type', unit: UNIT_OF[type] ?? null };
     // Unit 61 (45's re-check): ADRs are many files in the ADR folder, not one beside the PRD.
@@ -44,7 +50,7 @@ export function inputStates({ store, registry, config, track, readDoc, initiativ
     } catch {
       d = null;
     }
-    if (!d) return { type, state: 'absent' };
+    if (!d) return REQUIRED_FROM[type] && !built.includes(REQUIRED_FROM[type]) ? { type, state: 'optional', from: REQUIRED_FROM[type] } : { type, state: 'absent' };
     const id = typeof d.value?.id === 'string' ? d.value.id : null;
     const a = id ? documentApproval(store, id, d.bytes) : { approved: false, stale: false };
     return a.approved ? { type, state: 'approved', id, shown: d.shown } : { type, state: 'unapproved', id, shown: d.shown, stale: a.stale };
@@ -56,7 +62,12 @@ export const missingOf = (states) => states.filter((s) => s.state === 'unapprove
 export const notBuiltOf = (states) => states.filter((s) => s.state === 'no-type');
 export const notBuiltLine = (states) => {
   const n = notBuiltOf(states);
-  return n.length ? `not built yet, so not needed: ${n.map((s) => `no ${wordsOf(s.type)} yet${s.unit ? ` (unit ${s.unit})` : ''}`).join(', ')}` : null;
+  const o = states.filter((s) => s.state === 'optional');
+  const parts = [
+    ...(n.length ? [`not built yet, so not needed: ${n.map((s) => `no ${wordsOf(s.type)} yet${s.unit ? ` (unit ${s.unit})` : ''}`).join(', ')}`] : []),
+    ...o.map((s) => `no ${wordsOf(s.type)} yet: not required until unit ${s.from}; with one approved, the tickets follow it`),
+  ];
+  return parts.length ? parts.join('; ') : null;
 };
 export const missingLine = (s) => (s.state === 'absent'
   ? `the ${wordsOf(s.type)} isn't written yet`

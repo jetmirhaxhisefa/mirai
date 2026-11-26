@@ -5,6 +5,7 @@ import { checkPrd } from './prd.js';
 import { checkEpic } from './epic.js';
 import { checkInterview } from './interview.js';
 import { checkAdr } from './adr.js';
+import { checkTechNote } from './tech-note.js';
 import { testabilityProblems } from './testable.js';
 import { idStabilityProblems } from './ids.js';
 import { DOC_OF_RUNS_AS, ticketTypesOf } from '../tickets/types.js';
@@ -169,6 +170,8 @@ export const CHECKS = Object.freeze({
   // (approval passes it as `previous`).
   // Unit 61: the architecture decision record.
   adr: (...a) => checkAdr(...a),
+  // Unit 62b: the technical note.
+  'tech-note': (...a) => checkTechNote(...a),
   'id-stability': (doc, def, ctx, add) => {
     for (const p of idStabilityProblems(doc, ctx.previous)) add(p);
   },

@@ -1,0 +1,73 @@
+# The technical note (unit 62b; Jet's interview 2026-11-24): how a `standard` feature is built, on
+# one page, before its tickets are cut. Your technical review first (decision 1): an engineering
+# manager or tech lead reads it in about five minutes and corrects the approach. Then Tess cuts
+# along it, Kai's plans cite its decisions, and Rex checks the code against them (decision 4).
+# Written by the architect (unit 64) or by hand with your session; checked by Vera; approved by you,
+# after the PRD and before the ticket set. Its status lives in the store (D-06).
+# - It links the PRD's IDs, never restates them; every claim about the code cites a file.
+# - A decision that passes the ADR test is an ADR (unit 61), linked from its D-n line; the note's
+#   approval signs the ADRs it proposes, on the same screen.
+# - About 800 words at most ([docs.limits] tech_note_words): a bigger note means `full`.
+kind = "document-type"
+schema_version = 1
+name = "tech-note"
+template = "templates/tech-note.md"
+template_version = 1
+checklist = "templates/tech-note-checklist.md"
+status = "forbidden"
+required_sections = ["Approach", "Components touched", "Data changes", "API and contracts", "Decisions", "Coverage", "Risks and rollout"]
+section_order = ["Approach", "Components touched", "Data changes", "API and contracts", "Decisions", "Coverage", "Risks and rollout"]
+document_words = 800
+lint_checks = ["tech-note"]
+verifier = true
+
+# The line under the title: the PRD it builds.
+[[upstream_link]]
+label = "PRD"
+type = "prd"
+
+# The PRD's IDs are cited, never defined here.
+[[ids]]
+prefix = "FR"
+pattern = "FR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+[[ids]]
+prefix = "NFR"
+pattern = "NFR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+[[ids]]
+prefix = "D"
+pattern = "D-[0-9]+"
+defined_by = "bullet"
+required = true
+section = "Decisions"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop.
+
+[[protected_sections]]
+name = "Approach"
+read_by = ["approval", "tickets"]
+
+[[protected_sections]]
+name = "Components touched"
+read_by = ["lint", "tickets"]
+
+[[protected_sections]]
+name = "Data changes"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Decisions"
+read_by = ["lint", "gate", "tickets"]
+
+[[protected_sections]]
+name = "Coverage"
+read_by = ["lint", "trace", "tickets"]
+
+[[protected_fields]]
+link = "PRD"
+read_by = ["approval", "lint", "trace"]

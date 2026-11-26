@@ -47,20 +47,25 @@ Unit 45 joins the steps from your approved documents to an approved, merged tick
 | Track | Tess cuts from | Until the type exists |
 |---|---|---|
 | `quick` | nothing: one ticket by hand | |
-| `standard` | the approved PRD and the technical note | no technical note yet (unit 62b): she cuts from the PRD |
-| `full` | the approved PRD, HLD, ADRs and LLD | no HLD, ADR or LLD yet (units 61–63): she cuts from the PRD |
+| `standard` | the approved PRD and the technical note | the note is required from unit 64 (Arlo) on; until then a missing one is a warning, and an approved one is her input |
+| `full` | the approved PRD, HLD, ADRs and LLD | no HLD or LLD yet (units 62, 63): she cuts from the PRD and the ADRs |
 
 `mirai tickets <initiative>` refuses while a needed document of a type MIRAI has isn't approved as
 it is now, naming it and its approval command. A type not built yet is skipped, and her run line
-says so (`inputs: not built yet, so not needed: no technical note yet (unit 62b)`).
+says so (`inputs: not built yet, so not needed: no HLD yet (unit 62)`).
 
-**The offer.** When an approval completes the track's list (on `standard` today, the PRD's), it
-ends with a question, never a start on its own:
+**The technical note** (unit 62b, `standard`): how the feature is built, on one page, approved
+after the PRD and before the set ([documents.md](documents.md), "The technical note"). With an
+approved note, Tess cuts the tickets along its components and coverage; Kai's plans cite its
+decisions; Rex checks the code against them. Until Arlo (unit 64) writes notes, one is optional:
 
 ```
-tickets: not built yet, so not needed: no technical note yet (unit 62b)
+tickets: no technical note yet: not required until unit 64; with one approved, the tickets follow it
 Start Tess (mirai-ticket-planner) on the ticket set now? [y/N]
 ```
+
+**The offer.** When an approval completes the track's list (on `standard`, the PRD's, or the
+note's when there is one), it ends with a question, never a start on its own.
 
 `y` starts her run in that terminal; `N` (the default) prints `mirai tickets <initiative>`. When
 she paused on the PRD and you approved it again, it asks `Tess paused on Q-8 for this; continue her

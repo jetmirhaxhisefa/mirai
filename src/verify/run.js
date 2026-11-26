@@ -68,7 +68,7 @@ export function verifySubject({ cwd, env, file, store = openStore({ cwd, env }) 
   const type = typeof value.type === 'string' ? value.type : null;
   const def = type && Object.hasOwn(registry.documentTypes, type) ? registry.documentTypes[type] : null;
   if (!def) throw new UsageError(`${path} has no document type MIRAI knows`, 'run: mirai lint on it');
-  if (!isVeraType(def)) throw new UsageError(`${path} is a ${def.name}, which the verifier doesn't check`, 'she checks the brief, the PRD, the epic with its tickets, a lone story or bug, an ADR, business.md, journeys.md and each conventions file; plans, feature-map.md and project files have the lint only');
+  if (!isVeraType(def)) throw new UsageError(`${path} is a ${def.name}, which the verifier doesn't check`, 'she checks the brief, the PRD, a technical note, the epic with its tickets, a lone story or bug, an ADR, business.md, journeys.md and each conventions file; plans, feature-map.md and project files have the lint only');
   // Unit 42 (decision 2): a lone story or bug (one asked for by hand) is checked on its own,
   // against its interview and the context files; a ticket of an epic is checked with its epic.
   if (LONE_TICKET_TYPES.includes(def.name) && typeof value.epic === 'string' && value.epic !== '') throw new UsageError(`${path} is a ${def.name} of the epic ${value.epic}: the verifier checks it with its epic`, `run: mirai verify <the epic file> (epic-<initiative>.md beside its tickets/ folder)`);
@@ -148,9 +148,10 @@ export function verifyInputs(subject, { previous = null } = {}) {
   }
   // Unit 61 (decision 3): an ADR's initiative and its other ADRs, for the cap (2 on standard, 3 on
   // full) and the gate; the track from the initiative's PRD.
-  if (def.name === 'adr') {
+  // Unit 62b (61's re-check): a technical note gets the same list, for the cap seen from it.
+  if (def.name === 'adr' || def.name === 'tech-note') {
     const v = doc?.value ?? {};
-    const initiative = typeof v.initiative === 'string' && v.initiative ? v.initiative : null;
+    const initiative = def.name === 'tech-note' ? posix.basename(posix.dirname(path)) : typeof v.initiative === 'string' && v.initiative ? v.initiative : null;
     const s = adrSettings(subject.config);
     const all = listAdrs(workTreeReader(store.checkout), s);
     const own = initiative ? all.filter((a) => a.mirai && a.initiative === initiative && a.status !== 'superseded') : [];

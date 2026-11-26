@@ -86,12 +86,12 @@ const starts = () => {
 
 // ---- T1 The offer ------------------------------------------------------------------------------
 
-test('45 T1: approving the PRD on standard, with no technical-note type yet, asks to start Tess with the warning naming 62b; N starts nothing and prints the command; y starts her run', async () => {
+test('45 T1: approving the PRD on standard, with no technical note yet (optional until unit 64), asks to start Tess with the warning; N starts nothing and prints the command; y starts her run', async () => {
   const f = fixture({ branch: null });
   const s = starts();
   const no = await approvePrd(f, ['a', 'due-dates-prd', 'n'], s);
   assert.equal(no.code, EXIT.OK, no.err);
-  assert.match(no.out, /^tickets: not built yet, so not needed: no technical note yet \(unit 62b\)$/m);
+  assert.match(no.out, /^tickets: no technical note yet: not required until unit 64; with one approved, the tickets follow it$/m);
   assert.match(no.out, /Start Tess \(mirai-ticket-planner\) on the ticket set now\? \[y\/N\] \nnot started; when you're ready: mirai tickets due-dates \(\/mirai tickets due-dates in your session\)\n/);
   assert.deepEqual(s.calls, []);
   // 38's rule holds: the documents' lines come last.
@@ -156,8 +156,9 @@ test('45 T2: a required document of an existing type that isn\'t approved as it 
   assert.equal((await approvePrd(f, ['a', 'due-dates-prd', 'n'])).code, EXIT.OK);
   f.git('switch', '-q', '-c', 'tickets-due-dates');
   const s = tessSubject({ cwd: f.root, env: f.env, initiative: 'due-dates' });
-  assert.deepEqual(s.inputs.map((x) => [x.type, x.state]), [['prd', 'approved'], ['tech-note', 'no-type'], ['brief', 'approved']]);
-  assert.equal(s.notBuilt, 'not built yet, so not needed: no technical note yet (unit 62b)');
+  // Unit 62b: the note's type exists, and is optional until unit 64 (Arlo).
+  assert.deepEqual(s.inputs.map((x) => [x.type, x.state]), [['prd', 'approved'], ['tech-note', 'optional'], ['brief', 'approved']]);
+  assert.equal(s.notBuilt, 'no technical note yet: not required until unit 64; with one approved, the tickets follow it');
   const index = JSON.parse(tessInputs(s, { step: 'write', round: 1 })['index.json']);
   assert.ok(index.files.some((x) => x.name === 'brief.md'));
   writeFileSync(f.at('brief.md'), `${BRIEF_READY}\nA line added after its approval.\n`);

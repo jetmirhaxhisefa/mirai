@@ -347,6 +347,8 @@ export const CONFIG_SCHEMA = {
             // counted. About two pages by default (1,000 and 800).
             business_words: { type: 'integer', min: 300, max: 3000 },
             business_warn_words: { type: 'integer', min: 200, max: 3000 },
+            // Unit 62b (decision 3): the technical note's cap; above it the feature belongs on full.
+            tech_note_words: { type: 'integer', min: 300, max: 3000 },
           },
         },
       },

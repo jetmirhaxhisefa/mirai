@@ -143,7 +143,7 @@ export async function tessHome({ workdir, key, c, claude, token }) {
 
 // The PRD's own checks, seeded with no model: Vera's pass (and the brief's, approved with it on
 // standard) and a reader test with a stand-in reader. Your approval stays yours, in Terminal.
-async function seedPrdChecks(home, file) {
+export async function seedPrdChecks(home, file) {
   const f = { root: home.root, env: home.env };
   passVera(f, file.replace(/prd\.md$/, 'brief.md'));
   passVera(f, file);
