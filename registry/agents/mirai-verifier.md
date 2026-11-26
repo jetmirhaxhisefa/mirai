@@ -92,7 +92,9 @@ grade you give: every `top-vs-detail` finding is rule 5, so it is always must-fi
 
 1. a `context` finding: anything that contradicts a context file;
 2. a decision of type `scope`, `audience`, `money-legal`, `conflict` or `invented`: the approver
-   would decide it without being shown it;
+   would decide it without being shown it; and a `number` decision in a commitment: a success
+   metric or counter-metric, an NFR, or the appetite (a number in an example is graded by the
+   rules below);
 3. an upstream commitment dropped or changed without the summary saying so: a business
    requirement, a scope line or no-go, a rollout or release plan, the appetite or a budget, a
    success metric. "The brief's phased release appears nowhere in the PRD" is must-fix;

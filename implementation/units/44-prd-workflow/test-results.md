@@ -350,6 +350,24 @@ Seen in this run, for later:
 - **Pauses: 12**, with 11 decisions. A seeded PRD gets no look-ahead (there's no interview step),
   so the cap is what bounds them here.
 
+**Jet's Q3 "B" (2026-11-26): an unsourced number in a commitment is must-fix.** Built:
+- **MIRAI regrades it itself** (`src/verify/findings.js`): `inCommitment` returns true for a quote
+  under the brief's Success, the PRD's Non-functional requirements or the appetite, or for a quote
+  that names an SM-n or NFR-n. In that case a `number` decision is regraded to must-fix ("a number
+  decision in a commitment"), whatever grade Vera gave. A number in an example stays hers to grade.
+- **Vera's grade rule 2** says the same.
+- **Tests:** a new test covers it. `test/documents`, `adapters`, `detect`, `findings` and
+  `review` pass 214/214. The runner's `u44-tests-2` (at `2d49241`) and `u44-tests-3` (at
+  `5832260`) both **pass**. `findings.js` isn't in the red team's cage.
+
+**P1 rerun (with Q1–Q3 "A, A, B"): PASS** (about 15 min). The look-ahead found 10 assumptions and
+4 questions. Nora paused 3 times (Q-8 other, Q-9 scope, Q-10 other). Both documents ended at
+0 must-fix, and the reader test passed in round 1. The approval screen showed **0 suggestions**: in
+the first run it showed the invented counter-metric. The brief's counter-metric now reads
+"Tasks added per week must not fall … (interview Q-9)", and every number in Success cites the
+interview. The approval is signed (seq 47, 48), `published: not yet` (Q4 "B"), and the forged
+status was refused at commit. Kept: `~/mirai-probe-evidence/p1-2026-11-26T09-10-50-035Z/`.
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`), so `u44-baseline-1` and `u44-redteam-1`

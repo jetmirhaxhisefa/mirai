@@ -725,3 +725,15 @@ test('44 Q2 "A" (2026-11-26): Vera grades an unnamed market or group as an audie
   assert.match(nora, /A writing fix adds no new choice/);
   assert.match(nora, /write `\(open\)` and ask it as below, with the choice's `Kind:`/);
 });
+
+test('44 Q3 "B" (2026-11-26): a number decision is must-fix in a commitment (Success, an SM-n, an NFR, the appetite), and stays a suggestion in an example', async () => {
+  const { inCommitment, regraded } = await import('../../src/verify/findings.js');
+  const brief = ['# B', '', '## Success', '', '| SM-1 | Share done | UNKNOWN | 70% | data | Tasks added per weekly user must not fall below the month before |', '', '## Problem', '', 'For example, 3 tasks a day.'].join('\n');
+  assert.equal(inCommitment(brief, 5, 'must not fall below the month before'), true);
+  assert.equal(inCommitment(brief, 9, 'For example, 3 tasks a day.'), false);
+  assert.equal(inCommitment('## Key flows\n\n- see NFR-2 for 500 tasks', 3, 'NFR-2 for 500 tasks'), true);
+  const f = { id: 'V-1', grade: 'suggestion', layer: 'checklist', kind: 'decision', decision_type: 'number' };
+  assert.deepEqual([regraded(f, { commitment: true }).grade, regraded(f, { commitment: true }).graded_by], ['must-fix', 'a number decision in a commitment']);
+  assert.equal(regraded(f).grade, 'suggestion');
+  assert.match(readFileSync(join(REGISTRY_DIR, 'agents', 'mirai-verifier.md'), 'utf8'), /a `number` decision in a commitment: a success\n {3}metric or counter-metric, an NFR, or the appetite/);
+});
