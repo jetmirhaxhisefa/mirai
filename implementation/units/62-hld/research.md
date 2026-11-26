@@ -95,3 +95,8 @@ Not opened directly: arc42.org's 9.0 release notes; Structurizr's docs.
   the context and container diagrams required, and a `sequenceDiagram` per key flow (at least one).
   The lint: the shallow Mermaid check; Vera: every container in the diagram is in the components
   table and the reverse.
+- **Q3 Trace table and quality goals: "A".** The lint checks structure, Vera the substance. Trace
+  table `ID | Component(s) | Decision (D-n or ADR) | Note`: every FR/NFR of the linked PRD, no
+  other ID; components exist in the components table; ADR links resolve (accepted, or proposed on
+  the same approval); `deferred: <reason>` allowed. Quality goals as scenarios, each citing an
+  NFR-n and with a number (the lint); Vera judges whether it tests the goal and the design meets it.
