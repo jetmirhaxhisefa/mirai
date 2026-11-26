@@ -1,6 +1,6 @@
 # Unit 61: test results (2026-11-26)
 
-**Waiting for the runner and your approval.** P1 and P2 passed. Built on `unit/61-build` from
+**Waiting for your approval.** The runner is green at `a67ccdd` (948 tests, baseline, red team GREEN); CI on PR #140 green; P1 and P2 passed. Built on `unit/61-build` from
 `origin/main` (`f413a6f`: 45b merged, its re-checks merged).
 
 ## What was built
@@ -45,7 +45,17 @@ trace's notes.
 
 The cage changes: the journal (`adr_review`, the `adr` kind), the session's commands, the config
 schema (`[adr]`), the park reasons (`adr-conflict`), the plan and review launches (their inputs and
-prompts). A baseline and `redteam-full` go with the tests.
+prompts).
+
+## The runner (at `a67ccdd`)
+
+| Job | Result |
+|---|---|
+| `u61-tests-1` | pass: 948 tests, 0 failed (27.9 min) |
+| `u61-baseline-1` | pass (4.6 min; the sample app's seeded known failure and flaky test, as always) |
+| `u61-redteam-1` | **RED TEAM: GREEN**, 354 runs, S1–S6 ok (16.1 min) |
+
+Only the probe script and these records changed after `a67ccdd`.
 
 ## Probes (real)
 
