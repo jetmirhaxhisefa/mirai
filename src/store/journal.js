@@ -121,6 +121,13 @@ export const EVENT_TYPES = Object.freeze({
       // Unit 44 (Scope 8): approved anyway with the verifier's must-fix findings open: each one's
       // fingerprint (its quote and its what), so the signed line names what you approved over.
       vera_open: { type: 'array', items: { type: 'string', pattern: /^fp-[0-9a-f]{16}$/, patternHint: 'fp-<16 hex>' } },
+      // Unit 45 (decision 5): a ticket set's release mode, signed with the set: Tess's proposal from
+      // the epic, or yours when you switched it (`release_reason`, your one line).
+      release_mode: { type: 'enum', values: ['per-ticket', 'together'] },
+      release_reason: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      // Unit 45 (decision 4): the tickets you dropped at this screen before signing (each also has
+      // its ticket_decision line); the set signed is what was left.
+      dropped: { type: 'array', items: f.ticket },
     },
     required: ['item', 'kind', 'path', 'content_hash', 'decision', 'answered_after_s'],
     check(e, report) {
@@ -133,6 +140,8 @@ export const EVENT_TYPES = Object.freeze({
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
       if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
       if (e.vera_open !== undefined && e.verifier === undefined) report('vera_open', 'vera_open goes with the verifier result it comes from');
+      if ((e.release_mode !== undefined || e.dropped !== undefined) && e.kind !== 'epic') report('release_mode', 'release_mode and dropped go with a ticket set\'s approval only');
+      if (e.release_reason !== undefined && e.release_mode === undefined) report('release_reason', 'release_reason goes with the release mode it explains');
     },
   },
   // Your move on a stopped run (unit 28, decision 6): `mirai resume` (to running) or `--abandon`.
@@ -269,6 +278,23 @@ export const EVENT_TYPES = Object.freeze({
       fingerprint: { type: 'string', pattern: /^fp-[0-9a-f]{16}$/, patternHint: 'fp-<16 hex>' },
     },
     required: ['item', 'initiative', 'version', 'question_id', 'answer_type'],
+  },
+  // Unit 45 (Scope 4; decision 4): your decision on one ticket at a ticket set's approval, other than
+  // keeping it: `drop` (MIRAI removed it), or `merge`, `split`, `change` (your note went to
+  // ticket-notes.md for the ticket planner's next run). `item` is the initiative, `ticket` the key,
+  // `epic` the epic's id, `round` the set's approval round (1 for the first screen). Signed: it is
+  // yours. design/13 §2's "Ticket decisions" row is these lines.
+  ticket_decision: {
+    privileged: true,
+    human: true,
+    fields: {
+      ticket: f.ticket,
+      decision: { type: 'enum', values: ['drop', 'merge', 'split', 'change'] },
+      reason: { type: 'string', pattern: /^(?=[^]*\S)[^\n\r]{1,500}$/, patternHint: 'one line' },
+      epic: f.ticket,
+      round: { type: 'integer', min: 1 },
+    },
+    required: ['item', 'ticket', 'decision', 'reason', 'epic', 'round'],
   },
   note: { privileged: false, fields: { message: f.text }, required: ['message'] },
   template_gap: { privileged: false, fields: { template: f.text, section: f.text, message: f.text }, required: ['template', 'section', 'message'] },

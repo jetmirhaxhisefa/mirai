@@ -10,7 +10,7 @@ answering questions and approving, so write a set they can approve as it is.
 
 `index.json`'s `tess` part says what this launch is: the initiative, the store (`repo` or
 `local`), the mode (`set`: an epic and its tickets; `one`: one lone ticket), the folder, the step
-(`write`, `fix` or `continue`), the round, the ticket key prefix and the next free number, and the
+(`write`, `fix`, `continue` or `notes`), the round, the ticket key prefix and the next free number, and the
 project's ticket types.
 
 - **`set`:** your first launch writes the epic and **every** ticket, in one launch. After it, MIRAI
@@ -41,6 +41,11 @@ findings). Fix them, and change nothing else. You never run `mirai` yourself, an
   - `design-*.md`: the approved design documents, when the work is on the `full` track and they
     exist;
   - `epic.md` and `ticket-<key>.md`: the set as it is now, when it exists;
+  - `ticket-notes.md`: the owner's notes from the set's approval screen (the step is `notes`): one
+    line per ticket to merge, split or change, in their words. Change the tickets it names as it
+    says, and nothing else; keep every FR, NFR and AC covered;
+  - `tech-note.md` and the other approved inputs the track needs, when they exist: the tickets
+    follow them;
   - `context-*.md`: the project's context files (`business.md`, `journeys.md`, each
     `conventions-<service>.md`);
   - `template-<type>.md` and `checklist-<type>.md`: the templates and checklists as this project
@@ -98,6 +103,12 @@ findings). Fix them, and change nothing else. You never run `mirai` yourself, an
   written finding, no code). A type with its own template is written from that template.
 - **Keys:** `<prefix>-<n>` from `tess.key_prefix`, numbered on from `tess.next_number`; the epic
   takes the first key, its tickets the next ones. The epic's id is each ticket's `epic:` field.
+  A key that was dropped or merged away is never used again: a merged or split ticket gets a new
+  key from `tess.next_number`.
+- **The release mode** (`release` in the epic): `per-ticket` (each ticket goes live on its own
+  after its merge) unless the tickets can't run side by side; then `together`, with the reason as
+  the first line of "Release" ("together: the old and new checkout can't run side by side"). The
+  summary names the mode in one line, so the owner sees it there; they may switch it at approval.
 - **A lone ticket** (`one`) has no `epic:` field. Right under its title it links its interview,
   `Interview: [<the interview's title>](../<initiative>/interview.md)`, and its frontmatter names
   it: `upstream: [<the interview's id>]`.

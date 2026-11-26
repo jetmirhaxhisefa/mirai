@@ -149,7 +149,10 @@ export async function docsPublish({ cwd, env, initiative, hostOf = hostFor, now 
       throw Object.assign(fail(`the push check refused ${branch}: ${scan.why}; nothing was pushed`, scan.outcome === 'secret' ? 'secret' : scan.outcome, scan.outcome === 'secret' ? 'take it out of the document (and replace it if it was real), then publish again' : 'publish fewer or smaller files at a time'), { findings: scan.findings });
     }
   }
-  if (!made.same) setDocsBranch(store.checkout, branch, head, local, store.gitEnv);
+  // A first publish whose documents are on the integration branch already (nothing new: the docs
+  // commit is the tip itself) still makes the local docs branch, so the next publish knows the head
+  // it pushed (45's P1 dry run: otherwise it refused its own push as "a commit MIRAI didn't push").
+  if (!made.same || local !== head) setDocsBranch(store.checkout, branch, head, local, store.gitEnv);
 
   let pushed = false;
   if (remote !== head) {

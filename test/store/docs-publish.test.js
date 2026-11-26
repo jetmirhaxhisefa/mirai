@@ -200,8 +200,14 @@ test('38 T5 and T8 (GitHub): docs merge refuses each gap with nothing merged, wa
   assert.match(gaps, /no ticket-set approval/);
   assert.equal(mergeSha(), main0);
 
-  // The epic approved with its tickets; then a ticket changed after it and published: refused.
-  await p.approveEpic();
+  // The epic approved with its tickets (unit 45: the approval publishes and merges; the host's checks
+  // still run, so it waits, says so, and leaves it open); then a ticket changed after it and
+  // published: refused.
+  p.host.write((s) => { s.ci = [{ name: 'docs-ci', status: 'in_progress', conclusion: null }]; });
+  const setOk = await p.approveEpic();
+  assert.match(setOk.out, /^merged: not yet: its checks are still running \(docs-ci\); the pull request stays open, and MIRAI merges it when you run: mirai docs merge due-dates$/m);
+  assert.equal(mergeSha(), main0);
+  p.host.write((s) => { s.ci = []; });
   const ticket = p.at('tickets/SAMPLE-55.md');
   writeFileSync(ticket, TICKETS['tickets/SAMPLE-55.md'].replace('size: S', 'size: M'));
   await p.publish();
@@ -260,9 +266,14 @@ test('38 T6: GitLab: publish, update, the code-path refusal and the merge run th
   // Unit 44 (decision 8): approving the PRD publishes it, so the merge request is open already.
   const approved = await p.approvePrd();
   assert.match(approved.out, /^published: due-dates, opened \(merge request !1: https:\/\/gitlab\.com\/acme\/app\/-\/merge_requests\/1\)/m);
-  await p.approveEpic();
+  // Unit 45: the set's approval publishes and merges; the pipeline still runs, so it waits.
+  p.host.write((s) => { s.pipeline = 'running'; });
+  const setOk = await p.approveEpic();
+  assert.match(setOk.out, /^published: due-dates, updated \(merge request !1: /m);
+  assert.match(setOk.out, /^merged: not yet: .*; the merge request stays open, and MIRAI merges it when you run: mirai docs merge due-dates$/m);
+  p.host.write((s) => { s.pipeline = null; });
   const first = await p.publish();
-  assert.equal(first.outcome, 'updated', 'the epic\'s approval changed the merge request\'s table');
+  assert.equal(first.outcome, 'unchanged', 'the set\'s approval published it already');
   assert.equal(first.mr.url, 'https://gitlab.com/acme/app/-/merge_requests/1');
   writeFileSync(p.at('prd.md'), `${PRD_READY}\n`);
   assert.equal((await p.publish()).outcome, 'updated');
@@ -316,4 +327,29 @@ test('38 follow-up: publish runs 26a\'s push check: a canary-shaped secret in a 
   const ok = await p.publish();
   assert.equal(ok.outcome, 'opened');
   assert.equal(p.bareGit('rev-parse', 'refs/heads/docs/due-dates'), ok.head);
+});
+
+test('45 T6: signing the set publishes the initiative and MIRAI merges its docs MR at the head it published; the merge is the documents only', async () => {
+  const p = project('github');
+  await p.approvePrd();
+  const main0 = p.bareGit('rev-parse', 'refs/heads/main');
+  const ok = await p.approveEpic();
+  assert.match(ok.out, /approved: the epic SAMPLE-50 and its 7 tickets, as they are now/);
+  assert.match(ok.out, /^published: due-dates, updated \(pull request #1: https:\/\/github\.com\/acme\/app\/pull\/1\)$/m);
+  assert.match(ok.out, /^merged: https:\/\/github\.com\/acme\/app\/pull\/1 at [0-9a-f]{12} as [0-9a-f]{12} into main \(documents only\)$/m);
+  // The epic's line still comes last (38's rule).
+  assert.match(ok.out.trimEnd().split('\n').at(-1), /docs\/mirai\/due-dates\/epic-due-dates\.md   https:\/\/github\.com\//);
+  const ev = readJournal(p.store).events;
+  const published = ev.filter((e) => e.type === 'docs_published').at(-1);
+  const merged = ev.filter((e) => e.type === 'docs_merged');
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].head, published.head);
+  assert.notEqual(p.bareGit('rev-parse', 'refs/heads/main'), main0);
+  const changed = p.bareGit('diff', '--name-only', main0, 'refs/heads/main').split('\n');
+  assert.ok(changed.every((x) => x.startsWith(`${D}/`)), changed.join(', '));
+  // Approving the same set again doesn't merge twice: this clone is behind the host's main now, so
+  // the publish says so, with the commands, and your approval stands.
+  const again = await p.approveEpic();
+  assert.match(again.out, /^published: not yet: the host's main has commits this clone doesn't; your approval stands\. When that's fixed: mirai docs publish due-dates, then mirai docs merge due-dates$/m);
+  assert.equal(readJournal(p.store).events.filter((e) => e.type === 'docs_merged').length, 1);
 });

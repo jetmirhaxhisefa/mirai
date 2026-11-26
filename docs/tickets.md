@@ -38,6 +38,72 @@ layer and the next the one she's least sure of; "split, never shrink"; one repo 
 S, M and L within the caps; `e2e: true` only on a ticket that creates or changes a critical journey;
 `tdd` and `tests` only as a proposal for you.
 
+## From approved documents to an approved set
+
+Unit 45 joins the steps from your approved documents to an approved, merged ticket set.
+
+**The documents each track needs** (`[tickets.inputs]`, [config.md](config.md)):
+
+| Track | Tess cuts from | Until the type exists |
+|---|---|---|
+| `quick` | nothing: one ticket by hand | |
+| `standard` | the approved PRD and the technical note | no technical note yet (unit 62b): she cuts from the PRD |
+| `full` | the approved PRD, HLD, ADRs and LLD | no HLD, ADR or LLD yet (units 61–63): she cuts from the PRD |
+
+`mirai tickets <initiative>` refuses while a needed document of a type MIRAI has isn't approved as
+it is now, naming it and its approval command. A type not built yet is skipped, and her run line
+says so (`inputs: not built yet, so not needed: no technical note yet (unit 62b)`).
+
+**The offer.** When an approval completes the track's list (on `standard` today, the PRD's), it
+ends with a question, never a start on its own:
+
+```
+tickets: not built yet, so not needed: no technical note yet (unit 62b)
+Start Tess (mirai-ticket-planner) on the ticket set now? [y/N]
+```
+
+`y` starts her run in that terminal; `N` (the default) prints `mirai tickets <initiative>`. When
+she paused on the PRD and you approved it again, it asks `Tess paused on Q-8 for this; continue her
+run now? [Y/n]`, yes by default, since you started her already.
+
+**The set's screen.** `mirai approve <epic-id> --file …/epic-<slug>.md` shows the epic, Vera's and
+the reader test's results, the release mode with Tess's reason, and one line per ticket:
+
+```
+release: per-ticket (Tess (mirai-ticket-planner): each ticket goes live on its own once you merge it.)
+the tickets (key, type, priority, order, size, blocks, title):
+  SAMPLE-51    Story         normal  order 1   M  blocks SAMPLE-52, SAMPLE-53, SAMPLE-56   A task can carry a due date
+  …
+accepted as is / edited / rejected, or go through the tickets and the release mode? [a/e/r/t]
+```
+
+`a`, `e` or `r` decide the set as it is. `t` goes through it:
+
+| Key | For each ticket | What happens |
+|---|---|---|
+| Enter or `k` | keep it | nothing (the default) |
+| `d` | drop it, with a one-line reason | MIRAI removes its file, renders the epic again, lints and traces the set, and shows the screen again. A drop that leaves an FR, NFR or AC uncovered is shown and undone. Dropping a ticket another one comes after (`after`) is refused, naming both: change that one instead. Vera's result still stands while the set covers what it covered. |
+| `c` | change it: merge (`m`), split (`s`) or another change (`c`), with your note | nothing is signed; your notes go to `ticket-notes.md`, and the screen ends with `/mirai tickets <initiative>`. Tess's next run takes them (its step is `notes`, a new cycle for Vera), Vera checks the new set, and you approve it. |
+
+Then the release mode: Enter keeps it, `s` switches it (`per-ticket` ↔ `together`) and asks why.
+When everything is kept you sign once: one line over the epic and every ticket, with the release
+mode (`release_mode`, and `release_reason` when you switched it) and the tickets you dropped.
+
+Every drop and change is a signed `ticket_decision` line in the journal, with your reason, the
+epic and the screen's round. `mirai show <initiative>` lists them, and the release mode the set
+was signed with (design/13 §2, "Ticket decisions").
+
+**After your signature** MIRAI publishes the initiative and merges its docs MR (38's `mirai docs
+merge`), the only merge it ever makes: documents only. When the host still holds it (checks
+running, a required review), it says what for, and `mirai docs merge <initiative>` tries again. A
+tracker publish comes with the tracker connectors (none is built yet).
+
+**The quick track.** `/mirai-new` with a `quick` answer → one ticket by hand → your approval of the
+ticket (the lint, Vera, your signature) → MIRAI's build → your merge of its code MR. Its plan gate
+is `auto` for a normal-risk ticket (a high-risk one, protected paths, new dependencies or changed
+tests still need you); until MIRAI can sign an automatic approval (unit 55) the plan still waits
+for you, and says why.
+
 ## Approving a lone ticket
 
 Every story or bug with no epic needs Vera's result for it as it is now before you approve it

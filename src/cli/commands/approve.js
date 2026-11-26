@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { lstatSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { EXIT } from '../exit-codes.js';
@@ -27,7 +27,7 @@ import { ticketsOf } from '../../lint/graph.js';
 import { linkLinesOf, upstreamLine } from '../../lint/rules.js';
 import { readerResultFor } from '../../store/reader-tests.js';
 import { failedLabels, needsReaderTest, readerRuns, resultLines, summaryHash, summaryText } from '../../write/reader.js';
-import { verifierField, verifierFor, verifierLines } from '../../verify/gate.js';
+import { VERIFY_AGENT, verifierField, verifierFor, verifierLines } from '../../verify/gate.js';
 import { CONTEXT_DIR, contextKindOf, isContextFile } from '../../lint/context.js';
 import { CUSTOM_DIR, CUSTOM_KINDS, RECORDS_FOLDER, overlayFilesIn, overlayRecord, overlayRecordContext, overlayState, readOverlays, recordPathOf, recordText, verifyRecords } from '../../config/overlays.js';
 import { trustedRoles } from '../../agent/scope.js';
@@ -38,7 +38,15 @@ import { applyChanges, changesOf } from '../../lint/requirements.js';
 import { addJourneys, newJourneys } from '../../tickets/journeys.js';
 import { traceDocuments } from '../../trace/documents.js';
 import { approvedText, changedLines } from '../../util/line-diff.js';
-import { docsPublish } from '../../store/connectors/publish.js';
+import { docsMerge, docsPublish } from '../../store/connectors/publish.js';
+import { coverageOf, dependsOnDropped, notesText, releaseOf, roundOf, rowLine, ticketRows } from '../../tickets/set-screen.js';
+import { renderEpicFile } from '../../tess/render.js';
+import { inputStates, missingLine, missingOf, notBuiltLine, readInput } from '../../tickets/inputs.js';
+import { lastTessRun } from '../../tess/run.js';
+import { isQuickTicket } from '../../tickets/quick.js';
+
+// Unit 45 (Scope 6): a quick ticket's plan gate is auto, but nothing signs an auto approval yet.
+export const QUICK_AUTO = 'the quick track\'s plan gate is auto for this ticket, but MIRAI can\'t sign an automatic approval yet (unit 55), so you approve it';
 import { longRef } from '../../ship/words.js';
 
 export { changedLines };
@@ -179,14 +187,14 @@ async function approvePlan(ticket, io, now) {
   const hash = approvalHash(text);
   const unapprovable = problems.length ? `it fails the lint (${problems.length} problem(s), such as line ${problems[0].line}: ${problems[0].reason})` : hash === null ? 'it has no readable frozen block' : null;
   if (unapprovable) io.stdout.write(`note: ${ticket}'s plan can't be approved: ${plain(unapprovable)}; you can reject it\n`);
-  const gate = gateFor({ preset: config.preset, text });
+  const gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai') });
   const declared = declaredChanges(text).filter((r) => r.kind !== 'none');
 
   // The plan itself, so what you approve is in front of you (Jet, 2026-11-15): Kai's text, each
   // line shown not acted on (no escape sequence reaches your terminal).
   const rule = '─'.repeat(72);
   io.stdout.write(`${rule}\n${text.replace(/\n$/, '').split('\n').map((l) => plain(l)).join('\n')}\n${rule}\n`);
-  io.stdout.write(`ticket: ${ticket} (${current.state})\nplan:   ${planPath(store, ticket)}\nhash:   ${hash ?? 'none (no frozen block)'}\nwhy you: ${gate.why.join('; ')}\n`);
+  io.stdout.write(`ticket: ${ticket} (${current.state})\nplan:   ${planPath(store, ticket)}\nhash:   ${hash ?? 'none (no frozen block)'}\nwhy you: ${gate.why.length ? gate.why.join('; ') : QUICK_AUTO}\n`);
   io.stdout.write(`declared: ${declared.length ? declared.map((r) => `${r.kind} ${plain(r.item)}`).join(', ') : 'none'}\n`);
   const prompter = createPrompter(io);
   try {
@@ -505,6 +513,7 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   showVerifier(io, briefVera?.off ? null : vera, who);
   showReader(io, reader);
   const prompter = createPrompter(io);
+  let start = null;
   try {
     const asked = now().getTime();
     const answer = (await prompter.ask('accepted as is / edited / rejected? [a/e/r] ')).toLowerCase();
@@ -543,12 +552,62 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
     // publish doesn't undo the approval: it says so, and names the command. The documents' lines
     // come last (38's rule), with their host link once pushed.
     if (decision !== 'rejected') await publishAfter({ io, file });
+    // Unit 45 (decision 1, Scope 1): when this approval completes what the track needs, the offer to
+    // start the ticket planner; never without asking. The documents' lines still come last (38).
+    start = decision === 'rejected' ? null : await tessOffer({ io, prompter, store, conn, registry, config, initiative: posix.basename(posix.dirname(file.path)), track: fm.value.track });
     if (pair) io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, brief.file.path), rel: brief.file.path, bytes: brief.file.bytes })}\n`);
     io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: file.bytes })}\n`);
-    return EXIT.OK;
   } finally {
     prompter.close();
   }
+  return start ? startTess(io, start) : EXIT.OK;
+}
+
+// ---- The offer to start the ticket planner (unit 45, decision 1, Scope 1) -------------------------
+
+// After an approval: the track's inputs (src/tickets/inputs.js). All approved (a type MIRAI hasn't
+// built yet skipped, with a warning naming its unit): asks whether to start her now, [y/N]; after her
+// pause on this PRD (45's re-check Q1 "A"), whether to continue her run, [Y/n]. Not complete: says
+// what's still needed. Returns the initiative to start, or null.
+async function tessOffer({ io, prompter, store, conn, registry, config, initiative, track }) {
+  if (!conn || (track !== 'standard' && track !== 'full')) return null;
+  let states;
+  try {
+    states = inputStates({ store, registry, config, track, readDoc: (type) => readInput(conn, initiative, type) });
+  } catch {
+    return null;
+  }
+  const tess = fullName(TESS_PLANNER);
+  const later = `mirai tickets ${plain(initiative)} (/mirai tickets ${plain(initiative)} in your session)`;
+  const missing = missingOf(states);
+  if (missing.length) {
+    io.stdout.write(`tickets: still needed before ${tess} cuts the set: ${missing.map(missingLine).join('; ')}\n`);
+    return null;
+  }
+  const warn = notBuiltLine(states);
+  if (warn) io.stdout.write(`tickets: ${warn}\n`);
+  const last = lastTessRun(readJournal(store).events, initiative);
+  const paused = last?.state === 'paused' && last.mode === 'set';
+  let answer;
+  try {
+    answer = (await prompter.ask(paused ? `${who(TESS_PLANNER)} paused on ${plain(last.question_id ?? 'a question')} for this; continue her run now? [Y/n] ` : `Start ${tess} on the ticket set now? [y/N] `)).toLowerCase();
+  } catch (err) {
+    if (err instanceof MiraiError && err.exitCode === EXIT.INTERRUPTED) answer = 'n';
+    else throw err;
+  }
+  const yes = paused ? answer === '' || answer === 'y' || answer === 'yes' : answer === 'y' || answer === 'yes';
+  if (!yes) {
+    io.stdout.write(`\nnot started; when you're ready: ${later}\n`);
+    return null;
+  }
+  return initiative;
+}
+
+// Starts her run in this terminal, as `mirai tickets <initiative>` does (tests give io.startTess).
+async function startTess(io, initiative) {
+  if (io.startTess) return io.startTess(initiative, io);
+  const { createTicketsCommand } = await import('./tickets.js');
+  return createTicketsCommand().run({ positionals: [initiative], values: {} }, io);
 }
 
 // After your approval of a PRD (unit 44, decision 8): 38's publish for its initiative (the folder it
@@ -659,10 +718,145 @@ export function epicInputs(checkout, epicPath, text, registry) {
 // gate, always yours (D6): the epic is linted with its PRD and every ticket, the graph included,
 // and each ticket on its own, all as at approval; the PRD must be approved as it is now (as a full
 // PRD waits for its brief, 32). You decide once, and one signed line covers the epic's bytes and
-// each ticket file's bytes, so a later change to any of them needs a new approval. The inbox
-// screen and the docs MR merge are unit 45's.
+// each ticket file's bytes, so a later change to any of them needs a new approval.
+// Unit 45 (Scope 3; Jet's decisions 4 and 5): the screen shows one line per ticket and the release
+// mode, and you may go through the tickets: keep (the default), drop (a reason; MIRAI removes it,
+// renders the epic again, lints and traces it, and asks again) or change (merge, split or fix: a
+// note; nothing is signed, the notes go to ticket-notes.md for the ticket planner's next run); and
+// keep or switch the release mode (a reason when you switch it). After the signature: the docs
+// publish and MIRAI's merge of the docs MR (38). Every drop and change is a signed ticket_decision
+// line.
 async function approveEpic({ id, file, store, io, now, registry, config, project, base = store.checkout, conn = null }) {
-  const text = file.bytes.toString('utf8');
+  const dir = posix.dirname(file.path);
+  const initiative = posix.basename(dir);
+  const round = roundOf(readJournal(store).events, id);
+  const dropped = []; // [{ ticket, reason }], applied to the work tree, signed with the set
+  let before = null; // the set as it was before the first drop: { vera, coverage }
+  let releaseChoice = null; // { mode, reason } when you switched it
+  const prompter = createPrompter(io);
+  try {
+    for (;;) {
+      const g = epicState({ id, file, store, io, registry, config, project, base, conn, dropped: dropped.length > 0, before });
+      const { text, input, hash, files, rows, vera, reader, journeys } = g;
+      const n = files.length;
+      const release = releaseOf(text);
+      const mode = releaseChoice?.mode ?? release.mode;
+      io.stdout.write(`release: ${mode}${releaseChoice ? ` (you switched it from ${release.mode}: ${plain(releaseChoice.reason)})` : release.reason ? ` (${who(TESS_PLANNER)}: ${plain(release.reason)})` : ''}\n`);
+      if (dropped.length) io.stdout.write(`dropped on this screen: ${dropped.map((d) => plain(d.ticket)).join(', ')} (MIRAI removed ${dropped.length === 1 ? 'its file' : 'their files'} and rendered the epic again; lint clean, trace passes, coverage unchanged)\n`);
+      io.stdout.write(`the tickets (key, type, priority, order, size, blocks, title):\n`);
+      for (const r of rows) io.stdout.write(`${rowLine(r)}\n`);
+      const asked = now().getTime();
+      const answer = (await prompter.ask('accepted as is / edited / rejected, or go through the tickets and the release mode? [a/e/r/t] ')).toLowerCase();
+      if (answer === 't') {
+        const choice = await goThrough({ io, prompter, rows, mode, release });
+        if (choice.release) releaseChoice = choice.release.reason === null ? null : choice.release;
+        const changes = choice.decisions.filter((d) => d.decision !== 'drop');
+        const drops = choice.decisions.filter((d) => d.decision === 'drop');
+        const blocked = dependsOnDropped(rows, drops.map((d) => d.ticket));
+        if (blocked.length) {
+          throw Object.assign(new MiraiError(`${blocked.map((b) => `${b.kept} comes after ${b.dropped}`).join('; ')}: dropping ${blocked.length === 1 ? 'it' : 'them'} would leave ${blocked.length === 1 ? 'that ticket' : 'those tickets'} waiting on nothing; nothing was changed`, EXIT.BLOCKED), { code: 'drop-blocked', hint: 'change the ticket that comes after it instead (c, with a note), or keep both' });
+        }
+        if (!drops.length && !changes.length) continue; // only the release mode changed: ask again
+        if (!before) before = { vera, coverage: coverageOf(rows) };
+        const undo = dropFiles({ base, dir, rows, drops });
+        if (changes.length) {
+          // Any change: nothing is signed; your notes go to the ticket planner's next run.
+          const date = now().toISOString().slice(0, 10);
+          const notesAbs = join(base, dir, 'ticket-notes.md');
+          writeFileSync(notesAbs, notesText({ initiative, epic: id, round, notes: changes, date }));
+          if (drops.length) renderEpicFile({ abs: join(base, file.path), root: base, registry });
+          const signer = await decisionSigner(io, store, { prompter, ticket: id, confirm: confirmByTyping });
+          logDecisions(store, signer, { initiative, epic: id, round, decisions: [...dropped, ...choice.decisions] });
+          prompter.close();
+          io.stdout.write(`nothing was signed: ${changes.length} change${changes.length === 1 ? '' : 's'}${drops.length || dropped.length ? ` and ${drops.length + dropped.length} drop${drops.length + dropped.length === 1 ? '' : 's'}` : ''} logged (signed with ${signer.keyId})\n`);
+          io.stdout.write(`your notes: ${plain(join(base, dir, 'ticket-notes.md'))}\n`);
+          io.stdout.write(`next: ${who(TESS_PLANNER)} changes the set from your notes, ${who(VERIFY_PLANNER)} checks it, and you approve it: /mirai tickets ${plain(initiative)} (mirai tickets ${plain(initiative)}); commit the notes${drops.length || dropped.length ? ' and the removed tickets' : ''} first\n`);
+          return EXIT.OK;
+        }
+        // Drops only: the epic rendered again, the lint and trace as at approval, then the screen again.
+        renderEpicFile({ abs: join(base, file.path), root: base, registry });
+        try {
+          epicState({ id, file, store, io, registry, config, project, base, conn, dropped: true, before });
+        } catch (err) {
+          undo();
+          io.stderr.write(`the drop was undone: ${plain(drops.map((d) => d.ticket).join(', '))} ${drops.length === 1 ? 'is' : 'are'} back, and the epic as it was\n`);
+          throw err;
+        }
+        dropped.push(...drops);
+        continue;
+      }
+      const decision = DECISIONS[answer];
+      if (!decision) throw new UsageError(`${JSON.stringify(answer.slice(0, 10))} is not a, e, r or t; nothing was written`, 'run it again');
+      const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
+      let reason;
+      if (decision !== 'accepted') {
+        reason = await prompter.ask('reason (optional, one line): ');
+        if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
+        if (reason === '') reason = undefined;
+      }
+      const signer = await decisionSigner(io, store, { prompter, ticket: id, confirm: confirmByTyping });
+      // What you approved is what was shown: no file may have changed while you answered, and no
+      // ticket may have joined or left the epic.
+      const signature = (list) => list.map((f) => `${f.path} ${f.content_hash}`).join('\n');
+      const nowBytes = readApprovedFile(base, base, file.path).bytes;
+      const again = epicInputs(base, file.path, nowBytes.toString('utf8'), registry);
+      if (contentHash(nowBytes) !== hash || signature(again.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }))) !== signature(files)) {
+        throw new MiraiError(`${file.path} or one of its tickets changed while you were answering; nothing was written`, EXIT.FAILURE);
+      }
+      const approval = checkEvent({
+        type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader), ...verifierField(vera),
+        ...(decision !== 'rejected' ? { release_mode: mode, ...(releaseChoice ? { release_reason: releaseChoice.reason } : {}) } : {}),
+        ...(dropped.length ? { dropped: dropped.map((d) => d.ticket) } : {}),
+      });
+      const misses = decision === 'rejected' ? missesOf([{ item: id, kind: 'epic', path: file.path, vera }], reason) : [];
+      const journeyLine = decision === 'rejected' || !journeys ? null : checkEvent({ type: 'approval', by: 'human', item: journeys.id, kind: 'context', file_type: 'journeys', path: journeys.rel, content_hash: contentHash(journeys.after), proposal: file.path, decision, answered_after_s: answeredAfter });
+      if (journeyLine) {
+        if (contentHash(readApprovedFile(store.checkout, store.checkout, journeys.rel).bytes) !== contentHash(journeys.before)) throw new MiraiError(`${journeys.rel} changed while you were answering; nothing was written`, EXIT.FAILURE);
+        writeFileSync(journeys.abs, journeys.after, { mode: statSync(journeys.abs).mode & 0o777 });
+      }
+      let seq;
+      try {
+        seq = withSeq(store, (ctx) => {
+          for (const d of dropped) ctx.event(ctx.take(), decisionEvent({ initiative, epic: id, round, d }), { signer });
+          const k = ctx.take();
+          ctx.event(k, approval, { signer });
+          if (journeyLine) ctx.event(ctx.take(), journeyLine, { signer });
+          for (const m of misses) ctx.event(ctx.take(), m);
+          return k;
+        });
+      } catch (err) {
+        // Nothing signed: journeys.md goes back to what it was.
+        if (journeyLine) writeFileSync(journeys.abs, journeys.before);
+        throw err;
+      }
+      prompter.close();
+      showMisses(io, misses);
+      if (journeyLine) io.stdout.write(`added to ${journeys.rel}: ${journeys.blocks.map((b) => b.id).join(', ')}, approved with the set (seq ${seq + 1}); commit it\n`);
+      io.stdout.write(decision === 'rejected'
+        ? `recorded: the epic ${id} and its ${n} tickets rejected (signed with ${signer.keyId}, seq ${seq})\n`
+        : `approved: the epic ${id} and its ${n} tickets, as they are now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to any of them needs a new approval\nrelease: ${mode}, signed with the set${dropped.length ? `; dropped: ${dropped.map((d) => plain(d.ticket)).join(', ')}` : ''}\n`);
+      // Unit 45 (Scope 5): the documents go to the integration branch: MIRAI publishes the initiative
+      // (the set as you signed it) and merges its docs MR (38), the only merge MIRAI performs.
+      if (decision !== 'rejected') await publishAndMerge({ io, initiative });
+      io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: g.bytes })}\n`);
+      return EXIT.OK;
+    }
+  } finally {
+    prompter.close();
+  }
+}
+
+const TESS_PLANNER = 'mirai-ticket-planner';
+const VERIFY_PLANNER = 'mirai-verifier';
+const who = (id) => agentNamer()(id);
+
+// The set as approval reads it now (unit 33's checks, then 45's rows): the lint and trace refuse,
+// the PRD must be approved as it is now; then the header lines, the journeys change and Vera's and
+// the reader test's results are shown. After a drop on this screen, Vera's earlier result stands
+// unless the drop changed the set's coverage (Scope 3).
+function epicState({ id, file, store, io, registry, config, project, base, conn, dropped, before }) {
+  const bytes = readApprovedFile(base, base, file.path).bytes;
+  const text = bytes.toString('utf8');
   const input = epicInputs(base, file.path, text, registry);
   const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [input.prdLink]: input.prd.bytes.toString('utf8') }, tickets: input.folder }) }];
   // Unit 43 (Scope 8): each ticket's IDs against the version the set's last approval signed.
@@ -676,77 +870,123 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
   refuseOnLint(io, results);
   // Unit 43 (Scope 2): trace's documents scope, once more as the gate (Tess's run already ran it
   // between her launches): a set with a broken link is refused, each link named with its place.
-  refuseOnTrace(io, traceOfSet({ base, file, text, input, registry }));
+  refuseOnTrace(io, traceOfSet({ base, file: { path: file.path }, text, input, registry }));
   const prdId = typeof input.prdValue.id === 'string' ? input.prdValue.id : null;
   const prdBefore = prdId ? documentApproval(store, prdId, input.prd.bytes) : { approved: false, stale: false };
   if (!prdBefore.approved) {
     throw Object.assign(new MiraiError(`the PRD ${prdId ?? input.prd.path} isn't approved${prdBefore.stale ? ' as it is now (it changed since its approval)' : ''}; its tickets are approved after it; nothing was written`, EXIT.BLOCKED), { hint: `run: mirai approve ${prdId ?? '<prd-id>'} --file ${input.prd.path}` });
   }
-  const vera = verifierFor({ store, config, def: registry.documentTypes.epic, id, path: file.path, bytes: file.bytes, files: input.tickets });
+  const rows = ticketRows(input.tickets);
+  let vera;
+  if (dropped && before) {
+    const now = coverageOf(rows);
+    if (now.join(' ') !== before.coverage.join(' ')) {
+      throw Object.assign(new MiraiError(`the drop changed what the set covers (${before.coverage.filter((x) => !now.includes(x)).slice(0, 10).join(', ') || 'its IDs'}), so ${fullName(VERIFY_AGENT)} checks the set again first; nothing was written`, EXIT.BLOCKED), { code: 'verify-again', hint: `run: mirai verify ${file.path}, then approve again` });
+    }
+    vera = before.vera;
+  } else {
+    vera = verifierFor({ store, config, def: registry.documentTypes.epic, id, path: file.path, bytes, files: input.tickets });
+  }
   const reader = readerFor({ store, config, def: registry.documentTypes.epic, value: input.doc.value, id, path: file.path, text });
-  const hash = contentHash(file.bytes);
+  const hash = contentHash(bytes);
   const files = input.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }));
-  const signature = (list) => list.map((f) => `${f.path} ${f.content_hash}`).join('\n');
-  const before = epicApproval(store, id, file.bytes, input.tickets);
-  const n = files.length;
-  io.stdout.write(`epic:    ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it or a ticket has changed since)' : ''}\nfile:    ${file.path}\nhash:    ${hash}\nprd:     ${prdId} (approved, as it is now)\ntickets: ${n}, signed with the epic\n`);
+  const prior = epicApproval(store, id, bytes, input.tickets);
+  io.stdout.write(`epic:    ${id}${prior.approved ? ' (approved before, as it is now)' : prior.stale ? ' (approved before; it or a ticket has changed since)' : ''}\nfile:    ${file.path}\nhash:    ${hash}\nprd:     ${prdId} (approved, as it is now)\ntickets: ${files.length}, signed with the epic\n`);
   for (const f of files) io.stdout.write(`  ${plain(f.path)}   ${f.content_hash}\n`);
   io.stdout.write(`${plain(join(base, file.path))}\n`);
   // Unit 42 (Scope 7): a new critical journey in the epic is added to journeys.md by this approval.
   const journeys = journeysChange({ io, store, text, registry, project });
   showVerifier(io, vera);
   showReader(io, reader);
-  const prompter = createPrompter(io);
+  return { bytes, text, input, hash, files, rows, vera, reader, journeys };
+}
+
+// The per-ticket pass (Scope 3): keep (Enter), drop (a reason) or change (merge, split or fix, and
+// a note); then the release mode, kept or switched (a reason). Returns { decisions, release }.
+async function goThrough({ io, prompter, rows, mode, release }) {
+  const decisions = [];
+  const line = async (q) => {
+    const a = await prompter.ask(q);
+    if (a.length > 500) throw new UsageError('that is longer than 500 characters; nothing was written', 'keep it to one line');
+    return a;
+  };
+  for (const r of rows) {
+    const a = (await prompter.ask(`${plain(r.key)} ${plain(r.title).slice(0, 60)}: keep, drop or change? [K/d/c] `)).toLowerCase();
+    if (a === '' || a === 'k') continue;
+    if (a === 'd') {
+      const reason = await line(`why drop ${plain(r.key)} (one line, required): `);
+      if (!reason) throw new UsageError(`a drop needs its reason; nothing was written`, 'run it again, and give one line');
+      decisions.push({ ticket: r.key, decision: 'drop', reason });
+    } else if (a === 'c') {
+      const kind = (await prompter.ask(`merge it with another ticket, split it, or another change? [m/s/c] `)).toLowerCase();
+      const decision = { m: 'merge', s: 'split', c: 'change' }[kind];
+      if (!decision) throw new UsageError(`${JSON.stringify(kind.slice(0, 10))} is not m, s or c; nothing was written`, 'run it again');
+      const note = await line(`your note for ${who(TESS_PLANNER)} (what to change in ${plain(r.key)}, one line, required): `);
+      if (!note) throw new UsageError(`a change needs its note; nothing was written`, 'run it again, and say what to change');
+      decisions.push({ ticket: r.key, decision, reason: note });
+    } else throw new UsageError(`${JSON.stringify(a.slice(0, 10))} is not k, d or c; nothing was written`, 'run it again');
+  }
+  const other = mode === 'together' ? 'per-ticket' : 'together';
+  io.stdout.write(`release: ${mode} (${mode === 'together' ? 'the whole epic goes live at once, from its feature branch' : 'each ticket goes live on its own after its merge'})\n`);
+  const r = (await prompter.ask(`keep the release mode, or switch it to ${other}? [K/s] `)).toLowerCase();
+  if (r === 's') {
+    const reason = await line(`why ${other} (one line, required): `);
+    if (!reason) throw new UsageError('switching the release mode needs its reason; nothing was written', 'run it again, and give one line');
+    // Switching back to the ticket planner's own proposal is no switch at all.
+    return { decisions, release: other === release.mode ? { mode: other, reason: null } : { mode: other, reason } };
+  }
+  if (r !== '' && r !== 'k') throw new UsageError(`${JSON.stringify(r.slice(0, 10))} is not k or s; nothing was written`, 'run it again');
+  return { decisions, release: null };
+}
+
+// Removes the dropped tickets' files; returns an undo that writes them back, and the epic as it was.
+function dropFiles({ base, dir, rows, drops }) {
+  const saved = drops.map((d) => {
+    const r = rows.find((x) => x.key === d.ticket);
+    const abs = join(base, r.path);
+    return { abs, bytes: readApprovedFile(base, base, r.path).bytes };
+  });
+  const epicFiles = readdirSync(join(base, dir)).filter((n) => /^epic-.*\.md$/.test(n)).map((n) => ({ abs: join(base, dir, n), bytes: readFileSync(join(base, dir, n)) }));
+  for (const f of saved) rmSync(f.abs);
+  return () => {
+    for (const f of saved) writeFileSync(f.abs, f.bytes);
+    for (const f of epicFiles) writeFileSync(f.abs, f.bytes);
+  };
+}
+
+const decisionEvent = ({ initiative, epic, round, d }) => checkEvent({ type: 'ticket_decision', by: 'human', item: initiative, ticket: d.ticket, decision: d.decision, reason: d.reason, epic, round });
+
+function logDecisions(store, signer, { initiative, epic, round, decisions }) {
+  const events = decisions.map((d) => decisionEvent({ initiative, epic, round, d }));
+  withSeq(store, (ctx) => {
+    for (const ev of events) ctx.event(ctx.take(), ev, { signer });
+  });
+}
+
+// After the set's signature (Scope 5): the docs publish, then the merge. A failed or waiting step
+// doesn't undo your approval: it says so, with the command that tries again.
+async function publishAndMerge({ io, initiative }) {
+  const hostOf = io.hostOf ? { hostOf: io.hostOf } : {};
+  let pub;
   try {
-    const asked = now().getTime();
-    const answer = (await prompter.ask('accepted as is / edited / rejected? [a/e/r] ')).toLowerCase();
-    const decision = DECISIONS[answer];
-    if (!decision) throw new UsageError(`${JSON.stringify(answer.slice(0, 10))} is not a, e or r; nothing was written`, 'run it again');
-    const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
-    let reason;
-    if (decision !== 'accepted') {
-      reason = await prompter.ask('reason (optional, one line): ');
-      if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
-      if (reason === '') reason = undefined;
-    }
-    const signer = await decisionSigner(io, store, { prompter, ticket: id, confirm: confirmByTyping });
-    // What you approved is what was shown: no file may have changed while you answered, and no
-    // ticket may have joined or left the epic.
-    const nowBytes = readApprovedFile(base, base, file.path).bytes;
-    const again = epicInputs(base, file.path, nowBytes.toString('utf8'), registry);
-    if (contentHash(nowBytes) !== hash || signature(again.tickets.map((t) => ({ path: t.path, content_hash: contentHash(t.bytes) }))) !== signature(files)) {
-      throw new MiraiError(`${file.path} or one of its tickets changed while you were answering; nothing was written`, EXIT.FAILURE);
-    }
-    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'epic', path: file.path, content_hash: hash, files, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader), ...verifierField(vera) });
-    const misses = decision === 'rejected' ? missesOf([{ item: id, kind: 'epic', path: file.path, vera }], reason) : [];
-    const journeyLine = decision === 'rejected' || !journeys ? null : checkEvent({ type: 'approval', by: 'human', item: journeys.id, kind: 'context', file_type: 'journeys', path: journeys.rel, content_hash: contentHash(journeys.after), proposal: file.path, decision, answered_after_s: answeredAfter });
-    if (journeyLine) {
-      if (contentHash(readApprovedFile(store.checkout, store.checkout, journeys.rel).bytes) !== contentHash(journeys.before)) throw new MiraiError(`${journeys.rel} changed while you were answering; nothing was written`, EXIT.FAILURE);
-      writeFileSync(journeys.abs, journeys.after, { mode: statSync(journeys.abs).mode & 0o777 });
-    }
-    let seq;
-    try {
-      seq = withSeq(store, (ctx) => {
-        const k = ctx.take();
-        ctx.event(k, approval, { signer });
-        if (journeyLine) ctx.event(ctx.take(), journeyLine, { signer });
-        for (const m of misses) ctx.event(ctx.take(), m);
-        return k;
-      });
-    } catch (err) {
-      // Nothing signed: journeys.md goes back to what it was.
-      if (journeyLine) writeFileSync(journeys.abs, journeys.before);
-      throw err;
-    }
-    showMisses(io, misses);
-    if (journeyLine) io.stdout.write(`added to ${journeys.rel}: ${journeys.blocks.map((b) => b.id).join(', ')}, approved with the set (seq ${seq + 1}); commit it\n`);
-    io.stdout.write(decision === 'rejected'
-      ? `recorded: the epic ${id} and its ${n} tickets rejected (signed with ${signer.keyId}, seq ${seq})\n`
-      : `approved: the epic ${id} and its ${n} tickets, as they are now (${decision}; signed with ${signer.keyId}, seq ${seq}); a change to any of them needs a new approval\n`);
-    io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: file.bytes })}\n`);
-    return EXIT.OK;
-  } finally {
-    prompter.close();
+    pub = await docsPublish({ cwd: io.cwd, env: io.env, initiative, ...hostOf });
+  } catch (err) {
+    io.stdout.write(`published: not yet: ${plain(String(err.message ?? err)).slice(0, 300)}; your approval stands. When that's fixed: mirai docs publish ${plain(initiative)}, then mirai docs merge ${plain(initiative)}\n`);
+    return;
+  }
+  if (pub.outcome === 'local') {
+    io.stdout.write(`published: nothing to do (${plain(pub.message)})\n`);
+    return;
+  }
+  io.stdout.write(`published: ${plain(initiative)}, ${pub.outcome} (${longRef(pub.words, pub.mr.number)}: ${plain(pub.mr.url ?? '')})\n`);
+  try {
+    const m = await docsMerge({ cwd: io.cwd, env: io.env, initiative, ...hostOf, log: (line) => io.stderr.write(`${plain(line)}\n`) });
+    if (m.outcome === 'waiting') io.stdout.write(`merged: not yet: ${plain(m.waitingFor)}; the ${(m.words ?? pub.words).long} stays open, and MIRAI merges it when you run: mirai docs merge ${plain(initiative)}\n`);
+    else if (m.outcome === 'already-merged') io.stdout.write(`merged: already (${plain(m.mr.url ?? '')})\n`);
+    else io.stdout.write(`merged: ${plain(m.mr.url ?? '')} at ${m.head.slice(0, 12)} as ${m.mergeSha.slice(0, 12)} into ${plain(m.integration)} (documents only)\n`);
+  } catch (err) {
+    if (err instanceof MiraiError && err.gaps) for (const g of err.gaps) io.stderr.write(`${plain(g.path)}: ${plain(g.gap)}\n`);
+    io.stdout.write(`merged: not yet: ${plain(String(err.message ?? err)).slice(0, 300)}; your approval stands. When that's fixed: mirai docs merge ${plain(initiative)}\n`);
   }
 }
 

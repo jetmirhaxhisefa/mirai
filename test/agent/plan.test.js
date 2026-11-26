@@ -163,7 +163,9 @@ launchTest('T5: mirai plan moves the ticket, stores and lints the plan, and stop
   const claude = claudeAnswering([{ plan: PLAN }]);
   const r = await plan(f, claude);
   assert.equal(r.outcome, 'waiting', JSON.stringify(r.problems));
-  assert.deepEqual(r.gate, { gate: 'human', required: false, why: ['the supervised preset'] });
+  // Unit 45 (U4, Jet's "A"): PMT-31 is a lone ticket (docs/mirai/tickets/), the quick track, so its
+  // normal-risk plan's gate is auto; it still waits for you until unit 55 can sign it.
+  assert.deepEqual(r.gate, { gate: 'auto', required: false, why: [] });
   assert.equal(readTicketStatus(f.store, 'PMT-31').status.state, 'in-progress');
   assert.equal(readPlan(f.store, 'PMT-31').split('\n---\n')[1], PLAN.split('\n---\n')[1]);
   assert.equal(readLoop(f.store, 'PMT-31').launches, 1);

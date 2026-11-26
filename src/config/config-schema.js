@@ -376,6 +376,16 @@ export const CONFIG_SCHEMA = {
           },
           check: checkTicketTypes,
         },
+        // Unit 45 (decision 2): the documents each track needs approved before the ticket planner
+        // cuts (a document type's name). MIRAI's defaults always count (src/tickets/inputs.js); a
+        // project may only add to them.
+        inputs: {
+          type: 'table',
+          fields: {
+            standard: { type: 'array', items: { type: 'string', pattern: NAME, patternHint: `a document type's name: ${NAME_HINT}` } },
+            full: { type: 'array', items: { type: 'string', pattern: NAME, patternHint: `a document type's name: ${NAME_HINT}` } },
+          },
+        },
       },
     },
     run: {

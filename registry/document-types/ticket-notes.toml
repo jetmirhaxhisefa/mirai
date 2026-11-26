@@ -1,0 +1,38 @@
+# Your notes on a ticket set (unit 45, decision 4; Jet, 2026-11-24). At the set's approval you keep,
+# drop or change each ticket; a change (merge, split, fix) is a note in your words, which MIRAI
+# writes here, at docs/mirai/<initiative>/ticket-notes.md, with the ticket and the date. Nothing is
+# signed while a note is open: the ticket planner's next run takes the notes as an input, Vera checks
+# the new set, and you approve it. Each screen with a change writes the file again (the earlier
+# rounds' notes stay in the journal, as ticket_decision lines). A source, not something you approve.
+kind = "document-type"
+schema_version = 1
+name = "ticket-notes"
+template = "templates/ticket-notes.md"
+template_version = 1
+checklist = "templates/ticket-notes-checklist.md"
+status = "forbidden"
+required_sections = ["Notes"]
+section_order = ["Notes"]
+
+# The epic the notes are on, and the approval round they came from (1 for the first screen).
+[frontmatter.fields.epic]
+type = "string"
+required = true
+
+[frontmatter.fields.round]
+type = "integer"
+required = true
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop.
+
+[[protected_sections]]
+name = "Notes"
+read_by = ["tickets"]
+
+[[protected_fields]]
+name = "epic"
+read_by = ["tickets"]
+
+[[protected_fields]]
+name = "round"
+read_by = ["tickets"]

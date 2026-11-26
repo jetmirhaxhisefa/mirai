@@ -122,9 +122,9 @@ test('31 T5: the template: left as it is, it fails; a type with the summary chec
   // Every document type you approve from its summary has the check: all but tickets and plans
   // (decision 1), so a later type (PRD, HLD …) can't leave it out. Unit 35: an interview isn't
   // approved, so it has none. Unit 36: the context files are approved as whole files (Jet's
-  // decision 1), so they have none either.
+  // decision 1), so they have none either. Unit 45: ticket notes are your own notes, never approved.
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
-    if (['story', 'bug', 'plan', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'investigation'].includes(name)) continue;
+    if (['story', 'bug', 'plan', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'investigation', 'ticket-notes'].includes(name)) continue;
     assert.ok(def.lint_checks?.includes('summary') && def.lint_checks.includes('writing'), `${name} needs the summary and writing checks`);
   }
 });
