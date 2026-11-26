@@ -1,6 +1,6 @@
 # Unit 45b: test results (2026-11-26)
 
-**Waiting for your approval.** The runner is green at `30cf264` (tests, baseline, red team GREEN); P1 and P2 passed. Built on `unit/45b-build` from
+**Approved** (Jet, 2026-11-26: "approve 45b"). The runner is green at `30cf264` (tests, baseline, red team GREEN); P1 and P2 passed. Built on `unit/45b-build` from
 `origin/main` (`37679ea`: 45 merged, its re-checks merged).
 
 ## What was built
