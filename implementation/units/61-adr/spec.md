@@ -179,3 +179,35 @@ Both can run with `--auto` except P1's writing step (your session).
 
 None open: the interview settled Q1–Q5. The build-level choices (the Confirmation forms in
 Scope 4, the index's format, `[adr]` keys) are defaults; the builder records any change.
+
+## Re-checked against 44 as built (merged 2026-11-26, PR #132)
+
+- **The cap finding is a decision, the gate finding is writing** (corrects "Checked against the
+  queued units", 44): an ADR that passes none of the gate's tests is a `writing` must-fix (the fix:
+  make it a line; it refuses approval until fixed); the cap's finding ("this one could be a line")
+  is a `decision` (`Kind: scope`), so 44's gate shows it as "a decision only you can make" and lets
+  you sign, as decision 3 says (nothing refused automatically). T3 also checks that the signed line
+  names it in `vera_open`.
+- **`(open)`:** the ADR lint uses 44's `checkOpenMarks` (`src/lint/open.js`), as the brief and PRD
+  do: an unsettled choice is written `(open)`, warns, and blocks approval.
+- **Publishing:** an ADR lives in `docs/decisions/`, not the initiative's folder, so 44's
+  `publishAfter` (which takes the folder's name) would publish "decisions". The ADR's approval
+  publishes the initiative in its `initiative` field; on the design approval (65) one publish covers
+  the HLD and its ADRs.
+- **The front matter's `status`** conflicts with 44's `pre-commit` and D-06: every type today is
+  `status = "forbidden"` (its state comes from your signed lines, never the file). See question 1.
+- **Signing what's written:** if MIRAI writes `accepted` into the file at approval, the signed hash
+  must be of the bytes with `accepted` in them, or 44's stale-approval warning fires on the next
+  commit. The same for the old ADR it supersedes: both hashes go in the one signed line. A typo or
+  link fix the lint allows (decision 6) is compared with 44's `changedLines` against the approved
+  text, so it doesn't count as a stale approval.
+
+**Question for Jet (from this re-check):**
+
+1. **Where an ADR's status lives.** A: in the file (MADR's `status`), written only by MIRAI at your
+   signature (`accepted`, `rejected`, `superseded`, `deprecated`); `pre-commit` refuses any other
+   change of it, and a person or agent writes only `proposed`; your signed lines stay the truth and
+   the field mirrors them. B: out of the file like every other type; the index `README.md` (MIRAI
+   writes it) shows each status; a project's existing ADRs keep their own lines, read once at
+   import. Recommendation: **A**: ADRs are read outside MIRAI (on GitHub, by other teams, by tools
+   that read MADR), and existing folders like Thudos's already carry the field.
