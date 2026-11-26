@@ -61,7 +61,7 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
         };
         const what = one ? 'the ticket' : 'the set';
         const onStep = (e) => {
-          if (e.kind === 'launch') say(`${who(TESS_AGENT)}: ${e.step} ${what} (round ${e.round}): ${e.outcome === 'ok' ? 'handed over' : e.outcome}`);
+          if (e.kind === 'launch') say(`${who(TESS_AGENT)}: ${e.step === 'notes' ? 'change' : e.step} ${what} (round ${e.round}): ${e.outcome === 'ok' ? 'handed over' : e.outcome}`);
           else if (e.kind === 'render') say(`epic render: ${e.problem ? plain(e.problem) : `${e.changed ? 'rendered' : 'already up to date'} from ${e.tickets} ticket${e.tickets === 1 ? '' : 's'}`}`);
           else if (e.kind === 'lint') say(`lint, ${what}: ${e.errors ? `${e.errors} problem${e.errors === 1 ? '' : 's'}` : 'clean'}${e.trace ? `; trace: ${e.trace === 'pass' ? 'every link there' : `${e.missing} missing link${e.missing === 1 ? '' : 's'}`}` : ''}`);
           else if (e.kind === 'verify') say(`${who(VERIFY_AGENT)}, ${what}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (unchanged since that check)' : ''}`);
@@ -72,7 +72,7 @@ export function createTicketsCommand({ launch = null, verifyLaunch = null } = {}
         });
         progress.stop();
         const s = r.subject;
-        const out = [...tessStateLines(readJournal(s.store).events, initiative, { who })];
+        const out = [...(s.notBuilt ? [`inputs: ${s.notBuilt}`] : []), ...tessStateLines(readJournal(s.store).events, initiative, { who })];
         if (r.commits.length) out.push(`committed on your branch: ${r.commits.map((c) => c.slice(0, 12)).join(', ')} (MIRAI's commit${r.commits.length === 1 ? '' : 's'}, you as author)`);
         const line = (abs, bytes) => documentLine({ store: s.store, config: s.config, conn: s.conn, abs, rel: s.conn.relOf(abs) ?? abs, bytes });
         const interview = fix ? s.interview : readDoc(s, 'interview');

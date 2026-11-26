@@ -1,7 +1,7 @@
 ---
 id: SAMPLE-50
 type: epic
-template: epic@v2
+template: epic@v3
 track: standard
 release: per-ticket
 owner: mirai-ticket-planner
@@ -29,6 +29,7 @@ The tickets build the whole due-dates PRD, and every requirement and acceptance 
 - Assignees can turn reminders off, and people who leave a team get none (SAMPLE-55; FR-3, FR-8).
 - Overdue tasks are marked in the list, and team leads get an overdue page (SAMPLE-56, SAMPLE-57; FR-5, FR-2, NFR-1).
 - Tasks without a date look and sort as they do today (SAMPLE-51; FR-9).
+- Each ticket goes live on its own after its merge (release: per-ticket).
 
 ### Decisions for you
 

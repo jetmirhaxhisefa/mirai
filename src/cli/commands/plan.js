@@ -7,6 +7,7 @@ import { OUTCOME_EXIT } from '../../agent/run.js';
 import { runPlan } from '../../agent/plan.js';
 import { mintLaunchToken } from '../../agent/requests.js';
 import { agentNamer, fullName } from '../../agent/names.js';
+import { QUICK_AUTO } from './approve.js';
 
 // mirai plan <ticket> (unit 21a; design/01 §6). Kai writes the ticket's plan from its inputs on the
 // integration branch; MIRAI stores it, lints it, gives it one fix launch, and stops at your gate.
@@ -44,7 +45,7 @@ export default {
       io.stdout.write(`inputs from ${r.inputs.commit.slice(0, 12)}: ${r.inputs.files.map((f) => f.name).join(', ')}${left.length ? `\n  left out: ${left.map((x) => `${plain(x.path ?? x.id)} (${plain(x.why)})`).join('; ')}` : ''}\n`);
       for (const l of r.launches) io.stdout.write(`launch ${l.id}: ${l.outcome}${l.why ? `: ${plain(l.why)}` : ''}; ${l.line?.turns ?? 0} turns, ${l.line?.minutes ?? 0} min, ${plain(l.line?.model_used ?? l.line?.model ?? '')}\n`);
       if (r.outcome === 'waiting') {
-        io.stdout.write(`\nplan for ${ticket}: passes the lint, and waits at the plan gate (${r.gate.why.map(plain).join('; ')})\n  read it: less ${shellQuote(r.path)}\n  then: mirai approve ${ticket} --plan\n`);
+        io.stdout.write(`\nplan for ${ticket}: passes the lint, and waits at the plan gate (${r.gate.why.length ? r.gate.why.map(plain).join('; ') : QUICK_AUTO})\n  read it: less ${shellQuote(r.path)}\n  then: mirai approve ${ticket} --plan\n`);
       } else {
         io.stdout.write(`\nplan for ${ticket}: ${r.outcome}${r.why ? `: ${plain(r.why)}` : ''}\n`);
         for (const p of r.problems.slice(0, 20)) io.stdout.write(`  line ${p.line}: ${plain(p.reason)}\n`);

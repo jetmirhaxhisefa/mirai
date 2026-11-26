@@ -28,6 +28,8 @@ export function checkInitiative(name) {
 function defaultName(type, initiative) {
   // Unit 41: your requirements list and a business.md proposal sit beside them.
   if (type === 'brief' || type === 'prd' || type === 'interview' || type === 'requirements' || type === 'business-change') return `${type}.md`;
+  // Unit 45: your notes on a ticket set for the ticket planner's next run.
+  if (type === 'ticket-notes') return 'ticket-notes.md';
   if (type === 'epic') return `epic-${initiative}.md`;
   return null;
 }

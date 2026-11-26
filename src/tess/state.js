@@ -35,3 +35,18 @@ export function tessStateLines(events, initiative, { who = (id) => fullName(id),
   if (t.state === 'paused') return [`${name}: paused on the PRD, waiting for your answer to ${l.question_id} in interview.md: ${plain(l.question)} (${record})`];
   return [`${name}: stopped on ${what}: ${plain(l.why ?? 'no reason recorded')} (${record})`];
 }
+
+// Unit 45 (Scope 4): your decisions at the ticket set's approval screens, from the journal: each drop
+// and change with its reason, and the release mode the set was signed with. `mirai show` prints them
+// after her state (design/13 §2, "Ticket decisions").
+export function ticketDecisionLines(events, initiative) {
+  const out = [];
+  const decisions = events.filter((e) => e.type === 'ticket_decision' && e.item === initiative);
+  const WORD = { drop: 'dropped', merge: 'to merge', split: 'to split', change: 'to change' };
+  for (const d of decisions.slice(-20)) out.push(`  your decision, round ${d.round}: ${plain(d.ticket)} ${WORD[d.decision] ?? d.decision}: ${plain(d.reason)}`);
+  if (decisions.length > 20) out.unshift(`  … ${decisions.length - 20} earlier`);
+  const epics = new Set(decisions.map((d) => d.epic));
+  const signed = events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'epic' && e.decision !== 'rejected' && e.release_mode && (epics.has(e.item) || (e.path ?? '').split('/').at(-2) === initiative)).at(-1);
+  if (signed) out.push(`  release: ${signed.release_mode}${signed.release_reason ? ` (you switched it: ${plain(signed.release_reason)})` : ''}, signed with the set (seq ${signed.seq})`);
+  return out.length ? ['ticket decisions:', ...out] : [];
+}

@@ -25,7 +25,7 @@ import { CONTEXT_DIR, CONTEXT_KINDS, contextKindOf } from '../../lint/context.js
 import { hostWords, projectWords } from '../../ship/words.js';
 import { agentNamer } from '../../agent/names.js';
 import { noraStateLines, waitingLine } from '../../nora/state.js';
-import { tessStateLines } from '../../tess/state.js';
+import { tessStateLines, ticketDecisionLines } from '../../tess/state.js';
 import { traceInitiative } from '../../trace/initiative.js';
 import { readyLines } from '../../tickets/pick.js';
 import { readRunState } from '../../store/run.js';
@@ -127,7 +127,7 @@ function initiativeOf({ cwd, env, name }) {
       // no interview, or not a file: nothing waits
     }
     // Unit 42 (Scope 2, 5, 9): the ticket planner's state, and the ready tickets in the run's pick order.
-    nora.push(...tessStateLines(events, name, { who: agentNamer(), runState }), ...readyLines({ store, dir, base: conn.base, events }));
+    nora.push(...tessStateLines(events, name, { who: agentNamer(), runState }), ...ticketDecisionLines(events, name), ...readyLines({ store, dir, base: conn.base, events }));
     docs = documentRows({ store, conn, initiative: name }).map((d) => {
       let bytes = null;
       try {

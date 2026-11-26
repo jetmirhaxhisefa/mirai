@@ -227,6 +227,8 @@ Unit 42 ([tickets.md](tickets.md)). Team policy: the project file only.
 
 | Key | Who may set it | Default | What it does |
 |---|---|---|---|
+| `tickets.inputs.standard` | project | MIRAI's list | The document types the `standard` track needs approved before Tess cuts the set (unit 45). MIRAI's list always counts: the PRD and the technical note (`tech-note`); a type MIRAI doesn't have yet is skipped with a warning naming its unit. A project may only add types, such as `["requirements"]`. |
+| `tickets.inputs.full` | project | MIRAI's list | The same for the `full` track: MIRAI's list is the PRD, the HLD, the ADRs and the LLD; a project may only add types. |
 | `tickets.key_prefix` | project | none | The ticket keys' prefix (`PROJ` in `PROJ-12`): capital letters and digits, up to 10. Tess numbers new tickets on from the highest key with it; with none set, she doesn't start, and says so. |
 | `tickets.types[].name` | project | none | One `[[tickets.types]]` entry per type; with none, MIRAI's three (Story, Bug, Investigation). The type's name, as your tracker calls it (`Task`, `Spike`, `Tech Debt`); required, unique. A ticket names it in `ticket_type`. |
 | `tickets.types[].description` | project | none | What the type is for and when to use it; required: Tess reads it to choose a ticket's type. |

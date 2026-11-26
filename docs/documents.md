@@ -28,6 +28,7 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
 | `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
+| `ticket-notes` | your notes from a ticket set's approval screen: each ticket to merge, split or change, in your words; MIRAI writes it, Tess's next run reads it; never approved | `docs/mirai/<initiative>/ticket-notes.md` | [tickets.md](tickets.md), "From approved documents to an approved set" |
 | `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |
 | `bug` | a ticket: what's wrong, how to reproduce it, and how the fix is proven | `docs/mirai/<initiative>/tickets/<key>.md` | [tdd.md](tdd.md) for its red test |
 | `investigation` | a ticket that answers one question with research and a written finding, no code merge; its run is unit 42b, and until then MIRAI doesn't start one | `docs/mirai/<initiative>/tickets/<key>.md` | [tickets.md](tickets.md) |
@@ -886,4 +887,7 @@ due-dates   standard
   prd.md              prd                due-dates-prd     approved                 /Users/…/docs/mirai/due-dates/prd.md
 ```
 
-The inbox screen for the set and the docs MR merge come with units 45 and 38.
+Before you decide, the screen shows the release mode and one line per ticket, and you can go
+through the tickets: keep, drop or change each one, and keep or switch the release mode. After
+your signature MIRAI publishes the initiative and merges its docs MR. See [tickets.md](tickets.md),
+"From approved documents to an approved set" (unit 45). The inbox comes with unit 46.

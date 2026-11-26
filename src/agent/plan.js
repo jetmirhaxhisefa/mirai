@@ -21,6 +21,7 @@ import { verifyPlanApproval } from '../lint/frozen.js';
 import { branchKeys } from '../sign/keys.js';
 import { atomicWrite, ensurePrivateDir } from '../store/files.js';
 import { readJournal } from '../store/journal.js';
+import { isQuickTicket } from '../tickets/quick.js';
 import { contentHash } from '../sign/sign.js';
 import { sameKey, tableIn } from '../lint/checks.js';
 import { renderNotes, reviewNotes } from './review-notes.js';
@@ -161,7 +162,8 @@ export function withFrontmatter(text, fields) {
 // preset for a high-risk ticket or a plan that declares protected paths or new dependencies.
 // { gate: 'human' | 'auto', required, why }. Nothing approves automatically before unit 28: an
 // `auto` gate still waits for you meanwhile.
-export function gateFor({ preset, text }) {
+// Unit 45 (Scope 6; U4): `quick`, a lone ticket on the quick track: the preset's gate is `auto`.
+export function gateFor({ preset, text, quick = false }) {
   const required = [];
   let risk = null;
   try {
@@ -175,7 +177,7 @@ export function gateFor({ preset, text }) {
   if (rows.some((r) => DEPENDENCY_KINDS.includes(r.kind))) required.push(`it declares new dependencies (${rows.filter((r) => DEPENDENCY_KINDS.includes(r.kind)).map((r) => r.item).join(', ').slice(0, 300)}), which MIRAI installs once you approve`);
   // Unit 23 (decision 2): changing an existing test is always yours to see.
   if (rows.some((r) => r.kind === 'test-change')) required.push('it changes existing tests');
-  const byPreset = PRESETS[preset]?.plan ?? 'human';
+  const byPreset = quick ? 'auto' : PRESETS[preset]?.plan ?? 'human';
   const why = [...(byPreset === 'human' ? [`the ${preset} preset`] : []), ...required];
   return { gate: why.length ? 'human' : 'auto', required: required.length > 0, why };
 }
@@ -372,7 +374,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         if (!problems) {
           toInProgress();
           result.outcome = 'waiting';
-          result.gate = gateFor({ preset: config.preset, text });
+          result.gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai') });
           endState = 'finished';
           return result;
         }

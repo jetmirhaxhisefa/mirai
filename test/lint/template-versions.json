@@ -17,7 +17,8 @@
   },
   "epic": {
     "1": "sha256:21d71c598c17289de1b69e1990c6973a2e6143acf4c4a4b18ddb76dde0b1909d",
-    "2": "sha256:675c1b49f211369fbb24d41af96c2cea4d603bdc4f59aadeb86400ff73380b03"
+    "2": "sha256:675c1b49f211369fbb24d41af96c2cea4d603bdc4f59aadeb86400ff73380b03",
+    "3": "sha256:5e1be5083018fbfb392e45506d870dba5e4c19ec31f09a121dbfd5d6fc3021cf"
   },
   "feature-map": {
     "1": "sha256:354cd312b2b150d7837ec0283ff39a4043ece0dbed96a30e14103c4e55bcbee4"
@@ -47,5 +48,8 @@
   "story": {
     "1": "sha256:bf226d89b060f21c781e8ab233dea08bd6b2ee85b95935e13707ff79e00aee2b",
     "2": "sha256:5bc70d0dcb432b765a348e8e82a12b7234054b8116a3e6172016f299121cdc26"
+  },
+  "ticket-notes": {
+    "1": "sha256:07043bd879cadcac48f2e8fcea91d857f19745b2a48484e437550479c9f6e887"
   }
 }

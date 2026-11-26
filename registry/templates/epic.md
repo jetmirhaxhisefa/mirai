@@ -1,7 +1,7 @@
 ---
 id: PMT-10
 type: epic
-template: epic@v2
+template: epic@v3
 track: standard
 release: per-ticket
 owner: mirai-ticket-planner
@@ -59,9 +59,10 @@ What the tickets build together, and why they come in this order.
 
 ### What changes
 
-<!-- done when: three to seven bullets group the tickets by what they deliver; each ends with its ticket keys and FRs in brackets, for example (PMT-11, PMT-12; FR-4, FR-7); failures and unchanged behaviour the approver would worry about are named -->
+<!-- done when: three to seven bullets group the tickets by what they deliver; each ends with its ticket keys and FRs in brackets, for example (PMT-11, PMT-12; FR-4, FR-7); failures and unchanged behaviour the approver would worry about are named; the last bullet names the release mode in one line (unit 45) -->
 - What a user can do once these tickets are merged (PMT-11; FR-1)
 - What the system does by itself, and what happens when it fails (PMT-12, PMT-13; FR-2, FR-3)
+- How it goes live: each ticket on its own after its merge (release: per-ticket)
 
 ### Decisions for you
 
