@@ -209,3 +209,32 @@ change.
   source ("verify: deep from your personal file").
 - **The reader test** runs on the `reader-test` step (standard by default), settable the same way.
 - **Nothing else changes:** no new step; Arlo's HLD (64) is the `design` step, kept deep (D-14).
+
+## Re-checked against 61 as built (merged 2026-11-26, PR #140)
+
+- **Where ADRs are, and the link:** ADRs live in the project's `[adr] folder` (default
+  `docs/decisions`, numbered by `[adr] numbering`), read with `listAdrs`/`adrSettings`
+  (`src/adr/adr.js`). A `D-n` line links the ADR file itself (from `docs/mirai/<initiative>/` that is
+  `../../decisions/ADR-0001-<slug>.md`), never the index (`README.md`, or `index.md` when the
+  folder's README is the project's own). The lint resolves it and checks it is an ADR of the folder
+  that is `accepted`, or `proposed` and signed on the same approval; a link to a rejected,
+  superseded or deprecated ADR is refused, naming the one that replaced it.
+- **Signing the ADRs it proposes, on the same screen** (61's decision 6): 61 built the ADR's approval
+  on its own (`src/cli/commands/approve-adr.js`): MIRAI writes `status: accepted` (or `rejected` with
+  your reason) into the file, signs those bytes, marks an ADR it supersedes in the same line
+  (`files`), keeps the signed text (`keepSignedCopy`) and renders the index. This unit's approval
+  reuses that core, factored out of `approveAdr`, so one screen signs the document and one line per
+  ADR it proposes; it doesn't copy it.
+- **The cap:** Vera's ADR check already gets `adrs.md` (the initiative's ADRs and its track). Her check
+  of this type gets the same file, so "too many ADRs" is seen from the design document too.
+- **The docs MR:** 61's merge carries the initiative's ADRs (with any they superseded and the index)
+  and checks each against your signed line; this type still has to join `approvalGaps`
+  (`src/store/connectors/state.js`), as the earlier notes say.
+- **Agents:** 61 gives Kai, Rex and Tess the ADR index and the accepted ADRs that touch the work, and
+  Kai's `ADR-CONFLICT` stop parks the ticket `adr-conflict`. A departure from one of this document's
+  `D-n` lines (not an ADR) is this unit's own check, as its spec says.
+- **On `full`, the ADRs are an input of their own** (61's `adrInputState`): Tess waits while one of
+  the initiative's ADRs is still proposed. Approving the HLD with its proposed ADRs on one screen
+  clears both.
+- **The trace table's Decision column** reads the same `D-n` or ADR link; trace's ADR Confirmation
+  links (61) are separate and stay as built.

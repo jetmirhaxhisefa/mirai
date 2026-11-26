@@ -175,3 +175,32 @@ short technical note before its tickets.
   (`tech-note`, standard) to `STEPS` and `STEP_DEFAULTS` (`src/config/defaults.js`) and to
   `docs/model-tiers.md`; `mirai models` then lists it, and `models.steps.tech-note` is settable in
   the project and your personal file with no other change (45b's allowlist is `models.steps.*`).
+
+## Re-checked against 61 as built (merged 2026-11-26, PR #140)
+
+- **Where ADRs are, and the link:** ADRs live in the project's `[adr] folder` (default
+  `docs/decisions`, numbered by `[adr] numbering`), read with `listAdrs`/`adrSettings`
+  (`src/adr/adr.js`). A `D-n` line links the ADR file itself (from `docs/mirai/<initiative>/` that is
+  `../../decisions/ADR-0001-<slug>.md`), never the index (`README.md`, or `index.md` when the
+  folder's README is the project's own). The lint resolves it and checks it is an ADR of the folder
+  that is `accepted`, or `proposed` and signed on the same approval; a link to a rejected,
+  superseded or deprecated ADR is refused, naming the one that replaced it.
+- **Signing the ADRs it proposes, on the same screen** (61's decision 6): 61 built the ADR's approval
+  on its own (`src/cli/commands/approve-adr.js`): MIRAI writes `status: accepted` (or `rejected` with
+  your reason) into the file, signs those bytes, marks an ADR it supersedes in the same line
+  (`files`), keeps the signed text (`keepSignedCopy`) and renders the index. This unit's approval
+  reuses that core, factored out of `approveAdr`, so one screen signs the document and one line per
+  ADR it proposes; it doesn't copy it.
+- **The cap:** Vera's ADR check already gets `adrs.md` (the initiative's ADRs and its track). Her check
+  of this type gets the same file, so "too many ADRs" is seen from the design document too.
+- **The docs MR:** 61's merge carries the initiative's ADRs (with any they superseded and the index)
+  and checks each against your signed line; this type still has to join `approvalGaps`
+  (`src/store/connectors/state.js`), as the earlier notes say.
+- **Agents:** 61 gives Kai, Rex and Tess the ADR index and the accepted ADRs that touch the work, and
+  Kai's `ADR-CONFLICT` stop parks the ticket `adr-conflict`. A departure from one of this document's
+  `D-n` lines (not an ADR) is this unit's own check, as its spec says.
+- **"ADR pending (61)" is gone:** 61 exists, so a decision that passes the ADR test is an ADR (`mirai
+  adr new <slug> --initiative <name>`), never a line marked pending. Drop that marker from Scope.
+- **On `standard`, the ADRs aren't a separate input:** 61's ticket-planner input for ADRs is on
+  `full`'s list only (`[tickets.inputs]`). On `standard` the note's approval signs the ADRs it links,
+  so an approved note means its ADRs are decided.
