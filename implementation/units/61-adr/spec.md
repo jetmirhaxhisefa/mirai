@@ -194,17 +194,20 @@ Scope 4, the index's format, `[adr]` keys) are defaults; the builder records any
   `publishAfter` (which takes the folder's name) would publish "decisions". The ADR's approval
   publishes the initiative in its `initiative` field; on the design approval (65) one publish covers
   the HLD and its ADRs.
-- **The front matter's `status`** conflicts with 44's `pre-commit` and D-06: every type today is
-  `status = "forbidden"` (its state comes from your signed lines, never the file). See question 1.
+- **The front matter's `status`** conflicted with 44's `pre-commit` and D-06 (every type today is
+  `status = "forbidden"`). Jet's answer A: the ADR keeps it, written only by MIRAI at your
+  signature; your signed lines stay the truth and the field mirrors them.
 - **Signing what's written:** if MIRAI writes `accepted` into the file at approval, the signed hash
   must be of the bytes with `accepted` in them, or 44's stale-approval warning fires on the next
   commit. The same for the old ADR it supersedes: both hashes go in the one signed line. A typo or
   link fix the lint allows (decision 6) is compared with 44's `changedLines` against the approved
   text, so it doesn't count as a stale approval.
 
-**Question for Jet (from this re-check):**
+**Question for Jet (from this re-check; answered 2026-11-26, "A"):**
 
-1. **Where an ADR's status lives.** A: in the file (MADR's `status`), written only by MIRAI at your
+1. **Where an ADR's status lives** (answered **A**: in the file, written only by MIRAI at your
+   signature; the type is the one exception to `status = "forbidden"`, and `pre-commit` refuses
+   any change of it but `proposed`; add a test for that refusal). A: in the file (MADR's `status`), written only by MIRAI at your
    signature (`accepted`, `rejected`, `superseded`, `deprecated`); `pre-commit` refuses any other
    change of it, and a person or agent writes only `proposed`; your signed lines stay the truth and
    the field mirrors them. B: out of the file like every other type; the index `README.md` (MIRAI
