@@ -702,3 +702,17 @@ test('44 probes: P2\'s rules are checked from the home (a seed left in, a decisi
   const kept = probes.keepEvidence(home, 'p2', join(workdir, 'evidence'));
   for (const f of ['interview.md', 'brief.md', 'prd.md', 'docs.diff', 'journal.jsonl']) assert.ok(existsSync(join(kept, f)), f);
 });
+
+test('44 T7b: too many counts every question asked on the version, answered or not (Jet, 2026-11-26, Q1 "A"): after 5 answered, the 6th decision makes MIRAI ask "reopen the brief interview?"', async () => {
+  const f = fixture({ config: '\n[docs]\nmax_decision_questions = 5\n' });
+  changeBooks(f.store, 'own-due-dates-prd', 1, (b) => {
+    for (let n = 4; n <= 8; n += 1) b.asked.push({ fingerprint: `fp-${String(n).padStart(16, '0')}`, finding_id: `V-${n}`, quote: 'q', kind: 'decision', decision_type: 'scope', question_id: `Q-${n}`, round: 1, source: 'verifier' });
+    b.answered.push('Q-4', 'Q-5', 'Q-6', 'Q-7', 'Q-8');
+    return b;
+  });
+  const one = [finding({ id: 'D9', kind: 'decision', decision_type: 'scope', kind_reason: 'scope', where: { quote: 'A task\'s owner can set, change or remove its due date.' }, what: 'A sixth decision.' })];
+  const r = await nora(f, () => assert.fail('no launch: MIRAI asks the one question itself'), fakeVera(() => one));
+  assert.equal(r.r.state, 'paused', r.r.why);
+  assert.match(get(f, `${D}/interview.md`), /Reopen the brief interview\?\n\nKind: reopen[\s\S]*found 6 decisions only you can make, more than 5 on one version/);
+  assert.deepEqual(journal(f, 'decision_question').map((e) => [e.decision_type, e.source]), [['reopen', 'too-many']]);
+});

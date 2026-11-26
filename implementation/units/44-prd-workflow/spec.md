@@ -219,10 +219,12 @@ existing ledger.
      After your answers, one **answer run** applies them (counted in `answer_runs`, not a round),
      Vera checks once more, and the document goes to approval, with "Vera: N findings open" if
      any are left;
-   - **too many:** when the open decision questions on one document version would pass
+   - **too many:** when the decision questions asked on one document version would pass
      `[docs] max_decision_questions` (default 5, range 1–20, project file), Nora asks one
      question instead: "reopen the brief interview (35)" or "go on with the N questions". Your
-     choice is recorded;
+     choice is recorded. *(changed: Jet, 2026-11-26, 44's P2 rerun, Q1 "A"):* every question
+     asked on the version counts, answered or not; counting only the open ones let 11 questions
+     arrive one or two per round without the cap ever firing;
    - **the journal:** a `decision-question` event per question (document, version, round,
      `decision_type`, finding fingerprint) and a `decision-answer` event per answer (answer
      type). These feed design/13's log row.
@@ -295,6 +297,8 @@ existing ledger.
 - **T7 Too many:** with `max_decision_questions = 5`, a sixth decision makes Nora ask the one
   "reopen the brief interview" question; both choices are recorded. Out of range, or set in a
   personal file, is refused.
+  **T7b** *(Q1 "A", 2026-11-26)*: after 5 answered questions on the version, a sixth decision makes
+  MIRAI ask the same question.
 - **T8 Rounds out:** with F1 still open after 2 rounds, Nora's questions go to `interview.md`;
   after the answers, one answer run (not a round) and one more Vera check, then approval shows
   what's left.

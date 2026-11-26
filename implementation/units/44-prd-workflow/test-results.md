@@ -286,6 +286,35 @@ are measured). Two of them were caused by Nora's own fixes: Q-10 came from her r
 and Q-13 from an assumption she added. Kept: `~/mirai-probe-evidence/p2-2026-11-26T01-55-52-693Z/`
 and the home `~/.mirai-probes-xyo5bG` (delete it once read).
 
+**Jet's Q1 "A" (2026-11-26): the cap counts every question asked on the version.** Built:
+`askedOn` (`src/loop/docs.js`) replaces `openAsked`, and the route step counts every decision
+question asked on the version, answered or not (`src/nora/run.js`). New test **T7b**: after 5
+answered questions, a sixth decision makes MIRAI ask "reopen the brief interview?". It would fail
+under the old rule. The spec (the "too many" step, T7b), `docs/config.md` and `docs/documents.md`
+say so. P2's probe answers "reopen?" with "go on", because an unattended run can't hold an
+interview, and it allows 14 of Nora's runs. `p2Check` adds the rule "more than 5 → exactly one
+reopen question". Neither file is in the red team's cage (checked with `cageOf`). Tests: 44's four
+document files 92/92, `test/docs`, `test/config` and `test/loop` 58/58.
+
+**P2 rerun 2 (with Q1 "A"): her run ended done, and 2 rules failed.** The run took about 25 min.
+There were 10 pauses: 9 decisions, and **Q-11 "reopen the brief interview?" fired once, at the
+6th**. Both documents ended at 0 must-fix, and the reader test passed.
+
+| Rule | Result |
+|---|---|
+| 3 writing seeds fixed, none asked | **pass** |
+| The cap (Q1 "A") | **pass:** Q-11 reopen, once, answered "go on" |
+| The calendar export (`scope`) | **pass:** Q-7 scope |
+| The 365-day limit (`number`) | asked as **`invented`** (Q-6), the same as in rerun 1 |
+| The EU/US market (`audience`) | **never asked.** Vera graded it as a *writing* finding ("the glossary's date format"), and Nora's fix round replaced it with a format no source gives ("Due 15 Jan 2027 … for every person", commit "the PRD, round 2"). In rerun 1 it was asked, but as `other` |
+| "Vera is wrong" | not exercised (Vera read NG-1 again) |
+| NFR-2 | **pass:** Q-8 (`number`), answered "within 1 second … 500 tasks (interview Q-8)" |
+
+Two things in the probe were fixed after this run. The `audience` mark matched "EU under GDPR" in
+Q-13, and now needs "the US", "EU and the US", "date format" or "market". The evidence diff now
+starts at the probe's setup commit. Kept: `~/mirai-probe-evidence/p2-2026-11-26T07-16-06-303Z/`
+and the home `~/.mirai-probes-mzHpsw`.
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`), so `u44-baseline-1` and `u44-redteam-1`

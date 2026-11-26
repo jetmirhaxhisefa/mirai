@@ -128,4 +128,6 @@ export const maxDecisionQuestions = (config) => (Number.isInteger(config?.docs?.
 export const pinnedCycle = (books, runId) => Boolean(books.rounds_out?.asked && (books.rounds_out.pinned_run ?? runId) === runId);
 
 // The decision questions still waiting for an answer on this version.
-export const openAsked = (books) => books.asked.filter((a) => !books.answered.includes(a.question_id ?? '') && a.kind !== 'reopen');
+// Every decision question asked on this version, answered or not (Jet, 2026-11-26, 44's P2 rerun, Q1
+// "A"): the cap counts these, so a drip of one or two per round still reaches "reopen?".
+export const askedOn = (books) => books.asked.filter((a) => a.kind !== 'reopen' && a.source !== 'too-many');

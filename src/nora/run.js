@@ -27,7 +27,7 @@ import { effectiveRegistry } from '../trust/overlays.js';
 import { fixRounds, verifyOn } from '../verify/gate.js';
 import { normal } from '../verify/findings.js';
 import { readVerifyResults } from '../store/verify-results.js';
-import { addCost, changeBooks, countCheck, freshBooks, maxDecisionQuestions, openAsked, pinnedCycle, readBooks, versionOf } from '../loop/docs.js';
+import { addCost, changeBooks, countCheck, freshBooks, askedOn, maxDecisionQuestions, pinnedCycle, readBooks, versionOf } from '../loop/docs.js';
 import { inventedDecisions, routedHandoff, routeFindings } from '../docs/route.js';
 import { approvedText, changedLines } from '../util/line-diff.js';
 import { runVerify } from '../verify/run.js';
@@ -402,9 +402,10 @@ function doneWith(ctx, type, c) {
   return { state: 'done' };
 }
 
-// Unit 44 (decision 6): past [docs] max_decision_questions open on one version, MIRAI asks one
-// question instead: reopen the brief's interview (35), or go on with them. It writes the question
-// into interview.md itself (paused), commits it as her documents are, and ends the run paused.
+// Unit 44 (decision 6): past [docs] max_decision_questions asked on one version (answered or not;
+// Jet, 2026-11-26, Q1 "A"), MIRAI asks one question instead: reopen the brief's interview (35), or
+// go on with them. It writes the question into interview.md itself (paused), commits it as her
+// documents are, and ends the run paused.
 function askReopen(ctx, type, key, count) {
   const { s } = ctx;
   const i = readDoc(s, 'interview');
@@ -628,7 +629,7 @@ async function route(ctx, type, c) {
   const books = booksOf(ctx, c.key);
   const known = new Set(books.asked.map((a) => a.fingerprint));
   const fresh = c.routed.ask.filter((f) => !known.has(f.fingerprint));
-  const waiting = openAsked(books).length;
+  const waiting = askedOn(books).length;
   const max = maxDecisionQuestions(ctx.s.config);
   if (books.too_many?.choice !== 'go-on' && !books.too_many?.question_id && waiting + fresh.length > max) return { end: askReopen(ctx, type, c.key, waiting + fresh.length) };
   withBooks(ctx, c.key, (b) => {

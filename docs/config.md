@@ -205,7 +205,7 @@ A whole list (an array) is replaced, never merged.
 | `docs.root` | project | `"docs/mirai"` | The repo folder that holds MIRAI's documents; the default `gate.code_paths` leaves it out. |
 | `docs.store` | project | `"repo"` | Where the project's documents are kept: `"repo"` (under `docs.root`, reaching the integration branch through one docs merge request per initiative) or `"local"` (MIRAI's store on this Mac, never committed; teammates can't see them). Changing it once the store has documents is refused (`docs/stores.md`). |
 | `docs.reader_test` | project | `true` | `false` turns off the reader test before you approve a document from its summary, for a project with no subscription to spare. |
-| `docs.max_decision_questions` | project | `5` | Past this many decision questions open on one version of a brief or PRD, MIRAI asks one question instead: reopen the brief interview, or go on with them (1–20; unit 44). |
+| `docs.max_decision_questions` | project | `5` | Past this many decision questions asked on one version (answered or not) of a brief or PRD, MIRAI asks one question instead: reopen the brief interview, or go on with them (1–20; unit 44). |
 | `docs.reader_fix_rounds` | project | `2` | The author's fix rounds after a failed reader test (0–5); after the last, the document reaches you marked (unit 40). |
 | `docs.verify` | project | `true` | `false` turns off Vera's check before you approve a brief, a PRD, an epic or a context file; every approval then says so (unit 40). |
 | `docs.verify_fix_rounds` | project | `2` | The author's fix rounds after Vera's first check (0–5); after the last, open must-fix findings reach you as "Vera: N findings open" (unit 40). |

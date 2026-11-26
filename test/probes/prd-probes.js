@@ -295,8 +295,11 @@ export async function autoApproveHere(home, log = () => {}) {
 export async function runProbe(home, key, { log, launches = {} }) {
   const p = PROBES[key];
   if (p.lookahead || key === 'p1') await lookAhead(home, { log, ...(launches.lookahead ? { launch: launches.lookahead } : {}) });
-  const choose = key === 'p2' ? (q) => (/reminder/i.test(`${q.finding?.text ?? ''} ${questionText(home, q)}`) ? q.options.find((o) => /\bis wrong\b/i.test(o.text))?.letter : undefined) : () => undefined;
-  const { end, pauses } = await noraLoop(home, { log, choose, ...launches.nora });
+  // P2: the seeded wrong finding is answered "the verifier is wrong"; "reopen the brief interview?"
+  // is answered "go on" (an unattended run can't hold an interview), so the cap is seen firing once
+  // and the routing is still checked to the end.
+  const choose = key === 'p2' ? (q) => (q.kind?.text === 'reopen' ? q.options.find((o) => /\bgo on\b/i.test(o.text))?.letter : /reminder/i.test(`${q.finding?.text ?? ''} ${questionText(home, q)}`) ? q.options.find((o) => /\bis wrong\b/i.test(o.text))?.letter : undefined) : () => undefined;
+  const { end, pauses } = await noraLoop(home, { log, choose, ...(key === 'p2' ? { maxRuns: 14 } : {}), ...launches.nora });
   const s = summary(home, { pauses, label: key });
   for (const l of s.lines) log(l);
   if (end.state !== 'done') return { pass: false, why: `her run ended ${end.state}${end.why ? `: ${end.why}` : ''}`, summary: s };
@@ -323,7 +326,7 @@ export async function runProbe(home, key, { log, launches = {} }) {
 // was asked" and deleted the home, so the rules "for your eyes" couldn't be seen). Each decision
 // seed is found by a mark in its question or finding; the PRD must no longer hold a writing seed's
 // wording; NFR-2 may hold only numbers the interview gives.
-export const P2_MARKS = Object.freeze({ audience: /\bUS\b|United States|\bEU\b|market|date format/i, number: /\b365\b/, scope: /calendar|export|\.ics\b/i });
+export const P2_MARKS = Object.freeze({ audience: /\bthe US\b|United States|EU and the US|date format|\bmarkets?\b/i, number: /\b365\b/, scope: /calendar|export|\.ics\b/i });
 export function p2Check(home, log = () => {}) {
   const prd = readFileSync(join(home.root, D, 'prd.md'), 'utf8');
   const itext = readFileSync(join(home.root, D, 'interview.md'), 'utf8');
@@ -351,6 +354,11 @@ export function p2Check(home, log = () => {}) {
   else if (!wrong.some(saidWrong)) problems.push(`the reminders finding was raised (${wrong.map((q) => q.id).join(', ')}) but not answered "the verifier is wrong"`);
   else if (wrong.length > 1) problems.push(`the reminders finding came back after "the verifier is wrong": ${wrong.map((q) => q.id).join(', ')}`);
   else log(`p2: the seeded wrong finding raised once and dismissed: ${wrong[0].id}`);
+  const events = readJournal(openStore({ cwd: home.root, env: home.env })).events.filter((e) => e.type === 'decision_question');
+  const reopen = events.filter((e) => e.source === 'too-many');
+  const decisions = events.filter((e) => e.source !== 'too-many' && e.item === 'own-due-dates-prd');
+  if (decisions.length > 5 && reopen.length !== 1) problems.push(`${decisions.length} decision questions on the PRD and ${reopen.length} "reopen the brief interview?" question(s), not 1 (the cap counts every question asked, Q1 "A")`);
+  else if (reopen.length) log(`p2: the cap fired once: ${reopen[0].question_id} "reopen the brief interview?", answered "go on" by the probe`);
   const lines = prd.split('\n');
   const at = lines.findIndex((l) => /^- NFR-2:/.test(l));
   if (at < 0) problems.push('NFR-2 is gone from the PRD (retire it, don\'t delete it)');
@@ -371,7 +379,8 @@ export function keepEvidence(home, key, dir) {
   const out = join(dir, `${key}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
   mkdirSync(out, { recursive: true });
   for (const f of ['interview.md', 'brief.md', 'prd.md']) if (existsSync(join(home.root, D, f))) cpSync(join(home.root, D, f), join(out, f));
-  const first = git(home, 'rev-list', '--max-parents=0', 'HEAD').stdout.trim();
+  // From the commit that set up the probe's documents (the seeded PRD, or the interview alone).
+  const first = git(home, 'log', '--format=%H', '-1', '--grep=^probe: the sample app').stdout.trim() || git(home, 'rev-list', '--max-parents=0', 'HEAD').stdout.trim();
   writeFileSync(join(out, 'docs.diff'), git(home, 'diff', first, 'HEAD', '--', D).stdout);
   writeFileSync(join(out, 'journal.jsonl'), `${readJournal(openStore({ cwd: home.root, env: home.env })).events.map((e) => JSON.stringify(e)).join('\n')}\n`);
   return out;

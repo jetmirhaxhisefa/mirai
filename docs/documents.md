@@ -335,8 +335,9 @@ for this version of the document, matched by its quote and its wording, and not 
 accept it"** (it moves to the document's Open questions, "Accepted open (<you>, <date>)", and the
 text points to that `Q-n`). The session writes the `Answer type:` under your answer.
 
-**Too many.** With more than `[docs] max_decision_questions` (default 5) decisions on one version,
-MIRAI asks one question instead: reopen the brief interview, or go on with them one by one.
+**Too many.** With more than `[docs] max_decision_questions` (default 5) decisions asked on one
+version, answered or not, MIRAI asks one question instead: reopen the brief interview, or go on
+with them one by one. Questions that come one or two per round count too.
 
 **The rounds-out step.** When the rounds are used and writing findings are still open, Nora sorts
 them: what only you can decide becomes a question (as above), the rest stays as Vera's open
