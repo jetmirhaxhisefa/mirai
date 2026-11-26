@@ -100,3 +100,5 @@ Not opened directly: arc42.org's 9.0 release notes; Structurizr's docs.
   other ID; components exist in the components table; ADR links resolve (accepted, or proposed on
   the same approval); `deferred: <reason>` allowed. Quality goals as scenarios, each citing an
   NFR-n and with a number (the lint); Vera judges whether it tests the goal and the design meets it.
+- **Q4 Length: "A".** The summary keeps 600 words (fails above); the whole HLD gets 4,000 words
+  (`hld_words`, warns above: "move per-epic detail into an LLD, unit 63"); both project settings.
