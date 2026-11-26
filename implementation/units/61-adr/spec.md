@@ -225,11 +225,14 @@ Scope 4, the index's format, `[adr]` keys) are defaults; the builder records any
 - **An approved type, the offer:** as 62b's and 62's notes say (`DOCUMENTS`, the journal's `kind`,
   `tessOffer` after the approval).
 - **The docs merge carries one folder** (the initiative's, 38's "documents only"; `outsideFolder`
-  refuses anything else), and ADRs live in `docs/decisions/`. See question 1.
+  refuses anything else), and ADRs live in `docs/decisions/`. Jet's "A": the initiative's docs MR
+  carries its ADRs too (question 1).
 
-**Question for Jet (from this re-check):**
+**Question for Jet (from this re-check; answered 2026-11-26, "A"):**
 
-1. **How an initiative's ADRs reach `main`.** A: the initiative's docs MR also carries the ADRs it
+1. **How an initiative's ADRs reach `main`** (answered **A**: the initiative's docs MR also carries
+   the ADRs it proposes, each checked at the merge against your signed approval; 38's folder rule
+   gains the ADR folder for those files only; documents only still). A: the initiative's docs MR also carries the ADRs it
    proposes (their files in the ADR folder, each with your signed approval checked at the merge, as
    the initiative's documents are); still documents only. B: each ADR approval opens its own small
    docs MR for the ADR folder, merged at once. C: ADRs go with the code MR of the ticket that
