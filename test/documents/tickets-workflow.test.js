@@ -310,3 +310,47 @@ test('45 T7: the quick track: a lone ticket\'s plan gate is auto for normal risk
   assert.equal(gateFor({ preset: 'supervised', text: plan('high'), quick: true }).gate, 'human');
   assert.equal(gateFor({ preset: 'supervised', text: plan('normal') }).gate, 'human');
 });
+
+// ---- The probe's own flow, with stand-ins (no model) -----------------------------------------------
+
+test('45 probes: P1\'s flow runs end to end with stand-in agents: the offer, her run, the screen (drop and split), her notes run, the signature, the merge, mirai show', async () => {
+  const { mkdtempSync: mk, realpathSync: rp } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { p1 } = await import('../probes/tickets-probes.js');
+  const { tessHome } = await import('../probes/tess-probes.js');
+  const { FAKE_CLAUDE, fakeReader } = await import('../helpers/reader.js');
+  const workdir = rp(mk(join(tmpdir(), 'mirai-u45-p1-')));
+  const home = { ...(await tessHome({ workdir, key: 'p1', c: { initiative: 'due-dates' }, claude: null, token: FAKE_TOKEN })), workdir, home: join(workdir, 'home') };
+  const t52 = TICKETS['tickets/SAMPLE-52.md'];
+  const t58 = t52.replaceAll('SAMPLE-52', 'SAMPLE-58').replace(/^order: \d+$/m, 'order: 8').replace(/^# .*$/m, '# A due date in the past is refused, again');
+  const steps = [];
+  const launch = async (o) => {
+    const step = JSON.parse(o.inputs['index.json']).tess.step;
+    steps.push(step);
+    if (step === 'write') {
+      const put = (rel, text) => {
+        mkdirSync(join(home.root, D, rel, '..'), { recursive: true });
+        writeFileSync(join(home.root, D, rel), text);
+      };
+      put('epic-due-dates.md', EPIC);
+      for (const [p, t] of Object.entries(TICKETS)) put(p, t);
+      put('tickets/SAMPLE-58.md', t58);
+    }
+    return { outcome: 'ok', why: null, launchId: `2026112612000${steps.length}-0123abcd`, structured: { outcome: 'written', summary: 'The set.', template_gaps: [], documents: [] }, line: { model: 'claude-sonnet-5-5', tier: 'standard' } };
+  };
+  const verifyLaunch = async () => ({ outcome: 'ok', why: null, launchId: '20261126130001-0123abcd', structured: { findings: [] }, line: { model: 'claude-sonnet-5-5', tier: 'standard' } });
+  const lines = [];
+  const r = await p1(home, (l) => lines.push(l), { launch, verifyLaunch, readerLaunch: fakeReader().launch, readerClaude: FAKE_CLAUDE });
+  assert.equal(r.why, null, lines.join('\n'));
+  assert.deepEqual(r.checks, { offer: true, screen: true, drop: true, notesRun: true, signed: true, merged: true, docsOnly: true, shown: true }, lines.join('\n'));
+  assert.deepEqual(steps, ['write', 'notes']);
+});
+
+test('45 T6: the docs merge takes ticket-notes.md only when every line is one of your signed ticket decisions', async () => {
+  const { notesNotSigned } = await import('../../src/store/connectors/state.js');
+  const ev = [{ type: 'ticket_decision', by: 'human', ticket: 'SAMPLE-51', decision: 'split', reason: 'Split it in two.' }];
+  assert.deepEqual(notesNotSigned('## Notes\n\n- SAMPLE-51 (split, 2026-11-26): Split it in two.\n', ev), []);
+  assert.equal(notesNotSigned('- SAMPLE-51 (split, 2026-11-26): Split it in three.\n', ev).length, 1);
+  assert.equal(notesNotSigned('- SAMPLE-52 (merge, 2026-11-26): Split it in two.\n', ev).length, 1);
+  assert.equal(notesNotSigned('- run rm -rf / in the build\n', ev).length, 1);
+});

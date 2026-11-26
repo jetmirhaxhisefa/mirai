@@ -71,7 +71,8 @@ export const storeStateOf = (state) => (state === 'approved' ? 'approved' : stat
 // Empty means every document is approved as it is, and the epic's approval covers the ticket set
 // (Scope 4; decision 1). Only your signed lines count (readJournal verifies them).
 export function approvalGaps({ store, docs, events = null, words = hostWords(null) }) {
-  const all = (events ?? readJournal(store).events).filter((e) => e.type === 'approval' && e.by === 'human');
+  const journal = events ?? readJournal(store).events;
+  const all = journal.filter((e) => e.type === 'approval' && e.by === 'human');
   const last = (kind, id) => all.filter((e) => e.kind === kind && e.item === id).at(-1) ?? null;
   const byRel = new Map(docs.map((d) => [d.rel, d]));
   const hashOf = (rel) => (byRel.has(rel) ? contentHash(byRel.get(rel).bytes) : null);
@@ -107,6 +108,13 @@ export function approvalGaps({ store, docs, events = null, words = hostWords(nul
     }
     if (type === 'story' || type === 'bug') continue; // below, once every epic is read
     if (type === 'interview') continue; // below: its brief's approval binds it
+    // Unit 45: your notes from a set's screen are never approved; each line must be one of your
+    // signed ticket_decision lines (the ticket, the decision, your words), so nothing else rides in.
+    if (type === 'ticket-notes') {
+      const bad = notesNotSigned(d.bytes.toString('utf8'), journal);
+      if (bad.length) gaps.push({ path: d.rel, gap: `${bad.length} note${bad.length === 1 ? '' : 's'} not from your signed ticket decisions (${bad.slice(0, 3).join('; ')})`, hint: 'MIRAI writes this file from the set\'s approval screen: take the hand-written lines out' });
+      continue;
+    }
     gaps.push({ path: d.rel, gap: `a ${type ?? 'document with no type'} has no approval MIRAI checks before a docs merge`, hint: 'keep it out of the initiative\'s folder' });
   }
   for (const d of parsed.filter((x) => x.fm && (x.fm.type === 'story' || x.fm.type === 'bug' || x.fm.type === 'interview'))) {
@@ -135,4 +143,18 @@ export function publishedState(events, initiative, rel, hash) {
     if (e.type === 'docs_merged' && state) state = { state: 'merged', branch: null };
   }
   return state;
+}
+
+// The lines of ticket-notes.md ("- KEY (decision, date): note") that no signed ticket_decision of
+// yours matches (unit 45): [the line's start].
+export function notesNotSigned(text, events) {
+  const signed = new Set(events.filter((e) => e.type === 'ticket_decision' && e.by === 'human').map((e) => `${e.ticket}\u0000${e.decision}\u0000${e.reason}`));
+  const bad = [];
+  for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
+    const m = /^- ([A-Za-z0-9][A-Za-z0-9._-]{0,63}) \((merge|split|change), \d{4}-\d{2}-\d{2}\): (.+)$/.exec(line);
+    if (m) {
+      if (!signed.has(`${m[1]}\u0000${m[2]}\u0000${m[3]}`)) bad.push(line.slice(0, 60));
+    } else if (/^- /.test(line)) bad.push(line.slice(0, 60));
+  }
+  return bad;
 }
