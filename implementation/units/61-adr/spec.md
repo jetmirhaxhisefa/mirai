@@ -238,3 +238,14 @@ Scope 4, the index's format, `[adr]` keys) are defaults; the builder records any
    docs MR for the ADR folder, merged at once. C: ADRs go with the code MR of the ticket that
    needs them. Recommendation: **A**: one MR per initiative stays the rule, the HLD and its ADRs
    land together, and the merge's checks already exist.
+
+## Re-checked against 45b as built (merged 2026-11-26, PR #138)
+
+- **Vera's checks follow the `verify` step's tier:** since 45b, `mirai models set verify <tier>`
+  (the project) or `--mine` (your personal file) changes the model of every check of this type;
+  the default stays standard (Sonnet). The probes' "Sonnet" holds in a fresh probe home (no
+  personal file); each probe records the run line's tier, model and `tier_reason`, which names the
+  source ("verify: deep from your personal file").
+- **Nothing else changes:** this unit adds no step and launches no new agent; Arlo's step (64)
+  is the `design` step, a judgement step (D-14): `mirai models` shows it as "the architect, unit
+  64" until then, and refuses it below deep.
