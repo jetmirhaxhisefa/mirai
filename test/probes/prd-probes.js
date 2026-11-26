@@ -312,9 +312,69 @@ export async function runProbe(home, key, { log, launches = {} }) {
     const events = readJournal(openStore({ cwd: home.root, env: home.env })).events;
     const asked = events.filter((e) => e.type === 'decision_question' && e.source !== 'too-many');
     if (!asked.length) return { pass: false, why: 'no decision reached you as a question', summary: s };
-    log('p2: the rules that need your eyes: the 3 writing seeds fixed within the rounds (the PRD\'s diff), the 3 decisions asked with the right kind (above), the seeded wrong finding dismissed, no invented number in the PRD (NFR-2)');
+    const problems = p2Check(home, log);
+    for (const p of problems) log(`p2: FAILED RULE: ${p}`);
+    if (problems.length) return { pass: false, why: `${problems.length} of P2's rules failed (above)`, summary: s };
   }
   return { pass: true, summary: s };
+}
+
+// ---- P2's rules, checked from the home (2026-11-26: the first real run printed PASS on "a question
+// was asked" and deleted the home, so the rules "for your eyes" couldn't be seen). Each decision
+// seed is found by a mark in its question or finding; the PRD must no longer hold a writing seed's
+// wording; NFR-2 may hold only numbers the interview gives.
+export const P2_MARKS = Object.freeze({ audience: /\bUS\b|United States|\bEU\b|market|date format/i, number: /\b365\b/, scope: /calendar|export|\.ics\b/i });
+export function p2Check(home, log = () => {}) {
+  const prd = readFileSync(join(home.root, D, 'prd.md'), 'utf8');
+  const itext = readFileSync(join(home.root, D, 'interview.md'), 'utf8');
+  const qs = questionsOf(parseDocument(itext, 'interview.md'));
+  const asked = new Set(readJournal(openStore({ cwd: home.root, env: home.env })).events.filter((e) => e.type === 'decision_question').map((e) => e.question_id));
+  const mine = qs.filter((q) => asked.has(q.id));
+  const textOfQ = (q) => `${q.finding?.text ?? ''} ${questionText(home, q)}`;
+  const problems = [];
+  log('p2: the questions you were asked:');
+  for (const q of mine) log(`  ${q.id} [${q.kind?.text ?? 'no kind'}] answer ${q.answer?.text || '-'}: ${questionText(home, q).replace(/\s+/g, ' ').slice(0, 240)}`);
+  for (const s of P2_SEEDS.filter((x) => x.kind === 'writing')) {
+    if (prd.includes(s.to.split('\n')[0].trim())) problems.push(`writing seed still in the PRD: ${s.what}`);
+    else log(`p2: writing seed fixed: ${s.what}`);
+  }
+  for (const s of P2_SEEDS.filter((x) => x.kind === 'decision')) {
+    const hits = mine.filter((q) => P2_MARKS[s.type].test(textOfQ(q)));
+    const kinds = hits.map((q) => `${q.id} ${q.kind?.text ?? 'no kind'}`);
+    if (!hits.length) problems.push(`decision seed (${s.type}) never asked: ${s.what}; the PRD ${prd.includes(s.to.split('\n').at(-1).trim()) ? 'still holds it' : 'changed it without asking'}`);
+    else if (!hits.some((q) => q.kind?.text === s.type)) problems.push(`decision seed (${s.type}) asked with another kind: ${kinds.join(', ')}`);
+    else log(`p2: decision seed asked as ${s.type}: ${kinds.join(', ')}`);
+  }
+  const wrong = mine.filter((q) => /reminder/i.test(textOfQ(q)));
+  const saidWrong = (q) => /\bis wrong\b/i.test(q.options.find((o) => o.letter === (q.answer?.text ?? '').trim()[0])?.text ?? '');
+  if (!wrong.length) log('p2: the seeded wrong finding (reminders) wasn\'t raised (Vera read NG-1); the dismissal isn\'t exercised in this run');
+  else if (!wrong.some(saidWrong)) problems.push(`the reminders finding was raised (${wrong.map((q) => q.id).join(', ')}) but not answered "the verifier is wrong"`);
+  else if (wrong.length > 1) problems.push(`the reminders finding came back after "the verifier is wrong": ${wrong.map((q) => q.id).join(', ')}`);
+  else log(`p2: the seeded wrong finding raised once and dismissed: ${wrong[0].id}`);
+  const lines = prd.split('\n');
+  const at = lines.findIndex((l) => /^- NFR-2:/.test(l));
+  if (at < 0) problems.push('NFR-2 is gone from the PRD (retire it, don\'t delete it)');
+  else {
+    let end = at + 1;
+    while (end < lines.length && /^\s+\S/.test(lines[end])) end += 1;
+    const nfr = lines.slice(at, end).join(' ');
+    const nums = nfr.replace(/\b[A-Z]{1,3}(-[A-Z]{1,3})?-\d+(\.\d+)*/g, '').match(/\d+(\.\d+)?/g) ?? [];
+    const unsourced = nums.filter((n) => !new RegExp(`\\b${n.replace('.', '\\.')}\\b`).test(itext));
+    if (unsourced.length) problems.push(`NFR-2 holds a number the interview doesn't give: ${unsourced.join(', ')} ("${nfr.replace(/\s+/g, ' ').slice(0, 160)}")`);
+    else log(`p2: NFR-2 invents no number: "${nfr.replace(/\s+/g, ' ').slice(0, 160)}"`);
+  }
+  return problems;
+}
+
+// What a probe leaves for you to read after its home is deleted.
+export function keepEvidence(home, key, dir) {
+  const out = join(dir, `${key}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+  mkdirSync(out, { recursive: true });
+  for (const f of ['interview.md', 'brief.md', 'prd.md']) if (existsSync(join(home.root, D, f))) cpSync(join(home.root, D, f), join(out, f));
+  const first = git(home, 'rev-list', '--max-parents=0', 'HEAD').stdout.trim();
+  writeFileSync(join(out, 'docs.diff'), git(home, 'diff', first, 'HEAD', '--', D).stdout);
+  writeFileSync(join(out, 'journal.jsonl'), `${readJournal(openStore({ cwd: home.root, env: home.env })).events.map((e) => JSON.stringify(e)).join('\n')}\n`);
+  return out;
 }
 const questionText = (home, q) => {
   try {
@@ -436,6 +496,11 @@ async function cli() {
   const home = await prdHome({ workdir, key, claude: resolveClaude(process.env), token });
   const r = await runProbe(home, key, { log });
   log(r.pass ? `${key}: PASS` : `${key}: FAIL: ${r.why}`);
+  try {
+    log(`the documents, their diff and the journal are kept in ${keepEvidence(home, key, join(process.env.HOME, 'mirai-probe-evidence'))}`);
+  } catch (err) {
+    log(`the evidence couldn't be kept: ${err.message}`);
+  }
   if (r.pass) {
     spawnSync('/bin/chmod', ['-R', 'u+rwX', workdir]);
     rmSync(workdir, { recursive: true, force: true });

@@ -225,6 +225,67 @@ question; the decisions arrive as questions with `audience`, `number`, `scope` a
 the reminder finding is dismissed and not raised again; NFR-2 reaches approval with no number you
 didn't give (an `(open)`, or the backstop's `invented`); the decision lines match the pauses.
 
+### The real runs (2026-11-26, `~/mirai-u44-probes.sh`, unattended, at `523f6c3`)
+
+Run from Jet's session on his Claude subscription, 01:41–02:31, all four `--auto`. The outputs
+are `~/mirai-u44-la-without.txt`, `-la-with.txt`, `-p1.txt`, `-p2.txt`, and the P2 rerun is
+`~/mirai-u44-p2-rerun.txt`. **Each probe's share of the week:** not there. The probe homes were
+deleted on PASS, and a probe home's journal records no cost (`mirai report` reads runs, not Nora's
+launches). The P2 rerun's kept journal has only `nora_run` and decision events.
+
+**The look-ahead: accepted.**
+
+| | Without | With |
+|---|---|---|
+| Nora pauses | **5** (Q-4 other, Q-5 scope, Q-6, Q-7, Q-8 scope) | **0** (the look-ahead asked its 3 questions in the interview and listed 7 assumptions) |
+| Vera's must-fix, first round (brief / PRD) | 2 (both to ask) / 5 (2 to fix, 3 to ask) | 1 (to fix) / 2 (to fix) |
+| Vera's must-fix, last result (brief / PRD) | 0 / 0 | 0 / 0 |
+| Kinds among the must-fix | writing; decision: other, scope | writing only (no new kind) |
+| Reader test | pass, round 1 | pass, round 1 |
+| Time | 11 min | 7 min |
+
+The rule holds: fewer pauses (5 → 0), and Vera is no worse (the same 0 at the end, fewer
+findings on the way, no new kind).
+
+**P1: passed** (12 min). The look-ahead found 9 assumptions and 3 questions. Nora still paused
+twice (Q-7, Q-8, both scope): gaps the look-ahead missed, which the constraint allows. Both
+documents ended at 0 must-fix, and the reader test passed in round 1. `AUTO: approve
+own-due-dates-prd: exit 0`: one decision approved both documents, signed with seq 37 and 38.
+`published: not yet: the repo has no remote named origin` (Q4 "B"). `pre-commit: refused
+docs/mirai/own-due-dates/prd.md:7: a prd keeps no status in its frontmatter`. One thing seen at
+the approval: Vera graded a counter-metric that no source gives ("must not fall below the month
+before release", brief:63) as a **suggestion** with `decision: number`, not as a must-fix. It
+reached the approval screen, where you would see it, but it didn't stop the run. See question 5.
+
+**P2: the first run printed PASS, and that PASS didn't prove the rules.** The run took 20 min,
+had 9 pauses in 8 of Nora's runs, and ended with 0 must-fix. But the probe's automatic check was
+only "a question was asked". The four rules "for your eyes" needed the home, and the probe deleted
+it on PASS. The log showed no `audience` kind among the 9 questions. **Fixed in the probe**
+(`test/probes/prd-probes.js`): `p2Check` checks the rules itself. It looks for each writing seed's
+wording in the PRD, finds each decision seed by a mark in its question with its kind, checks the
+reminders finding, and checks that every number in NFR-2 appears in the interview. Every probe now
+keeps its documents, their diff and the journal in `~/mirai-probe-evidence/<probe>-<time>/`. A new
+test covers these checks with no model (`44 probes: P2's rules are checked …`, 19/19 in the file).
+
+**P2 rerun: FAIL** (`--auto`, about 25 min). Her run was still paused after the probe's 8 runs.
+**11 decision questions came 1–2 per round** (Q-4 … Q-14), so the "too many" question never
+fired: the cap counts only the questions still open, and never more than 2 were open at once.
+`p2Check` on the kept home:
+
+| Rule | Result |
+|---|---|
+| 3 writing seeds fixed within the rounds, none asked | **pass** (red, "overdue", the glossary's "Late") |
+| 3 decisions asked with the right kind | **2 of 3.** The calendar export was asked as `scope` (Q-7). The 365-day limit was asked as `invented` (Q-6), not `number`. The EU/US market was asked as `other` (Q-11, "the display format"), not `audience` |
+| "Vera is wrong" drops the reminders finding | **not exercised.** Vera never raised it, because she read the brief's NG-1. That's right, but the dismissal is proved only by the tests (T-series) |
+| No invented number reaches approval (NFR-2) | **pass.** Vera asked Q-9 (`number`). NFR-2 now reads "no slower than today, for the same list (interview Q-9)" |
+| The journal's decision lines match the pauses | **pass** (11 questions; 10 answered, Q-14 waiting) |
+
+The 8 questions beyond the seeds were real gaps in the fixture PRD (the time zone that ends a day,
+asked twice as Q-5 and Q-13; setting dates on done tasks; how a date is typed; how the metrics
+are measured). Two of them were caused by Nora's own fixes: Q-10 came from her retirement of FR-4,
+and Q-13 from an assumption she added. Kept: `~/mirai-probe-evidence/p2-2026-11-26T01-55-52-693Z/`
+and the home `~/.mirai-probes-xyo5bG` (delete it once read).
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`), so `u44-baseline-1` and `u44-redteam-1`

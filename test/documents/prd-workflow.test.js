@@ -683,3 +683,22 @@ test('44 probes: --check builds every home clean; --auto runs each side of the l
   const hits = spawnSync('/usr/bin/grep', ['-rl', 'prd-probes', join(REGISTRY_DIR, '..', 'src')], { encoding: 'utf8' });
   assert.deepEqual([hits.status, hits.stdout.trim()], [1, '']);
 });
+
+test('44 probes: P2\'s rules are checked from the home (a seed left in, a decision never asked, an invented number in NFR-2), and the evidence is kept', async () => {
+  const probes = await import('../probes/prd-probes.js');
+  const workdir = mkdtempSync(join(tmpdir(), 'mirai-u44-p2check-'));
+  const home = await probes.prdHome({ workdir, key: 'p2', claude: null, token: FAKE_TOKEN });
+  const log = [];
+  const seeded = probes.p2Check(home, (l) => log.push(l));
+  assert.equal(seeded.filter((p) => p.startsWith('writing seed still in the PRD')).length, 3, seeded.join('\n'));
+  assert.deepEqual(seeded.filter((p) => p.startsWith('decision seed')).map((p) => p.match(/\((\w+)\)/)[1]), ['audience', 'number', 'scope']);
+  assert.ok(seeded.every((p) => !p.startsWith('decision seed') || /still holds it$/.test(p)), seeded.join('\n'));
+  assert.ok(log.some((l) => /^p2: NFR-2 invents no number: "- NFR-2: The list must show the late marks quickly/.test(l)), log.join('\n'));
+  assert.ok(log.some((l) => /the seeded wrong finding \(reminders\) wasn't raised/.test(l)));
+  // A number no source gives, written into NFR-2, is a failed rule.
+  const prd = join(home.root, D, 'prd.md');
+  writeFileSync(prd, readFileSync(prd, 'utf8').replace('show the late marks quickly', 'show the late marks within 300 ms'));
+  assert.ok(probes.p2Check(home).some((p) => /^NFR-2 holds a number the interview doesn't give: 300\b/.test(p)));
+  const kept = probes.keepEvidence(home, 'p2', join(workdir, 'evidence'));
+  for (const f of ['interview.md', 'brief.md', 'prd.md', 'docs.diff', 'journal.jsonl']) assert.ok(existsSync(join(kept, f)), f);
+});
