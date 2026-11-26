@@ -80,3 +80,14 @@ readers), and checks them against what changed since and against 61 as approved.
 6. **Overlays:** the pilot's own HLD template (D-20: a project's format wins).
 
 Not opened directly: arc42.org's 9.0 release notes; Structurizr's docs.
+
+## The interview (Jet, 2026-11-26)
+- Settled before it (design/01 §4): one HLD per feature on `full`, read while it's built; it links
+  ADRs, never repeats them.
+- **Q1 Size: "A".** A required core of 10 sections (goals and top 3–5 measurable quality goals;
+  context and scope with the context diagram and non-goals; solution strategy; building blocks
+  with the container diagram and a components table; key flows; data: ownership, changes,
+  migration; cross-cutting rules and conventions; decisions, a line each or an ADR link; the trace
+  table FR/NFR → component → ADR; risks and rollout). Optional, each filled in or "Omitted:
+  <reason>" (the lint checks one or the other): deployment, observability, failure modes, test
+  strategy, constraints, glossary.
