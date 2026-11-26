@@ -1,6 +1,6 @@
 # Unit 45b: test results (2026-11-26)
 
-**Waiting for the runner, the probes and your approval.** Built on `unit/45b-build` from
+**Waiting for the runner and your approval.** P1 and P2 passed. Built on `unit/45b-build` from
 `origin/main` (`37679ea`: 45 merged, its re-checks merged).
 
 ## What was built
@@ -38,12 +38,20 @@ file can change only `[models]` (the allowlist), never what a launch may touch.
 
 ## Probes (real)
 
-`test/probes/models-probes.js --probe p1|p2 --yes` (each in its own probe home):
-- **P1** `mirai models set verify deep`, committed on main, then one Vera check of
-  `business.md`: pass when the listing shows the change and its source and her run line is Opus.
-- **P2** `mirai models set standard claude-sonnet-5-5 --mine`, then one Tess run: pass when her run
-  finishes, her run line says "standard: claude-sonnet-5-5 from your personal file", and the project
-  config is unchanged.
+`test/probes/models-probes.js --probe p1|p2 --yes` (each in its own probe home of 42's):
+- **P1 PASSED** (2026-11-26, at `7b22950`, `~/mirai-u45b-p1.txt`): the listing showed `verify`
+  standard (default); `mirai models set verify deep` wrote one line, rendered (the verifier's agent
+  file, the config, the lock) and printed the commit; committed on main, the listing showed `deep
+  claude-opus-5-5 … .mirai/config.toml:8`; Vera's check of `business.md` ran on deep, **model
+  `claude-opus-5-5`, reported `claude-opus-5-5`** (round 1, 2 must-fix).
+- **P2 PASSED** on its third run (at `30cf264`, `~/mirai-u45b-p2.txt`): `set standard
+  claude-sonnet-5-5 --mine` wrote your personal file; Tess's run line says **"standard:
+  claude-sonnet-5-5 from your personal file"**, reported `claude-sonnet-5-5`; the project config
+  unchanged. Her run ended paused (a question for the owner: a normal end). The first run had set
+  the alias `sonnet`: the launch refused it ("the model is claude-sonnet-5-5, expected sonnet"),
+  which became the question below; the probe then passed without her run finishing, so it now
+  requires her run to end done or paused. The second stopped on its own setup (the PRD not
+  approved first; fixed).
 
 ## Changed from the spec
 
