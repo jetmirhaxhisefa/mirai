@@ -91,3 +91,7 @@ Not opened directly: arc42.org's 9.0 release notes; Structurizr's docs.
   table FR/NFR → component → ADR; risks and rollout). Optional, each filled in or "Omitted:
   <reason>" (the lint checks one or the other): deployment, observability, failure modes, test
   strategy, constraints, glossary.
+- **Q2 Diagrams: "A".** Mermaid `flowchart` with C4 labels (not the experimental C4 syntax):
+  the context and container diagrams required, and a `sequenceDiagram` per key flow (at least one).
+  The lint: the shallow Mermaid check; Vera: every container in the diagram is in the components
+  table and the reverse.
