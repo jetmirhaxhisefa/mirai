@@ -5,7 +5,7 @@ import { readJournal } from '../store/journal.js';
 // input code, which the red team's cage holds, needn't import the approve command).
 
 // The document types approved with --file that aren't tickets: each on its exact bytes.
-export const DOCUMENTS = new Set(['brief', 'prd', 'epic', 'tech-note']);
+export const DOCUMENTS = new Set(['brief', 'prd', 'epic', 'tech-note', 'hld']);
 
 const fileHashes = (files) => files.map((f) => ({ path: f.path, content_hash: contentHash(f.bytes) }));
 const signatureOf = (list) => list.map((f) => `${f.path} ${f.content_hash}`).sort().join('\n');

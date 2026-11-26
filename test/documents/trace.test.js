@@ -92,7 +92,7 @@ test('43 T1: the documents: a BR no FR cites and an AC no ticket covers are name
   assert.match(bad.missing[1].what, /AC-FR-4\.5 isn't covered by any ticket/);
   // 62b isn't built: a no-op, said as such. Unit 61: ADRs exist; read without them, trace says so
   // (with them, 61's T4 checks each Confirmation).
-  assert.deepEqual(ok.notes, ['the ADRs weren\'t read here: their Confirmation links aren\'t checked', 'no technical note yet: the FR → component links are traced once it exists (unit 62b)']);
+  assert.deepEqual(ok.notes, ['the ADRs weren\'t read here: their Confirmation links aren\'t checked', 'no technical note yet: the FR → component links are traced once it is written']);
 });
 
 test('43 T1: mirai approve <epic-id> refuses while the documents\' trace fails, naming each link; mirai trace and mirai show say the same', async () => {

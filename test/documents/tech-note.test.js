@@ -159,7 +159,7 @@ test('62b T4: refused while the PRD isn\'t approved as it is now; then signed on
   const r = await approveNote(f, ['a', 'due-dates-tech-note', 'n'], { startTess: async (i) => { calls.push(i); return EXIT.OK; } });
   assert.equal(r.code, EXIT.OK, r.err);
   assert.match(r.out, /PRD: {4}due-dates-prd, approved as it is now/);
-  assert.match(r.out, /ADR ADR-0001 \(D-3\): Send due-date reminders from a queue worker: proposed; accepting the note accepts it too/);
+  assert.match(r.out, /ADR ADR-0001 \(D-3\): Send due-date reminders from a queue worker: proposed; accepting the technical note accepts it too/);
   assert.match(r.out, /approved: the technical note due-dates-tech-note/);
   assert.match(r.out, /accepted: the ADR ADR-0001 \(seq \d+\)/);
   assert.match(r.out, /^published: /m);

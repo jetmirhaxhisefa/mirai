@@ -1,0 +1,138 @@
+# The high-level design (unit 62; Jet's interview 2026-11-26, research in
+# implementation/units/62-hld/research.md): how one `full` feature is built: its components, flows,
+# data ownership, the rules every part follows, the NFR answers, its decisions and a trace of every
+# requirement to a component. arc42's order in MIRAI's own words, C4 levels 1–2 as Mermaid
+# flowcharts with C4 labels. Read while the feature is built; the next big feature gets a new one.
+# - It links ADRs, never repeats them; a decision that passes 61's gate is an ADR.
+# - It says whether an LLD is needed (`lld`, unit 63) and why.
+# - "Current state" cites the code it builds on (`path:line`, or "unverified"; unit 64).
+# - A summary for approval (600 words) you decide from, with the reader test; the whole HLD about
+#   4,000 words (a warning above: detail moves to the LLD).
+# - Its status lives in the store (D-06).
+kind = "document-type"
+schema_version = 1
+name = "hld"
+template = "templates/hld.md"
+template_version = 1
+checklist = "templates/hld-checklist.md"
+status = "forbidden"
+required_sections = ["Summary for approval", "Goals and quality goals", "Context and scope", "Current state", "Solution strategy", "Building blocks", "Key flows", "Data", "Cross-cutting rules and conventions", "Decisions", "Trace table", "Risks and rollout"]
+optional_sections = ["Deployment", "Observability", "Failure modes", "Test strategy", "Constraints", "Glossary"]
+section_order = ["Summary for approval", "Goals and quality goals", "Context and scope", "Current state", "Solution strategy", "Building blocks", "Key flows", "Data", "Cross-cutting rules and conventions", "Decisions", "Trace table", "Risks and rollout", "Deployment", "Observability", "Failure modes", "Test strategy", "Constraints", "Glossary"]
+summary_words = 600
+uncounted_sections = ["Trace table", "Glossary"]
+lint_checks = ["summary", "writing", "hld"]
+verifier = true
+
+[[upstream_link]]
+label = "PRD"
+type = "prd"
+
+[frontmatter.fields.track]
+type = "enum"
+values = ["full"]
+required = true
+
+# Unit 63 (its Q2 "A"): whether the initiative needs an LLD, and why.
+[frontmatter.fields.lld]
+type = "enum"
+values = ["required", "not-required"]
+required = true
+
+[frontmatter.fields.lld_triggers]
+type = "list"
+values = ["entity", "contract", "modules", "state"]
+
+[frontmatter.fields.lld_reason]
+type = "string"
+
+# Cited from the PRD, never defined here.
+[[ids]]
+prefix = "FR"
+pattern = "FR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+[[ids]]
+prefix = "NFR"
+pattern = "NFR-[0-9]+"
+defined_by = "bullet"
+upstream = "cite"
+
+# The non-goals: the PRD's cited, a new one numbered on from the PRD's highest (as the PRD
+# numbers on from the brief's), defined under Context and scope.
+[[ids]]
+prefix = "NG"
+pattern = "NG-[0-9]+"
+defined_by = "bullet"
+section = "Context and scope"
+upstream = "continue"
+
+[[ids]]
+prefix = "D"
+pattern = "D-[0-9]+"
+defined_by = "bullet"
+required = true
+section = "Decisions"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop (an overlay renames them).
+
+[[protected_sections]]
+name = "Summary for approval"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "The ask"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Why"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "What changes"
+read_by = ["approval", "lint"]
+
+[[protected_sections]]
+name = "Decisions for you"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "Not in this"
+read_by = ["approval", "reader-test", "lint"]
+
+[[protected_sections]]
+name = "Goals and quality goals"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Context and scope"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Current state"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Building blocks"
+read_by = ["lint", "tickets"]
+
+[[protected_sections]]
+name = "Key flows"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Decisions"
+read_by = ["lint", "gate", "tickets"]
+
+[[protected_sections]]
+name = "Trace table"
+read_by = ["lint", "trace", "tickets"]
+
+[[protected_fields]]
+name = "lld"
+read_by = ["lint", "tickets"]
+
+[[protected_fields]]
+link = "PRD"
+read_by = ["approval", "lint", "trace"]

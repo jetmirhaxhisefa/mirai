@@ -16,7 +16,7 @@ import { plain } from '../../status/text.js';
 import { documentLine } from '../../store/connectors/links.js';
 import { snapshot, trustedConfig } from '../../trust/snapshot.js';
 import { verifierField, verifierFor } from '../../verify/gate.js';
-import { documentApproval, missesOf, publishAfter, refuseOnLint, showMisses, showVerifier, startTess, tessOffer, withOverlays } from './approve.js';
+import { documentApproval, missesOf, publishAfter, readerField, readerFor, refuseOnLint, showMisses, showReader, showVerifier, startTess, tessOffer, withOverlays } from './approve.js';
 import { adrDecision, adrsSigned, proposedAdrReady } from './approve-adr.js';
 
 // mirai approve <id> --file docs/mirai/<initiative>/tech-note.md (unit 62b, Scope 4; decision 2):
@@ -47,11 +47,24 @@ export function decisionLinks(doc, path) {
   return out;
 }
 
-export async function approveTechNote({ id, fm, file, store, io, now, fileArg, base = store.checkout, conn = null }) {
+export async function approveTechNote(o) {
+  return approveDesignDoc({ ...o, type: 'tech-note' });
+}
+
+// Unit 62: the HLD, approved the same way (its proposed ADRs on its screen), with the reader test
+// of its summary. On `full` the set's sitting (65) takes it over.
+export async function approveHld(o) {
+  return approveDesignDoc({ ...o, type: 'hld' });
+}
+
+const WORDS = { 'tech-note': 'technical note', hld: 'HLD' };
+
+async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, base = store.checkout, conn = null }) {
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(trust);
-  const registry = withOverlays(trust, store, io, ['tech-note', 'prd', 'adr']);
-  const def = registry.documentTypes['tech-note'];
+  const registry = withOverlays(trust, store, io, [type, 'prd', 'adr']);
+  const def = registry.documentTypes[type];
+  const word = WORDS[type];
   const text = file.bytes.toString('utf8');
   let doc;
   try {
@@ -74,7 +87,7 @@ export async function approveTechNote({ id, fm, file, store, io, now, fileArg, b
   const prdId = typeof prdValue.id === 'string' ? prdValue.id : null;
   if (prdValue.type !== 'prd' || !prdId) throw Object.assign(new MiraiError(`${prd.path}, which ${file.path} links, is not a PRD; nothing was written`, EXIT.BLOCKED), { hint: 'link the PRD this note builds' });
   const prdState = documentApproval(store, prdId, prd.bytes);
-  if (!prdState.approved) throw Object.assign(new MiraiError(`the PRD ${prdId} isn't approved${prdState.stale ? ' as it is now' : ''}: the technical note builds an approved PRD; nothing was written`, EXIT.BLOCKED), { code: 'prd-not-approved', hint: `approve it first: mirai approve ${prdId} --file ${prd.path}` });
+  if (!prdState.approved) throw Object.assign(new MiraiError(`the PRD ${prdId} isn't approved${prdState.stale ? ' as it is now' : ''}: the ${word} builds an approved PRD; nothing was written`, EXIT.BLOCKED), { code: 'prd-not-approved', hint: `approve it first: mirai approve ${prdId} --file ${prd.path}` });
 
   // The ADRs its Decisions link: read for the lint, and the proposed ones made ready for this screen.
   const s = adrSettings(config);
@@ -89,12 +102,15 @@ export async function approveTechNote({ id, fm, file, store, io, now, fileArg, b
   }
   refuseOnLint(io, [{ path: file.path, errors: lintText(text, { source: file.path, registry, project: projectOf(config), approving: true, linked, repo: base }) }]);
   const vera = verifierFor({ store, config, def, id, path: file.path, bytes: file.bytes });
+  // Unit 62: the HLD's summary is reader-tested, as the PRD's is.
+  const reader = readerFor({ store, config, def, value: fm?.value ?? readFrontmatter(file.bytes)?.value ?? {}, id, path: file.path, text });
   const hash = contentHash(file.bytes);
   const before = documentApproval(store, id, file.bytes);
-  io.stdout.write(`technical note: ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}\nfile:   ${file.path}\nhash:   ${hash}\nPRD:    ${prdId}, approved as it is now (seq ${prdState.seq})\n`);
+  io.stdout.write(`${word}: ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}\nfile:   ${file.path}\nhash:   ${hash}\nPRD:    ${prdId}, approved as it is now (seq ${prdState.seq})\n`);
   showVerifier(io, vera);
+  showReader(io, reader);
   for (const p of proposed) {
-    io.stdout.write(`ADR ${p.adr.id} (${p.d}): ${plain(p.adr.title)}: proposed; accepting the note accepts it too${p.old ? `, and marks ${p.old.id} superseded` : ''}\n`);
+    io.stdout.write(`ADR ${p.adr.id} (${p.d}): ${plain(p.adr.title)}: proposed; accepting the ${word} accepts it too${p.old ? `, and marks ${p.old.id} superseded` : ''}\n`);
     showVerifier(io, p.vera);
   }
   const prompter = createPrompter(io);
@@ -118,11 +134,11 @@ export async function approveTechNote({ id, fm, file, store, io, now, fileArg, b
         if (contentHash(readApprovedFile(base, base, f.path).bytes) !== contentHash(f.bytes)) throw new MiraiError(`${f.path} changed while you were answering; nothing was written`, EXIT.FAILURE);
       }
     }
-    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: 'tech-note', path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...verifierField(vera) });
+    const approval = checkEvent({ type: 'approval', by: 'human', item: id, kind: type, path: file.path, content_hash: hash, decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...readerField(reader), ...verifierField(vera) });
     // The ADRs go with an accepted note; a rejected note leaves them proposed.
     const adrMade = decision === 'rejected' ? [] : proposed.map((p) => adrDecision({ ready: p, decision: 'accepted', answeredAfter }));
     const writes = adrMade.flatMap((m) => m.writes);
-    const misses = decision === 'rejected' ? missesOf([{ item: id, kind: 'tech-note', path: file.path, vera }], reason) : [];
+    const misses = decision === 'rejected' ? missesOf([{ item: id, kind: type, path: file.path, vera }], reason) : [];
     for (const w of writes) writeFileSync(join(base, w.path), w.bytes);
     let seqs;
     try {
@@ -143,8 +159,8 @@ export async function approveTechNote({ id, fm, file, store, io, now, fileArg, b
     const indexPath = writes.length ? adrsSigned({ store, base, s, writes }) : null;
     showMisses(io, misses);
     io.stdout.write(decision === 'rejected'
-      ? `recorded: the technical note ${id} rejected (signed with ${signer.keyId}, seq ${seqs[0]})${proposed.length ? `; its ADR${proposed.length === 1 ? ' stays' : 's stay'} proposed` : ''}\n`
-      : `approved: the technical note ${id}, as ${file.path} is now (${decision}; signed with ${signer.keyId}, seq ${seqs.join(', ')}); a change to it needs a new approval\n`);
+      ? `recorded: the ${word} ${id} rejected (signed with ${signer.keyId}, seq ${seqs[0]})${proposed.length ? `; its ADR${proposed.length === 1 ? ' stays' : 's stay'} proposed` : ''}\n`
+      : `approved: the ${word} ${id}, as ${file.path} is now (${decision}; signed with ${signer.keyId}, seq ${seqs.join(', ')}); a change to it needs a new approval\n`);
     for (const [i, p] of (decision === 'rejected' ? [] : proposed).entries()) io.stdout.write(`accepted: the ADR ${p.adr.id}${p.old ? `; ${p.old.id} is now superseded by it` : ''} (seq ${seqs[i + 1]})\n`);
     if (indexPath) io.stdout.write(`index:  ${indexPath} rendered; commit the ADRs and the index: git add ${s.folder} && git commit -m "ADRs of ${id}"\n`);
     if (decision !== 'rejected') {

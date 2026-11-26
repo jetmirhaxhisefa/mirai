@@ -89,7 +89,7 @@ export function approvalGaps({ store, docs, events = null, words = hostWords(nul
     const { type } = d.fm;
     const id = typeof d.fm.id === 'string' ? d.fm.id : null;
     // Unit 62b: the technical note is approved as the PRD is.
-    if (type === 'brief' || type === 'prd' || type === 'epic' || type === 'tech-note') {
+    if (type === 'brief' || type === 'prd' || type === 'epic' || type === 'tech-note' || type === 'hld') {
       const a = id ? last(type, id) : null;
       if (!a) gaps.push({ path: d.rel, gap: `a missing approval: the ${type} ${id ?? '(no id)'} has none${type === 'epic' ? ', so there is no ticket-set approval' : ''}`, hint: `mirai approve ${id ?? '<id>'} --file ${d.rel}` });
       else if (a.decision === 'rejected') gaps.push({ path: d.rel, gap: `the ${type} ${id} was rejected`, hint: `fix it, then mirai approve ${id} --file ${d.rel}` });

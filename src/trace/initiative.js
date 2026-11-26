@@ -47,6 +47,8 @@ export function traceInitiative({ cwd, env, initiative, store = openStore({ cwd,
     brief: read(conn.pathOf('brief', initiative)), prd: read(conn.pathOf('prd', initiative)), epic: read(conn.pathOf('epic', initiative)),
     interview: read(conn.pathOf('interview', initiative)), tickets,
     adrs, checks: Object.keys(config.checks ?? {}), adrTests: readAdrTests(store, keys),
+    // Unit 62: the design that maps each requirement to a component: the HLD on full, the note else.
+    design: read(conn.pathOf('hld', initiative)) ?? read(conn.pathOf('tech-note', initiative)),
   });
 }
 

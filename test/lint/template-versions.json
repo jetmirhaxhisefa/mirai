@@ -26,6 +26,9 @@
   "feature-map": {
     "1": "sha256:354cd312b2b150d7837ec0283ff39a4043ece0dbed96a30e14103c4e55bcbee4"
   },
+  "hld": {
+    "1": "sha256:424bdef884aac7639ea1598bccb550944ec065456a7dd6aaf490b974774b4df1"
+  },
   "interview": {
     "1": "sha256:a1dda45caed8497b5ca95f535209efad82de0305fc2a794c26f2e42a4489dd3a",
     "2": "sha256:bcc52c47d50e4a500561e98071231b4971f6c720df85f08c3bb3138c29c6ac43"

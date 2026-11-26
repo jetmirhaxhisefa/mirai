@@ -415,7 +415,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
         // Unit 61: the accepted ADRs given in full are a basis too.
         adrs: [...new Set([...adrs, ...givenAdrIds(given.inputs)])],
         // Unit 62b (Scope 7): the approved technical note's decisions, graded as a broken convention.
-        rules: [...noteDecisions(given.inputs['tech-note.md'] ?? '').keys()],
+        rules: [...noteDecisions(given.inputs['tech-note.md'] ?? '').keys(), ...noteDecisions(given.inputs['hld.md'] ?? '').keys()],
         changedLines: diff.changedLines,
         ...(prior ? { round, priorBlocking: priorBlocking.map((f) => f.id), delta: delta.changedLines } : {}),
       };

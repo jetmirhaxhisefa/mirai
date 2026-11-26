@@ -70,33 +70,7 @@ export function checkTechNote(doc, def, ctx, add) {
     }
   }
 
-  // Decisions: one line each, or a link to an ADR that is accepted or proposed.
-  const dec = sectionLines(doc, 'Decisions');
-  if (dec) {
-    const lines = dec.lines;
-    lines.forEach((l, i) => {
-      const t = (l.visible ?? l.text);
-      const m = /^ {0,3}[-*+][ \t]+(?:\*\*)?(D-[0-9]+)(?:\*\*)?:[ \t]*(.*)$/.exec(t);
-      if (!m) {
-        if (BULLET.test(t) || !/^\s/.test(t)) add({ code: 'tech-note-decision', line: l.line, column: 1, reason: `"${clip(t.trim())}" isn't a D-n line`, hint: 'each decision is "- D-n: <the choice and its reason>" on one line, or "- D-n: [ADR-n: title](<its file>)"' });
-        return;
-      }
-      const next = lines[i + 1];
-      if (next && !BULLET.test(next.visible ?? next.text) && /^\s+\S/.test(next.visible ?? next.text)) add({ code: 'tech-note-decision', line: next.line, column: 1, reason: `${m[1]} runs over more than one line`, hint: 'one line per decision; a decision that needs more is an ADR, linked from the line' });
-      if (!m[2].trim()) add({ code: 'tech-note-decision', line: l.line, column: 1, reason: `${m[1]} says nothing`, hint: 'the choice and its reason, or a link to its ADR' });
-      for (const link of [...m[2].matchAll(/\]\(([^)\s#]+)(?:#[^)]*)?\)/g)].map((x) => x[1])) {
-        if (/^[a-z]+:/i.test(link)) continue;
-        const found = ctx.readDocument ? ctx.readDocument(link) : { problem: 'unavailable' };
-        if (found.problem) continue; // missing: the link rules say so; unreadable or unavailable: not checked here
-        if (found.value?.type !== 'adr') {
-          add({ code: 'tech-note-decision', line: l.line, column: 1, reason: `${m[1]} links ${clip(link)}, which isn't an ADR`, hint: 'link the ADR file itself (in the ADR folder), never its index' });
-          continue;
-        }
-        const st = found.value.status;
-        if (st !== 'accepted' && st !== 'proposed') add({ code: 'tech-note-decision', line: l.line, column: 1, reason: `${m[1]} links ${found.value.id ?? posix.basename(link)}, which is ${st}`, hint: st === 'superseded' && found.value.superseded_by ? `link the ADR that replaced it: ${found.value.superseded_by}` : 'link an accepted ADR, or write a new one (mirai adr new <slug>)' });
-      }
-    });
-  }
+  checkDecisionLines(doc, ctx, add, 'tech-note-decision');
 
   // Components and data changes cite files that exist.
   const cite = (name, { reversible = false } = {}) => {
@@ -118,4 +92,38 @@ export function checkTechNote(doc, def, ctx, add) {
   cite('Data changes', { reversible: true });
 
   checkOpenMarks(doc, ctx, add, 'tech-note');
+}
+
+// The Decisions section's D-n lines (unit 62b; the HLD's too, unit 62): each one line, the choice
+// and its reason, or a link to an ADR of the folder that is accepted or proposed (61's re-check: a
+// superseded one names its successor; the index or another file is refused). A line may end with
+// "(Arlo's call)" (unit 64). `code`: the problem code.
+export function checkDecisionLines(doc, ctx, add, code) {
+  const dec = sectionLines(doc, 'Decisions');
+  if (dec) {
+    const lines = dec.lines;
+    lines.forEach((l, i) => {
+      const t = (l.visible ?? l.text);
+      const m = /^ {0,3}[-*+][ \t]+(?:\*\*)?(D-[0-9]+)(?:\*\*)?:[ \t]*(.*)$/.exec(t);
+      if (!m) {
+        if (BULLET.test(t) || !/^\s/.test(t)) add({ code: code, line: l.line, column: 1, reason: `"${clip(t.trim())}" isn't a D-n line`, hint: 'each decision is "- D-n: <the choice and its reason>" on one line, or "- D-n: [ADR-n: title](<its file>)"' });
+        return;
+      }
+      const next = lines[i + 1];
+      if (next && !BULLET.test(next.visible ?? next.text) && /^\s+\S/.test(next.visible ?? next.text)) add({ code: code, line: next.line, column: 1, reason: `${m[1]} runs over more than one line`, hint: 'one line per decision; a decision that needs more is an ADR, linked from the line' });
+      if (!m[2].trim()) add({ code: code, line: l.line, column: 1, reason: `${m[1]} says nothing`, hint: 'the choice and its reason, or a link to its ADR' });
+      for (const link of [...m[2].matchAll(/\]\(([^)\s#]+)(?:#[^)]*)?\)/g)].map((x) => x[1])) {
+        if (/^[a-z]+:/i.test(link)) continue;
+        const found = ctx.readDocument ? ctx.readDocument(link) : { problem: 'unavailable' };
+        if (found.problem) continue; // missing: the link rules say so; unreadable or unavailable: not checked here
+        if (found.value?.type !== 'adr') {
+          add({ code: code, line: l.line, column: 1, reason: `${m[1]} links ${clip(link)}, which isn't an ADR`, hint: 'link the ADR file itself (in the ADR folder), never its index' });
+          continue;
+        }
+        const st = found.value.status;
+        if (st !== 'accepted' && st !== 'proposed') add({ code: code, line: l.line, column: 1, reason: `${m[1]} links ${found.value.id ?? posix.basename(link)}, which is ${st}`, hint: st === 'superseded' && found.value.superseded_by ? `link the ADR that replaced it: ${found.value.superseded_by}` : 'link an accepted ADR, or write a new one (mirai adr new <slug>)' });
+      }
+    });
+  }
+
 }

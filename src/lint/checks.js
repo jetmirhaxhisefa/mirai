@@ -6,6 +6,7 @@ import { checkEpic } from './epic.js';
 import { checkInterview } from './interview.js';
 import { checkAdr } from './adr.js';
 import { checkTechNote } from './tech-note.js';
+import { checkHld } from './hld.js';
 import { testabilityProblems } from './testable.js';
 import { idStabilityProblems } from './ids.js';
 import { DOC_OF_RUNS_AS, ticketTypesOf } from '../tickets/types.js';
@@ -172,6 +173,8 @@ export const CHECKS = Object.freeze({
   adr: (...a) => checkAdr(...a),
   // Unit 62b: the technical note.
   'tech-note': (...a) => checkTechNote(...a),
+  // Unit 62: the HLD.
+  hld: (...a) => checkHld(...a),
   'id-stability': (doc, def, ctx, add) => {
     for (const p of idStabilityProblems(doc, ctx.previous)) add(p);
   },

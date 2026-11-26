@@ -42,7 +42,7 @@ const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: te
 
 test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and the five context files, templates that match their types, and known checks', () => {
   // Unit 41: your requirements list and a business.md proposal. Unit 61: the ADR.
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['adr', 'brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'interview', 'investigation', 'journeys', 'plan', 'prd', 'project', 'requirements', 'story', 'tech-note', 'ticket-notes']);
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['adr', 'brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'hld', 'interview', 'investigation', 'journeys', 'plan', 'prd', 'project', 'requirements', 'story', 'tech-note', 'ticket-notes']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);
@@ -66,6 +66,8 @@ test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and t
     else if (name === 'adr') assert.ok(problems.length > 0 && problems.every((p) => /^template-text$|^missing-file$/.test(p.code)), JSON.stringify(problems.filter((p) => !/^template-text$|^missing-file$/.test(p.code))));
     // Unit 62b: the technical note's template is a skeleton beside the PRD's: its example path doesn't
     // exist, and its one Coverage row doesn't cover the PRD template's requirements.
+    // Unit 62: the HLD's template likewise: its example paths, links and trace rows are a skeleton.
+    else if (name === 'hld') assert.ok(problems.length > 0 && problems.every((p) => /^hld-(?:current|components|trace)$|^missing-file$|^tech-note-|^hld-decision$/.test(p.code)), JSON.stringify(problems.filter((p) => !/^hld-(?:current|components|trace)$|^missing-file$|^hld-decision$/.test(p.code))));
     else if (name === 'tech-note') assert.ok(problems.length > 0 && problems.every((p) => /^tech-note-(?:cite|new-file|coverage)$/.test(p.code)), JSON.stringify(problems.filter((p) => !/^tech-note-(?:cite|new-file|coverage)$/.test(p.code))));
     else assert.deepEqual(problems, [], `${name} template`);
     assert.ok(read(def.checklist).startsWith('# '));
