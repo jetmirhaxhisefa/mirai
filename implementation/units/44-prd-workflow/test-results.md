@@ -290,7 +290,21 @@ seam:
 - **P2's feature is the sample app's** (due dates on your own tasks), not guest checkout: the
   sample app has no checkout, and 42's "For later" asked for a fixture that matches it.
 
-## Questions for Jet
+## Jet's answers (2026-11-26): Q1 "A", Q2 "A", Q3 "A", Q4 "B"
+
+**1: A,** as built: the interview's approved `A-n` keep their numbers in the PRD ("Approved in the
+interview."), Nora's own guesses after them; the lint checks the carry.
+
+**2: A,** as built: Nora's continue step writes "leave it open" (`decisions.json` says what to
+write); the lint and approval are the backstop.
+
+**3: A,** as built: MIRAI writes the "too many" question itself, with no model.
+
+**4: B:** P1 accepts "published: not yet" in a probe home; the link is proved through the fake host
+(38's tests). A real-host check is a follow-up (see "For later units"). No code changed for these
+answers.
+
+## Questions for Jet (answered above)
 
 1. **The `A-n` IDs: the interview's assumptions and the PRD's own.** The PRD already has `A-n`
    assumptions (its own guesses, cited as `(BR-2) (A-1)`). Built: one numbering: the interview's
@@ -325,6 +339,8 @@ seam:
   and the books.
 - **Tess's questions as decisions:** give her pause questions a `Kind:` (and route them), once 45
   chains her.
+- **The install refresh after 45 (Jet's answer 4, "B"):** check approval's publish against a real
+  host (a docs PR on the GitHub sample app, with its link), as part of that refresh.
 - **Approvals committed** (38's committed-records idea): the hook's records check then covers them
   (the spec's follow-up).
 
@@ -341,4 +357,5 @@ the brief and the PRD"); after the fix the three files and the touched ones reru
 
 **Through the build runner** (a clean export each), queued at the pushed head: `u44-tests-1`
 (tests), `u44-baseline-1` (baseline) and `u44-redteam-1` (redteam-full: cage files changed, see
-"The red team"). Results to be recorded here.
+"The red team") at `aab2213`: `u44-tests-1` **pass**, `u44-baseline-1` **pass**, `u44-redteam-1`
+queued (running when Jet's answers came in, 2026-11-26). After them: test results only.
