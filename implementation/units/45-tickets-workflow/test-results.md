@@ -1,6 +1,6 @@
 # Unit 45: test results (2026-11-26)
 
-**Waiting for the runner, P1's real run, one question (below) and your approval.** Built on
+**Waiting for your approval.** Runner green, P1 recorded, question 1 answered ("A"). Built on
 `unit/45-build` from `origin/main` (`eea4341`: 44 merged, its re-checks merged, 62's spec merged).
 The spec's sections are what was built, with its re-checks against 42, 43 and 44 as built.
 
@@ -42,8 +42,10 @@ Changed to fit 45: 33's T7 (the epic's example is v3), 31 T5 (`ticket-notes` has
 approved), the journal's type list, 38 T5 and T6 (above), the template versions (epic v3,
 ticket-notes v1).
 
-Runner: `u45-tests-1`, `u45-baseline-1`, `u45-redteam-1` were refused (`"arg": null` in the
-request); `u45-tests-2`, `u45-baseline-2` and `u45-redteam-2` are queued at `225f1f8`.
+Runner: `u45-tests-3` pass at `7d58e70` (`u45-tests-2` at `225f1f8` failed only 21a's T5, whose
+lone ticket now gets the quick track's `auto` gate, as Jet's "A" says; the test was updated);
+`u45-baseline-2` pass and `u45-redteam-2` **GREEN** at `225f1f8` (no cage file changed after it:
+only a test). The first three requests were refused for `"arg": null`.
 
 ## Found on the way (fixed)
 
