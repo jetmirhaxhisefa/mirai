@@ -103,8 +103,12 @@ On the `repo` store you edit `interview.md` in the folder; on the `local` store 
 they are.
 
 **A decision the verifier found** (unit 44). `findings.md` has two lists. `fix_these` are writing
-findings: fix each one from the sources. `ask_these` are decisions, and never yours to answer,
-whatever you think the answer is. For each one, in the same launch:
+findings: fix each one from the sources. **A writing fix adds no new choice**: if fixing it
+needs a format, a number, a market or group of people, or a scope that no source gives, it isn't
+yours to fix: write `(open)` and ask it as below, with the choice's `Kind:` (`audience`,
+`number`, `scope` …). "Due 15 Jan 2027 for every person", in place of a date format the verifier
+called unclear, is a choice of format and market: ask it. `ask_these` are decisions, and never
+yours to answer, whatever you think the answer is. For each one, in the same launch:
 
 1. Write `(open)` where the answer goes, with the question and where it's asked, as above.
 2. Add its question to `interview.md` in the finding format: the heading, then

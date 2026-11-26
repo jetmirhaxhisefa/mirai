@@ -345,7 +345,8 @@ export function p2Check(home, log = () => {}) {
     const hits = mine.filter((q) => P2_MARKS[s.type].test(textOfQ(q)));
     const kinds = hits.map((q) => `${q.id} ${q.kind?.text ?? 'no kind'}`);
     if (!hits.length) problems.push(`decision seed (${s.type}) never asked: ${s.what}; the PRD ${prd.includes(s.to.split('\n').at(-1).trim()) ? 'still holds it' : 'changed it without asking'}`);
-    else if (!hits.some((q) => q.kind?.text === s.type)) problems.push(`decision seed (${s.type}) asked with another kind: ${kinds.join(', ')}`);
+    // A number no source gives is also what `invented` means, and it is graded must-fix (Q2 "A").
+    else if (!hits.some((q) => q.kind?.text === s.type || (s.type === 'number' && q.kind?.text === 'invented'))) problems.push(`decision seed (${s.type}) asked with another kind: ${kinds.join(', ')}`);
     else log(`p2: decision seed asked as ${s.type}: ${kinds.join(', ')}`);
   }
   const wrong = mine.filter((q) => /reminder/i.test(textOfQ(q)));

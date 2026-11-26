@@ -70,6 +70,10 @@ Each finding is one of two kinds, with a one-line `kind_reason`:
   gives (limits, targets, SLAs); two sources that disagree; a trade-off between two requirements.
   Give its `decision_type`: `scope`, `audience`, `money-legal`, `number`, `conflict`,
   `trade-off` or `other`.
+- **A market or a group of people no source names is `audience`, never `writing`**, even when it
+  reads like wording: a country or region, a language, a locale's date or number format, a user
+  group. "Shown in the date format of people in the EU and the US", with no source naming the US,
+  is an `audience` decision; fixing it as wording would let the author pick a market.
 - **When in doubt: `decision`.** The author never answers a decision; the approver does.
 - **An invented decision** (`decision_type: invented`) is a claim **added since your last check**
   that no source holds, written as if it were settled. Use it only when `index.json` gives you an

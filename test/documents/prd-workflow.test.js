@@ -716,3 +716,12 @@ test('44 T7b: too many counts every question asked on the version, answered or n
   assert.match(get(f, `${D}/interview.md`), /Reopen the brief interview\?\n\nKind: reopen[\s\S]*found 6 decisions only you can make, more than 5 on one version/);
   assert.deepEqual(journal(f, 'decision_question').map((e) => [e.decision_type, e.source]), [['reopen', 'too-many']]);
 });
+
+test('44 Q2 "A" (2026-11-26): Vera grades an unnamed market or group as an audience decision, never writing; Nora\'s writing fix adds no new choice (she asks it)', () => {
+  const vera = readFileSync(join(REGISTRY_DIR, 'agents', 'mirai-verifier.md'), 'utf8');
+  assert.match(vera, /A market or a group of people no source names is `audience`, never `writing`/);
+  assert.match(vera, /date format of people in the EU and the US/);
+  const nora = readFileSync(join(REGISTRY_DIR, 'agents', 'mirai-product-manager.md'), 'utf8');
+  assert.match(nora, /A writing fix adds no new choice/);
+  assert.match(nora, /write `\(open\)` and ask it as below, with the choice's `Kind:`/);
+});

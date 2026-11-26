@@ -315,6 +315,41 @@ Q-13, and now needs "the US", "EU and the US", "date format" or "market". The ev
 starts at the probe's setup commit. Kept: `~/mirai-probe-evidence/p2-2026-11-26T07-16-06-303Z/`
 and the home `~/.mirai-probes-mzHpsw`.
 
+**Jet's Q2 "A" (2026-11-26): a decision never passes as a writing fix.** Built:
+- **Vera** (`registry/agents/mirai-verifier.md`): a market or a group of people that no source
+  names is `audience`, never `writing`, even when it reads like wording. The prompt uses the EU/US
+  date format as its example.
+- **Nora** (`registry/agents/mirai-product-manager.md`): a writing fix adds no new choice. If the
+  fix needs a format, a number, a market or a scope that no source gives, she writes `(open)` and
+  asks it with its `Kind:`. The prompt uses the "Due 15 Jan 2027 for every person" fix as its
+  example.
+- **The probe:** the number seed also passes as `invented`, because a number no source gives is
+  what `invented` means, and `invented` is graded must-fix.
+- **Tests:** a new test pins both prompt rules. `test/documents`, `test/adapters` and
+  `test/detect` pass 194/194. Neither prompt file is in the red team's cage.
+
+**P2 rerun 3 (with Q1 and Q2 "A"): PASS** (about 30 min, 8 of Nora's runs). The kept evidence
+is `~/mirai-probe-evidence/p2-2026-11-26T08-00-33-213Z/`.
+
+| Rule | Result |
+|---|---|
+| 3 writing seeds fixed within the rounds, none asked | **pass** |
+| 3 decisions asked with the right kind | **pass:** the market as Q-9 `audience` ("Which format does the list show a due date in?"), the 365-day limit as Q-7 `number`, the export as Q-8 `scope` |
+| The cap (Q1 "A") | **pass:** Q-13 "reopen?" once, at the 7th decision on the PRD |
+| "Vera is wrong" | not exercised (Vera read NG-1 in all three runs) |
+| No invented number (NFR-2) | **pass:** NFR-2 kept "quickly" with no number |
+| The journal matches the pauses | **pass** (12 questions, 12 answers) |
+
+Seen in this run, for later:
+- **NFR-2's "quickly" reached the end unasked.** It invents nothing, but it isn't testable.
+  `prd-ac-untestable` lints ACs, not an NFR's wording. Follow-up: lint a vague NFR the way a vague
+  AC is linted.
+- **The time zone was asked as `audience`** (Q-5, "whose clock decides"). Vera may now be reading
+  the new rule broadly. It is harmless: `audience` is must-fix either way, and the question
+  reached you.
+- **Pauses: 12**, with 11 decisions. A seeded PRD gets no look-ahead (there's no interview step),
+  so the cap is what bounds them here.
+
 ## The red team
 
 This unit touches the red team's cage (`cageOf`), so `u44-baseline-1` and `u44-redteam-1`
