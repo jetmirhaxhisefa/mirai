@@ -76,7 +76,7 @@ request); `u45-tests-2`, `u45-baseline-2` and `u45-redteam-2` are queued at `225
     clean. A clean drop is T3's (a duplicated ticket).
   - Verdict: the flow passes; a real drop of a ticket the set needs is refused, as it should be.
     Kept home: `~/.mirai-probes-d1Dv2g` (delete with your OK).
-- **P2 the quick ticket**: waits for question 1.
+- **P2 the quick ticket**: moved to after unit 55 (Jet's "A": until 55 signs an `auto` plan, a quick ticket is three actions: the ticket, the plan, the merge).
 
 ## Changed from the spec
 
@@ -94,9 +94,9 @@ request); `u45-tests-2`, `u45-baseline-2` and `u45-redteam-2` are queued at `225
 - **The release mode switched at the screen** is in the signed line (`release_mode`,
   `release_reason`); the epic file keeps Tess's proposal. The signed line is the truth.
 
-## Questions for Jet
+## Questions for Jet (answered)
 
-1. **The quick track's two actions.** U4 says the quick plan gate is `auto`, so a quick ticket needs
+1. **The quick track's two actions** (answered **A**, Jet 2026-11-26: the gate's rule as built; three actions until unit 55's signer; P2 runs after 55). U4 says the quick plan gate is `auto`, so a quick ticket needs
    only your ticket approval and your merge. Nothing can sign an `auto` plan approval yet: that
    signer is unit 55's ("a signer for auto plan approvals", PROGRESS's open list). So today a quick
    ticket takes three actions (the ticket, the plan, the merge). A: build the gate's rule now (done:
