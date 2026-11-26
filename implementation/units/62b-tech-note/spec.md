@@ -162,3 +162,16 @@ short technical note before its tickets.
   types, checked as the PRD is (your last approval matches the file at the head).
 - **Tess's input:** 45 already passes an approved input other than the PRD to her as
   `tech-note.md` ("the tickets follow it"); her prompt names it.
+
+## Re-checked against 45b as built (merged 2026-11-26, PR #138)
+
+- **Vera's checks follow the `verify` step's tier:** since 45b, `mirai models set verify <tier>`
+  (the project) or `--mine` (your personal file) changes the model of every check of this type;
+  the default stays standard (Sonnet). The probes' "Sonnet" holds in a fresh probe home (no
+  personal file); each probe records the run line's tier, model and `tier_reason`, which names the
+  source ("verify: deep from your personal file").
+- **For 64, not this unit:** Scope's "Arlo writes the note on `standard`" can't use the `design`
+  step: it's a judgement step and 45b refuses it below deep (D-14). 64 adds its own step
+  (`tech-note`, standard) to `STEPS` and `STEP_DEFAULTS` (`src/config/defaults.js`) and to
+  `docs/model-tiers.md`; `mirai models` then lists it, and `models.steps.tech-note` is settable in
+  the project and your personal file with no other change (45b's allowlist is `models.steps.*`).

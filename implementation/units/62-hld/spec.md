@@ -199,3 +199,13 @@ change.
   doesn't check ("has no approval MIRAI checks before a docs merge"); this type joins its approved
   types, checked as the PRD is (your last approval matches the file at the head).
 - **Tess's input:** 45 passes it to her as `hld.md`; Scope 6's Kai input is new.
+
+## Re-checked against 45b as built (merged 2026-11-26, PR #138)
+
+- **Vera's checks follow the `verify` step's tier:** since 45b, `mirai models set verify <tier>`
+  (the project) or `--mine` (your personal file) changes the model of every check of this type;
+  the default stays standard (Sonnet). The probes' "Sonnet" holds in a fresh probe home (no
+  personal file); each probe records the run line's tier, model and `tier_reason`, which names the
+  source ("verify: deep from your personal file").
+- **The reader test** runs on the `reader-test` step (standard by default), settable the same way.
+- **Nothing else changes:** no new step; Arlo's HLD (64) is the `design` step, kept deep (D-14).
