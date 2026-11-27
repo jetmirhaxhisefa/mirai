@@ -1,5 +1,9 @@
 # Unit 64: test results (2026-11-27, overnight batch)
 
+Approved 2026-11-27 ("approve 64"), PR #147. Runner green: tests (u64-tests-5), baseline (u64-baseline-1), red team GREEN (u64-redteam-7 on `56f635a`: 676 runs on 6 workers in 58 min; failures only the accepted h-timeout-link and l-cd; adv-linger inconclusive 2/3, a timeout). The two red-team fixes after u64-tests-5 (the h-timeout-write check; the start gate and the 90 s MCP wait) are covered by their own tests and CI.
+
+**Why runs 5 and 6 failed:** with 6 agents starting at once, MIRAI's MCP server took 5–33 s to connect (about 1 s alone; Claude Code's MCP logs), past the 30 s limit, so the architect template's agents lacked `mcp__mirai__*`. h-timeout-write could not tell a fail-open from a Bash write after a refusal. Follow-up: a faster MCP server start before unit 55.
+
 **Built overnight, for your morning review.** P1, P2 and P3 passed; P4 (the red team with the web
 cases) is the runner's red team on this branch. Built on `unit/64-build`, stacked on `unit/63-build`.
 
