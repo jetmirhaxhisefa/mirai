@@ -1,7 +1,7 @@
 ---
 unit: "65b"
 name: design-research
-status: draft (interview 2026-11-27: Q1 "C", Q2 "A", Q3 "A", Q4 "A" plus Jet's gate, Q5 "A", Q6 "A", Q7 "A", Q8 "A", restatement "yes"; after the research in research.md). To be re-checked for clashes once 65 is merged, before approval
+status: draft (interview 2026-11-27: Q1 "C", Q2 "A", Q3 "A", Q4 "A" plus Jet's gate, Q5 "A", Q6 "A", Q7 "A", Q8 "A", restatement "yes"; after the research in research.md). Checked for clashes against 65's branch 2026-11-27 (six points, "Checked against the other units"); the code is re-checked once 65 merges, before approval
 roadmap: design/07-implementation-roadmap.md, row 65b; units 64 (Arlo, his web fence), 65 (the design workflow, the sitting), 45b (`mirai models`), 19c (agents started from your session), 13 and 19a (the hook, the launch), 18 (the red team); post-MVP P42 (`design/20`)
 depends_on: ["64", "65", "45b", "19c"]
 ---
@@ -121,7 +121,7 @@ your decisions. This unit adds that step between the approved PRD and Arlo's run
    - Vera's set checklist (65) gains "the design follows `design-decisions.md`".
 9. **The flow on each track:**
    - on `full`, the offer after the PRD's approval (65) points to `/mirai design --explore`, with
-     `mirai design <initiative> --no-explore` to skip (recorded);
+     `mirai design <initiative> --no-explore` to skip (recorded); its "y" is that skip (65, point 1);
    - on `standard`, unchanged, with `--explore` available.
 10. **The red team** (`src/redteam/cases-research.js`, the `research` template):
     - a fetch of a URL not returned by a search (the loopback canary page) is refused [blocker];
@@ -150,7 +150,9 @@ your decisions. This unit adds that step between the approved PRD and Arlo's run
 - **T1** the brainstorm engine: one question at a time, the log, the output file given by the
   caller (a stand-in session).
 - **T2** the explore step: `research-questions.md`, the approval's journal line, the research run
-  started, part 2 writes `design-decisions.md`; `--no-explore` recorded; `standard` only on request.
+  started, part 2 writes `design-decisions.md`; `--no-explore` recorded; `standard` only on request; the
+  offer on `full` (its "y" is the skip); a draft ADR from your pick doesn't pause again, and a
+  different letter at the sitting signs nothing.
 - **T3** the fetch gate: a listed URL is allowed; an unlisted one is refused; so is a listed host
   with another path or query; the cap; a hook that fails or is too slow refuses; the list can't be
   written from the run.
@@ -181,8 +183,30 @@ with the new cases; the roadmap's row 65b holds.
 
 - **64:** Arlo's web fence (`WebFetch` per domain) stays as it is; the research template is
   separate. Arlo's inputs gain the two files.
-- **65:** the offer after the PRD on `full` changes; Vera's set checklist gains one line; a
-  hard-to-reverse pick feeds 65's early pause and the sitting. **To re-check once 65 is merged.**
+- **65** (checked against its branch at `3aa484c`, 2026-11-27; re-check the code once it merges):
+  1. **The offer.** 65 asks "Start Arlo on the design now? [y/N]" after the PRD's approval
+     (`nextOffer` in `src/cli/commands/approve.js`). The explore step is a conversation in your
+     session, so the terminal can't run it. On `full` the offer becomes: "Next: the design questions,
+     in your session: /mirai design --explore <initiative>. Skip them and start Arlo now? [y/N]".
+     A "y" is the recorded `--no-explore`. On `standard` 65's offer is unchanged. Arlo's paused-run
+     offer ("continue his run now?") is unchanged.
+  2. **The early pause.** 65 pauses on a proposed ADR whose gate names `hard-to-reverse` and asks
+     you in `interview.md`, unless you already answered that ADR's question (`hardAdrsOpen` in
+     `src/design/run.js`). A draft ADR made from a `design-decisions.md` pick marked hard to reverse
+     counts as answered: it cites the entry, and it doesn't pause again. Arlo still pauses on a
+     hard-to-reverse choice you didn't decide. Your picks stay in `design-decisions.md`, not in
+     `interview.md`, so the brief's binding (`src/design/hard.js`) is untouched.
+  3. **The sitting.** "Decisions for you" still asks a letter for every hard-to-reverse ADR. For
+     one made from your pick, your pick is the expected letter. A different letter is 65's "an
+     answer differs": nothing is signed, and the answer goes to Arlo as a note. `design-decisions.md`
+     is then left as it is, and the signed answer wins.
+  4. **Two files, two jobs.** 65's `design-notes.md` holds your answers after a set is sent back.
+     65b's `design-decisions.md` holds your decisions before run 1. `docs/design.md` says which is
+     which. Both are Arlo's inputs.
+  5. **Vera's set checklist** (`registry/templates/design-set-checklist.md`) gains "the design
+     follows design-decisions.md". The mechanical part (each pick ↔ the HLD's Decisions or an ADR)
+     joins 65's mechanical set check.
+  6. **`--change`** (65): no explore step. A change runs as 65 built it.
 - **45b:** one more row in `mirai models`.
 - **19c:** the session starts the research run with `start_agent`.
 - **13, 19a:** the hook gains web tools beside the file tools. Its fail-closed rule and policy
