@@ -1,0 +1,36 @@
+the probe home: /Users/jetmir.haxhisefa/.mirai-probes-bj2Rji
+the home: full, PRD own-due-dates-prd approved
+Arlo: write hld (round 1): ok
+lint, hld: clean
+Vera, docs/mirai/due-dates/hld.md: round 1, 1 must-fix
+Arlo: fix hld (round 2): ok
+lint, hld: clean
+Vera, docs/mirai/due-dates/hld.md: round 2, 0 must-fix
+Arlo: write lld (round 3): ok
+lint, lld: clean
+Vera, docs/mirai/due-dates/lld.md: round 1, 1 must-fix
+Arlo: fix lld (round 4): ok
+lint, lld: clean
+Vera, docs/mirai/due-dates/lld.md: round 2, 0 must-fix
+Arlo (mirai-architect): done: the HLD and the LLD are ready for your approval (run r-20261127-031915-54e3; rounds: lint 0, Vera (mirai-verifier) 4; 4 launches; standard, claude-sonnet-5-5)
+  Vera own-due-dates-hld r1: must-fix writing: The detail decides that an unknown or missing time zone is judged in UTC, but the summary never says so, so the approver doesn't see that a wrong zone silently shifts what is late or past.
+  Vera own-due-dates-hld r1: suggestion decision/trade-off: D-5 fixes the API contract for setting and removing a date, with null and absent meaning different things, as "Arlo's call". An approver would expect to be asked, and the alternative of a separate endpoint isn't offered.
+  Vera own-due-dates-lld r1: must-fix writing: The LLD gives the API client's `Task` type but not the client calls the add form and the list build against in parallel. The HLD names `addTask(title, dueDate)` and `setDueDate(task, date or null)`, and the client sending `X-Time-Zone` on every request. Here these have no signature, no return type and no failure handling, so two builders could guess differently.
+docs/decisions/ADR-0001-browser-time-zone.md:10:1: the section "Consequences" is missing
+docs/decisions/ADR-0001-browser-time-zone.md:10:1: the ADR comes from the initiative calendar-view, but the line under its title doesn't link its PRD
+docs/decisions/ADR-0001-browser-time-zone.md:12:1: "Context and problem statement" is not a adr section
+docs/decisions/ADR-0001-browser-time-zone.md:16:1: "Decision drivers" is not a adr section
+docs/decisions/ADR-0001-browser-time-zone.md:21:1: "Considered options" is not a adr section
+docs/decisions/ADR-0001-browser-time-zone.md:26:1: "Decision outcome" is not a adr section
+docs/decisions/ADR-0001-browser-time-zone.md:37:1: "A request with `X-Time-Zone: Europe/Berlin` at 23:30 UTC on " isn't a Confirmation MIRAI can follow
+6 files, 15 problems, 1 warning, 1 skipped
+ADRs now: ADR-0001-browser-time-zone.md; new ones on "today": none
+the home is kept: /Users/jetmir.haxhisefa/.mirai-probes-bj2Rji
+pass  done
+pass  hld
+pass  lld
+FAIL  lintClean
+pass  followsAdr
+pass  citesConvention
+pass  noDecoy
+p1: FAIL

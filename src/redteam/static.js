@@ -125,7 +125,9 @@ function winner(p, deny, allow) {
 }
 
 // S4: the floor, on a rendered settings file. A fixed list in code, so no data change can drop it.
-export function floorCheck(settings, { home, repoHome, uid }) {
+// Unit 64: `web`, the domains of a web template (the architect's): WebFetch may then be off the deny
+// list, but only as one allow rule per listed domain, never whole; every other floor tool stays denied.
+export function floorCheck(settings, { home, repoHome, uid, web = null }) {
   const problems = [];
   for (const k of looseKeys(settings)) problems.push(`${k} is loose`);
   for (const k of FILE_TOOL_BLOCKS) if (settings.permissions?.[k] !== true) problems.push(`permissions.${k} isn't on`);
@@ -157,7 +159,12 @@ export function floorCheck(settings, { home, repoHome, uid }) {
     if (m && (/~|\*\*?\)?$/.test(m[2]) || floor.some((p) => m[2].replace(/^\/\//, '/').startsWith(p)))) problems.push(`the permission rule ${r} could re-open a denied place`);
   }
   const deny = settings.permissions?.deny ?? [];
-  for (const t of ['WebFetch', 'WebSearch', 'Task', 'Agent']) if (!deny.includes(t)) problems.push(`the ${t} tool isn't denied`);
+  for (const t of ['WebFetch', 'WebSearch', 'Task', 'Agent']) if (!deny.includes(t) && !(t === 'WebFetch' && web)) problems.push(`the ${t} tool isn't denied`);
+  const fetchRules = (settings.permissions?.allow ?? []).filter((r) => /^WebFetch\b/.test(r));
+  const wanted = (web?.domains ?? []).map((d) => `WebFetch(domain:${d})`);
+  for (const r of fetchRules) if (!wanted.includes(r)) problems.push(`the permission rule ${r} opens the web beyond the fixed list`);
+  if (web && deny.includes('WebFetch')) problems.push('the web template still denies WebFetch (its domains would never be reached)');
+  for (const r of settings.permissions?.allow ?? []) if (/^WebSearch\b/.test(r)) problems.push(`the permission rule ${r} opens web search`);
   if (!(settings.sandbox?.credentials?.envVars ?? []).some((v) => v.name === 'CLAUDE_CODE_OAUTH_TOKEN' && v.mode === 'deny')) problems.push('the login token\'s variable isn\'t kept out of Bash');
   if (!(settings.hooks?.PreToolUse ?? []).some((h) => (h.hooks ?? []).some((x) => typeof x.command === 'string' && x.command))) problems.push('there is no PreToolUse hook');
   return problems;

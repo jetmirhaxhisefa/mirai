@@ -36,9 +36,11 @@ export class LintPathError extends Error {}
 // `project` holds what the built-in checks need from the project config: `repos` (the repo
 // names, unit 08a) and `levels` (the test level names, unit 08b). Missing, it's the defaults,
 // never "skip the check".
-export function lintPaths({ root, paths = [], files = null, registry, docsRoot, project = projectDefaults() }) {
+// `repo`: where a document's cited code paths are checked (unit 64's P-flow fix: the docs merge lints
+// a copy of the docs alone, so the code is read from your checkout); `root` when not given.
+export function lintPaths({ root, paths = [], files = null, registry, docsRoot, project = projectDefaults(), repo = null }) {
   const realRoot = realpathSync.native(root);
-  const ctx = { root: realRoot, registry, docsRoot: docsRoot.toLowerCase(), project, headings: new Map(), templates: new Map() };
+  const ctx = { root: realRoot, registry, docsRoot: docsRoot.toLowerCase(), project, headings: new Map(), templates: new Map(), ...(repo ? { repo: repoReader(repo) } : {}) };
   const result = { files: 0, skipped: 0, problems: [] };
   const seen = new Set();
   const visit = (rel, kind) => {

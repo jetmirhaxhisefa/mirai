@@ -61,9 +61,15 @@ const AGENT = {
       },
     },
     tools: { type: 'table', fields: { allowed: { type: 'array', items: { type: 'string', pattern: /^[A-Za-z][A-Za-z0-9_-]*$/ } } }, required: ['allowed'] },
+    // Unit 64 (decision 3): the one agent that may read the web, through WebFetch only and only from
+    // the fixed list of package and documentation sites ([design] fetch_domains adds a project's own
+    // docs). Its launches run under a template of its own (agent-<name>-read-write) whose floor keeps
+    // WebSearch, Task and Agent denied and the shell's network empty. Only the architect has it.
+    web: { type: 'table', fields: { fetch: { type: 'enum', values: ['fixed-list'] } }, required: ['fetch'] },
   },
   required: ['kind', 'schema_version', 'name', 'role', 'description', 'read_only', 'prompt', 'tools'],
   check(value, path, report) {
+    if (value.web !== undefined && (value.name !== 'mirai-architect' || value.read_only === true)) report('web', 'only the architect (mirai-architect, read-write) reads the web', undefined, 'web');
     if (value.read_only === true && (value.may_write?.paths?.length ?? 0) > 0) {
       report('may_write.paths', 'a read-only agent can\'t have may_write.paths', undefined, 'read-only');
     }

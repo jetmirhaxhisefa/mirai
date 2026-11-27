@@ -24,7 +24,7 @@ export const UNIT_OF = Object.freeze({ 'tech-note': '62b', hld: '62', adr: '61',
 // technical note is required once the architect (64) writes it.
 export const REQUIRED_FROM = Object.freeze({ 'tech-note': '64' });
 // The units of REQUIRED_FROM that are built: 64 adds itself here.
-export const UNITS_BUILT = Object.freeze([]);
+export const UNITS_BUILT = Object.freeze(['64']);
 const WORDS = Object.freeze({ prd: 'PRD', 'tech-note': 'technical note', hld: 'HLD', adr: 'ADR', lld: 'LLD' });
 export const wordsOf = (type) => WORDS[type] ?? type;
 

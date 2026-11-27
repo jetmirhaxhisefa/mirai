@@ -113,6 +113,8 @@ export const COMMANDS = Object.freeze({
   // (the set still waits for your approval). With `one`, the one ticket /mirai ticket's short
   // interview asks for (the command file's step 0, then this).
   tickets: { needs: ['initiative'], flags: ['one'], tty: true, run: true, argv: (a) => ['tickets', a.initiative, ...(a.one ? ['--one'] : [])] },
+  // Unit 64 (Scope 7): the architect's run, from your session (not a gate: it signs nothing).
+  design: { needs: ['initiative'], tty: true, run: true, argv: (a) => ['design', a.initiative] },
   // Jet's answer 3 (2026-11-24): a lone ticket fixed from the verifier's findings on it (/mirai ticket fix <KEY>).
   // With `answer` (Jet's answer to question 4): your answer to an open point in its Notes, one line.
   'ticket fix': { needs: ['ticket'], opts: ['answer'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket, ...(a.answer ? ['--answer', a.answer] : [])] },
@@ -275,7 +277,7 @@ export const miraiCommand = Object.freeze({
       ticket: { type: 'string', pattern: TICKET.source, description: 'the ticket key, for plan, build, fix, review, run, show, ship, branch verify and the gates' },
       level: { type: 'string', pattern: NAME.source, description: 'the test level or check, for test' },
       type: { type: 'string', pattern: NAME.source, description: 'a document type, for show template and show checklist (unit 37)' },
-      initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38), write and requirements (unit 41), tickets (unit 42)' },
+      initiative: { type: 'string', pattern: INITIATIVE.source, description: 'an initiative (its folder under the docs root), for docs publish and docs merge (unit 38), write and requirements (unit 41), tickets (unit 42), design (unit 64)' },
       file: { type: 'string', pattern: FILE.source, description: 'a document\'s path in the repo: the epic file for epic render (unit 33), the document for reader-test (unit 34) and verify (unit 40)' },
       recheck: { type: 'boolean', description: 'with build: MIRAI\'s checks again, no agent' },
       kept: { type: 'boolean', description: 'with redteam run: test the Claude Code agents run now' },

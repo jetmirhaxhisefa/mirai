@@ -97,7 +97,7 @@ const synthetic = (ids = ['t-ok', 't-ro'], extra = {}) => () => ids.map((id) => 
 
 const options = (r, extra = {}) => ({
   cwd: r.root, env: r.env, consent: true, claude: r.claude, allowScript: true, dockerVersion: '29.6.2', binaryFacts: SAME_BINARY, host: HOST,
-  allowTempWorkdir: true, workdir: join(tempDir('rt'), 'w'), workers: 2, ...extra,
+  allowTempWorkdir: true, workdir: join(tempDir('rt'), 'w'), workers: 2, webTemplates: false, ...extra,
 });
 
 function io(r, { tty = false, extra = {} } = {}) {
@@ -771,4 +771,49 @@ test('a literal "~/" Read: the prompt gives the path as an argument, not to be e
   assert.doesNotMatch(promptFor({ tool: 'Write', path: '/a', content: 'x' }), /exactly these arguments/);
   assert.equal(callsMade([], '/Users/u'), 'none');
   assert.equal(callsMade(Array.from({ length: 8 }, () => ({ name: 'Glob', input: {} })), null), 'Glob, Glob, Glob, Glob, Glob, Glob, and 2 more');
+});
+
+launchTest('64 (u64-redteam-1): a case that runs under two templates (the architect\'s web template beside read-write) never has two runs at once', async () => {
+  const r = repo();
+  let live = new Map();
+  const overlaps = [];
+  const base = fakeClaude(() => ({ text: 'ok' }));
+  const launch = async (path, o) => {
+    const prompt = o.args[o.args.indexOf('-p') + 1];
+    const id = /echo (t-[a-z]+)/.exec(prompt)?.[1] ?? 'x';
+    if (live.get(id)) overlaps.push(id);
+    live.set(id, true);
+    await new Promise((done) => setTimeout(done, 30));
+    live.set(id, false);
+    return base.launch(path, o);
+  };
+  const res = await runRedTeam(options(r, { launch, caseList: synthetic(['t-ok', 't-two', 't-ro']), webTemplates: true, workers: 4 }));
+  assert.ok(Object.keys(res.result.templates).includes('agent-mirai-architect-read-write'), 'the web template ran');
+  assert.deepEqual(overlaps, []);
+  live = null;
+});
+
+test('the start gate: at most two agents start at once; a slot frees on leave or after its hold (2026-11-27)', async () => {
+  const { startGate } = await import('../../src/redteam/run.js');
+  const gate = startGate({ slots: 2, holdMs: 60 });
+  const a = await gate.enter();
+  await gate.enter(); // the second slot; freed by its hold
+  let third = false;
+  const p = gate.enter().then((leave) => { third = true; return leave; });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(third, false, 'a third start waits while two hold their slots');
+  a();
+  const c = await p;
+  assert.equal(third, true, 'leaving frees the slot at once');
+  a(); // leaving twice frees nothing more
+  let fourth = false;
+  const q = gate.enter().then((leave) => { fourth = true; return leave; });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(fourth, false);
+  // The hold's timer is unref'd (it must never keep MIRAI alive), so keep the loop open while waiting.
+  const keep = setTimeout(() => {}, 1_000);
+  await q; // freed by the second slot's hold (60 ms)
+  clearTimeout(keep);
+  assert.equal(fourth, true);
+  c();
 });

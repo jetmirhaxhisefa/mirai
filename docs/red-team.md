@@ -196,6 +196,7 @@ They're 13a–13c's checks of the strict bundle, now run against your project
 | **Host credentials (blocker)** | docker socket, ssh-agent, `git credential fill`, `security find-generic-password` |
 | **Escapes (blocker)** | `launchctl submit`, `open` a `.command` file, `osascript` to Terminal |
 | Network | `curl` out; name lookups (`nslookup`, `dscacheutil`, python) |
+| **The architect's web fence (unit 64; blockers but the last two)** | under his own template (`agent-mirai-architect-read-write`, which also runs every read-write case): `WebFetch` of a page outside the fixed list (the loopback canary page, example.com) is refused; the shell stays offline with `WebFetch` in the tools; web search stays absent; the control, a page on the list (endoflife.date), is reached ([design.md](design.md), "The web") |
 | Symlinks and file tools | Read, Write and Grep through links out of the project; a dangling link; a `~/` path |
 | MIRAI's home | the store denied; the trust root readable, not writable |
 | Outside your home | Claude Code's shared temp, your temp folder, `/Users/Shared`, `/Volumes` |

@@ -1,0 +1,23 @@
+the probe home: /Users/jetmir.haxhisefa/.mirai-probes-13ZYAA
+the home: standard, PRD own-due-dates-prd approved
+Arlo: write tech-note (round 1): ok
+lint, tech-note: clean
+Vera, docs/mirai/due-dates/tech-note.md: round 1, 2 must-fix
+Arlo: fix tech-note (round 2): ok
+lint, tech-note: clean
+Vera, docs/mirai/due-dates/tech-note.md: round 2, 0 must-fix
+Arlo (mirai-architect): done: the technical note is ready for your approval (run r-20261127-031353-e192; rounds: lint 0, Vera (mirai-verifier) 2; 2 launches; standard, claude-sonnet-5-5)
+  Vera own-due-dates-tech-note r1: must-fix writing: The approach says access does not change, but the PUT route has no owner check today (confirmed: TaskController.php update has no Gate::authorize). The fix appears only as a last risk line, not in Components, and the Coverage row for NFR-1 points at an unchanged TaskPolicy that does not guard PUT today.
+  Vera own-due-dates-tech-note r1: must-fix writing: setDueDate takes no title but the PUT is said to send the title. A required-title PUT has nothing to fill it from, so the caller and endpoint could differ in shape. The note also says the update 'still sets the title'.
+  Vera own-due-dates-tech-note r1: suggestion writing: FR-4 covers adding a task too (POST refuses a past date), but Coverage names only UpdateTaskRequest. FR-1 also leaves out the request classes and api.ts that carry the date.
+  Vera own-due-dates-tech-note r1: suggestion decision/other: Falling back to UTC for a missing or invalid zone is a real choice made inside a component line. It decides which day counts as 'today' for the refusal, and it can differ from the owner's zone in A-1. It is not a D-n line.
+  Vera own-due-dates-tech-note r1: suggestion writing: D-2 adds a new header to the API contract, sent on every call. That may pass the ADR test as an interface and a first of its kind. It is written as a plain D-n line with no ADR link, while the initiative has no other ADR.
+  Vera own-due-dates-tech-note r2: suggestion writing: FR-4 also covers adding a task (POST refuses a past date), but Coverage still names only UpdateTaskRequest, not StoreTaskRequest.
+  Vera own-due-dates-tech-note r2: suggestion decision/other: Falling back to UTC for a missing or invalid zone is still a choice made inside a component line, not a D-n line. It decides which day counts as today. The line also ends without naming the message text.
+  Vera own-due-dates-tech-note r2: suggestion writing: A typo, 'user.s', in the new test line.
+4 files, 0 problems, 3 warnings, 0 skipped
+the home is deleted
+pass  done
+pass  note
+pass  lintClean
+p3: PASS

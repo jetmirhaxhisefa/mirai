@@ -18,6 +18,7 @@ These pages say "merge request" for both hosts. On GitHub this is a pull request
 - [adr.md](adr.md): architecture decision records: when to write one, the template, approval and the status in the file, the index, your own ADRs, what agents read, `mirai adr review`.
 - [hld.md](hld.md): the HLD on `full`: its sections, diagrams, trace table, the `lld` field, approval, your own template.
 - [lld.md](lld.md): the LLD on `full`, where the HLD requires one: the shared contracts and schema changes, `uses`, approval, the freeze after the ship.
+- [design.md](design.md): `mirai design`: Arlo writes the HLD and its ADRs, the LLD, or the technical note from the approved PRD and the code; his three kinds of choice; the web fence.
 - [documents.md](documents.md): the document types, the summary for approval, the lint and the reader test.
 - [tickets.md](tickets.md): Tess, the ticket planner; testable acceptance criteria, priority and order, the run's pick, and the project's ticket types (unit 42).
 - [context.md](context.md): the project's context files in `.mirai/context/`, what the lint checks in them and how you approve them.

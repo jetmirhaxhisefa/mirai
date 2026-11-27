@@ -126,6 +126,33 @@ Rules:
   rule files are part of the red-team key, so writing there would make every result stale.
 - Also in this unit: a tool result from `/mirai status` in the session contains the multi-line
   view as text, so the model can relay it.
+- **An idea for P16's interview (Jet, 2026-11-27): a project progress view beside the run's line.**
+  During MIRAI's own development Jet asked for a status line showing where the work stands. It runs
+  today for MIRAI's repo only, from a file the session keeps by hand
+  (`.claude/progress.md` and `statusline.sh`, both uncommitted):
+
+  ```
+  ▶ Now        64 + 65 red team: random load failures; then a fix proposal
+  ✓ Done       65b spec drafted (PR #152) · #151 merged (42b before 46)
+  → Next       fix the red team's load failures · approve 64 → 65 · 65b spec clash check
+  ◆ Next unit  65b design research and brainstorm (spec draft) · then 42b, 46
+  ```
+
+  For a real project, the same four lines could come from the store instead of a hand-kept file:
+  - **Now:** the ticket or document step in progress, with its phase (the one-line view above);
+  - **Done:** the last two tickets merged or documents approved;
+  - **Next:** the next two or three in the queue, or what waits for you (`◆ needs you`);
+  - **Next epic:** the next epic or initiative not yet started.
+
+  To settle at the interview:
+  - one line or several (Claude Code can draw several; it reads the setting when a session
+    starts, so a change shows after a restart);
+  - which of the four lines a real project needs;
+  - whether "Next" follows the queue (P24) or what's waiting for you;
+  - how it sits beside your own status line (the wrap rule above).
+
+  Either way, MIRAI derives it from the state view (P14), never from text a model writes, so it
+  can't drift from the truth.
 
 ## 3. Notifications (P17)
 

@@ -20,7 +20,7 @@ import { notesPending, runTess, tessInputs, tessSubject } from '../../src/tess/r
 import { DEFAULT_INPUTS, inputStates, inputsOf, missingLine, missingOf, notBuiltLine } from '../../src/tickets/inputs.js';
 import { isQuickTicket } from '../../src/tickets/quick.js';
 import { dependsOnDropped, releaseOf, ticketRows } from '../../src/tickets/set-screen.js';
-import { BRIEF_READY, INTERVIEW, PRD_READY } from '../helpers/docs-fixtures.js';
+import { BRIEF_READY, INTERVIEW, PRD_READY, seedApprovedNote } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { veraBefore } from '../helpers/vera.js';
 import { installed } from '../tests/run-fixture.js';
@@ -40,7 +40,7 @@ const APPROVE_EPIC = ['approve', 'SAMPLE-50', '--file', `${D}/epic-due-dates.md`
 
 // An installed repo with the brief, the interview and the PRD (and, with `set`, the epic and its
 // tickets), your key and git name; on a feature branch unless `branch` is null.
-function fixture({ config = PREFIX, set = false, extra = {}, branch = 'tickets-due-dates' } = {}) {
+function fixture({ config = PREFIX, set = false, extra = {}, branch = 'tickets-due-dates', note = true } = {}) {
   const files = { [`${D}/brief.md`]: BRIEF_READY, [`${D}/interview.md`]: INTERVIEW, [`${D}/prd.md`]: PRD_READY, '.mirai/context/journeys.md': JOURNEYS };
   if (set) {
     files[`${D}/epic-due-dates.md`] = EPIC;
@@ -55,6 +55,9 @@ function fixture({ config = PREFIX, set = false, extra = {}, branch = 'tickets-d
   f.git('add', '-A');
   f.git('commit', '-qm', 'key');
   writeToken(f.env, FAKE_TOKEN);
+  // Unit 64: standard's ticket planner waits for an approved technical note; tests about the offer
+  // and her run start with one (the note's own approval is tech-note.test.js's).
+  if (note) seedApprovedNote(f);
   if (branch) f.git('switch', '-q', '-c', branch);
   const io = { cwd: f.root, env: f.env };
   return { ...f, io, store: openStore(io), at: (rel) => join(f.root, D, rel) };
@@ -86,12 +89,16 @@ const starts = () => {
 
 // ---- T1 The offer ------------------------------------------------------------------------------
 
-test('45 T1: approving the PRD on standard, with no technical note yet (optional until unit 64), asks to start Tess with the warning; N starts nothing and prints the command; y starts her run', async () => {
+test('45 T1 (64 built): approving the PRD on standard with no technical note names it as still needed and offers nothing; with the note approved it asks to start Tess; N starts nothing and prints the command; y starts her run', async () => {
+  const bare = fixture({ branch: null, note: false });
+  const none = await approvePrd(bare, ['a', 'due-dates-prd'], starts());
+  assert.equal(none.code, EXIT.OK, none.err);
+  assert.match(none.out, /^tickets: still needed before Tess \(mirai-ticket-planner\) cuts the set: the technical note isn't written yet$/m);
+  assert.doesNotMatch(none.out, /Start Tess/);
   const f = fixture({ branch: null });
   const s = starts();
   const no = await approvePrd(f, ['a', 'due-dates-prd', 'n'], s);
   assert.equal(no.code, EXIT.OK, no.err);
-  assert.match(no.out, /^tickets: no technical note yet: not required until unit 64; with one approved, the tickets follow it$/m);
   assert.match(no.out, /Start Tess \(mirai-ticket-planner\) on the ticket set now\? \[y\/N\] \nnot started; when you're ready: mirai tickets due-dates \(\/mirai tickets due-dates in your session\)\n/);
   assert.deepEqual(s.calls, []);
   // 38's rule holds: the documents' lines come last.
@@ -156,9 +163,9 @@ test('45 T2: a required document of an existing type that isn\'t approved as it 
   assert.equal((await approvePrd(f, ['a', 'due-dates-prd', 'n'])).code, EXIT.OK);
   f.git('switch', '-q', '-c', 'tickets-due-dates');
   const s = tessSubject({ cwd: f.root, env: f.env, initiative: 'due-dates' });
-  // Unit 62b: the note's type exists, and is optional until unit 64 (Arlo).
-  assert.deepEqual(s.inputs.map((x) => [x.type, x.state]), [['prd', 'approved'], ['tech-note', 'optional'], ['brief', 'approved']]);
-  assert.equal(s.notBuilt, 'no technical note yet: not required until unit 64; with one approved, the tickets follow it');
+  // Unit 64: the note is required on standard (the fixture's is approved), so nothing is "not built".
+  assert.deepEqual(s.inputs.map((x) => [x.type, x.state]), [['prd', 'approved'], ['tech-note', 'approved'], ['brief', 'approved']]);
+  assert.equal(s.notBuilt, null);
   const index = JSON.parse(tessInputs(s, { step: 'write', round: 1 })['index.json']);
   assert.ok(index.files.some((x) => x.name === 'brief.md'));
   writeFileSync(f.at('brief.md'), `${BRIEF_READY}\nA line added after its approval.\n`);
@@ -322,6 +329,9 @@ test('45 probes: P1\'s flow runs end to end with stand-in agents: the offer, her
   const { FAKE_CLAUDE, fakeReader } = await import('../helpers/reader.js');
   const workdir = rp(mk(join(tmpdir(), 'mirai-u45-p1-')));
   const home = { ...(await tessHome({ workdir, key: 'p1', c: { initiative: 'due-dates' }, claude: null, token: FAKE_TOKEN })), workdir, home: join(workdir, 'home') };
+  // Unit 64: standard's ticket planner waits for an approved technical note.
+  const { execFileSync } = await import('node:child_process');
+  seedApprovedNote({ root: home.root, env: home.env, git: (...a) => execFileSync('/usr/bin/git', ['-c', 'user.email=p@example.invalid', '-c', 'user.name=p', ...a], { cwd: home.root, env: { PATH: '/usr/bin:/bin', HOME: home.home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } }) });
   const t52 = TICKETS['tickets/SAMPLE-52.md'];
   const t58 = t52.replaceAll('SAMPLE-52', 'SAMPLE-58').replace(/^order: \d+$/m, 'order: 8').replace(/^# .*$/m, '# A due date in the past is refused, again');
   const steps = [];

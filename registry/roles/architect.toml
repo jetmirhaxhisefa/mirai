@@ -1,0 +1,15 @@
+# A role (unit 19b): what a run may change, and its step. Unit 64: Arlo's, the architect's. He
+# writes one initiative's design documents (the HLD, the technical note, the LLD, and interview.md
+# to pause) and new ADR files in the ADR folder, on the `design` step (deep, D-14; `lld` and
+# `tech-note` for his other runs, standard). The role lets him write anywhere MIRAI doesn't protect,
+# because the docs root and the ADR folder are the project's settings; after each of his launches
+# MIRAI checks his changes against those paths and refuses anything outside them (src/design/run.js).
+kind = "role"
+schema_version = 1
+name = "architect"
+description = "Writes one initiative's design documents and new ADRs; MIRAI checks each change is inside those paths"
+mode = "read-write"
+step = "design"
+
+[may_write]
+paths = ["**"]

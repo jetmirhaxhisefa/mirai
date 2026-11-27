@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 import { MiraiError, UsageError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
-import { agentTemplate, checkInit, expectedInit, finishLaunch, prepareLaunch, removeLaunch } from '../launch/strict.js';
+import { agentTemplate, checkInit, expectedInit, fetchDomainsOf, finishLaunch, prepareLaunch, removeLaunch, webTemplate } from '../launch/strict.js';
 import { agentOverlay } from '../trust/overlays.js';
 import { containsToken, parseStream, redact } from '../redteam/claude.js';
 import { resolveClaude } from '../redteam/key.js';
@@ -203,7 +203,10 @@ export function agentFor(trust, name, role, template, { structured = false, stor
   const change = own ? own.overlay.result.change : null;
   const tools = def.tools.allowed;
   const same = tools.length === template.tools.length && tools.every((t) => template.tools.includes(t));
-  const used = own && (change === 'widening' || !same) ? agentTemplate(template, { agent: name, tools, overlay: def.overlay }) : template;
+  let used = own && (change === 'widening' || !same) ? agentTemplate(template, { agent: name, tools, overlay: def.overlay }) : template;
+  // Unit 64 (decision 3): the architect's read-write launches read the web, from the fixed list only,
+  // under his own template (never an overlay's doing: [web] is MIRAI's own registry's).
+  if (registry.agents[name].web?.fetch === 'fixed-list' && used.mode === 'read-write' && !used.overlay) used = webTemplate(used, { agent: name, domains: fetchDomainsOf(trustedConfig(trust)) });
   return { name, json: renderAgentsJson(def, prompt, launchTools(used, { structured })), template: used, change, why: own ? own.overlay.result.why : [], overlay: own ? own.path : null };
 }
 
