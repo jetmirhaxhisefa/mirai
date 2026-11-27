@@ -242,6 +242,8 @@ launchTest('T5, T6: the launch: production layout, a private folder, read-only i
   const mode = (p) => statSync(p).mode & 0o777;
   assert.deepEqual(Object.keys(plan.env).sort(), ['CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR', 'CLAUDE_CODE_TMPDIR', 'CLAUDE_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'HOME', 'LANG', 'MCP_TIMEOUT', 'MCP_TOOL_TIMEOUT', 'PATH', 'TMPDIR']);
   for (const d of plan.env.PATH.split(':')) assert.ok(d.startsWith('/') && !d.startsWith(plan.cwd), `PATH keeps ${d}`);
+  // 2026-11-27: MIRAI's MCP server gets 90 s to start (crowded starts took up to 33 s).
+  assert.equal(plan.env.MCP_TIMEOUT, '90000');
   assert.equal(plan.fds[3], TOKEN);
   assert.ok(!JSON.stringify(plan).includes(TOKEN), 'the token is in the plan\'s JSON');
   assert.ok(!plan.args.join(' ').includes(TOKEN));

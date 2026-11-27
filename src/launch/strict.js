@@ -51,6 +51,7 @@ export const FILE_TOOL_BLOCKS = Object.freeze(['blockWritesOutsideWorkingDirecto
 // A test call waits at most 30 minutes for its turn (one deadline for the repo's turn and a
 // machine slot), runs at most 240, and cleans up: 6 hours leaves room.
 export const MCP_TOOL_TIMEOUT_MS = 6 * 3600 * 1000;
+export const MCP_START_TIMEOUT_MS = 90_000;
 // MIRAI's MCP server (units 14d, 15a) and its tools, as Claude Code names them.
 export const MCP_SERVER = 'mirai';
 export const MCP_TOOLS = Object.freeze({ run_tests: 'mcp__mirai__run_tests', run_check: 'mcp__mirai__run_check', log_event: 'mcp__mirai__log_event', lint: 'mcp__mirai__lint', trace: 'mcp__mirai__trace' });
@@ -389,9 +390,11 @@ export function launchEnv({ env, launchDir, scratchDir, configHome, gitconfig, c
     CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR: '3',
     // MIRAI's MCP server (unit 14d): a test call may wait 30 minutes for its turn, run up to 240
     // and then clean up (a 12-minute call completed with the default in 14d's probes; the limit is
-    // set, not relied on). The server must start within 30 s.
+    // set, not relied on). The server must start within 90 s: alone it connects in about a second,
+    // but several starting at once took up to 33 s on the Mac (u64-redteam-6, 2026-11-27: two
+    // never connected within the old 30 s, and their runs were refused as not what MIRAI launched).
     MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS),
-    MCP_TIMEOUT: '30000',
+    MCP_TIMEOUT: String(MCP_START_TIMEOUT_MS),
   });
   return out;
 }
