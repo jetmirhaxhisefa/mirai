@@ -207,8 +207,8 @@ test('review: a worker re-checks its request, says when it was lost, and its key
 // Unit 41: `mirai write`, Nora's run (her launches and the verifier's), from your terminal or your
 // session's `/mirai write`.
 // Unit 42: `mirai tickets`, Tess's run (her launches and the verifier's), the same way.
-test('review: only your terminal (agent, plan, build, fix, review, run, verify, write, tickets) and the worker mint launch tokens', () => {
+test('review: only your terminal (agent, plan, build, fix, review, run, verify, write, tickets, design) and the worker mint launch tokens', () => {
   const src = new URL('../../src/', import.meta.url).pathname;
   const users = execFileSync('/usr/bin/grep', ['-rl', 'mintLaunchToken', src], { encoding: 'utf8' }).trim().split('\n').map((p) => p.slice(src.length)).sort();
-  assert.deepEqual(users, ['agent/requests.js', 'agent/worker.js', 'cli/commands/agent.js', 'cli/commands/build.js', 'cli/commands/fix.js', 'cli/commands/plan.js', 'cli/commands/review.js', 'cli/commands/tickets.js', 'cli/commands/verify.js', 'cli/commands/write.js', 'run/drive.js']);
+  assert.deepEqual(users, ['agent/requests.js', 'agent/worker.js', 'cli/commands/agent.js', 'cli/commands/build.js', 'cli/commands/design.js', 'cli/commands/fix.js', 'cli/commands/plan.js', 'cli/commands/review.js', 'cli/commands/tickets.js', 'cli/commands/verify.js', 'cli/commands/write.js', 'run/drive.js']);
 });

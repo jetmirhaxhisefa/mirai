@@ -233,7 +233,8 @@ function lintAt({ cwd, env, store, config, conn, files }) {
       mkdirSync(join(tmp, dirname(f.rel)), { recursive: true });
       writeFileSync(join(tmp, f.rel), f.bytes);
     }
-    const r = lintPaths({ root: tmp, paths: [join(tmp, conn.docsRoot)], files: null, registry: own.registry, docsRoot: conn.docsRoot, project: projectOf(config) });
+    // The documents' cited code (a technical note's, an HLD's) is checked in your checkout: the copy holds the docs only.
+    const r = lintPaths({ root: tmp, paths: [join(tmp, conn.docsRoot)], files: null, registry: own.registry, docsRoot: conn.docsRoot, project: projectOf(config), repo: store.checkout });
     return { errors: r.problems.filter((p) => p.severity === 'error'), skipped: [...(own.note ? [own.note] : []), ...own.skipped.map((x) => x.line)] };
   } finally {
     rmSync(tmp, { recursive: true, force: true });

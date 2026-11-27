@@ -1,0 +1,28 @@
+# Arlo, MIRAI's architect (unit 64; design/01 §4). One job: from an approved PRD and the code, write
+# the initiative's design for your approval: on `full` the HLD with its ADRs (run 1, the `design`
+# step) and, when the HLD says `lld: required`, the LLD (run 2, the `lld` step); on `standard` the
+# technical note and any ADR it proposes (the `tech-note` step). He runs in the background, in
+# MIRAI's sandbox, and MIRAI runs the lint and Vera between his launches, handing him each result
+# (as Nora's and Tess's runs: no agent starts an agent, D-53). He reads the whole repo, writes only
+# the initiative's folder and new ADR files, and may fetch pages from a fixed list of package and
+# documentation sites (decision 3); his answer is structured output.
+kind = "agent"
+schema_version = 1
+name = "mirai-architect"
+role = "architect"
+persona = "Arlo"
+description = "Arlo: writes an initiative's design (the HLD and its ADRs, the LLD, or the technical note) from the approved PRD and the code, for your approval"
+read_only = false
+prompt = "agents/mirai-architect.md"
+
+# The read-write template's tools. `mirai` from Bash is denied in every launch (D-30); the shell has
+# no network.
+[tools]
+allowed = ["Bash", "Read", "Edit", "Write", "Glob", "Grep"]
+
+# Decision 3: WebFetch, only from the fixed list (npmjs.com, pypi.org, packagist.org, rubygems.org,
+# crates.io, pkg.go.dev, endoflife.date) and the project's [design] fetch_domains, under his own
+# template (agent-mirai-architect-read-write, src/launch/strict.js). No web search.
+[web]
+fetch = "fixed-list"
+

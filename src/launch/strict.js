@@ -51,6 +51,7 @@ export const FILE_TOOL_BLOCKS = Object.freeze(['blockWritesOutsideWorkingDirecto
 // A test call waits at most 30 minutes for its turn (one deadline for the repo's turn and a
 // machine slot), runs at most 240, and cleans up: 6 hours leaves room.
 export const MCP_TOOL_TIMEOUT_MS = 6 * 3600 * 1000;
+export const MCP_START_TIMEOUT_MS = 90_000;
 // MIRAI's MCP server (units 14d, 15a) and its tools, as Claude Code names them.
 export const MCP_SERVER = 'mirai';
 export const MCP_TOOLS = Object.freeze({ run_tests: 'mcp__mirai__run_tests', run_check: 'mcp__mirai__run_check', log_event: 'mcp__mirai__log_event', lint: 'mcp__mirai__lint', trace: 'mcp__mirai__trace' });
@@ -144,6 +145,27 @@ export function agentTemplate(base, { agent, tools, overlay }) {
   return { ...base, name: agentTemplateName(agent, base.mode), tools: own, overlay: { path: overlay.path, hash: overlay.hash, widened: own.filter((t) => !base.tools.includes(t)) } };
 }
 
+// Unit 64 (decision 3): the architect reads the web through WebFetch only, and only from a fixed list
+// of package and documentation sites, plus the docs a project adds ([design] fetch_domains). No web
+// search, and the shell keeps no network.
+export const FETCH_DOMAINS = Object.freeze(['npmjs.com', 'pypi.org', 'packagist.org', 'rubygems.org', 'crates.io', 'pkg.go.dev', 'endoflife.date']);
+// A domain as a permission rule takes it: lower-case labels, an optional leading "*." (its
+// subdomains), no scheme, port, path or other wildcard.
+export const FETCH_DOMAIN = /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+export const fetchDomainsOf = (config) => [...new Set([...FETCH_DOMAINS, ...(config?.design?.fetch_domains ?? [])])].sort();
+
+// The web agent's template: its read-write mode's, with WebFetch taken off the deny list and given
+// back only as one allow rule per domain (renderStrict); WebSearch, Task and Agent stay denied.
+// Named for the agent, as an overlay's own template is, and carrying the domains, so a red-team
+// result covers exactly this list (the canonical hash includes it).
+export function webTemplate(base, { agent, domains }) {
+  if (base.mode !== 'read-write') throw new StrictError('only a read-write agent reads the web', { code: 'bad-template' });
+  const list = [...new Set(domains)].sort();
+  const bad = list.filter((d) => typeof d !== 'string' || !FETCH_DOMAIN.test(d));
+  if (!list.length || bad.length) throw new StrictError(`the fetch domains aren't plain domain names (${bad.slice(0, 3).join(', ') || 'none given'})`, { code: 'bad-template' });
+  return { ...base, name: agentTemplateName(agent, base.mode), agent, tools: [...new Set([...base.tools, 'WebFetch'])].sort(), deny_tools: base.deny_tools.filter((t) => t !== 'WebFetch'), web: { domains: list } };
+}
+
 // The templates a trust root holds: one per access mode.
 export function strictTemplates({ registry, config }) {
   const out = new Map();
@@ -217,7 +239,7 @@ export function readableEnv(template, tracked) {
 // project, so for them the hook only adds refusals.
 export function renderStrict(template, facts) {
   if (template?.schema !== STRICT_SCHEMA) throw new StrictError('the strict template isn\'t one this MIRAI reads', { code: 'bad-template' });
-  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets', 'mcp', 'overlay'];
+  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets', 'mcp', 'overlay', 'web'];
   const extra = Object.keys(template).filter((k) => !known.includes(k));
   if (extra.length) throw new StrictError(`the strict template has fields MIRAI doesn't know (${extra.join(', ')})`, { code: 'bad-template' });
   if (!MODES.includes(template.mode)) throw new StrictError('the strict template\'s mode is neither read-write nor read-only', { code: 'bad-template' });
@@ -227,6 +249,10 @@ export function renderStrict(template, facts) {
     || !(m.tests === null || (strings(m.tests?.levels) && strings(m.tests?.checks))) || !(m.lint === undefined || m.lint === true) || !(m.trace === undefined || m.trace === true)) {
     throw new StrictError('the strict template\'s mcp field isn\'t one this MIRAI reads', { code: 'bad-template' });
   }
+  // Unit 64: a web template names its domains (the red team's S4 checks the floor on every rendered
+  // template, this one's exception included: src/redteam/static.js).
+  const web = template.web ?? null;
+  if (web !== null && (template.mode !== 'read-write' || !Array.isArray(web.domains) || !web.domains.length || !web.domains.every((d) => typeof d === 'string' && FETCH_DOMAIN.test(d)) || Object.keys(web).length !== 1)) throw new StrictError('the strict template\'s web field isn\'t one this MIRAI reads', { code: 'bad-template' });
   const off = template.builtin?.skills_off ?? [];
   if (!Array.isArray(off) || !off.every((s) => typeof s === 'string' && /^[A-Za-z][A-Za-z0-9._-]{0,80}$/.test(s))) throw new StrictError('the strict template\'s builtin.skills_off isn\'t a list of skill names', { code: 'bad-template' });
   const co = plain(facts.checkout, 'the checkout');
@@ -287,7 +313,8 @@ export function renderStrict(template, facts) {
   return {
     // Unit 18d: a second check beside --restricted, in Claude Code's own code. Under --restricted
     // it never gets the first word (R1), but a Claude Code update could change that flag unseen.
-    permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t)), ...mcpTools(template)], deny: [...new Set(deny)], ...Object.fromEntries(FILE_TOOL_BLOCKS.map((k) => [k, true])) },
+    // Unit 64: WebFetch is never allowed whole: one rule per domain of the web template's list.
+    permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t) && t !== 'WebFetch'), ...(web ? web.domains.map((d) => `WebFetch(domain:${d})`) : []), ...mcpTools(template)], deny: [...new Set(deny)], ...Object.fromEntries(FILE_TOOL_BLOCKS.map((k) => [k, true])) },
     hooks: { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
     // The bundled ship-local (/ship), steward (/steward) and claude-approvals act on a PR as you, some
     // of it outside the sandbox: turned off by name (Jet's "A", 2026-11-23 and -24). S6 checks they're here.
@@ -363,9 +390,11 @@ export function launchEnv({ env, launchDir, scratchDir, configHome, gitconfig, c
     CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR: '3',
     // MIRAI's MCP server (unit 14d): a test call may wait 30 minutes for its turn, run up to 240
     // and then clean up (a 12-minute call completed with the default in 14d's probes; the limit is
-    // set, not relied on). The server must start within 30 s.
+    // set, not relied on). The server must start within 90 s: alone it connects in about a second,
+    // but several starting at once took up to 33 s on the Mac (u64-redteam-6, 2026-11-27: two
+    // never connected within the old 30 s, and their runs were refused as not what MIRAI launched).
     MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS),
-    MCP_TIMEOUT: '30000',
+    MCP_TIMEOUT: String(MCP_START_TIMEOUT_MS),
   });
   return out;
 }

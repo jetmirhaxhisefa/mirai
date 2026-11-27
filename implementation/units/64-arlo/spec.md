@@ -1,7 +1,7 @@
 ---
 unit: "64"
 name: arlo
-status: approved (Jet, 2026-11-26: interview Q1 "A", Q2 "A", Q3 "B" with Q3b "A", Q4 "A", Q5 "A", restatement "yes"; after the research in research.md; batch mode with 62, 63, 65)
+status: done (Jet, 2026-11-27: "approve 64", built and probed; spec approved 2026-11-26: interview Q1 "A", Q2 "A", Q3 "B" with Q3b "A", Q4 "A", Q5 "A", restatement "yes"; after the research in research.md; batch mode with 62, 63, 65)
 roadmap: design/07-implementation-roadmap.md, row 64; design/01 §4; units 34 (`mirai-write`), 40 (Vera), 41/42 (Nora's and Tess's runs and pauses), 45b (model steps), 61 (ADR), 62 (HLD), 62b (technical note), 63 (LLD), 13/19 (the launch and the red team)
 depends_on: ["34", "40", "42", "45b", "61", "62", "62b", "63"]
 ---

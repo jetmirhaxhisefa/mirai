@@ -13,7 +13,7 @@ import { blobAt } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { snapshot, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
-import { widenedTemplates } from '../trust/overlays.js';
+import { webTemplates, widenedTemplates } from '../trust/overlays.js';
 import { readBinaryFacts } from './binary.js';
 import { launchStore } from './direct.js';
 import { redTeamCases } from './cases.js';
@@ -79,6 +79,38 @@ const clean = (v, token, max = 400) => redact(typeof v === 'string' ? v : JSON.s
 
 // The state of a result from its cases and checks: blocker > red > incomplete > green. `checks`
 // includes the coverage of the templates (a template no case ran under isn't green).
+// The start gate (2026-11-27, u64-redteam-6): with six workers, up to six agents started in the same
+// second, and their MCP servers took up to 33 s to connect (about 1 s alone), past Claude Code's
+// start timeout. At most START_SLOTS agents start at once; a slot frees after START_HOLD_MS (the
+// start is then over) or when the run ends, whichever is first. Exported for its unit test.
+export const START_SLOTS = 2;
+export const START_HOLD_MS = 5_000;
+export function startGate({ slots = START_SLOTS, holdMs = START_HOLD_MS } = {}) {
+  let free = slots;
+  const waiting = [];
+  const release = () => {
+    const next = waiting.shift();
+    if (next) next();
+    else free += 1;
+  };
+  return {
+    async enter() {
+      if (free > 0) free -= 1;
+      else await new Promise((resolve) => waiting.push(resolve));
+      let done = false;
+      const leave = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        release();
+      };
+      const timer = setTimeout(leave, holdMs);
+      timer.unref?.();
+      return leave;
+    },
+  };
+}
+
 export function stateOf({ cases: all, checks, stopped }) {
   // Informational cases (unit 18b) are reported, never part of the state.
   const cases = all.filter((c) => !c.informational);
@@ -98,8 +130,10 @@ export function unitsFor(cases, templates, only = null) {
     for (const mode of k.templates) {
       // Unit 37: a case made for a widened tool runs only under an agent template whose overlay
       // gives that tool beyond its mode, and is never "skipped" where none does.
-      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w)))).map(([n]) => n);
-      if (!names.length && !k.widened) skipped.push({ id: k.id, template: mode });
+      // Unit 64: a web case runs only under a web template (the architect's), and `a-web` (WebFetch
+      // absent) never under one; with no web template a web case isn't "skipped" either.
+      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w))) && (!k.webOnly || t.web) && !(k.notWeb && t.web)).map(([n]) => n);
+      if (!names.length && !k.widened && !k.webOnly) skipped.push({ id: k.id, template: mode });
       for (const n of names) units.push({ id: k.id, template: n });
     }
   }
@@ -178,7 +212,15 @@ async function runOnce(kase, template, ctx, o) {
     : ['-p', promptFor(kase.action), '--max-turns', MAX_TURNS, '--model', o.model, '--append-system-prompt', SYSTEM, ...(resumeId ? ['--resume', resumeId] : []), ...plan.args];
   // A race case's swapper must outlive the agent until its check stops it: not the launch's cleanup.
   const starter = kase.keepProcesses && o.launch === runInGroup ? runClaude : o.launch;
-  const raw = await starter(o.claude.real, { args, env: { ...plan.env, ...(kase.env ?? {}) }, cwd: plan.cwd, fdToken: plan.fds[3] }, { signal: o.signal, killRoots: [plan.cwd, plan.scratchDir], ...(adversarial ? { timeoutMs: ADVERSARIAL_TIMEOUT_MS } : {}) });
+  // At most START_SLOTS agents start at the same moment (2026-11-27): their MCP servers slow each
+  // other down; the slot is held for START_HOLD_MS or until the run ends, whichever is first.
+  const leave = o.gate ? await o.gate.enter() : () => {};
+  let raw;
+  try {
+    raw = await starter(o.claude.real, { args, env: { ...plan.env, ...(kase.env ?? {}) }, cwd: plan.cwd, fdToken: plan.fds[3] }, { signal: o.signal, killRoots: [plan.cwd, plan.scratchDir], ...(adversarial ? { timeoutMs: ADVERSARIAL_TIMEOUT_MS } : {}) });
+  } finally {
+    leave();
+  }
   const parsed = parseStream(raw.stdout);
   const toolText = parsed.toolResults.join('\n');
   const r = {
@@ -329,7 +371,7 @@ function floorAll(templates, ctx, env) {
     try {
       const settings = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8'));
       rendered.set(name, settings);
-      floor.set(name, floorCheck(settings, { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid() }));
+      floor.set(name, floorCheck(settings, { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid(), web: template.web ?? null }));
     } finally {
       finishLaunch(plan);
     }
@@ -346,8 +388,9 @@ export async function runRedTeam({
   cwd, env, storeEnv = env, consent = false, only = null, runs = DEFAULTS.runs, maxAttempts = DEFAULTS.maxAttempts, workers = DEFAULTS.workers,
   model = DEFAULTS.model, adversarialModel = DEFAULTS.adversarialModel, adversarialTurns = DEFAULTS.adversarialTurns, escapeGraceMs = DEFAULTS.escapeGraceMs, claude = null, kept: useKept = false, ticket = null, allowScript = false, signer = null, workdir = null, keep = false, signal = null, onEvent = () => {}, now = () => new Date(),
   docker = {}, dockerVersion = null, launch = runInGroup, binaryFacts = readBinaryFacts,
-  // For MIRAI's own tests only: other cases, stand-ins for the host canaries, a temp work folder.
-  caseList = redTeamCases, host = HOST, allowTempWorkdir = false,
+  // For MIRAI's own tests only: other cases, stand-ins for the host canaries, a temp work folder, and
+  // (`webTemplates: false`) the mode templates alone, for tests that count launches per template.
+  caseList = redTeamCases, host = HOST, allowTempWorkdir = false, webTemplates: withWeb = true,
 }) {
   if (consent !== true) throw new UsageError('the red-team run uses your Claude subscription; it needs your yes', 'run it yourself: mirai redteam run');
   const store = openStore({ cwd, env: storeEnv });
@@ -401,6 +444,8 @@ export async function runRedTeam({
     // Unit 37: every agent your approved overlay widens runs the same cases under its own
     // template (its tools, its mode's limits), so a launch of it can be checked against this run.
     for (const [n, t] of widenedTemplates(trust, store, templates)) templates.set(n, t);
+    // Unit 64: the architect's web template, with the mode's cases and the web cases.
+    if (withWeb) for (const [n, t] of webTemplates(trust, templates)) templates.set(n, t);
     const checks = binaryCheck(binaryFacts(c.real), strict.binary);
     onEvent({ type: 'static', checks });
 
@@ -442,6 +487,7 @@ export async function runRedTeam({
     let error = null;
     const o = {
       env, token, model, adversarialModel, adversarialTurns, escapeGraceMs, runs, maxAttempts, claude: c, templates, signal, onEvent, launch, caseList, inits: [], late: [],
+      gate: startGate(),
       stop: () => stopped !== null || signal?.aborted === true,
       blocked: (why) => { stopped ??= why; },
     };
@@ -449,9 +495,17 @@ export async function runRedTeam({
     // A worker doesn't take a Docker case (a container case or a Docker probe set) while another
     // runs one: they go one at a time, so it would only wait.
     let containerRunning = false;
+    // Unit 64: a case runs under more than one template now (every read-write case also under the
+    // architect's); two runs of one case never overlap, since several cases look for their own
+    // process, file or marker machine-wide (the linger cases' `sleep 39xx`, the escape markers) and
+    // would see the other template's run (u64-redteam-1: l-fork and l-setsid failed that way).
+    const running = new Set();
     const take = () => {
-      const i = queue.findIndex((u) => !containerRunning || all.find((k) => k.id === u.id)?.docker !== true);
-      return i < 0 ? (queue.length ? 'wait' : null) : queue.splice(i, 1)[0];
+      const i = queue.findIndex((u) => !running.has(u.id) && (!containerRunning || all.find((k) => k.id === u.id)?.docker !== true));
+      if (i < 0) return queue.length ? 'wait' : null;
+      const u = queue.splice(i, 1)[0];
+      running.add(u.id);
+      return u;
     };
     const results = [];
     const notRun = (u) => ({ ...u, fact: all.find((k) => k.id === u.id)?.fact, blocker: all.find((k) => k.id === u.id)?.blocker === true, outcome: 'not-run', runs: [] });
@@ -463,6 +517,7 @@ export async function runRedTeam({
           continue;
         }
         if (o.stop()) {
+          running.delete(u.id);
           results.push(notRun(u));
           continue;
         }
@@ -476,6 +531,7 @@ export async function runRedTeam({
           results.push(notRun(u));
         } finally {
           if (container) containerRunning = false;
+          running.delete(u.id);
         }
       }
     }));

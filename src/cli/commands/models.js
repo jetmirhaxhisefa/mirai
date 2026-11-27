@@ -30,9 +30,9 @@ import { REGISTRY_DIR } from './lint.js';
 const TIERS = ['light', 'standard', 'deep'];
 // The agent that runs a step: from the registry's roles, and Kai for the plan steps (his planner
 // role), Rex for the high-risk review; the light steps and the reader test are MIRAI's own.
-const STEP_ROLE = Object.freeze({ plan: 'developer', replan: 'developer', 'review-high-risk': 'reviewer' });
+const STEP_ROLE = Object.freeze({ plan: 'developer', replan: 'developer', 'review-high-risk': 'reviewer', lld: 'architect', 'tech-note': 'architect' });
 const MIRAI_STEPS = new Set(['commit-message', 'mr-description', 'report-summary', 'parking-note', 'reader-test']);
-const LATER = Object.freeze({ design: 'the architect, unit 64', qa: 'QA, unit 50' });
+const LATER = Object.freeze({ qa: 'QA, unit 50' });
 
 function agentOf(registry, step) {
   if (MIRAI_STEPS.has(step)) return 'MIRAI';

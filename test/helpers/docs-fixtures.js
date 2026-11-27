@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { REGISTRY_DIR } from '../../src/cli/commands/lint.js';
 import { main } from '../../src/cli/main.js';
 import { veraBefore } from './vera.js';
+import { contentHash } from '../../src/sign/sign.js';
+import { loadSigner } from '../../src/sign/signer.js';
+import { openStore } from '../../src/store/home.js';
+import { appendEvent } from '../../src/store/journal.js';
+
+const SEED_REGISTRY = REGISTRY_DIR;
 
 // Unit 38: the documents the store tests write (33's example initiative, its brief's Q-1 answered
 // so the pair can be approved), and a terminal for `main`.
@@ -37,3 +43,20 @@ export async function tty(argv, { cwd, env }, answers = [], { vera = true } = {}
   return { code, out, err };
 }
 
+
+// Unit 64 (62b's decision 5): with the architect built, the `standard` track's ticket planner waits
+// for an approved technical note. Tests about her run (not about the note) seed one: the example
+// note beside the PRD, committed, and your signed approval of it as it is, written with the test
+// key the fixture made (the note's own approval is tested in tech-note.test.js).
+export function seedApprovedNote(f, dir = 'docs/mirai/due-dates') {
+  // The example's ADR link points to an ADR these fixtures don't hold: its decision as a plain D-n line.
+  const text = Buffer.from(readFileSync(join(SEED_REGISTRY, 'examples', 'tech-note.md'), 'utf8').replace('- D-3: [ADR-0001: Send due-date reminders from a queue worker](../../decisions/ADR-0001-reminder-queue.md)', '- D-3: Due-date reminders go out from a queue worker, so a slow mail service never holds up a request.'));
+  const path = `${dir}/tech-note.md`;
+  writeFileSync(join(f.root, path), text);
+  f.git('add', path);
+  f.git('commit', '-qm', 'the technical note');
+  const store = openStore({ cwd: f.root, env: f.env });
+  const id = /^id:\s*(\S+)/m.exec(text.toString('utf8'))[1];
+  appendEvent(store, { type: 'approval', by: 'human', item: id, kind: 'tech-note', path, content_hash: contentHash(text), decision: 'accepted', answered_after_s: 1 }, { signer: loadSigner(f.env, store) });
+  return id;
+}

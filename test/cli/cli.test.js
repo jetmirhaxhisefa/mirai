@@ -238,5 +238,5 @@ test('T13: the test script runs only MIRAI tests under test/', () => {
 });
 
 test('T14: the real command list is pinned, so every new command is a reviewed test change', () => {
-  assert.deepEqual(COMMANDS.map((c) => c.name), ['adr', 'agent', 'approve', 'baseline', 'branch', 'build', 'config', 'custom', 'detect', 'discard', 'docs', 'doctor', 'drop', 'epic', 'feedback', 'fix', 'gate', 'hook', 'init', 'key', 'lint', 'log', 'merge', 'models', 'plan', 'protected', 'reader-test', 'redteam', 'render', 'report', 'requirements', 'resume', 'review', 'review-mr', 'run', 'sandbox', 'session', 'session-server', 'setup', 'ship', 'show', 'status', 'test', 'tickets', 'token', 'trace', 'trust', 'unpark', 'verify', 'version', 'write']);
+  assert.deepEqual(COMMANDS.map((c) => c.name), ['adr', 'agent', 'approve', 'baseline', 'branch', 'build', 'config', 'custom', 'design', 'detect', 'discard', 'docs', 'doctor', 'drop', 'epic', 'feedback', 'fix', 'gate', 'hook', 'init', 'key', 'lint', 'log', 'merge', 'models', 'plan', 'protected', 'reader-test', 'redteam', 'render', 'report', 'requirements', 'resume', 'review', 'review-mr', 'run', 'sandbox', 'session', 'session-server', 'setup', 'ship', 'show', 'status', 'test', 'tickets', 'token', 'trace', 'trust', 'unpark', 'verify', 'version', 'write']);
 });

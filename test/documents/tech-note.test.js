@@ -16,7 +16,7 @@ import { openStore } from '../../src/store/home.js';
 import { checkEvent, readJournal } from '../../src/store/journal.js';
 import { isVeraType } from '../../src/verify/gate.js';
 import { verifyInputs, verifySubject } from '../../src/verify/run.js';
-import { inputStates, missingOf, notBuiltLine, REQUIRED_FROM } from '../../src/tickets/inputs.js';
+import { inputStates, missingOf, notBuiltLine, REQUIRED_FROM, UNITS_BUILT } from '../../src/tickets/inputs.js';
 import { gateFor, planPrompt } from '../../src/agent/plan.js';
 import { planTechNote, noteDecisions, techNoteFlags } from '../../src/agent/tech-note.js';
 import { approvedTechNote, planInputs } from '../../src/agent/inputs.js';
@@ -188,12 +188,14 @@ test('62b T5: before 64 a missing note is a warning and an approved one is Tess\
   const f = fixture({ adr: accepted(ADR) });
   const config = trustedConfig(snapshot(f.io));
   const none = () => null;
-  const before = inputStates({ store: f.store, registry: REGISTRY, config, track: 'standard', readDoc: (t) => (t === 'prd' ? null : none()) });
+  // Unit 64 built it: the default list now holds '64' (the "before" case is shown with none built).
+  assert.deepEqual(UNITS_BUILT, ['64']);
+  const before = inputStates({ store: f.store, registry: REGISTRY, config, track: 'standard', readDoc: (t) => (t === 'prd' ? null : none()), built: [] });
   const note = before.find((s) => s.type === 'tech-note');
   assert.deepEqual(note, { type: 'tech-note', state: 'optional', from: '64' });
   assert.equal(missingOf(before).some((s) => s.type === 'tech-note'), false);
   assert.match(notBuiltLine(before), /no technical note yet: not required until unit 64; with one approved, the tickets follow it/);
-  const after = inputStates({ store: f.store, registry: REGISTRY, config, track: 'standard', readDoc: () => null, built: ['64'] });
+  const after = inputStates({ store: f.store, registry: REGISTRY, config, track: 'standard', readDoc: () => null });
   assert.deepEqual(after.find((s) => s.type === 'tech-note'), { type: 'tech-note', state: 'absent' });
   // Approved: the planner's input.
   await approvePrd(f);
