@@ -32,6 +32,8 @@ function defaultName(type, initiative) {
   if (type === 'ticket-notes') return 'ticket-notes.md';
   // Unit 62b: the technical note, beside the PRD it builds.
   if (type === 'tech-note') return 'tech-note.md';
+  // Unit 62: the HLD.
+  if (type === 'hld') return 'hld.md';
   if (type === 'epic') return `epic-${initiative}.md`;
   return null;
 }

@@ -46,8 +46,8 @@ import { lastTessRun } from '../../tess/run.js';
 import { isQuickTicket } from '../../tickets/quick.js';
 import { approveAdr } from './approve-adr.js';
 import { DOCUMENTS, documentApproval } from '../../documents/approval.js';
-import { approveTechNote } from './approve-tech-note.js';
-import { approvedTechNote } from '../../agent/inputs.js';
+import { approveHld, approveTechNote } from './approve-tech-note.js';
+import { approvedHld, approvedTechNote } from '../../agent/inputs.js';
 import { techNoteFlags } from '../../agent/tech-note.js';
 
 // Unit 45 (Scope 6): a quick ticket's plan gate is auto, but nothing signs an auto approval yet.
@@ -196,7 +196,9 @@ async function approvePlan(ticket, io, now) {
   if (unapprovable) io.stdout.write(`note: ${ticket}'s plan can't be approved: ${plain(unapprovable)}; you can reject it\n`);
   // Unit 62b (Scope 6): the plan against the approved technical note of the ticket's initiative.
   const ticketPath = ticketRecord(store, ticket, keys).approved?.path ?? null;
-  const note = ticketPath ? approvedTechNote({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, docsRoot: config.docs?.root ?? 'docs/mirai', ticketPath, store }) : null;
+  const noteArgs = { root: store.checkout, env: store.gitEnv, commit: trust.baseSha, docsRoot: config.docs?.root ?? 'docs/mirai', ticketPath, store };
+  // Unit 62: on full, the approved HLD's Decisions, as the note's on standard.
+  const note = ticketPath ? approvedTechNote(noteArgs) ?? approvedHld(noteArgs) : null;
   const flags = techNoteFlags(text, note?.text ?? null);
   const gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai'), flags });
   const declared = declaredChanges(text).filter((r) => r.kind !== 'none');
@@ -346,6 +348,8 @@ async function approveDocument({ id, type, file, store, io, now, fileArg, base =
   if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, config, project: projectOfConfig(config), base, conn });
   // Unit 62b: the technical note, with the ADRs it proposes.
   if (type === 'tech-note') return approveTechNote({ id, fm, file, store, io, now, fileArg, base, conn });
+  // Unit 62: the HLD, with the ADRs it proposes and its reader test.
+  if (type === 'hld') return approveHld({ id, fm, file, store, io, now, fileArg, base, conn });
   if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project: projectOfConfig(config), base, conn });
   const text = file.bytes.toString('utf8');
   // Unit 41 (Scope 4): a brief waits for the business.md proposal beside it.
@@ -659,7 +663,7 @@ export async function publishAfterInitiative({ io, initiative }) {
 // { off: true } when the project turned it off, or null when the document doesn't take it (a
 // brief on quick or standard, a ticket). With no result for the current summary it refuses, with
 // the command that makes one. A failed result still lets you decide (decision 4).
-function readerFor({ store, config, def, value, id, path, text }) {
+export function readerFor({ store, config, def, value, id, path, text }) {
   if (!needsReaderTest(def, value)) return null;
   if (config.docs?.reader_test === false) return { off: true };
   const summary = summaryText(text, def.renames);
@@ -668,7 +672,7 @@ function readerFor({ store, config, def, value, id, path, text }) {
   return { entry, runs: readerRuns(config) };
 }
 
-function showReader(io, reader) {
+export function showReader(io, reader) {
   if (!reader) return;
   if (reader.off) {
     io.stdout.write('reader test: off for this project ([docs] reader_test = false); you approve without it\n');
@@ -682,7 +686,7 @@ function showReader(io, reader) {
   if (e.result !== 'pass') io.stdout.write('you can still decide: approve anyway (a), reject with a note (r), or answer the gap yourself: fix the summary, run mirai reader-test, then approve again\n');
 }
 
-const readerField = (reader) => (reader?.entry ? { reader_test: reader.entry.hash } : {});
+export const readerField = (reader) => (reader?.entry ? { reader_test: reader.entry.hash } : {});
 
 // ---- Vera at approval (unit 40, Scopes 5 and 8) ------------------------------------------------
 

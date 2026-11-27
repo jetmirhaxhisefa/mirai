@@ -149,9 +149,9 @@ export function verifyInputs(subject, { previous = null } = {}) {
   // Unit 61 (decision 3): an ADR's initiative and its other ADRs, for the cap (2 on standard, 3 on
   // full) and the gate; the track from the initiative's PRD.
   // Unit 62b (61's re-check): a technical note gets the same list, for the cap seen from it.
-  if (def.name === 'adr' || def.name === 'tech-note') {
+  if (def.name === 'adr' || def.name === 'tech-note' || def.name === 'hld') {
     const v = doc?.value ?? {};
-    const initiative = def.name === 'tech-note' ? posix.basename(posix.dirname(path)) : typeof v.initiative === 'string' && v.initiative ? v.initiative : null;
+    const initiative = def.name === 'tech-note' || def.name === 'hld' ? posix.basename(posix.dirname(path)) : typeof v.initiative === 'string' && v.initiative ? v.initiative : null;
     const s = adrSettings(subject.config);
     const all = listAdrs(workTreeReader(store.checkout), s);
     const own = initiative ? all.filter((a) => a.mirai && a.initiative === initiative && a.status !== 'superseded') : [];

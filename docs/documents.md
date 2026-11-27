@@ -28,6 +28,7 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
 | `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
 | `adr` | one hard architecture decision: its options, the choice and its cost; project-wide, its status in the file, written by MIRAI at your signature | `docs/decisions/ADR-<n>-<slug>.md` (`[adr] folder`), with the index `README.md` | [adr.md](adr.md) |
+| `hld` | how a `full` feature is built: components, flows, data, conventions, decisions (D-n, or an ADR), a trace of every requirement to a component, and whether an LLD is needed | `docs/mirai/<initiative>/hld.md` | [hld.md](hld.md) |
 | `tech-note` | how a `standard` feature is built, on one page: its approach, components, data changes, API, decisions (D-n, or an ADR) and coverage; approved after the PRD, before the tickets | `docs/mirai/<initiative>/tech-note.md` | "The technical note", below |
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
 | `ticket-notes` | your notes from a ticket set's approval screen: each ticket to merge, split or change, in your words; MIRAI writes it, Tess's next run reads it; never approved | `docs/mirai/<initiative>/ticket-notes.md` | [tickets.md](tickets.md), "From approved documents to an approved set" |

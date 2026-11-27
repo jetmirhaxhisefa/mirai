@@ -39,7 +39,7 @@ const BRIEF = read('examples/brief.md');
 const INTERVIEW = read('examples/interview.md');
 const EPIC = read('examples/epic.md');
 // The guides and the document type each covers; `session` (decision 11) covers your session, no type.
-const GUIDES = { brief: 'brief', prd: 'prd', epic: 'epic', ticket: 'story', 'tech-note': 'tech-note', session: null };
+const GUIDES = { brief: 'brief', prd: 'prd', epic: 'epic', ticket: 'story', 'tech-note': 'tech-note', hld: 'hld', session: null };
 const swap = (text, from, to) => {
   assert.ok(text.includes(from), `no ${JSON.stringify(from)}`);
   return text.replace(from, to);
@@ -89,7 +89,7 @@ test('34 T1: the skill\'s files: SKILL.md names every guide (the session guide t
     } else assert.match(text, /`mirai-interview` skill \(unit 35/);
     total += examples.length;
   }
-  assert.equal(total, 18);
+  assert.equal(total, 21);
   const credits = readFileSync(join(SKILL, 'CREDITS.md'), 'utf8');
   assert.match(credits, /blader\/humanizer/);
   assert.match(credits, /8c307f367c91bd974002f10f2be2965d642c13df/);

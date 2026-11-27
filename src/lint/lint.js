@@ -253,7 +253,7 @@ export function lintFile(file, ctx) {
   const template = inside || type === 'adr' ? templateOf(type, own, ctx) : null;
   // Unit 36: a context file is checked against the repo's code.
   // Unit 62b: a technical note's cited paths are checked against the repo too.
-  const repo = isContextFile(file) || type === 'tech-note' ? (ctx.repo ??= repoReader(ctx.root)) : null;
+  const repo = isContextFile(file) || type === 'tech-note' || type === 'hld' ? (ctx.repo ??= repoReader(ctx.root)) : null;
   // Unit 61: an ADR is checked against the other ADRs of its folder (supersedes).
   const adr = type === 'adr' ? adrContext(ctx.project, dirname(file).split(sep).join('/'), workTreeReader(ctx.root)) : {};
   for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file, project: ctx.project, template, registry: ctx.registry, repo, ...adr })) problems.push({ file, ...p });

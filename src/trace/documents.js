@@ -2,6 +2,7 @@ import { coverage, prdItems, ticketsOf } from '../lint/graph.js';
 import { parseDocument } from '../lint/lint.js';
 import { METHODS, requirementItems, VERIFIED } from '../lint/prd.js';
 import { checkIds } from '../lint/rules.js';
+import { tableIn } from '../lint/checks.js';
 import { isRetired } from '../lint/retired.js';
 import { confirmationsOf, testsFor } from '../adr/confirm.js';
 
@@ -26,7 +27,7 @@ const IDS_OF = (doc, def) => checkIds(doc, def, () => {}, null);
 // The trace of an initiative's documents, from their texts: { result, scope: 'initiative', item,
 // links, missing, notes }. Each document: { path, text } or null. `tickets`: every ticket file
 // in the initiative's tickets/ folder: [{ path, text }]. `registry`: the effective registry.
-export function traceDocuments({ initiative, brief = null, prd = null, epic = null, tickets = [], interview = null, registry, track = null, adrs = null, checks = null, adrTests = null }) {
+export function traceDocuments({ initiative, brief = null, prd = null, epic = null, tickets = [], interview = null, registry, track = null, adrs = null, checks = null, adrTests = null, design = null }) {
   const out = { scope: 'initiative', item: initiative, links: [], missing: [], notes: [] };
   const parse = (d) => {
     if (!d) return null;
@@ -93,8 +94,8 @@ export function traceDocuments({ initiative, brief = null, prd = null, epic = nu
   if (!registry.documentTypes.adr) out.notes.push('no ADRs yet: their "Confirmation" checks are traced once ADRs exist (units 62–65)');
   else if (adrs === null) out.notes.push('the ADRs weren\'t read here: their Confirmation links aren\'t checked');
   else traceConfirmations({ out, adrs: adrs.filter((a) => a.mirai && a.initiative === initiative && (a.status === 'accepted' || a.status === 'proposed')), checks: checks ?? [], adrTests, ok, miss });
-  // ---- Not built yet: the technical note (62b) ----------------------------------------------
-  if (!registry.documentTypes['technical-note']) out.notes.push('no technical note yet: the FR → component links are traced once it exists (unit 62b)');
+  // ---- FR / NFR → component (62b's Coverage on standard, 62's trace table on full) -----------
+  traceDesign({ out, items, design, track: track ?? p.doc.value.track, ok, miss, parse });
   return { ...out, result: out.missing.length ? 'fail' : 'pass' };
 }
 
@@ -122,6 +123,32 @@ function traceConfirmations({ out, adrs, checks, adrTests, ok, miss }) {
         else miss(a.id, `no test named for ${a.id} passed in the gate's results (${adrTests.shipped.length} ticket${adrTests.shipped.length === 1 ? '' : 's'} shipped): name one test_${a.id.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_…`, a.path, 'adr');
       } else ok(a.id, `review: ${c.what.slice(0, 100)} (the reviewer checks it)`, a.path);
     }
+  }
+}
+
+// Each FR and NFR of the PRD → the component the design names: the technical note's Coverage
+// (standard), the HLD's trace table (full). `design`: { path, text } of the approved-or-not document
+// (trace reads it as it is; approval is the gates' business). With none, a note says so.
+function traceDesign({ out, items, design, track, ok, miss, parse }) {
+  const kind = track === 'full' ? 'HLD' : 'technical note';
+  const d = design ? parse(design) : null;
+  if (!d?.doc) {
+    out.notes.push(`no ${kind} yet: the FR → component links are traced once it is written`);
+    return;
+  }
+  const section = d.doc.value.type === 'hld' ? 'Trace table' : 'Coverage';
+  const table = tableIn(d.doc, section);
+  const rows = new Map();
+  for (const r of table?.rows ?? []) {
+    const id = (r.cells[table.columns[0]] ?? '').trim();
+    const comp = (r.cells[table.columns[1]] ?? '').trim();
+    if (id) rows.set(id, comp);
+  }
+  for (const it of items.filter((x) => x.prefix === 'FR' || x.prefix === 'NFR')) {
+    const comp = rows.get(it.id);
+    if (comp && !/^deferred\b/i.test(comp)) ok(it.id, comp.slice(0, 120), d.path);
+    else if (comp) ok(it.id, comp.slice(0, 120), d.path);
+    else miss(it.id, `${it.id} has no component in the ${kind}'s ${section}`, d.path, 'design');
   }
 }
 

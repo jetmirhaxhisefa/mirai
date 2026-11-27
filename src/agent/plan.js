@@ -209,7 +209,7 @@ export function planPrompt({ ticket, fields, via, problems = null, notes = 0, te
     '',
     ADR_RULES,
     // Unit 62b (decision 4): the approved technical note holds.
-    ...(techNote ? ['tech-note.md is the approved technical note: build as it says. Add "## Technical note" to the plan with "Relies on: D-n, …" (the decisions you build on) and, for each decision you can\'t follow, "Departs from D-n: <why>"; the owner accepts or sends the plan back at the gate.'] : []),
+    ...(techNote ? ['tech-note.md (standard) or hld.md (full) is the approved design: build as it says. Add "## Technical note" to the plan with "Relies on: D-n, …" (the decisions you build on) and, for each decision you can\'t follow, "Departs from D-n: <why>"; the owner accepts or sends the plan back at the gate.'] : []),
     `To stop on an ADR, return instead of the plan exactly one line: ADR-CONFLICT: <the ADR's id>: <why the ticket can't be planned within it>${via === 'schema' ? ' (as your structured output\'s `plan`)' : ' (as the only fenced ```markdown block)'}.`,
   ];
   if (notes > 0) {
@@ -349,7 +349,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         try {
           r = await launch({
             ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: who(AGENT), role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
-            prompt: planPrompt({ ticket, fields, via, problems, notes: record.notes.length, techNote: Boolean(given.inputs['tech-note.md']) }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
+            prompt: planPrompt({ ticket, fields, via, problems, notes: record.notes.length, techNote: Boolean(given.inputs['tech-note.md'] || given.inputs['hld.md']) }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
           });
         } catch (err) {
           // A launch that threw: almost always refused before it started. Its numbers, if it ran,
@@ -401,7 +401,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         if (!problems) {
           toInProgress();
           result.outcome = 'waiting';
-          result.gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai'), flags: techNoteFlags(text, given.inputs['tech-note.md'] ?? null) });
+          result.gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai'), flags: techNoteFlags(text, given.inputs['tech-note.md'] ?? given.inputs['hld.md'] ?? null) });
           endState = 'finished';
           return result;
         }

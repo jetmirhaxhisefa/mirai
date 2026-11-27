@@ -1,7 +1,7 @@
 ---
 unit: "62"
 name: hld
-status: approved (Jet, 2026-11-26: "approve 135"; interview 2026-11-26: Q1–Q5 "A", restatement "yes"; after the web research in research.md)
+status: done (Jet, 2026-11-27: "approve 62", built and probed; spec approved 2026-11-26: "approve 135"; interview 2026-11-26: Q1–Q5 "A", restatement "yes"; after the web research in research.md)
 roadmap: design/07-implementation-roadmap.md, row 62 (build order: with 61–65 and 62b, right after 45 and 45b, Jet 2026-11-24); design/01 §4 (design: HLD, ADR, LLD); research/07 §3, §4.2, §6.2 (arc42, C4, the pilot's 16 sections); D-06 (status in the store), D-20 (a project's format wins), D-40 (Mermaid); units 31 (templates), 34 (`mirai-write`, the reader test), 37 (overlays, rename map), 40 (Vera), 43 (trace), 44 (the document rules), 45 (`[tickets.inputs]`), 61 (ADR), 62b (technical note), 63 (LLD), 64 (Arlo), 65 (the design workflow)
 depends_on: ["31", "34", "37", "40", "43", "44", "61"]
 ---
@@ -238,3 +238,26 @@ change.
   clears both.
 - **The trace table's Decision column** reads the same `D-n` or ADR link; trace's ADR Confirmation
   links (61) are separate and stay as built.
+
+## Re-checked against the interviews of 63, 64 and 65 (2026-11-26, batch mode)
+
+What the later units need from the HLD, built here so they don't collide:
+
+- **`lld:` in the frontmatter** (63's Q2 "A"): `lld: required` with `lld_triggers` naming the
+  triggers that fire (`entity`, `contract`, `modules`, `state`), or `lld: not-required` with
+  `lld_reason` (a few words). The lint checks one or the other; Vera checks it against the HLD (a
+  new entity in Data with `not-required` is a must-fix). Decision 4's cap message points to the LLD.
+- **"Current state"** (64's Q3): a core section after "Context and scope": what the code does today
+  where this design touches it, each claim cited `path:line` or marked `unverified`. The lint checks
+  each bullet cites or says unverified; Vera checks the cites hold. The core is 11 sections.
+- **"Decisions for you" answerable at the sitting** (64's Q2, 65's Q3): in the summary's "Decisions
+  for you" part, each decision lettered (`A:`, `B:`, `C:` options, one marked "(recommended)", and
+  the choice the document is written for); the lint checks the shape, so 65's sitting can record
+  your letter.
+- **"(Arlo's call)"** (64's Q2): a D-n line may end with "(Arlo's call)"; 65's sitting lists them.
+  Not required (a person writing the HLD has no calls of Arlo's).
+- **Inputs (45):** with 63, `lld` in `full`'s list is needed only when the approved HLD says
+  `lld: required` (63 builds the reader).
+- **Approval:** this unit's approval (with the ADRs on its screen) is what 65 turns into the set's
+  sitting; built here as the spec says, with the ADR signing from 62b's factored core
+  (`proposedAdrReady`, `adrDecision`, `adrsSigned`).

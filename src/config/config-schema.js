@@ -349,6 +349,9 @@ export const CONFIG_SCHEMA = {
             business_warn_words: { type: 'integer', min: 200, max: 3000 },
             // Unit 62b (decision 3): the technical note's cap; above it the feature belongs on full.
             tech_note_words: { type: 'integer', min: 300, max: 3000 },
+            // Unit 62 (decision 4): the HLD's summary (fails above) and the whole HLD (warns above).
+            hld_summary_words: { type: 'integer', min: 100, max: 2000 },
+            hld_words: { type: 'integer', min: 1000, max: 15000 },
           },
         },
       },

@@ -77,10 +77,19 @@ export function ticketAcs(ticket) {
 // the sole source of truth (design/01 §7), the ticket and the conventions only.
 // Unit 62b (Scope 6): the approved technical note of the ticket's initiative, read at `commit` (the
 // integration branch's), approved by your signed line as it is there: { path, text, id } or null.
-export function approvedTechNote({ root, env, commit, docsRoot, ticketPath, store }) {
+export function approvedTechNote(o) {
+  return approvedDesignDoc({ ...o, type: 'tech-note' });
+}
+
+// Unit 62 (Scope 6): the approved HLD of the ticket's initiative, the same way.
+export function approvedHld(o) {
+  return approvedDesignDoc({ ...o, type: 'hld' });
+}
+
+function approvedDesignDoc({ root, env, commit, docsRoot, ticketPath, store, type }) {
   const rel = ticketPath.startsWith(`${docsRoot}/`) ? ticketPath.slice(docsRoot.length + 1).split('/') : [];
   if (!(rel.length > 2 && rel[1] === 'tickets')) return null;
-  const path = `${docsRoot}/${rel[0]}/tech-note.md`;
+  const path = `${docsRoot}/${rel[0]}/${type}.md`;
   const bytes = blobAt(root, commit, path, env, { maxBytes: DOC_MAX });
   if (!bytes) return null;
   let fm = null;
@@ -89,7 +98,7 @@ export function approvedTechNote({ root, env, commit, docsRoot, ticketPath, stor
   } catch {
     fm = null;
   }
-  if (fm?.type !== 'tech-note' || typeof fm.id !== 'string') return null;
+  if (fm?.type !== type || typeof fm.id !== 'string') return null;
   if (!store || !documentApproval(store, fm.id, bytes).approved) return null;
   return { path, text: bytes.toString('utf8'), id: fm.id };
 }
@@ -183,6 +192,9 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
   if (adrContext) {
     const note = approvedTechNote({ root, env, commit, docsRoot, ticketPath: ticket.path, store });
     if (note) want('tech-note.md', note.path, `the approved technical note ${note.id}: its Decisions (D-n) hold for this ticket`, note.text);
+    // Unit 62: on full, the approved HLD: its components, flows, conventions and Decisions hold.
+    const hld = approvedHld({ root, env, commit, docsRoot, ticketPath: ticket.path, store });
+    if (hld) want('hld.md', hld.path, `the approved HLD ${hld.id}: its components, flows, conventions table and Decisions (D-n) hold for this ticket`, hld.text);
   }
   // Unit 30c: files the caller adds (your review notes), right after the ticket's own.
   for (const x of extra) want(x.name, x.from, x.why, x.text);
