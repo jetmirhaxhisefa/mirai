@@ -62,7 +62,7 @@ Some teammates won't use MIRAI at all.
 | **MVP additions** | Inside the MVP, in units not built yet | The build runner (unit 29e, after the pilot), MIRAI's own CI on Ubuntu with the operating-system module (unit 30a), and small additions to units 31, 32, 34, 40, 42, 45, 46, 48, 54, 56 | `10`, §4 below |
 | **0a · Team start** | The day the MVP is fully done (A–F) | Tag v1.0. The onboarding checklist. The team starts on Macs with tickets and documents in the repo | `12` P00 |
 | **0b · Platforms and connectors** | Right after 0a. It doesn't wait for the review | Ubuntu support, Windows through WSL, the Jira and Confluence connector with team behaviour. Built in the order of who is waiting | `11`, `12` |
-| **1 · The review** | After at least 20 real tickets | Read the logs with a strong model, go through the suggestions together, judge against D-38, re-order this plan | `13` |
+| **1 · The review** | After at least 20 real tickets | First the research and audit unit (P44): how MIRAI does brainstorming, research and the whole product process, and what it misses. Then read the logs with a strong model, go through the suggestions together, judge against D-38, re-order this plan with P44's gaps in it | `13`, P44 |
 | **2 · Visibility** | After the review | The run state view and one renderer, the Claude Code status line, the terminal block, notifications | `14` |
 | **3 · The hub** | After the review | A separate repo built by MIRAI: MIRAI's documentation, project documents, the ticket view, logs, change records | `15` |
 | **4 · Throughput** | After the review | Queue across nights, epic autopilot, two tickets at once, the conflict command, verifier model setting | `16` |
@@ -211,6 +211,7 @@ Each row is a decision you made. "Where" names the addendum that carries the des
 |---|---|---|
 | PM-46 | A brainstorming skill before Nora's brief: you explore a problem or idea in your session, and the result is one to three candidate briefs that start the normal flow. Late in the plan (stage 6). It was on the original Later list (2026-11-18) | `20` |
 | PM-47 | **Scripts and languages, strictly defined** (Jet, 2026-11-21: "I don't want MIRAI to go crazy with the script setup"). A script does any work that recurs and can be solved without a model, so no tokens are spent on it, and agents never write scripts on demand. MIRAI's scripts are JavaScript, and maybe Python; no mix of many languages, and no pile of one-off Bash scripts. The rules say which language, where scripts live, how they're structured, tested and approved, and how recurring agent work is found and turned into a script. An interview opens the unit (P43) | §5, P43 |
+| PM-48 | **MIRAI as a product team: a research and audit unit, early** (Jet, 2026-11-27). Research how MIRAI handles brainstorming, research and investigations; audit every process a product owner, product manager, principal engineer, architect and team lead goes through, with two independent auditors on two models (Opus, Fable); name the processes MIRAI doesn't cover. Placed at the start of stage 1, not at the end, so its findings add units to this plan. Interview first | §5, P44 |
 
 ---
 
@@ -262,6 +263,7 @@ the review of stage 1 confirmed it.
 | P08 | Confluence connector (documents and comments) | 0b | MVP unit 38 | `12` |
 | P08b | An external repo as a store, if unit 38 can't already | 0b | MVP unit 38 | `12` |
 | P09 | Team behaviour on a shared epic, and roles | 0b | P07, MVP unit 54 | `12` |
+| P44 | **MIRAI as a product team: a research and audit unit** (Jet, 2026-11-27). Early in the post-MVP plan, so what it finds becomes units and improvements before the later stages are ordered. Research and tests of the edge cases of using MIRAI for:<br>• **brainstorming;**<br>• **research and investigations;**<br>• **an audit of every process a product goes through while it is developed:** what a product owner, a product manager, a principal engineer, an architect and a team lead each do, from idea to live and after, checked against what MIRAI covers. **Two auditors, separately:** two sub-agents on different models (Opus and Fable), each with its own context and no sight of the other's work, audit the framework and research best practice; their findings are compared, and where they agree and differ is shown to you;<br>• **the processes MIRAI doesn't cover yet**, named with what each would need.<br>Output: a gap list, each gap with its evidence and a proposed unit or improvement, which you sort into this plan (`§5`). Interview first | 1 (early: before the review re-orders the stages) | MVP done (A–F) | `09` |
 | P10 | Review data pack | 1 (built during the measuring period) | MVP units 45, 46, 48, 56 | `13` |
 | P11 | `mirai retro` | 1 | P10, P12 | `13` |
 | P12 | The regression set | 1 (built during the measuring period) | MVP units 02, 28, 29e | `13` |
