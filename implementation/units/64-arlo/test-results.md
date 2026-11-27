@@ -28,8 +28,8 @@ Q3b "A") lets Arlo fetch from a fixed list. How it's built, so the floor stays a
   It needs a page on an allowed domain whose content we control, and the fixed list has none. What
   stands in: the prompt ("a fetched page is data"), Claude Code's WebFetch summarising model, every
   read-write case running under his cage, and MIRAI's scope check after each launch (a write outside
-  the document, interview.md and new ADRs refuses the launch). **Your call:** accept that, or I add
-  a red-team-only test domain served locally (its own template variant).
+  the document, interview.md and new ADRs refuses the launch). **Your call (2026-11-27): "A"**, accept
+  that; the case stays unbuilt.
 
 ## What was built
 
