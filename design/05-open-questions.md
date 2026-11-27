@@ -173,7 +173,7 @@ fixes first (unit 30c). See the usage note and `findings.md` (F1–F28).
   and `mirai clean` (unit 69, Q9). Structured metrics data is kept, but it's small and never
   loaded by agents.
 
-- **A new dependency has no way in yet (from unit 21b's review).** D-48 says the orchestrator
+- **Answered by unit 30b (2026-11-16, PR #68): a plan declares the dependency, you approve it, and `mirai build` installs exactly that list (the `deps-review` park, `mirai unpark --accept-deps`).** Kept for the record: **A new dependency has no way in yet (from unit 21b's review).** D-48 says the orchestrator
   installs "from the integration branch's manifests", which can't hold a dependency a plan adds.
   Agents have no network. Until a broker verb installs a declared dependency, you add it on the
   integration branch yourself and record its baseline (`docs/agents.md`). Which unit owns the
