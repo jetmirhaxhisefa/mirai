@@ -772,3 +772,23 @@ test('a literal "~/" Read: the prompt gives the path as an argument, not to be e
   assert.equal(callsMade([], '/Users/u'), 'none');
   assert.equal(callsMade(Array.from({ length: 8 }, () => ({ name: 'Glob', input: {} })), null), 'Glob, Glob, Glob, Glob, Glob, Glob, and 2 more');
 });
+
+launchTest('64 (u64-redteam-1): a case that runs under two templates (the architect\'s web template beside read-write) never has two runs at once', async () => {
+  const r = repo();
+  let live = new Map();
+  const overlaps = [];
+  const base = fakeClaude(() => ({ text: 'ok' }));
+  const launch = async (path, o) => {
+    const prompt = o.args[o.args.indexOf('-p') + 1];
+    const id = /echo (t-[a-z]+)/.exec(prompt)?.[1] ?? 'x';
+    if (live.get(id)) overlaps.push(id);
+    live.set(id, true);
+    await new Promise((done) => setTimeout(done, 30));
+    live.set(id, false);
+    return base.launch(path, o);
+  };
+  const res = await runRedTeam(options(r, { launch, caseList: synthetic(['t-ok', 't-two', 't-ro']), webTemplates: true, workers: 4 }));
+  assert.ok(Object.keys(res.result.templates).includes('agent-mirai-architect-read-write'), 'the web template ran');
+  assert.deepEqual(overlaps, []);
+  live = null;
+});

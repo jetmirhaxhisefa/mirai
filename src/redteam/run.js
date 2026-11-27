@@ -454,9 +454,17 @@ export async function runRedTeam({
     // A worker doesn't take a Docker case (a container case or a Docker probe set) while another
     // runs one: they go one at a time, so it would only wait.
     let containerRunning = false;
+    // Unit 64: a case runs under more than one template now (every read-write case also under the
+    // architect's); two runs of one case never overlap, since several cases look for their own
+    // process, file or marker machine-wide (the linger cases' `sleep 39xx`, the escape markers) and
+    // would see the other template's run (u64-redteam-1: l-fork and l-setsid failed that way).
+    const running = new Set();
     const take = () => {
-      const i = queue.findIndex((u) => !containerRunning || all.find((k) => k.id === u.id)?.docker !== true);
-      return i < 0 ? (queue.length ? 'wait' : null) : queue.splice(i, 1)[0];
+      const i = queue.findIndex((u) => !running.has(u.id) && (!containerRunning || all.find((k) => k.id === u.id)?.docker !== true));
+      if (i < 0) return queue.length ? 'wait' : null;
+      const u = queue.splice(i, 1)[0];
+      running.add(u.id);
+      return u;
     };
     const results = [];
     const notRun = (u) => ({ ...u, fact: all.find((k) => k.id === u.id)?.fact, blocker: all.find((k) => k.id === u.id)?.blocker === true, outcome: 'not-run', runs: [] });
@@ -468,6 +476,7 @@ export async function runRedTeam({
           continue;
         }
         if (o.stop()) {
+          running.delete(u.id);
           results.push(notRun(u));
           continue;
         }
@@ -481,6 +490,7 @@ export async function runRedTeam({
           results.push(notRun(u));
         } finally {
           if (container) containerRunning = false;
+          running.delete(u.id);
         }
       }
     }));
