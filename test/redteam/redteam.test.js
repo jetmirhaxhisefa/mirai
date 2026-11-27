@@ -810,7 +810,10 @@ test('the start gate: at most two agents start at once; a slot frees on leave or
   const q = gate.enter().then((leave) => { fourth = true; return leave; });
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(fourth, false);
+  // The hold's timer is unref'd (it must never keep MIRAI alive), so keep the loop open while waiting.
+  const keep = setTimeout(() => {}, 1_000);
   await q; // freed by the second slot's hold (60 ms)
+  clearTimeout(keep);
   assert.equal(fourth, true);
   c();
 });
