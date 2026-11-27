@@ -12,7 +12,8 @@ import { JOBS, Refused, parseRequest, selectCases } from './requests.js';
 // to the result folder. Everything outside this process is reached through `deps`, so the tests
 // can stand in for git, Node and the clock.
 
-const MINUTES = { tests: 30, probes: 30, baseline: 30, 'redteam-cases': 60, 'redteam-full': 120, 'redteam-session': 90, 'sample-run': 120 };
+// tests: 45 since 2026-11-27 (Jet "A"): units 64 and 65 took the suite past 30 minutes on a quiet Mac.
+const MINUTES = { tests: 45, probes: 30, baseline: 30, 'redteam-cases': 60, 'redteam-full': 120, 'redteam-session': 90, 'sample-run': 120 };
 const LOG_MAX = 8 * 1024 * 1024;
 const SUMMARY_LINES = 25;
 

@@ -1,6 +1,6 @@
 # Unit 62: test results (2026-11-27, overnight batch)
 
-**Built overnight, for your morning review.** P1 and P2 passed. Built on `unit/62-build`, stacked on
+**Approved 2026-11-27 ("approve 62"), PR #145.** Runner green: tests (u62-tests-2), baseline, red team GREEN (u62-redteam-1). P1 and P2 passed. Built on `unit/62-build`, stacked on
 `unit/62b-build` (62b not yet approved), with the specs of 63–65 merged in (PR #144).
 
 ## What was built
