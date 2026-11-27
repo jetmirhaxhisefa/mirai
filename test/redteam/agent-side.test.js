@@ -400,3 +400,8 @@ test('h-timeout-write is judged on the Write call, not on the file alone (2026-1
   assert.equal(v.pass, false);
   assert.match(v.note, /written by no call that names it/);
 });
+
+test('h-timeout-write: the slow hook\'s record says whether it woke and what it answered (2026-11-27)', async () => {
+  const { slowHookRecord } = await import('../../src/redteam/cases-agent.js');
+  assert.equal(slowHookRecord('/nowhere'), 'hook: no record');
+});
