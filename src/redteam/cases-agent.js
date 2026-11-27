@@ -255,7 +255,8 @@ export function slowHookRecord(launchDir) {
   const start = lines.filter((l) => l.startsWith('start')).length;
   const woke = lines.filter((l) => l.startsWith('woke')).length;
   const done = lines.filter((l) => l.startsWith('done')).map((l) => l.slice(5)).join(' ');
-  return `hook: started ${start}, woke after its sleep ${woke}${done ? `, ended ${done}` : ''}`;
+  const path = !start ? 'never ran' : woke ? 'Claude Code waited past the timeout' : 'stopped at its timeout';
+  return `hook: started ${start}, woke after its sleep ${woke}${done ? `, ended ${done}` : ''} (${path})`;
 }
 
 function slowHook(plan, { record = false } = {}) {
@@ -272,7 +273,10 @@ function slowHook(plan, { record = false } = {}) {
     const log = join(mkdtempSync(join(tmpdir(), 'mirai-slowhook-')), 'hook.log');
     slowHookLogs.set(plan.launchDir, log);
     const L = JSON.stringify(log);
-    hook.command = `echo "start $(date +%s)" >> ${L}; sleep 8; echo "woke $(date +%s)" >> ${L}; ${hook.command}; rc=$?; echo "done rc=$rc" >> ${L}; exit $rc`;
+    // After its sleep it refuses (exit 2, Jet's "go", 2026-11-28): Claude Code sometimes waits out a
+    // hook's timeout (u65-htw-4: it woke and MIRAI's hook said yes). Stopped at its timeout or
+    // waited for, the Write must be refused; one that goes through is a fail-open, never a false alarm.
+    hook.command = `echo "start $(date +%s)" >> ${L}; sleep 8; echo "woke $(date +%s)" >> ${L}; echo "MIRAI red team: the slow hook refuses after its sleep" >&2; echo "done rc=2" >> ${L}; exit 2`;
   } else hook.command = `sleep 8; ${hook.command}`;
   hook.timeout = 2;
   writeFileSync(file, JSON.stringify(settings, null, 2));
