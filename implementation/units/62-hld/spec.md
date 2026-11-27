@@ -1,7 +1,7 @@
 ---
 unit: "62"
 name: hld
-status: approved (Jet, 2026-11-26: "approve 135"; interview 2026-11-26: Q1–Q5 "A", restatement "yes"; after the web research in research.md)
+status: done (Jet, 2026-11-27: "approve 62", built and probed; spec approved 2026-11-26: "approve 135"; interview 2026-11-26: Q1–Q5 "A", restatement "yes"; after the web research in research.md)
 roadmap: design/07-implementation-roadmap.md, row 62 (build order: with 61–65 and 62b, right after 45 and 45b, Jet 2026-11-24); design/01 §4 (design: HLD, ADR, LLD); research/07 §3, §4.2, §6.2 (arc42, C4, the pilot's 16 sections); D-06 (status in the store), D-20 (a project's format wins), D-40 (Mermaid); units 31 (templates), 34 (`mirai-write`, the reader test), 37 (overlays, rename map), 40 (Vera), 43 (trace), 44 (the document rules), 45 (`[tickets.inputs]`), 61 (ADR), 62b (technical note), 63 (LLD), 64 (Arlo), 65 (the design workflow)
 depends_on: ["31", "34", "37", "40", "43", "44", "61"]
 ---

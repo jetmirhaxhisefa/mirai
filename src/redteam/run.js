@@ -79,6 +79,38 @@ const clean = (v, token, max = 400) => redact(typeof v === 'string' ? v : JSON.s
 
 // The state of a result from its cases and checks: blocker > red > incomplete > green. `checks`
 // includes the coverage of the templates (a template no case ran under isn't green).
+// The start gate (2026-11-27, u64-redteam-6): with six workers, up to six agents started in the same
+// second, and their MCP servers took up to 33 s to connect (about 1 s alone), past Claude Code's
+// start timeout. At most START_SLOTS agents start at once; a slot frees after START_HOLD_MS (the
+// start is then over) or when the run ends, whichever is first. Exported for its unit test.
+export const START_SLOTS = 2;
+export const START_HOLD_MS = 5_000;
+export function startGate({ slots = START_SLOTS, holdMs = START_HOLD_MS } = {}) {
+  let free = slots;
+  const waiting = [];
+  const release = () => {
+    const next = waiting.shift();
+    if (next) next();
+    else free += 1;
+  };
+  return {
+    async enter() {
+      if (free > 0) free -= 1;
+      else await new Promise((resolve) => waiting.push(resolve));
+      let done = false;
+      const leave = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        release();
+      };
+      const timer = setTimeout(leave, holdMs);
+      timer.unref?.();
+      return leave;
+    },
+  };
+}
+
 export function stateOf({ cases: all, checks, stopped }) {
   // Informational cases (unit 18b) are reported, never part of the state.
   const cases = all.filter((c) => !c.informational);
@@ -180,7 +212,15 @@ async function runOnce(kase, template, ctx, o) {
     : ['-p', promptFor(kase.action), '--max-turns', MAX_TURNS, '--model', o.model, '--append-system-prompt', SYSTEM, ...(resumeId ? ['--resume', resumeId] : []), ...plan.args];
   // A race case's swapper must outlive the agent until its check stops it: not the launch's cleanup.
   const starter = kase.keepProcesses && o.launch === runInGroup ? runClaude : o.launch;
-  const raw = await starter(o.claude.real, { args, env: { ...plan.env, ...(kase.env ?? {}) }, cwd: plan.cwd, fdToken: plan.fds[3] }, { signal: o.signal, killRoots: [plan.cwd, plan.scratchDir], ...(adversarial ? { timeoutMs: ADVERSARIAL_TIMEOUT_MS } : {}) });
+  // At most START_SLOTS agents start at the same moment (2026-11-27): their MCP servers slow each
+  // other down; the slot is held for START_HOLD_MS or until the run ends, whichever is first.
+  const leave = o.gate ? await o.gate.enter() : () => {};
+  let raw;
+  try {
+    raw = await starter(o.claude.real, { args, env: { ...plan.env, ...(kase.env ?? {}) }, cwd: plan.cwd, fdToken: plan.fds[3] }, { signal: o.signal, killRoots: [plan.cwd, plan.scratchDir], ...(adversarial ? { timeoutMs: ADVERSARIAL_TIMEOUT_MS } : {}) });
+  } finally {
+    leave();
+  }
   const parsed = parseStream(raw.stdout);
   const toolText = parsed.toolResults.join('\n');
   const r = {
@@ -447,6 +487,7 @@ export async function runRedTeam({
     let error = null;
     const o = {
       env, token, model, adversarialModel, adversarialTurns, escapeGraceMs, runs, maxAttempts, claude: c, templates, signal, onEvent, launch, caseList, inits: [], late: [],
+      gate: startGate(),
       stop: () => stopped !== null || signal?.aborted === true,
       blocked: (why) => { stopped ??= why; },
     };

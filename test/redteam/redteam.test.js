@@ -792,3 +792,28 @@ launchTest('64 (u64-redteam-1): a case that runs under two templates (the archit
   assert.deepEqual(overlaps, []);
   live = null;
 });
+
+test('the start gate: at most two agents start at once; a slot frees on leave or after its hold (2026-11-27)', async () => {
+  const { startGate } = await import('../../src/redteam/run.js');
+  const gate = startGate({ slots: 2, holdMs: 60 });
+  const a = await gate.enter();
+  await gate.enter(); // the second slot; freed by its hold
+  let third = false;
+  const p = gate.enter().then((leave) => { third = true; return leave; });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(third, false, 'a third start waits while two hold their slots');
+  a();
+  const c = await p;
+  assert.equal(third, true, 'leaving frees the slot at once');
+  a(); // leaving twice frees nothing more
+  let fourth = false;
+  const q = gate.enter().then((leave) => { fourth = true; return leave; });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(fourth, false);
+  // The hold's timer is unref'd (it must never keep MIRAI alive), so keep the loop open while waiting.
+  const keep = setTimeout(() => {}, 1_000);
+  await q; // freed by the second slot's hold (60 ms)
+  clearTimeout(keep);
+  assert.equal(fourth, true);
+  c();
+});
