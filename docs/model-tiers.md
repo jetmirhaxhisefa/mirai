@@ -39,7 +39,7 @@ set`) does it:
 
 | Command | Changes | Rules |
 |---|---|---|
-| `mirai models set <step> <tier>` | the step's tier (`models.steps.<step>`); its default removes the key | `prd`, `design` and `review-high-risk` stay `deep` (D-14) |
+| `mirai models set <step> <tier>` | the step's tier (`models.steps.<step>`); its default removes the key | `prd`, `design` and `review-high-risk` stay `deep` (D-14); the architect's `lld` and `tech-note` runs are `standard` by default (unit 64) |
 | `mirai models set <tier> <model>` | the tier's model (`models.<tier>`) | the model is of the tier's family (`light` a Haiku, `standard` a Sonnet, `deep` an Opus or Fable), and one MIRAI knows |
 | either, with `--mine` | your personal file (`config.user.toml` in this repo's store, private), for **your own launches** only | the same rules; the project config is untouched |
 

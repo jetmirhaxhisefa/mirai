@@ -7,8 +7,8 @@ import { catBlobs, lsTree } from '../store/git.js';
 import { openStore, repoIdentity } from '../store/home.js';
 import { committedKeys } from '../sign/keys.js';
 import { readJournal } from '../store/journal.js';
-import { baseCommit, trustedFile, trustedRegistry } from './snapshot.js';
-import { agentTemplate } from '../launch/strict.js';
+import { baseCommit, trustedConfig, trustedFile, trustedRegistry } from './snapshot.js';
+import { agentTemplate, fetchDomainsOf, webTemplate } from '../launch/strict.js';
 
 // Where MIRAI reads a project's overlays (unit 37, Scope 5): only from the trust root, the
 // integration branch's commit, like the project's roles and stacks, and only those you approved as
@@ -101,6 +101,23 @@ export function agentOverlay(trust, store, name, { registry = trustedRegistry(tr
 // agent may run under a read-only role, read-only.
 export function agentModes(def, roles) {
   return [...new Set([roles[def.role]?.mode ?? 'read-write', 'read-only'])];
+}
+
+// Unit 64: the web agents' templates (the architect's), one per agent of MIRAI's own registry whose
+// definition has [web]: its read-write mode's template with WebFetch for the trust root's fixed list.
+// The red team runs the mode's cases and the web cases under each; a launch of the agent needs a
+// green result that covers it. Map name → template.
+export function webTemplates(trust, modeTemplates, { registry = trustedRegistry(trust) } = {}) {
+  const out = new Map();
+  const base = [...modeTemplates.values()].find((t) => t.mode === 'read-write' && !t.overlay && !t.web);
+  if (!base) return out;
+  const domains = fetchDomainsOf(trustedConfig(trust));
+  for (const def of Object.values(registry.agents)) {
+    if (def.web?.fetch !== 'fixed-list') continue;
+    const t = webTemplate(base, { agent: def.name, domains });
+    out.set(t.name, t);
+  }
+  return out;
 }
 
 // The red team's extra templates (unit 37): one per mode for every agent whose approved overlay

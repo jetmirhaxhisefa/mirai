@@ -31,7 +31,7 @@ import { tessStateLines } from '../../src/tess/state.js';
 import { runPick } from '../../src/tickets/pick.js';
 import { DEFAULT_TICKET_TYPES, investigationRefusal, ticketTypesOf } from '../../src/tickets/types.js';
 import { addJourneys, newJourneys } from '../../src/tickets/journeys.js';
-import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures.js';
+import { BRIEF_READY, INTERVIEW, PRD_READY, seedApprovedNote, tty } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { passVera } from '../helpers/vera.js';
 import { isWriteStaging } from '../../src/agent/staging.js';
@@ -71,6 +71,8 @@ async function fixture({ config = PREFIX, files = {}, approve = true, branch = '
     await passReader({ ...f, io }, `${D}/prd.md`);
     const ok = await tty(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], io, ['a', 'due-dates-prd']);
     assert.equal(ok.code, 0, ok.err);
+    // Unit 64: standard's ticket planner waits for an approved technical note.
+    seedApprovedNote(f);
   }
   if (branch) f.git('switch', '-q', '-c', branch);
   return { ...f, io, store: openStore(io) };

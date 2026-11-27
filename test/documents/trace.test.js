@@ -19,7 +19,7 @@ import { traceDocuments } from '../../src/trace/documents.js';
 import { QA_NEEDED, namedIds, traceTicket } from '../../src/trace/ticket.js';
 import { checkCommand, COMMANDS } from '../../src/mcp/tools/commands.js';
 import { MIRAI_COMMAND } from '../../src/adapters/claude-code.js';
-import { BRIEF_READY, INTERVIEW, PRD_READY, tty } from '../helpers/docs-fixtures.js';
+import { BRIEF_READY, INTERVIEW, PRD_READY, tty, seedApprovedNote } from '../helpers/docs-fixtures.js';
 import { FAKE_TOKEN, passReader } from '../helpers/reader.js';
 import { installed } from '../tests/run-fixture.js';
 import { P2_SAMPLE, P3_TICKET, REMOVED, p3Auto, setHome, setTrace, shipVerdict, takeOutUnder, twoAcs, withoutAc } from '../probes/trace-probes.js';
@@ -65,6 +65,8 @@ async function fixture({ files = {}, approve = true } = {}) {
     await passReader({ ...f, io }, `${D}/prd.md`);
     const ok = await tty(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], io, ['a', 'due-dates-prd']);
     assert.equal(ok.code, 0, ok.err);
+    // Unit 64: standard's ticket planner waits for an approved technical note.
+    seedApprovedNote(f);
   }
   f.git('switch', '-q', '-c', 'tickets-due-dates');
   return { ...f, io, store: openStore(io) };

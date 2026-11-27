@@ -13,7 +13,7 @@ import { blobAt } from '../store/git.js';
 import { openStore } from '../store/home.js';
 import { miraiHome } from '../store/mirai-home.js';
 import { snapshot, trustedRegistry, trustedStrict } from '../trust/snapshot.js';
-import { widenedTemplates } from '../trust/overlays.js';
+import { webTemplates, widenedTemplates } from '../trust/overlays.js';
 import { readBinaryFacts } from './binary.js';
 import { launchStore } from './direct.js';
 import { redTeamCases } from './cases.js';
@@ -98,8 +98,10 @@ export function unitsFor(cases, templates, only = null) {
     for (const mode of k.templates) {
       // Unit 37: a case made for a widened tool runs only under an agent template whose overlay
       // gives that tool beyond its mode, and is never "skipped" where none does.
-      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w)))).map(([n]) => n);
-      if (!names.length && !k.widened) skipped.push({ id: k.id, template: mode });
+      // Unit 64: a web case runs only under a web template (the architect's), and `a-web` (WebFetch
+      // absent) never under one; with no web template a web case isn't "skipped" either.
+      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w))) && (!k.webOnly || t.web) && !(k.notWeb && t.web)).map(([n]) => n);
+      if (!names.length && !k.widened && !k.webOnly) skipped.push({ id: k.id, template: mode });
       for (const n of names) units.push({ id: k.id, template: n });
     }
   }
@@ -329,7 +331,7 @@ function floorAll(templates, ctx, env) {
     try {
       const settings = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8'));
       rendered.set(name, settings);
-      floor.set(name, floorCheck(settings, { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid() }));
+      floor.set(name, floorCheck(settings, { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid(), web: template.web ?? null }));
     } finally {
       finishLaunch(plan);
     }
@@ -346,8 +348,9 @@ export async function runRedTeam({
   cwd, env, storeEnv = env, consent = false, only = null, runs = DEFAULTS.runs, maxAttempts = DEFAULTS.maxAttempts, workers = DEFAULTS.workers,
   model = DEFAULTS.model, adversarialModel = DEFAULTS.adversarialModel, adversarialTurns = DEFAULTS.adversarialTurns, escapeGraceMs = DEFAULTS.escapeGraceMs, claude = null, kept: useKept = false, ticket = null, allowScript = false, signer = null, workdir = null, keep = false, signal = null, onEvent = () => {}, now = () => new Date(),
   docker = {}, dockerVersion = null, launch = runInGroup, binaryFacts = readBinaryFacts,
-  // For MIRAI's own tests only: other cases, stand-ins for the host canaries, a temp work folder.
-  caseList = redTeamCases, host = HOST, allowTempWorkdir = false,
+  // For MIRAI's own tests only: other cases, stand-ins for the host canaries, a temp work folder, and
+  // (`webTemplates: false`) the mode templates alone, for tests that count launches per template.
+  caseList = redTeamCases, host = HOST, allowTempWorkdir = false, webTemplates: withWeb = true,
 }) {
   if (consent !== true) throw new UsageError('the red-team run uses your Claude subscription; it needs your yes', 'run it yourself: mirai redteam run');
   const store = openStore({ cwd, env: storeEnv });
@@ -401,6 +404,8 @@ export async function runRedTeam({
     // Unit 37: every agent your approved overlay widens runs the same cases under its own
     // template (its tools, its mode's limits), so a launch of it can be checked against this run.
     for (const [n, t] of widenedTemplates(trust, store, templates)) templates.set(n, t);
+    // Unit 64: the architect's web template, with the mode's cases and the web cases.
+    if (withWeb) for (const [n, t] of webTemplates(trust, templates)) templates.set(n, t);
     const checks = binaryCheck(binaryFacts(c.real), strict.binary);
     onEvent({ type: 'static', checks });
 

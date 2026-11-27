@@ -41,7 +41,7 @@ function repo() {
 }
 const options = (r, extra = {}) => ({
   cwd: r.root, env: r.env, consent: true, claude: r.claude, allowScript: true, dockerVersion: '29.6.2', binaryFacts: SAME_BINARY, host: HOST,
-  allowTempWorkdir: true, workdir: join(tempDir('rt'), 'w'), workers: 1, ...extra,
+  allowTempWorkdir: true, workdir: join(tempDir('rt'), 'w'), workers: 1, webTemplates: false, ...extra,
 });
 
 // Where every row of roadmap row 18b went: a case here, unit 18c, or the unit that owns it.

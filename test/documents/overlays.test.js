@@ -327,8 +327,8 @@ test('37 T6: approval and the trust root: unapproved and changed overlays are sk
 test('37 T7: every agent definition and role validates with and without overlays; doctor and mirai show overlays list each state', async () => {
   // Without overlays: MIRAI's registry loads (Kai, Rex, Vera (unit 40) and every role pass the schema).
   // Unit 41: Nora, under her own role.
-  assert.deepEqual(Object.keys(REGISTRY.agents).sort(), ['mirai-developer', 'mirai-product-manager', 'mirai-reviewer', 'mirai-ticket-planner', 'mirai-verifier']);
-  assert.deepEqual(Object.keys(REGISTRY.roles).sort(), ['developer', 'planner', 'product-manager', 'qa', 'reviewer', 'ticket-planner', 'verifier']);
+  assert.deepEqual(Object.keys(REGISTRY.agents).sort(), ['mirai-architect', 'mirai-developer', 'mirai-product-manager', 'mirai-reviewer', 'mirai-ticket-planner', 'mirai-verifier']);
+  assert.deepEqual(Object.keys(REGISTRY.roles).sort(), ['architect', 'developer', 'planner', 'product-manager', 'qa', 'reviewer', 'ticket-planner', 'verifier']);
   // With: an instruction-only, a narrowing and a widening overlay on each agent validate.
   const agent = (name, extra = '') => `kind = "agent-overlay"\nschema_version = 1\nname = "${name}"\n${extra}`;
   for (const name of Object.keys(REGISTRY.agents)) {
@@ -361,18 +361,18 @@ test('37 T7: every agent definition and role validates with and without overlays
     'agents/mirai-developer.toml': agent('mirai-developer'), 'agents/mirai-developer.md': 'Name the AC each change serves.\n',
   });
   const check = () => overlaysCheck({ store: openStore(f.io), trust: snapshot(f.io), events: readJournal(openStore(f.io)).events });
-  assert.match(check().detail, /^agents: mirai-developer overlay \(not approved\), mirai-product-manager MIRAI's, mirai-reviewer overlay \(not approved\), mirai-ticket-planner MIRAI's, mirai-verifier MIRAI's$/);
+  assert.match(check().detail, /^agents: mirai-architect MIRAI's, mirai-developer overlay \(not approved\), mirai-product-manager MIRAI's, mirai-reviewer overlay \(not approved\), mirai-ticket-planner MIRAI's, mirai-verifier MIRAI's$/);
   assert.equal(check().state, 'yellow');
   assert.equal((await tty(['approve', '--file', '.mirai/custom/agents/mirai-developer.toml'], f.io, ['a', 'overlay-mirai-developer'])).code, EXIT.OK);
   const widen = await tty(['approve', '--file', '.mirai/custom/agents/mirai-reviewer.toml'], f.io, ['a', 'overlay-mirai-reviewer']);
   assert.equal(widen.code, EXIT.OK, widen.err);
   assert.match(widen.out, /it widens mirai-reviewer \(adds Bash\): its launches are refused until a red-team run covers this overlay \(mirai redteam run\)/);
   const now = check();
-  assert.match(now.detail, /^agents: mirai-developer overlay \(approved\), mirai-product-manager MIRAI's, mirai-reviewer widened: red team needed, mirai-ticket-planner MIRAI's, mirai-verifier MIRAI's$/);
+  assert.match(now.detail, /^agents: mirai-architect MIRAI's, mirai-developer overlay \(approved\), mirai-product-manager MIRAI's, mirai-reviewer widened: red team needed, mirai-ticket-planner MIRAI's, mirai-verifier MIRAI's$/);
   assert.match(now.hint, /mirai redteam run/);
   // With no overlays at all, every agent is MIRAI's.
   const plain = fixture();
-  assert.deepEqual(overlaysCheck({ store: openStore(plain.io), trust: snapshot(plain.io), events: [] }), { state: 'ok', detail: 'agents: mirai-developer MIRAI\'s, mirai-product-manager MIRAI\'s, mirai-reviewer MIRAI\'s, mirai-ticket-planner MIRAI\'s, mirai-verifier MIRAI\'s; 0 overlays, each approved as it is now' });
+  assert.deepEqual(overlaysCheck({ store: openStore(plain.io), trust: snapshot(plain.io), events: [] }), { state: 'ok', detail: 'agents: mirai-architect MIRAI\'s, mirai-developer MIRAI\'s, mirai-product-manager MIRAI\'s, mirai-reviewer MIRAI\'s, mirai-ticket-planner MIRAI\'s, mirai-verifier MIRAI\'s; 0 overlays, each approved as it is now' });
   // mirai show overlays: kind, name, state, full path; an invalid one with its problem.
   f.put('.mirai/custom/document-types/prd.toml', `${HEAD('prd')}lint_checks = ["summary"]\n`);
   const shown = await tty(['show', 'overlays'], f.io, []);

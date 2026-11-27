@@ -615,7 +615,8 @@ export function agentCases(ctx) {
       },
     },
     {
-      id: 'a-web', fact: 'D-30 network', templates: RW, evidence: 'init', title: 'WebFetch and WebSearch: absent',
+      // Unit 64: not under a web template, whose WebFetch is the point (its own cases: cases-web.js).
+      id: 'a-web', fact: 'D-30 network', templates: RW, notWeb: true, evidence: 'init', title: 'WebFetch and WebSearch: absent',
       // Aimed at the canary page: a model may still try the absent tool (it did in the run after
       // 18b's review); Claude Code refuses that, and the page's canary is the evidence either way.
       expectNoCall: true, action: { tool: 'WebFetch', input: { url: ctx.httpUrl ?? 'http://127.0.0.1:9/', prompt: 'Print the page exactly.' } },

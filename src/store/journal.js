@@ -261,6 +261,32 @@ export const EVENT_TYPES = Object.freeze({
       if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
     },
   },
+  // Unit 64 (Scope 2): the architect's run on an initiative, as `tess_run`: one line when it starts,
+  // one when it ends with its record. `document`: the one it ended on (hld, lld or tech-note).
+  design_run: {
+    privileged: true,
+    fields: {
+      run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
+      state: { type: 'enum', values: ['running', 'done', 'paused', 'failed'] },
+      document: { type: 'enum', values: ['hld', 'lld', 'tech-note'] },
+      written: { type: 'array', items: { type: 'enum', values: ['hld', 'lld', 'tech-note'] } },
+      question_id: { type: 'string', pattern: /^Q-[0-9]{1,4}$/, patternHint: 'Q-n' },
+      question: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      why: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      rounds: { type: 'table', fields: { lint: { type: 'integer', min: 0 }, verify: { type: 'integer', min: 0 } }, required: ['lint', 'verify'] },
+      launches: { type: 'integer', min: 0 },
+      template_gaps: { type: 'integer', min: 0 },
+      open: { type: 'table', fields: { vera: { type: 'integer', min: 1 } }, required: ['vera'] },
+      tier: { type: 'string', pattern: /^[a-z]{1,20}$/, patternHint: 'a tier' },
+      model: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._:@/[\]-]{0,127}$/, patternHint: 'a model id' },
+    },
+    required: ['item', 'run_id', 'state'],
+    check(e, report) {
+      if ((e.state === 'paused') !== (e.question_id !== undefined)) report('question_id', 'a paused run names its question, and only a paused one');
+      if (e.open !== undefined && e.state !== 'done') report('open', 'only a done run lists what it left open');
+      if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
+    },
+  },
   // Unit 44 (Scope 6): a decision a document's check found, sent to you as an interview question
   // (`decision_question`), and your answer to it (`decision_answer`). `item` is the document's id;
   // `version` its version (prd.md is 1, prd.v2.draft.md 2); `question_id` the interview's Q-n;

@@ -8,6 +8,7 @@ import { agentCases, commandFile, escapeVerdict, launchctlRefusal } from './case
 import { containerCases } from './cases-container.js';
 import { probeCases } from './cases-probes.js';
 import { widenedCases } from './cases-widened.js';
+import { webCases } from './cases-web.js';
 
 // The red-team cases (unit 18a): 13b's and 13c's checks of the strict bundle (moved from
 // test/probes/probes.js, adapted to the clone of your project), run through the real launch with
@@ -31,7 +32,7 @@ const answered = (r) => r.exit === 0 && r.result?.is_error === false;
 // 13a–13c's cases (this file), unit 18b's (src/redteam/cases-agent.js), and unit 37's for a widened
 // agent (src/redteam/cases-widened.js).
 export function redTeamCases(ctx) {
-  return [...baseCases(ctx), ...agentCases(ctx), ...containerCases(ctx), ...probeCases(ctx), ...widenedCases(ctx)];
+  return [...baseCases(ctx), ...agentCases(ctx), ...containerCases(ctx), ...probeCases(ctx), ...widenedCases(ctx), ...webCases(ctx)];
 }
 
 function baseCases(ctx) {

@@ -97,7 +97,7 @@ const synthetic = (ids = ['t-ok', 't-ro'], extra = {}) => () => ids.map((id) => 
 
 const options = (r, extra = {}) => ({
   cwd: r.root, env: r.env, consent: true, claude: r.claude, allowScript: true, dockerVersion: '29.6.2', binaryFacts: SAME_BINARY, host: HOST,
-  allowTempWorkdir: true, workdir: join(tempDir('rt'), 'w'), workers: 2, ...extra,
+  allowTempWorkdir: true, workdir: join(tempDir('rt'), 'w'), workers: 2, webTemplates: false, ...extra,
 });
 
 function io(r, { tty = false, extra = {} } = {}) {
