@@ -1,6 +1,8 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { adrPathFor } from '../adr/adr.js';
+
 import { renameHeadings } from '../config/overlays.js';
 import { renderEpic, renderSections, ticketSet } from '../lint/epic.js';
 import { prdItems } from '../lint/graph.js';
@@ -12,7 +14,7 @@ import { checkIds, linkLinesOf } from '../lint/rules.js';
 // sections are written from the ticket files beside it and its PRD; nothing else changes. Returns
 // { changed, tickets } or { problem } (no PRD line, a PRD that doesn't read, a section missing):
 // the lint then names it, and her next launch fixes it.
-export function renderEpicFile({ abs, root, registry }) {
+export function renderEpicFile({ abs, root, registry, repo = root, config = null }) {
   let text;
   let doc;
   try {
@@ -33,7 +35,7 @@ export function renderEpicFile({ abs, root, registry }) {
   }
   const up = { doc: prd, ids: checkIds(prd, registry.documentTypes.prd, () => {}, null) };
   const set = ticketSet(doc, { readTickets: () => readTicketFolder(dirname(abs), { root }), registry });
-  const sections = renderSections({ track: doc.value.track, tickets: set.tickets, items: prdItems(up) });
+  const sections = renderSections({ track: doc.value.track, tickets: set.tickets, items: prdItems(up), adrPath: adrPathFor({ repo, fromDir: dirname(abs), config }) });
   const renames = def.renames ?? {};
   const inverse = Object.fromEntries(Object.entries(renames).map(([m, p]) => [p, m]));
   const rendered = renderEpic(renameHeadings(text, inverse), sections);

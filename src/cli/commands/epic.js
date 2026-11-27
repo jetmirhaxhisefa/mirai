@@ -5,6 +5,17 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { EXIT } from '../exit-codes.js';
 import { MiraiError, UsageError } from '../errors.js';
 import { loadRegistry } from '../../config/registry.js';
+import { adrPathFor } from '../../adr/adr.js';
+import { snapshot, trustedConfig } from '../../trust/snapshot.js';
+
+// The ADR folder's settings (61), for the epic's links; MIRAI's defaults where the repo isn't set up.
+function adrConfig(io) {
+  try {
+    return trustedConfig(snapshot({ cwd: io.cwd, env: io.env }));
+  } catch {
+    return {};
+  }
+}
 import { projectOverlays } from '../../trust/overlays.js';
 import { renameHeadings } from '../../config/overlays.js';
 import { topLevel } from '../../store/git.js';
@@ -68,7 +79,7 @@ export function createEpicCommand({ registryDir = REGISTRY_DIR } = {}) {
       const up = { doc: prd, ids: checkIds(prd, registry.documentTypes.prd, () => {}, null) };
 
       const set = ticketSet(doc, { readTickets: () => readTicketFolder(dirname(epic.abs), { root: docRoot }), registry });
-      const sections = renderSections({ track: doc.value.track, tickets: set.tickets, items: prdItems(up) });
+      const sections = renderSections({ track: doc.value.track, tickets: set.tickets, items: prdItems(up), adrPath: adrPathFor({ repo: root, fromDir: dirname(epic.abs), config: adrConfig(io) }) });
       // Unit 37: a renamed generated section is found, and kept, under the project's name.
       const renames = def.renames ?? {};
       const inverse = Object.fromEntries(Object.entries(renames).map(([m, p]) => [p, m]));

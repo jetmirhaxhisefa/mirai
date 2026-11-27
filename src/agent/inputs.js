@@ -81,6 +81,11 @@ export function approvedTechNote(o) {
   return approvedDesignDoc({ ...o, type: 'tech-note' });
 }
 
+// Unit 63 (Scope 8): the approved LLD of the ticket's initiative, the same way.
+export function approvedLld(o) {
+  return approvedDesignDoc({ ...o, type: 'lld' });
+}
+
 // Unit 62 (Scope 6): the approved HLD of the ticket's initiative, the same way.
 export function approvedHld(o) {
   return approvedDesignDoc({ ...o, type: 'hld' });
@@ -195,6 +200,10 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
     // Unit 62: on full, the approved HLD: its components, flows, conventions and Decisions hold.
     const hld = approvedHld({ root, env, commit, docsRoot, ticketPath: ticket.path, store });
     if (hld) want('hld.md', hld.path, `the approved HLD ${hld.id}: its components, flows, conventions table and Decisions (D-n) hold for this ticket`, hld.text);
+    // Unit 63: the approved LLD: the exact shapes (C-n contracts, S-n schema changes) the ticket's
+    // \`uses\` names are built as it says.
+    const lld = approvedLld({ root, env, commit, docsRoot, ticketPath: ticket.path, store });
+    if (lld) want('lld.md', lld.path, `the approved LLD ${lld.id}: the names, contracts (C-n), schema changes (S-n) and failures the ticket's uses names hold exactly`, lld.text);
   }
   // Unit 30c: files the caller adds (your review notes), right after the ticket's own.
   for (const x of extra) want(x.name, x.from, x.why, x.text);

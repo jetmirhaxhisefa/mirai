@@ -42,7 +42,7 @@ const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: te
 
 test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and the five context files, templates that match their types, and known checks', () => {
   // Unit 41: your requirements list and a business.md proposal. Unit 61: the ADR.
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['adr', 'brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'hld', 'interview', 'investigation', 'journeys', 'plan', 'prd', 'project', 'requirements', 'story', 'tech-note', 'ticket-notes']);
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['adr', 'brief', 'bug', 'business', 'business-change', 'conventions', 'epic', 'feature-map', 'hld', 'interview', 'investigation', 'journeys', 'lld', 'plan', 'prd', 'project', 'requirements', 'story', 'tech-note', 'ticket-notes']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);
@@ -58,7 +58,8 @@ test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and t
     // A PRD's template links the brief's (unit 32), which sits beside it; an epic's links the
     // PRD's (unit 33), and a brief's links the interview's (unit 35). An epic's template has no tickets, so only the parts that need them fail:
     // the graph lint, the generated sections and those sections being empty.
-    const beside = { '/registry/templates/brief.md': read('templates/brief.md'), '/registry/templates/prd.md': read('templates/prd.md'), '/registry/templates/interview.md': read('templates/interview.md') };
+    // Unit 63: the LLD's template links the HLD's beside it.
+    const beside = { '/registry/templates/brief.md': read('templates/brief.md'), '/registry/templates/prd.md': read('templates/prd.md'), '/registry/templates/interview.md': read('templates/interview.md'), '/registry/templates/hld.md': read('templates/hld.md') };
     const problems = lintDocs({ [`/registry/templates/${name}.md`]: template, ...beside }).filter((p) => p.file === `registry/templates/${name}.md`);
     if (name === 'epic') assert.ok(problems.length > 0 && problems.every((p) => /^graph-|^epic-generated$|^empty-section$/.test(p.code)), JSON.stringify(problems.filter((p) => !/^graph-|^epic-generated$|^empty-section$/.test(p.code))));
     // Unit 61: an ADR lives outside the docs root, where its template text is still checked (so its

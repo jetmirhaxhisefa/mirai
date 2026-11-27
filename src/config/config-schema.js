@@ -352,6 +352,9 @@ export const CONFIG_SCHEMA = {
             // Unit 62 (decision 4): the HLD's summary (fails above) and the whole HLD (warns above).
             hld_summary_words: { type: 'integer', min: 100, max: 2000 },
             hld_words: { type: 'integer', min: 1000, max: 15000 },
+            // Unit 63 (Q4): the LLD's prose (tables and code blocks not counted): warns, then fails.
+            lld_warn_words: { type: 'integer', min: 500, max: 10000 },
+            lld_words: { type: 'integer', min: 1000, max: 15000 },
           },
         },
       },

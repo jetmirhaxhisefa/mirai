@@ -7,6 +7,8 @@ import { checkInterview } from './interview.js';
 import { checkAdr } from './adr.js';
 import { checkTechNote } from './tech-note.js';
 import { checkHld } from './hld.js';
+import { checkLld } from './lld.js';
+import { lldItems } from './lld-items.js';
 import { testabilityProblems } from './testable.js';
 import { idStabilityProblems } from './ids.js';
 import { DOC_OF_RUNS_AS, ticketTypesOf } from '../tickets/types.js';
@@ -175,6 +177,8 @@ export const CHECKS = Object.freeze({
   'tech-note': (...a) => checkTechNote(...a),
   // Unit 62: the HLD.
   hld: (...a) => checkHld(...a),
+  // Unit 63: the LLD.
+  lld: (...a) => checkLld(...a),
   'id-stability': (doc, def, ctx, add) => {
     for (const p of idStabilityProblems(doc, ctx.previous)) add(p);
   },
@@ -187,6 +191,16 @@ export const CHECKS = Object.freeze({
       const p = positions.get(key);
       return p ? { line: p.line, column: p.valueColumn ?? p.column } : { line: 1, column: 1 };
     };
+    // Unit 63: `uses` names items of the initiative's LLD (../lld.md, beside the epic).
+    if (Array.isArray(value.uses) && value.uses.length) {
+      const lld = ctx.readDocument ? ctx.readDocument('../lld.md') : { problem: 'unavailable' };
+      if (lld && !lld.problem && lld.value?.type === 'lld') {
+        const items = lldItems(lld);
+        value.uses.forEach((id, i) => {
+          if (typeof id === 'string' && !items.has(id)) add({ code: 'ticket-uses', ...at(`uses[${i}]`), reason: `uses names ${id}, which the initiative's LLD doesn't have`, hint: items.size ? `its items: ${[...items].join(', ')}` : 'the LLD lists no contract or schema change' });
+        });
+      } else if (lld?.problem === 'missing') add({ code: 'ticket-uses', ...at('uses'), reason: 'uses names LLD items, but the initiative has no lld.md', hint: 'take uses out, or write the LLD first' });
+    }
     const repos = ctx.project?.repos ?? [];
     if (typeof value.repo === 'string' && value.repo !== '' && !repos.includes(value.repo)) {
       add({ code: 'unknown-repo', ...at('repo'), reason: '"repo" is not one of the repos in the config', hint: `use one of: ${repos.join(', ')}` });

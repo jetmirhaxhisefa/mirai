@@ -50,6 +50,11 @@ pattern = "AC-N?FR-[0-9]+\\.[0-9]+"
 type = "list"
 pattern = "ADR-[0-9]+"
 
+# Unit 63: the LLD's contracts (C-n) and schema changes (S-n) this ticket builds.
+[frontmatter.fields.uses]
+type = "list"
+pattern = "[CS]-[0-9]+"
+
 [frontmatter.fields.after]
 type = "list"
 pattern = "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"

@@ -44,6 +44,26 @@ export function inputStates({ store, registry, config, track, readDoc, initiativ
     if (!registry.documentTypes[type]) return { type, state: 'no-type', unit: UNIT_OF[type] ?? null };
     // Unit 61 (45's re-check): ADRs are many files in the ADR folder, not one beside the PRD.
     if (type === 'adr') return adrInputState({ store, config, initiative });
+    // Unit 63 (Scope 5): the LLD is needed only when the HLD says `lld: required`.
+    if (type === 'lld') {
+      let h = null;
+      try {
+        h = readDoc('hld');
+      } catch {
+        h = null;
+      }
+      if (h?.value?.lld !== 'required') {
+        let d = null;
+        try {
+          d = readDoc('lld');
+        } catch {
+          d = null;
+        }
+        const id = typeof d?.value?.id === 'string' ? d.value.id : null;
+        if (id && documentApproval(store, id, d.bytes).approved) return { type, state: 'approved', id, shown: d.shown };
+        return { type, state: 'not-needed', because: h ? `the HLD says lld: ${h.value?.lld ?? 'unset'}` : 'no HLD yet' };
+      }
+    }
     let d = null;
     try {
       d = readDoc(type);
@@ -66,6 +86,7 @@ export const notBuiltLine = (states) => {
   const parts = [
     ...(n.length ? [`not built yet, so not needed: ${n.map((s) => `no ${wordsOf(s.type)} yet${s.unit ? ` (unit ${s.unit})` : ''}`).join(', ')}`] : []),
     ...o.map((s) => `no ${wordsOf(s.type)} yet: not required until unit ${s.from}; with one approved, the tickets follow it`),
+    ...states.filter((s) => s.state === 'not-needed' && s.because !== 'no HLD yet').map((s) => `no ${wordsOf(s.type)} needed: ${s.because}`),
   ];
   return parts.length ? parts.join('; ') : null;
 };

@@ -1,0 +1,78 @@
+# The LLD, a contracts document (unit 63; Jet's interview 2026-11-26, research in
+# implementation/units/63-lld/research.md): the exact shapes several tickets share, written before
+# the tickets are cut, so tickets built in parallel agree on names, types, errors and migrations.
+# One per initiative (docs/mirai/<initiative>/lld.md), only when the HLD says `lld: required`.
+# - No narrative, no decisions (they're the HLD's D-n lines and ADRs), no alternatives, no ticket
+#   breakdown (Tess's). Every item has a stable ID: C-n a contract, S-n a schema change.
+# - Typed tables, or the project's own notation (an OpenAPI or JSON Schema fragment) in a fence.
+# - About 2,500 words of prose: the lint warns past it and fails past 4,000; tables and code blocks
+#   don't count.
+# - Frozen once its initiative ships: the code owns the shapes after.
+kind = "document-type"
+schema_version = 1
+name = "lld"
+template = "templates/lld.md"
+template_version = 1
+checklist = "templates/lld-checklist.md"
+status = "forbidden"
+required_sections = ["Scope", "Names", "Failures", "Test map", "Open questions"]
+# Each present: filled when its trigger fires (or, for the last three, what is new), else one line
+# "Not applicable — <why>".
+optional_sections = ["Contracts", "Schema changes", "Flows", "State and algorithms", "Security", "Observability", "Rollout"]
+section_order = ["Scope", "Names", "Contracts", "Schema changes", "Flows", "State and algorithms", "Failures", "Test map", "Security", "Observability", "Rollout", "Open questions"]
+may_be_empty = ["Open questions"]
+lint_checks = ["lld"]
+verifier = true
+
+# The line under the title: the HLD it details.
+[[upstream_link]]
+label = "HLD"
+type = "hld"
+
+# The PRD's FR, NFR and AC IDs are cited; the lld check reads them from the PRD beside it.
+# Its own items, defined in their sections' tables (each row's first cell).
+[[ids]]
+prefix = "C"
+pattern = "C-[0-9]+"
+defined_by = "table"
+section = "Contracts"
+
+[[ids]]
+prefix = "S"
+pattern = "S-[0-9]+"
+defined_by = "table"
+section = "Schema changes"
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop.
+
+[[protected_sections]]
+name = "Scope"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Names"
+read_by = ["lint", "tickets"]
+
+[[protected_sections]]
+name = "Contracts"
+read_by = ["lint", "tickets"]
+
+[[protected_sections]]
+name = "Schema changes"
+read_by = ["lint", "tickets"]
+
+[[protected_sections]]
+name = "Failures"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Test map"
+read_by = ["lint"]
+
+[[protected_sections]]
+name = "Open questions"
+read_by = ["lint", "approval"]
+
+[[protected_fields]]
+link = "HLD"
+read_by = ["approval", "lint"]

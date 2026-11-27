@@ -126,7 +126,7 @@ test('31 T5: the template: left as it is, it fails; a type with the summary chec
   // Unit 61: an ADR's summary is one Y-statement, checked by its own lint (src/lint/adr.js). Unit 62b:
   // the technical note is one page read whole (decision 1), with no summary of its own.
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
-    if (['story', 'bug', 'plan', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'investigation', 'ticket-notes', 'adr', 'tech-note'].includes(name)) continue;
+    if (['story', 'bug', 'plan', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'investigation', 'ticket-notes', 'adr', 'tech-note', 'lld'].includes(name)) continue;
     assert.ok(def.lint_checks?.includes('summary') && def.lint_checks.includes('writing'), `${name} needs the summary and writing checks`);
   }
 });

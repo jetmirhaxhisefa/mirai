@@ -4,7 +4,7 @@ import { REGISTRY_DIR } from '../cli/commands/lint.js';
 import { loadRegistry } from '../config/registry.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { verifyBranchRecord } from '../store/branch-record.js';
-import { blobAt, workTreeChanges } from '../store/git.js';
+import { blobAt, lsTree, workTreeChanges } from '../store/git.js';
 import { readJournal } from '../store/journal.js';
 import { contentHash } from '../sign/sign.js';
 import { PROOF_NAME, RECORDS_DIR, readProof } from '../proofs/records.js';
@@ -41,6 +41,30 @@ export function stagedChanges(entries) {
     }
   }
   return out;
+}
+
+// The number of the initiative's tickets (its tickets/ folder in HEAD) when every one is merged
+// into the integration branch (its `mr_merged` line); 0 when there are none, or one isn't.
+function shippedTickets({ root, env, dir, events }) {
+  let entries;
+  try {
+    entries = lsTree(root, 'HEAD', `${dir}/tickets/`, env) ?? [];
+  } catch {
+    return 0;
+  }
+  const ids = [];
+  for (const e of entries.filter((x) => x.type === 'blob' && /\.md$/i.test(x.path))) {
+    let v = null;
+    try {
+      v = readFrontmatter(blobAt(root, 'HEAD', e.path, env, { maxBytes: MAX }) ?? Buffer.alloc(0))?.value ?? null;
+    } catch {
+      v = null;
+    }
+    if (v && typeof v.id === 'string' && v.type !== 'epic') ids.push(v.id);
+  }
+  if (!ids.length) return 0;
+  const merged = new Set(events.filter((e) => e.type === 'mr_merged' && e.target === 'integration').map((e) => e.ticket));
+  return ids.every((id) => merged.has(id)) ? ids.length : 0;
 }
 
 // { refused: [{ path, line, why, hint }], warnings: [{ path, why, hint }] }. `store`: MIRAI's store
@@ -92,6 +116,15 @@ export function documentsPreCommit({ root, env, store = null, keys = null, regis
     if ((def.status ?? 'required') === 'forbidden' && Object.hasOwn(value, 'status')) {
       refused.push({ path, line: fm.positions?.get('status')?.line ?? 1, why: `a ${def.name} keeps no status in its frontmatter (status: ${String(value.status).slice(0, 40)}): its state comes from your signed approvals in MIRAI's journal`, hint: `take the status line out; approve it with: mirai approve ${typeof value.id === 'string' ? value.id : '<id>'} --file ${path}` });
       continue;
+    }
+    // Unit 63 (Scope 9): a shipped initiative's LLD is frozen: once every ticket of the initiative
+    // is merged into the integration branch, the code owns the shapes.
+    if (def.name === 'lld' && store) {
+      const shipped = shippedTickets({ root, env, dir: posix.dirname(path), events: journal() });
+      if (shipped) {
+        refused.push({ path, line: 1, why: `a shipped initiative's LLD is frozen: all ${shipped} of its tickets are merged, so the code owns these shapes`, hint: `write the change into a new initiative's LLD; unstage this one: git restore --staged ${path}` });
+        continue;
+      }
     }
     // The approval this commit makes stale: your last accepted one, for the file as it is in HEAD.
     if (!store || typeof value.id !== 'string') continue;

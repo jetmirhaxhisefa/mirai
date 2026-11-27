@@ -1,5 +1,5 @@
 import { lstatSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
-import { join, posix } from 'node:path';
+import { join, posix, relative, sep } from 'node:path';
 
 import { atomicWrite } from '../store/files.js';
 import { contentHash } from '../sign/sign.js';
@@ -358,4 +358,15 @@ export function initiativeAdrPaths(adrs, events, initiative) {
     }
   }
   return [...paths].sort();
+}
+
+// Unit 63 (P2): an ADR's link from the epic's folder to its file in the repo's ADR folder (61), or
+// null when the folder has no ADR of that ID.
+export function adrPathFor({ repo, fromDir, config }) {
+  let adrs = null;
+  return (id) => {
+    adrs ??= listAdrs(workTreeReader(repo), adrSettings(config));
+    const a = adrs.find((x) => x.id.toUpperCase() === String(id).toUpperCase());
+    return a ? relative(fromDir, join(repo, a.path)).split(sep).join('/') : null;
+  };
 }

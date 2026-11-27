@@ -57,6 +57,7 @@ Each guide has the type's wording rules and three before/after examples from rea
 - [guides/ticket.md](guides/ticket.md): stories and bugs;
 - [guides/tech-note.md](guides/tech-note.md): the technical note (`standard`'s design, unit 62b);
 - [guides/hld.md](guides/hld.md): the HLD (`full`'s design, unit 62);
+- [guides/lld.md](guides/lld.md): the LLD (`full`'s shared contracts, unit 63);
 - [guides/session.md](guides/session.md): manual steps and explanations for the owner in the
   session.
 
