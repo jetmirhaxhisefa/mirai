@@ -1,6 +1,6 @@
 # Unit 62b: test results (2026-11-26)
 
-**Waiting for the runner and your approval.** P1 and P2 passed (real Sonnet runs; the probe's last
+**Approved 2026-11-27 ("approve 62b"), PR #143.** Runner green at `37cb860` (red team GREEN on u62b-redteam-4). P1 and P2 passed (real Sonnet runs; the probe's last
 run, with its plan step resumed in the same home). Built on `unit/62b-build` from `origin/main`
 (`f5db304`: 61 merged, its re-checks merged).
 

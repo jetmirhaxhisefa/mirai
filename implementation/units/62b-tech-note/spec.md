@@ -1,7 +1,7 @@
 ---
 unit: "62b"
 name: tech-note
-status: approved (Jet, 2026-11-25: "approve 62b"; interview 2026-11-24: Q1 "A", Q2 "yes", Q3 "yes", Q4 "A", Q5 "A", restatement "yes")
+status: done (Jet, 2026-11-27: "approve 62b", built and probed; spec approved 2026-11-25: "approve 62b"; interview 2026-11-24: Q1 "A", Q2 "yes", Q3 "yes", Q4 "A", Q5 "A", restatement "yes")
 roadmap: design/07-implementation-roadmap.md, row 62b (new, from unit 45's interview Q2 "A"); design/01 §4 (design: HLD, ADR, LLD), §5 (tickets), §16 (gates); units 31 (templates), 40 (Vera), 45 (`[tickets.inputs]`), 61 (ADR), 62 (HLD), 64 (Arlo), Kai's plan gate (22/23), Rex (24)
 depends_on: ["31", "40", "45", "61"]
 ---
