@@ -232,7 +232,7 @@ export const SUMMARY_PARTS = Object.freeze(['The ask', 'Why', 'What changes', 'D
 // checks; the others are named for their command or step.
 // Unit 42: `run-pick`, the run's pick of the next ready ticket (src/tickets/pick.js).
 // Unit 45: `tickets`, the ticket planner's run (src/tess/run.js: your notes as her input).
-export const READERS = Object.freeze(['approval', 'reader-test', 'trace', 'epic-coverage', 'graph-lint', 'gate', 'lint', 'epic-render', 'run-pick', 'tickets']);
+export const READERS = Object.freeze(['approval', 'reader-test', 'trace', 'epic-coverage', 'graph-lint', 'gate', 'lint', 'epic-render', 'run-pick', 'tickets', 'design']);
 // The sections and parts (### headings) each built-in check reads by name (unit 37, Scope 1).
 // A type whose lint_checks read one of its own sections must list it in protected_sections, so
 // no overlay can drop what a check depends on. `*required*`: every required section (the

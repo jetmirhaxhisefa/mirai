@@ -17,6 +17,9 @@ import { openStore } from '../../src/store/home.js';
 import { appendEvent, readJournal } from '../../src/store/journal.js';
 import { readVerifyResults } from '../../src/store/verify-results.js';
 import { runDesign } from '../../src/design/run.js';
+import { decisionsForYou } from '../../src/design/sitting.js';
+import { parseDocument } from '../../src/lint/lint.js';
+import { adrSettings, listAdrs, workTreeReader } from '../../src/adr/adr.js';
 import { designStateLines } from '../../src/design/state.js';
 import { seedPrdChecks, tessHome } from './tess-probes.js';
 import { FAKE_CLAUDE, fakeReader } from '../helpers/reader.js';
@@ -69,37 +72,52 @@ type: adr
 template: adr@v1
 status: accepted
 date: "2026-11-10"
-deciders: [product-owner]
-initiative: calendar-view
+decision_makers: [the product owner, the architect]
+confidence: high
+gate: [cross-cutting]
+components: [the task API]
+owner: mirai-architect
+created: "2026-11-10"
 ---
-# ADR-0001: Judge "today" in the time zone the browser sends with each request
+# Judge "today" in the time zone the browser sends with each request
 
-## Context and problem statement
+## Summary
 
-The calendar view needs the user's own day: a task due "today" must not flip at midnight UTC for a user in Berlin. The app stores no time zone per user.
+In the context of dates the app judges as past or late, facing a server that knows no user's time zone, we decided for the browser sending its zone with each request to achieve a "today" that matches the user's own day, accepting that a request without the header is judged in UTC.
 
-## Decision drivers
+## Context and problem
 
-- No new setting for users to keep right.
-- The server judges a date the same way for every request.
+The calendar view needs the user's own day: a task due today must not flip at midnight UTC for a user in Berlin. The app stores no time zone per user.
 
-## Considered options
+## Options considered
 
-- The browser sends its IANA zone in an \`X-Time-Zone\` header with each request; the server uses UTC without one.
-- A time zone stored on each user, set in their profile.
+### The browser sends its zone with each request
 
-## Decision outcome
+- Good, because the browser always knows it, and nothing new needs keeping.
+- Bad, because a request without the header is judged in UTC.
 
-Chosen option: the browser sends its zone with each request, because the browser always knows it and nothing new needs keeping.
+### A time zone stored on each user
 
-### Consequences
+- Good, because the server knows it without the browser.
+- Bad, because a setting goes stale when a user travels, and nobody keeps it right.
+
+## Decision
+
+We chose the browser's zone with each request, because it is always right where the user is and needs no setting.
+
+## Consequences
 
 - Good, because no setting can go stale.
 - Bad, because a request without the header is judged in UTC.
+- Neutral, because the header name, \`X-Time-Zone\`, is the API's to keep.
 
 ## Confirmation
 
-A request with \`X-Time-Zone: Europe/Berlin\` at 23:30 UTC on 2027-01-14 is judged on 2027-01-15.
+review: each change that judges a date as past or late takes "today" from the \`X-Time-Zone\` header, or UTC without one.
+
+## Revisit when
+
+- Users ask for reminders sent while their browser is closed.
 `;
 const DECOY = `<?php
 
@@ -123,7 +141,7 @@ class LegacyReportController extends Controller
 }
 `;
 
-async function setup(home, log, { track }) {
+async function setup(home, log, { track, offer = false }) {
   for (const n of ['interview.md']) put(home, `${D}/${n}`, readFileSync(join(FIX, n), 'utf8'));
   const brief = readFileSync(join(FIX, 'brief.md'), 'utf8');
   put(home, `${D}/brief.md`, track === 'full' ? brief.replace(/^track: standard$/m, 'track: full').replace(/Track: standard[^\n]*/, 'Track: full, because the design is reviewed before the tickets are cut.') : brief);
@@ -157,6 +175,7 @@ async function setup(home, log, { track }) {
   }
   const prdId = idOf(home, `${D}/prd.md`);
   const a = await term(home, ['approve', prdId, '--file', `${D}/prd.md`], ['a', prdId, 'n']);
+  if (offer) home.offerOut = a.out;
   if (a.code !== 0) throw new Error(`the PRD's approval: ${a.err.trim()}`);
   note(home, `probe --auto: the brief and ${prdId} approved with the probe home's key`);
   log(`the home: ${track}, PRD ${prdId} approved`);
@@ -228,21 +247,121 @@ export async function p3(home, log) {
   return checks;
 }
 
+// ---- Unit 65's probes ---------------------------------------------------------------------------
+// - P1: the whole `full` flow: the PRD's approval offers Arlo (answered n here; the run is started
+//   as `mirai design` starts it); his runs (an early pause on a hard-to-reverse ADR answered with his
+//   own guess, as you might); the set check; the sitting with the probe home's key (every answer as
+//   written); Tess offered.
+// - P2 (the same home, after P1): two tickets citing every LLD item, one merged; a change through
+//   `--change`; the impact names both (one to re-cut, one flagged).
+
+async function sitting(home, log) {
+  const hld = readFileSync(join(home.root, D, 'hld.md'), 'utf8');
+  const doc = parseDocument(hld, 'hld.md');
+  const decisions = decisionsForYou(doc);
+  const proposed = listAdrs(workTreeReader(home.root), adrSettings({})).filter((a) => a.mirai && a.initiative === 'due-dates' && a.status === 'proposed');
+  const r = fakeReader();
+  await runReaderTest({ cwd: home.root, env: home.env, file: `${D}/hld.md`, launch: r.launch, claude: FAKE_CLAUDE });
+  const id = idOf(home, `${D}/hld.md`);
+  const answers = [...decisions.map(() => ''), ...proposed.map(() => 'y'), 'a', id, 'n'];
+  const out = await term(home, ['approve', id, '--file', `${D}/hld.md`], answers);
+  note(home, `probe --auto: the design set ${id} approved at its sitting with the probe home's key (every answer as written)`);
+  log(out.out.split('\n').filter((l) => /^(HLD|LLD|ADR|approved|accepted|Decision|Arlo's call|Start|tickets|nothing)/.test(l)).join('\n'));
+  if (out.code !== 0) log(out.err.trim());
+  return { code: out.code, out: out.out, decisions: decisions.length, adrs: proposed.length };
+}
+
+export async function p65(home, log) {
+  const checks = {};
+  await setup(home, log, { track: 'full', offer: true });
+  checks.offer = /Start Arlo \(mirai-architect\) on the design now\? \[y\/N\]/.test(home.offerOut ?? '');
+  let r = await arlo(home, log);
+  if (r.state === 'paused' && r.question_id) {
+    const p = join(home.root, D, 'interview.md');
+    const t = readFileSync(p, 'utf8');
+    const guess = new RegExp(`### ${r.question_id}:[^]*?Guess: ([A-D])`).exec(t)?.[1] ?? 'A';
+    writeFileSync(p, t.replace('state: paused', 'state: confirmed').replace(new RegExp(`(### ${r.question_id}:[^]*?Answer:)\\n`), `$1 ${guess}.\n`));
+    commit(home, `probe: ${r.question_id} answered ${guess} (his own guess)`);
+    log(`the early pause on ${r.question_id} answered ${guess}`);
+    checks.hardPause = Boolean(readJournal(openStore({ cwd: home.root, env: home.env })).events.filter((e) => e.type === 'design_run').some((e) => e.hard));
+    r = await arlo(home, log);
+  }
+  checks.done = r.state === 'done';
+  const sit = await sitting(home, log);
+  const ev = readJournal(openStore({ cwd: home.root, env: home.env })).events;
+  const kinds = ev.filter((e) => e.type === 'approval' && ['hld', 'lld', 'adr'].includes(e.kind) && e.item !== 'ADR-0001').map((e) => e.kind);
+  log(`signed at the sitting: ${kinds.join(', ')}; your answers: ${ev.filter((e) => e.type === 'design_decision').length}`);
+  checks.signed = sit.code === 0 && kinds.includes('hld') && (!/^lld: required$/m.test(readFileSync(join(home.root, D, 'hld.md'), 'utf8')) || kinds.includes('lld'));
+  checks.tessOffered = /Start Tess \(mirai-ticket-planner\) on the ticket set now\?/.test(sit.out);
+  keep(home, join(OUT, '..', '65-design-workflow', 'p1'), [[`${D}/hld.md`, 'hld.md'], [`${D}/lld.md`, 'lld.md']]);
+  return checks;
+}
+
+export async function p65change(home, log, { resumed = false } = {}) {
+  const checks = {};
+  if (resumed) {
+    // The home after P1 (and a first P2 run that paused on a change of requirements): undo that
+    // pause's commit, and approve the unchanged PRD again so his paused run is behind you.
+    const last = git(home, 'log', '-1', '--format=%s').stdout.trim();
+    if (/ask|round 1/.test(last)) git(home, 'reset', '-q', '--hard', 'HEAD~1');
+    const prdId = idOf(home, `${D}/prd.md`);
+    await seedPrdChecks(home, `${D}/prd.md`);
+    const a = await term(home, ['approve', prdId, '--file', `${D}/prd.md`], ['a', prdId, 'n']);
+    log(`the PRD approved again (unchanged): ${a.code === 0 ? 'ok' : a.err.trim()}`);
+  }
+  const lld = readFileSync(join(home.root, D, 'lld.md'), 'utf8');
+  const items = [...new Set([...lld.matchAll(/^ *\| *`?([CS]-[0-9]+)`? *\|/gm)].map((m) => m[1]))];
+  if (!existsSync(join(home.root, D, 'tickets', 'SAMPLE-91.md'))) {
+  const ticket = (key, title) => readFileSync(new URL('../../registry/examples/tickets/SAMPLE-51.md', import.meta.url), 'utf8').replaceAll('SAMPLE-51', key).replace(/^# .*$/m, `# ${title}`).replace(/^type: story$/m, `type: story\nuses: [${items.join(', ')}]`);
+  put(home, `${D}/tickets/SAMPLE-91.md`, ticket('SAMPLE-91', 'Not built yet'));
+  put(home, `${D}/tickets/SAMPLE-92.md`, ticket('SAMPLE-92', 'Built and merged'));
+  commit(home, 'probe: two tickets citing every LLD item');
+  appendEvent(openStore({ cwd: home.root, env: home.env }), { type: 'mr_merged', by: 'script', ticket: 'SAMPLE-92', target: 'integration' });
+  }
+  log(`tickets SAMPLE-91 (unbuilt) and SAMPLE-92 (merged) cite ${items.join(', ')}`);
+  const onStep = (e) => log(e.kind === 'launch' ? `Arlo: ${e.step} ${e.doc} (round ${e.round}): ${e.outcome}` : e.kind === 'lint' ? `lint, ${e.doc}: ${e.errors ? `${e.errors} problem(s)` : 'clean'}` : `Vera, ${e.file}: round ${e.round}, ${e.must_fix} must-fix`);
+  // A design-only change (the first P2 run asked for a due time, a change of requirements, and he
+  // rightly paused to send it through the PRD): the zone travels as a query parameter.
+  const r = await runDesign({ cwd: home.root, env: home.env, initiative: 'due-dates', change: 'The browser sends its time zone as a `tz` query parameter on each write instead of the X-Time-Zone header, because the company proxy strips unknown headers. What the owner sees and every rule stay as they are.', nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep });
+  log(`his change run: ${r.state}${r.why ? `: ${r.why}` : ''}`);
+  checks.done = r.state === 'done';
+  if (r.impact) log(`impact: changed ${[...r.impact.ids.decisions, ...r.impact.ids.adrs, ...r.impact.ids.items].join(', ') || 'nothing cited'}; re-cut: ${r.impact.unbuilt.map((x) => x.id).join(', ') || 'none'}; flagged: ${r.impact.built.map((x) => x.id).join(', ') || 'none'}`);
+  checks.impact = Boolean(r.impact) && r.impact.unbuilt.some((x) => x.id === 'SAMPLE-91') && r.impact.built.some((x) => x.id === 'SAMPLE-92');
+  const hld = readFileSync(join(home.root, D, 'hld.md'), 'utf8');
+  checks.changelog = /^changelog:/m.test(hld) || /^changelog:/m.test(readFileSync(join(home.root, D, 'lld.md'), 'utf8'));
+  const lint = await term(home, ['lint', D], []);
+  checks.lintClean = lint.code === 0;
+  log(lint.out.trim().split('\n').filter((l) => !/hint:|warning:/.test(l)).slice(-4).join('\n'));
+  keep(home, join(OUT, '..', '65-design-workflow', 'p2'), [[`${D}/hld.md`, 'hld.md'], [`${D}/lld.md`, 'lld.md']]);
+  return checks;
+}
+
 async function cli() {
-  const { values } = parseArgs({ options: { yes: { type: 'boolean' }, probe: { type: 'string' } } });
+  const { values } = parseArgs({ options: { yes: { type: 'boolean' }, probe: { type: 'string' }, home: { type: 'string' } } });
   const log = (l) => process.stdout.write(`${l}\n`);
-  if (!values.yes || !['p1', 'p3'].includes(values.probe)) {
+  if (!values.yes || !['p1', 'p3', 'p65', 'p65change'].includes(values.probe) || (values.probe === 'p65change' && !values.home)) {
     process.stderr.write('--yes --probe p1 (full, with P2\'s plants; deep then standard) | --yes --probe p3 (standard)\n');
     return 2;
   }
   const token = readToken(process.env);
   if (!token) throw new Error('no Claude login token: mirai token set');
-  const workdir = realpathSync(mkdtempSync(join(process.env.HOME, '.mirai-probes-')));
-  const home = { ...(await tessHome({ workdir, key: values.probe, c: { initiative: 'due-dates' }, claude: resolveClaude(process.env), token })), workdir, home: join(workdir, 'home') };
+  let home;
+  if (values.home) {
+    const workdir = realpathSync(values.home);
+    home = { workdir, root: join(workdir, 'repo'), home: join(workdir, 'home'), env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: join(workdir, 'home'), USER: process.env.USER, LANG: 'C' } };
+  } else {
+    const workdir = realpathSync(mkdtempSync(join(process.env.HOME, '.mirai-probes-')));
+    home = { ...(await tessHome({ workdir, key: values.probe, c: { initiative: 'due-dates' }, claude: resolveClaude(process.env), token })), workdir, home: join(workdir, 'home') };
+  }
   log(`the probe home: ${home.workdir}`);
   let checks;
   try {
-    checks = values.probe === 'p1' ? await p1(home, log) : await p3(home, log);
+    if (values.probe === 'p65change') checks = Object.fromEntries(Object.entries(await p65change(home, log, { resumed: true })).map(([k, v]) => [`p2.${k}`, v]));
+    else if (values.probe === 'p65') {
+      const a = await p65(home, log);
+      const b = Object.values(a).every(Boolean) ? await p65change(home, log) : { change: false };
+      checks = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [`p1.${k}`, v])), ...Object.fromEntries(Object.entries(b).map(([k, v]) => [`p2.${k}`, v])) };
+    } else checks = values.probe === 'p1' ? await p1(home, log) : await p3(home, log);
   } catch (err) {
     log(`stopped: ${formatError(err, process.env).trim()}`);
     checks = { ran: false };

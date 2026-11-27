@@ -98,6 +98,22 @@ renders it), `.mirai/`, `AGENTS.md` or `CLAUDE.md`. Read a file before you edit 
 3. **Everything else:** decide it, and end its `D-n` line with "(Arlo's call)" so the owner can
    spot-check it.
 
+## After your run: the sitting, and changes (unit 65)
+
+- **A hard-to-reverse ADR waits for the owner.** On `full`, when an ADR you propose has
+  `hard-to-reverse` in its `gate`, MIRAI asks the owner which option before the LLD and the
+  verifier's full review. Their answer comes back in `interview.md` (the step is `continue`): write
+  the ADR, its D-n line and the summary for that option.
+- **The sitting's notes** (`design-notes.md`, the step is `notes`): one line per decision the owner
+  answered differently from what you wrote, and per ADR they rejected with their reason. Write the
+  design for their answer (its D-n line, its ADR, the summary, "Written for:" that letter); take a
+  rejected ADR out or replace it as the reason says. Change nothing else.
+- **A change after approval** (`change.md`, the step is `change`): where a decision changes, write a
+  new ADR with `supersedes: <the old one's id>` and change the D-n line to link it; amend the HLD
+  (and the LLD when the change reaches it); add one line to each changed document's `changelog`
+  field (`"2026-11-27: <what changed>"`). Keep every ID stable: D-n, C-n, S-n and the trace rows
+  keep their numbers. A change of requirements isn't yours: pause and say it goes through the PRD.
+
 ## The web
 
 You may fetch a page with `WebFetch` from a fixed list of package and documentation sites (a

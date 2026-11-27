@@ -269,6 +269,11 @@ export const EVENT_TYPES = Object.freeze({
       run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
       state: { type: 'enum', values: ['running', 'done', 'paused', 'failed'] },
       document: { type: 'enum', values: ['hld', 'lld', 'tech-note'] },
+      // Unit 65 (decision 1): the early pause on a hard-to-reverse ADR, which your answer settles
+      // without the PRD changing.
+      hard: { type: 'boolean' },
+      // Unit 65 (decision 4): a run with --change names the change.
+      change: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
       written: { type: 'array', items: { type: 'enum', values: ['hld', 'lld', 'tech-note'] } },
       question_id: { type: 'string', pattern: /^Q-[0-9]{1,4}$/, patternHint: 'Q-n' },
       question: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
@@ -332,6 +337,43 @@ export const EVENT_TYPES = Object.freeze({
       round: { type: 'integer', min: 1 },
     },
     required: ['item', 'ticket', 'decision', 'reason', 'epic', 'round'],
+  },
+  // Unit 65 (decision 4): a change to an approved design, once the architect's run is through: the
+  // IDs it changed (D-n, LLD items, superseded ADRs) and the tickets citing them, unbuilt (back to the
+  // ticket planner, with the change as her notes) and built (flagged for you).
+  design_change: {
+    privileged: true,
+    fields: {
+      run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
+      change: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      decisions: { type: 'array', items: { type: 'string', pattern: /^D-[0-9]{1,4}$/, patternHint: 'D-n' } },
+      items: { type: 'array', items: { type: 'string', pattern: /^[CS]-[0-9]{1,4}$/, patternHint: 'C-n or S-n' } },
+      adrs: { type: 'array', items: { type: 'string', pattern: /^[A-Za-z]{0,8}-?[0-9]{1,6}$/, patternHint: 'an ADR id' } },
+      unbuilt: { type: 'array', items: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, patternHint: 'a ticket key' } },
+      built: { type: 'array', items: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, patternHint: 'a ticket key' } },
+    },
+    required: ['item', 'run_id', 'change', 'decisions', 'items', 'adrs', 'unbuilt', 'built'],
+  },
+  // Unit 65 (decision 3): your answer at the design set's sitting. `item` is the initiative, `hld`
+  // the HLD's id, `round` the sitting's; `ref` "Decision n" (an answer, with the option the HLD is
+  // written for) or an ADR's id (`accept` or `reject` with your reason).
+  design_decision: {
+    privileged: true,
+    human: true,
+    fields: {
+      hld: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/, patternHint: 'the HLD\'s id' },
+      round: { type: 'integer', min: 1 },
+      ref: { type: 'string', pattern: /^(?:Decision [0-9]{1,2}|[A-Za-z]{0,8}-?[0-9]{1,6})$/, patternHint: '"Decision n" or an ADR id' },
+      decision: { type: 'enum', values: ['answer', 'accept', 'reject'] },
+      answer: { type: 'string', pattern: /^[A-D]$/, patternHint: 'a letter' },
+      written_for: { type: 'string', pattern: /^[A-D]$/, patternHint: 'a letter' },
+      reason: { type: 'string', pattern: /^(?=[^]*\S)[^\n\r]{1,500}$/, patternHint: 'one line' },
+    },
+    required: ['item', 'hld', 'round', 'ref', 'decision'],
+    check(e, report) {
+      if (e.decision === 'answer' && (e.answer === undefined || e.written_for === undefined)) report('answer', 'an answer names the letter and the option the HLD is written for');
+      if (e.decision === 'reject' && e.reason === undefined) report('reason', 'a rejected ADR has your reason');
+    },
   },
   // Unit 61 (Scope 8): your review of an accepted ADR (`mirai adr review`, and the release record,
   // 60/67): `still-true`, or `deprecated` with your reason, which MIRAI wrote into the file first.

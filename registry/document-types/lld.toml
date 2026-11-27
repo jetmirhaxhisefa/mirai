@@ -25,6 +25,12 @@ lint_checks = ["lld"]
 verifier = true
 
 # The line under the title: the HLD it details.
+# Unit 65 (decision 4): one line per change after approval, written by the architect's change run:
+# "<date>: <what changed>", the newest last; IDs stay stable.
+[frontmatter.fields.changelog]
+type = "list"
+pattern = "[0-9]{4}-[0-9]{2}-[0-9]{2}: .{3,300}"
+
 [[upstream_link]]
 label = "HLD"
 type = "hld"

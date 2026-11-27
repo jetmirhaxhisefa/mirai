@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 
 import { EXIT } from '../cli/exit-codes.js';
@@ -120,6 +120,27 @@ export function verifyInputs(subject, { previous = null } = {}) {
       } catch {
         // a link that doesn't resolve is the lint's to report
       }
+    }
+  }
+  // Unit 65 (decision 2): an HLD's or an LLD's check is also the set's: the initiative's ADRs in full
+  // and the set's checklist (the LLD's check has the HLD as its upstream, so it sees the whole set).
+  if (def.name === 'hld' || def.name === 'lld') {
+    const initiative = posix.basename(posix.dirname(path));
+    const s = adrSettings(subject.config);
+    for (const a of listAdrs(workTreeReader(store.checkout), s).filter((x) => x.mirai && x.initiative === initiative && x.status !== 'superseded')) add(`set-${a.id.toLowerCase()}.md`, a.text, { path: a.path, why: `an ADR of this initiative (${a.status}), part of the design set` });
+    // The LLD beside the HLD (P2: a change to the HLD that the LLD doesn't follow is a set finding).
+    if (def.name === 'hld') {
+      try {
+        const lld = readApprovedFile(base, base, posix.join(posix.dirname(path), 'lld.md'));
+        add('set-lld.md', lld.bytes.toString('utf8'), { path: lld.path, why: 'the LLD of this initiative, part of the design set: its shapes follow the HLD' });
+      } catch {
+        // no LLD (yet): the set is the HLD and its ADRs
+      }
+    }
+    try {
+      add('set-checklist.md', readFileSync(join(registry.dir, 'templates', 'design-set-checklist.md'), 'utf8'), { why: 'the design set\'s checklist: its [vera] lines are yours too, read across the HLD, its ADRs and the LLD' });
+    } catch {
+      // a registry without it: the document's own checklist stands
     }
   }
   // Unit 41 (decision 6, Scope 9): a PRD's fourth input, the owner's own requirements list beside it,

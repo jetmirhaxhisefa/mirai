@@ -2,6 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { adrPathFor } from '../../adr/adr.js';
+import { lastDesignRun } from '../../design/run.js';
+import { interviewAsBound } from '../../design/hard.js';
+
+const ARCHITECT = 'mirai-architect';
 
 import { EXIT } from '../exit-codes.js';
 import { MiraiError, UsageError } from '../errors.js';
@@ -511,7 +515,13 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
   refuseOnLint(io, results);
   // Unit 35: the brief's approval covers the interview it links, as it is now (on full, from the
   // brief's own approval; on standard, the brief's line here binds it).
-  const briefBefore = documentApproval(store, briefId, brief.file.bytes, pair ? interview.files : briefFiles(base, brief.file.path, brief.file.bytes));
+  const bf = pair ? interview.files : briefFiles(base, brief.file.path, brief.file.bytes);
+  let briefBefore = documentApproval(store, briefId, brief.file.bytes, bf);
+  // Unit 65: MIRAI's own early-pause questions in the interview don't make the brief's approval stale.
+  if (!briefBefore.approved && !pair) {
+    const asBound = documentApproval(store, briefId, brief.file.bytes, bf.map((x) => ({ ...x, bytes: interviewAsBound(x.bytes, readJournal(store).events, posix.basename(posix.dirname(brief.file.path))) })));
+    if (asBound.approved) briefBefore = asBound;
+  }
   const briefBound = fileHashes(interview.files);
   if (!pair && !briefBefore.approved) {
     throw Object.assign(new MiraiError(`the brief ${briefId} isn't approved${briefBefore.stale ? ' as it is now (it or its interview changed since its approval)' : ''}; on the full track it's approved before its PRD; nothing was written`, EXIT.BLOCKED), { hint: `run: mirai approve ${briefId} --file ${brief.file.path}` });
@@ -583,13 +593,64 @@ async function approvePrd({ id, fm, file, store, io, now, fileArg, registry, con
     if (decision !== 'rejected') await publishAfter({ io, file });
     // Unit 45 (decision 1, Scope 1): when this approval completes what the track needs, the offer to
     // start the ticket planner; never without asking. The documents' lines still come last (38).
-    start = decision === 'rejected' ? null : await tessOffer({ io, prompter, store, conn, registry, config, initiative: posix.basename(posix.dirname(file.path)), track: fm.value.track });
+    // Unit 65 (Scope 1): on standard and full, the design comes next: the offer to start the architect,
+    // unless the track's inputs are already complete (then 45's offer to start the ticket planner).
+    start = decision === 'rejected' ? null : await nextOffer({ io, prompter, store, conn, registry, config, initiative: posix.basename(posix.dirname(file.path)), track: fm.value.track });
     if (pair) io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, brief.file.path), rel: brief.file.path, bytes: brief.file.bytes })}\n`);
     io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: file.bytes })}\n`);
   } finally {
     prompter.close();
   }
-  return start ? startTess(io, start) : EXIT.OK;
+  return start ? startNext(io, start) : EXIT.OK;
+}
+
+// ---- The offer to start the architect (unit 65, Scope 1) -------------------------------------------
+
+// After the PRD's approval: Tess's offer when the track's inputs are complete (45), else Arlo's on
+// standard and full: "Start Arlo on the design now?" (the technical note on standard); after his
+// pause, "continue his run now? [Y/n]". Returns { agent, initiative } or null.
+export async function nextOffer({ io, prompter, store, conn, registry, config, initiative, track }) {
+  if (!conn || (track !== 'standard' && track !== 'full')) {
+    const t = await tessOffer({ io, prompter, store, conn, registry, config, initiative, track });
+    return t ? { agent: 'tess', initiative: t } : null;
+  }
+  let states;
+  try {
+    states = inputStates({ store, registry, config, track, readDoc: (type) => readInput(conn, initiative, type), initiative });
+  } catch {
+    return null;
+  }
+  // Only a missing design document is the architect's to write; anything else stays Tess's message.
+  if (!missingOf(states).some((x) => ['tech-note', 'hld', 'lld', 'adr'].includes(x.type))) {
+    const t = await tessOffer({ io, prompter, store, conn, registry, config, initiative, track });
+    return t ? { agent: 'tess', initiative: t } : null;
+  }
+  const arlo = fullName(ARCHITECT);
+  const later = `mirai design ${plain(initiative)} (/mirai design ${plain(initiative)} in your session)`;
+  const last = lastDesignRun(readJournal(store).events, initiative);
+  const paused = last?.state === 'paused';
+  let answer;
+  try {
+    answer = (await prompter.ask(paused ? `${who(ARCHITECT)} paused on ${plain(last.question_id ?? 'a question')} for this; continue his run now? [Y/n] ` : `Start ${arlo} on the ${track === 'full' ? 'design' : 'technical note'} now? [y/N] `)).toLowerCase();
+  } catch (err) {
+    if (err instanceof MiraiError && err.exitCode === EXIT.INTERRUPTED) answer = 'n';
+    else throw err;
+  }
+  const yes = paused ? answer === '' || answer === 'y' || answer === 'yes' : answer === 'y' || answer === 'yes';
+  if (!yes) {
+    io.stdout.write(`\nnot started; when you're ready: ${later}\n`);
+    return null;
+  }
+  return { agent: 'arlo', initiative };
+}
+
+// Starts the offered run in this terminal (tests give io.startTess and io.startArlo).
+export async function startNext(io, start) {
+  if (typeof start === 'string') return startTess(io, start);
+  if (start.agent === 'tess') return startTess(io, start.initiative);
+  if (io.startArlo) return io.startArlo(start.initiative, io);
+  const { createDesignCommand } = await import('./design.js');
+  return createDesignCommand().run({ positionals: [start.initiative], values: {} }, io);
 }
 
 // ---- The offer to start the ticket planner (unit 45, decision 1, Scope 1) -------------------------

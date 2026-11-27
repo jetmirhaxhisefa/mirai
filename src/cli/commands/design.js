@@ -26,9 +26,12 @@ export function createDesignCommand({ launch = null, verifyLaunch = null } = {})
   return {
     name: 'design',
     summary: `Have ${fullName(ARLO_AGENT)} write an initiative's design (the HLD and its ADRs, the LLD, or the technical note) from its approved PRD and the code`,
-    usage: 'mirai design <initiative>',
+    usage: 'mirai design <initiative> [--change "<what changes>"]',
     positionals: { min: 1, max: 1 },
-    options: {},
+    options: {
+      // Unit 65 (decision 4): a change to the approved design.
+      change: { type: 'string', description: 'a change to the approved design, in your words: a superseding ADR where a decision changes, the HLD (and LLD) amended with a changelog line' },
+    },
     async run(args, io, { now = () => new Date() } = {}) {
       const initiative = args.positionals[0];
       requireTtyOrSession(io, 'mirai design', 'design');
@@ -52,7 +55,7 @@ export function createDesignCommand({ launch = null, verifyLaunch = null } = {})
           else if (e.kind === 'lint') say(`lint, ${WORD[e.doc]}: ${e.errors ? `${e.errors} problem${e.errors === 1 ? '' : 's'}` : 'clean'}`);
           else if (e.kind === 'verify') say(`${who(VERIFY_AGENT)}, ${plain(e.file)}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (unchanged since that check)' : ''}`);
         };
-        const r = await runDesign({ cwd: io.cwd, env: io.env, initiative, nextToken: () => mintLaunchToken(), launchOptions, onStep, now, ...(launch ? { launch } : {}), ...(verifyLaunch ? { verifyLaunch } : {}) });
+        const r = await runDesign({ cwd: io.cwd, env: io.env, initiative, ...(args.values.change !== undefined ? { change: args.values.change } : {}), nextToken: () => mintLaunchToken(), launchOptions, onStep, now, ...(launch ? { launch } : {}), ...(verifyLaunch ? { verifyLaunch } : {}) });
         progress.stop();
         const s = r.subject;
         const out = [...designStateLines(readJournal(s.store).events, initiative, { who })];

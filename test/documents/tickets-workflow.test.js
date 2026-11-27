@@ -91,9 +91,10 @@ const starts = () => {
 
 test('45 T1 (64 built): approving the PRD on standard with no technical note names it as still needed and offers nothing; with the note approved it asks to start Tess; N starts nothing and prints the command; y starts her run', async () => {
   const bare = fixture({ branch: null, note: false });
-  const none = await approvePrd(bare, ['a', 'due-dates-prd'], starts());
+  const none = await approvePrd(bare, ['a', 'due-dates-prd', 'n'], starts());
   assert.equal(none.code, EXIT.OK, none.err);
-  assert.match(none.out, /^tickets: still needed before Tess \(mirai-ticket-planner\) cuts the set: the technical note isn't written yet$/m);
+  // Unit 65: the missing note is the architect's to write: his offer, not Tess's.
+  assert.match(none.out, /Start Arlo \(mirai-architect\) on the technical note now\? \[y\/N\]/);
   assert.doesNotMatch(none.out, /Start Tess/);
   const f = fixture({ branch: null });
   const s = starts();
