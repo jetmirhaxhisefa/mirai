@@ -16,6 +16,7 @@ import { beforeLaunch, readLoop, settleLaunch } from '../loop/guard.js';
 import { usageCheck, usageStop } from '../loop/ledger.js';
 import { parkTicket } from '../loop/park.js';
 import { ADR_RULES } from '../adr/context.js';
+import { techNoteFlags } from './tech-note.js';
 import { TICKET } from '../status/machines.js';
 import { move } from '../status/move.js';
 import { verifyPlanApproval } from '../lint/frozen.js';
@@ -145,7 +146,7 @@ export function declaredChanges(text) {
 // The frontmatter MIRAI gives a plan: the ticket's fields, never the agent's. `risk` is high when
 // the ticket is, or when the plan declares a new dependency (design/01 §6).
 export function planFrontmatter({ ticket, acs, risk, tdd, tests, round, ticketType = null }) {
-  return ['---', `id: ${ticket}-plan`, 'type: plan', 'template: plan@v1', `ticket: ${ticket}`, `acs: [${acs.join(', ')}]`, `risk: ${risk}`, `tdd: ${tdd}`, `tests: ${tests}`, `round: ${round}`, ...(ticketType ? [`ticket_type: ${ticketType}`] : []), '---', ''].join('\n');
+  return ['---', `id: ${ticket}-plan`, 'type: plan', 'template: plan@v2', `ticket: ${ticket}`, `acs: [${acs.join(', ')}]`, `risk: ${risk}`, `tdd: ${tdd}`, `tests: ${tests}`, `round: ${round}`, ...(ticketType ? [`ticket_type: ${ticketType}`] : []), '---', ''].join('\n');
 }
 
 // The plan with MIRAI's frontmatter in place of whatever the agent wrote there: the approved
@@ -167,7 +168,7 @@ export function withFrontmatter(text, fields) {
 // { gate: 'human' | 'auto', required, why }. Nothing approves automatically before unit 28: an
 // `auto` gate still waits for you meanwhile.
 // Unit 45 (Scope 6; U4): `quick`, a lone ticket on the quick track: the preset's gate is `auto`.
-export function gateFor({ preset, text, quick = false }) {
+export function gateFor({ preset, text, quick = false, flags = [] }) {
   const required = [];
   let risk = null;
   try {
@@ -181,6 +182,8 @@ export function gateFor({ preset, text, quick = false }) {
   if (rows.some((r) => DEPENDENCY_KINDS.includes(r.kind))) required.push(`it declares new dependencies (${rows.filter((r) => DEPENDENCY_KINDS.includes(r.kind)).map((r) => r.item).join(', ').slice(0, 300)}), which MIRAI installs once you approve`);
   // Unit 23 (decision 2): changing an existing test is always yours to see.
   if (rows.some((r) => r.kind === 'test-change')) required.push('it changes existing tests');
+  // Unit 62b (Scope 6): a departure from the approved technical note is yours to accept or send back.
+  if (flags.length) required.push(`it departs from the technical note (${flags.map((f) => f.d ?? 'no D-n cited').join(', ')})`);
   const byPreset = quick ? 'auto' : PRESETS[preset]?.plan ?? 'human';
   const why = [...(byPreset === 'human' ? [`the ${preset} preset`] : []), ...required];
   return { gate: why.length ? 'human' : 'auto', required: required.length > 0, why };
@@ -190,7 +193,7 @@ export function gateFor({ preset, text, quick = false }) {
 // accepted ADR (unit 61): one line, the ADR's id and why.
 export const ADR_CONFLICT = /^ADR-CONFLICT:[ \t]*([A-Za-z0-9][A-Za-z0-9._-]{0,63}):[ \t]*(\S[^\n]*)$/;
 
-export function planPrompt({ ticket, fields, via, problems = null, notes = 0 }) {
+export function planPrompt({ ticket, fields, via, problems = null, notes = 0, techNote = false }) {
   const out = via === 'schema'
     ? 'Return the whole plan, frontmatter first, as your structured output\'s `plan`.'
     : 'Return the whole plan, frontmatter first, as the only fenced ```markdown block in your final reply.';
@@ -205,6 +208,8 @@ export function planPrompt({ ticket, fields, via, problems = null, notes = 0 }) 
     'Change nothing in the project.',
     '',
     ADR_RULES,
+    // Unit 62b (decision 4): the approved technical note holds.
+    ...(techNote ? ['tech-note.md is the approved technical note: build as it says. Add "## Technical note" to the plan with "Relies on: D-n, …" (the decisions you build on) and, for each decision you can\'t follow, "Departs from D-n: <why>"; the owner accepts or sends the plan back at the gate.'] : []),
     `To stop on an ADR, return instead of the plan exactly one line: ADR-CONFLICT: <the ADR's id>: <why the ticket can't be planned within it>${via === 'schema' ? ' (as your structured output\'s `plan`)' : ' (as the only fenced ```markdown block)'}.`,
   ];
   if (notes > 0) {
@@ -344,7 +349,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         try {
           r = await launch({
             ...watch, cwd, env, store, runId, startRun: !outer && !started, ownsRun: false, launchToken: launchTokens[attempt - 1], agent: AGENT, progressLabel: who(AGENT), role: PLAN_ROLE, step: 'plan', risk: fields.risk, expectBase: trust.baseSha,
-            prompt: planPrompt({ ticket, fields, via, problems, notes: record.notes.length }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
+            prompt: planPrompt({ ticket, fields, via, problems, notes: record.notes.length, techNote: Boolean(given.inputs['tech-note.md']) }), item: ticket, maxTurns: PLAN_MAX_TURNS, inputs: problems ? { ...given.inputs, 'last-plan.md': problems.text } : given.inputs, jsonSchema: via === 'schema' ? PLAN_SCHEMA : null, now,
           });
         } catch (err) {
           // A launch that threw: almost always refused before it started. Its numbers, if it ran,
@@ -396,7 +401,7 @@ export async function runPlan({ cwd, env, ticket, launchTokens, via = 'schema', 
         if (!problems) {
           toInProgress();
           result.outcome = 'waiting';
-          result.gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai') });
+          result.gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai'), flags: techNoteFlags(text, given.inputs['tech-note.md'] ?? null) });
           endState = 'finished';
           return result;
         }

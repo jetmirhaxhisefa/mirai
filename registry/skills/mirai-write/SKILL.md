@@ -12,8 +12,8 @@ A project may rename or add sections. The template you're given (`mirai show tem
 the source of the section names; a renamed section keeps its MIRAI meaning, so a rule here about
 "Summary for approval" holds for the project's name for it.
 
-**Use it when** you write or change a brief, a PRD, an epic or a ticket. HLD, ADR and LLD guides
-come with their own units; until then, follow the rules on this page for them.
+**Use it when** you write or change a brief, a PRD, a technical note, an epic or a ticket. HLD,
+ADR and LLD guides come with their own units; until then, follow the rules on this page for them.
 
 **Use it too when** you write to the owner in the session: manual steps they must do, or an
 explanation. Follow [guides/session.md](guides/session.md).
@@ -55,6 +55,7 @@ Each guide has the type's wording rules and three before/after examples from rea
 - [guides/prd.md](guides/prd.md): the PRD;
 - [guides/epic.md](guides/epic.md): the epic and its summary;
 - [guides/ticket.md](guides/ticket.md): stories and bugs;
+- [guides/tech-note.md](guides/tech-note.md): the technical note (`standard`'s design, unit 62b);
 - [guides/session.md](guides/session.md): manual steps and explanations for the owner in the
   session.
 

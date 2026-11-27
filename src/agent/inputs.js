@@ -7,7 +7,8 @@ import { INPUT_LIMITS } from '../launch/strict.js';
 import { sameKey } from '../lint/checks.js';
 import { readFrontmatter } from '../lint/frontmatter.js';
 import { TICKET_ID } from '../status/ticket-file.js';
-import { catBlobs, lsTree } from '../store/git.js';
+import { blobAt, catBlobs, lsTree } from '../store/git.js';
+import { documentApproval } from '../documents/approval.js';
 import { adrSettings, listAdrs, treeReader } from '../adr/adr.js';
 import { adrInputs } from '../adr/context.js';
 
@@ -74,6 +75,25 @@ export function ticketAcs(ticket) {
 // `approved(id)`: whether a sibling's plan carries your approval; only those are given.
 // `plan` (unit 21b, the build): the approved plan's verified text. Then the inputs are the plan,
 // the sole source of truth (design/01 §7), the ticket and the conventions only.
+// Unit 62b (Scope 6): the approved technical note of the ticket's initiative, read at `commit` (the
+// integration branch's), approved by your signed line as it is there: { path, text, id } or null.
+export function approvedTechNote({ root, env, commit, docsRoot, ticketPath, store }) {
+  const rel = ticketPath.startsWith(`${docsRoot}/`) ? ticketPath.slice(docsRoot.length + 1).split('/') : [];
+  if (!(rel.length > 2 && rel[1] === 'tickets')) return null;
+  const path = `${docsRoot}/${rel[0]}/tech-note.md`;
+  const bytes = blobAt(root, commit, path, env, { maxBytes: DOC_MAX });
+  if (!bytes) return null;
+  let fm = null;
+  try {
+    fm = readFrontmatter(bytes)?.value ?? null;
+  } catch {
+    fm = null;
+  }
+  if (fm?.type !== 'tech-note' || typeof fm.id !== 'string') return null;
+  if (!store || !documentApproval(store, fm.id, bytes).approved) return null;
+  return { path, text: bytes.toString('utf8'), id: fm.id };
+}
+
 export function planInputs({ root, env, commit, ticketId, config, store, template = '', limits = INPUT_LIMITS, approved = () => false, plan = null, extra = [], adrContext = plan === null }) {
   const docsRoot = config.docs?.root ?? 'docs/mirai';
   const docs = documentsAt(root, commit, docsRoot, env);
@@ -157,6 +177,12 @@ export function planInputs({ root, env, commit, ticketId, config, store, templat
     const rel = ticket.path.startsWith(`${docsRoot}/`) ? ticket.path.slice(docsRoot.length + 1).split('/') : [];
     const initiative = rel.length > 2 && rel[1] === 'tickets' ? rel[0] : null;
     for (const x of adrInputs(adrs, { initiative, ids: ids(fm.covers_fr), governedBy: ids(fm.governed_by), text: `${ticket.text}\n${plan ?? ''}` })) want(x.name, x.from, x.why, x.text);
+  }
+  // Unit 62b: the approved technical note, for the plan (its decisions to cite) and the review (its
+  // decisions to check the code against).
+  if (adrContext) {
+    const note = approvedTechNote({ root, env, commit, docsRoot, ticketPath: ticket.path, store });
+    if (note) want('tech-note.md', note.path, `the approved technical note ${note.id}: its Decisions (D-n) hold for this ticket`, note.text);
   }
   // Unit 30c: files the caller adds (your review notes), right after the ticket's own.
   for (const x of extra) want(x.name, x.from, x.why, x.text);

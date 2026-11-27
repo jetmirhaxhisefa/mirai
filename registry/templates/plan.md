@@ -1,7 +1,7 @@
 ---
 id: PMT-1-plan
 type: plan
-template: plan@v1
+template: plan@v2
 ticket: PMT-1
 acs: [AC-PMT-1.1]
 risk: normal
@@ -83,6 +83,11 @@ it in the store. mirai lint flags any line left word for word from this template
 ## Design notes
 
 Not applicable — replace this line with the reasoning behind a non-obvious approach, or say why there is none.
+
+## Technical note
+
+<!-- done when: with tech-note.md in your inputs, one line "Relies on: D-1, D-3" naming the note's decisions this plan builds on, and one line "Departs from D-n: <why>" for each it goes against; with no technical note, delete this section -->
+Relies on: D-1, the decision of the technical note this plan builds on.
 
 ## Implementation log
 

@@ -45,6 +45,10 @@ import { inputStates, missingLine, missingOf, notBuiltLine, readInput } from '..
 import { lastTessRun } from '../../tess/run.js';
 import { isQuickTicket } from '../../tickets/quick.js';
 import { approveAdr } from './approve-adr.js';
+import { DOCUMENTS, documentApproval } from '../../documents/approval.js';
+import { approveTechNote } from './approve-tech-note.js';
+import { approvedTechNote } from '../../agent/inputs.js';
+import { techNoteFlags } from '../../agent/tech-note.js';
 
 // Unit 45 (Scope 6): a quick ticket's plan gate is auto, but nothing signs an auto approval yet.
 export const QUICK_AUTO = 'the quick track\'s plan gate is auto for this ticket, but MIRAI can\'t sign an automatic approval yet (unit 55), so you approve it';
@@ -69,8 +73,8 @@ export function withOverlays(trust, store, io, types) {
 
 export default {
   name: 'approve',
-  summary: 'Approve a ticket, a plan, a brief, a PRD, an epic with its tickets, an ADR, a context file, or an overlay, signed, in a real terminal',
-  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <epic-id> --file <epic.md> | mirai approve <adr-id> --file <docs/decisions/ADR-n-slug.md> | mirai approve --file .mirai/context/<file>.md | mirai approve --file .mirai/custom/<overlay>',
+  summary: 'Approve a ticket, a plan, a brief, a PRD, a technical note, an epic with its tickets, an ADR, a context file, or an overlay, signed, in a real terminal',
+  usage: 'mirai approve <ticket> --file <path> | mirai approve <ticket> --plan | mirai approve <brief-id> --file <brief.md> | mirai approve <prd-id> --file <prd.md> | mirai approve <note-id> --file <tech-note.md> | mirai approve <epic-id> --file <epic.md> | mirai approve <adr-id> --file <docs/decisions/ADR-n-slug.md> | mirai approve --file .mirai/context/<file>.md | mirai approve --file .mirai/custom/<overlay>',
   positionals: { min: 0, max: 1 },
   options: {
     file: { type: 'string', description: 'the ticket file you approve' },
@@ -190,7 +194,11 @@ async function approvePlan(ticket, io, now) {
   const hash = approvalHash(text);
   const unapprovable = problems.length ? `it fails the lint (${problems.length} problem(s), such as line ${problems[0].line}: ${problems[0].reason})` : hash === null ? 'it has no readable frozen block' : null;
   if (unapprovable) io.stdout.write(`note: ${ticket}'s plan can't be approved: ${plain(unapprovable)}; you can reject it\n`);
-  const gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai') });
+  // Unit 62b (Scope 6): the plan against the approved technical note of the ticket's initiative.
+  const ticketPath = ticketRecord(store, ticket, keys).approved?.path ?? null;
+  const note = ticketPath ? approvedTechNote({ root: store.checkout, env: store.gitEnv, commit: trust.baseSha, docsRoot: config.docs?.root ?? 'docs/mirai', ticketPath, store }) : null;
+  const flags = techNoteFlags(text, note?.text ?? null);
+  const gate = gateFor({ preset: config.preset, text, quick: isQuickTicket(readJournal(store).events, ticket, config.docs?.root ?? 'docs/mirai'), flags });
   const declared = declaredChanges(text).filter((r) => r.kind !== 'none');
 
   // The plan itself, so what you approve is in front of you (Jet, 2026-11-15): Kai's text, each
@@ -199,6 +207,9 @@ async function approvePlan(ticket, io, now) {
   io.stdout.write(`${rule}\n${text.replace(/\n$/, '').split('\n').map((l) => plain(l)).join('\n')}\n${rule}\n`);
   io.stdout.write(`ticket: ${ticket} (${current.state})\nplan:   ${planPath(store, ticket)}\nhash:   ${hash ?? 'none (no frozen block)'}\nwhy you: ${gate.why.length ? gate.why.join('; ') : QUICK_AUTO}\n`);
   io.stdout.write(`declared: ${declared.length ? declared.map((r) => `${r.kind} ${plain(r.item)}`).join(', ') : 'none'}\n`);
+  if (note) io.stdout.write(`technical note: ${plain(note.id)} (${plain(note.path)}), approved${flags.length ? '' : '; the plan follows it'}\n`);
+  for (const f of flags) io.stdout.write(`flag (${f.code}): the plan ${plain(f.why)}\n`);
+  if (flags.length) io.stdout.write('accept the departure with a reason (signed), or reject the plan to send it back\n');
   const prompter = createPrompter(io);
   try {
     const asked = now().getTime();
@@ -212,6 +223,12 @@ async function approvePlan(ticket, io, now) {
     if (decision === 'accepted' && unapprovable) throw new MiraiError(`${ticket}'s plan can't be approved: ${unapprovable}; nothing was written`, EXIT.BLOCKED);
     const answeredAfter = Math.round((now().getTime() - asked) / 100) / 10;
     let reason;
+    // Unit 62b: accepting a plan that departs from the technical note takes your reason.
+    if (decision === 'accepted' && flags.length) {
+      reason = (await prompter.ask('your reason for accepting the departure (one line): ')).trim();
+      if (!reason) throw new UsageError('accepting a plan that departs from the technical note needs your reason; nothing was written', 'run it again and give one line, or answer r to send the plan back');
+      if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
+    }
     if (decision === 'rejected') {
       reason = await prompter.ask('reason (optional, one line): ');
       if (reason.length > 500) throw new UsageError('the reason is longer than 500 characters; nothing was written', 'keep it to one line');
@@ -229,6 +246,7 @@ async function approvePlan(ticket, io, now) {
     const approval = checkEvent({
       type: 'approval', by: 'human', item: ticket, kind: 'plan', path: `tickets/${ticket}/plan.md`, content_hash: hash ?? contentHash(Buffer.from(text)), decision,
       ...(reason ? { reason } : {}), answered_after_s: answeredAfter,
+      ...(decision === 'accepted' && flags.length ? { departures: [...new Set(flags.map((f) => f.d ?? 'none'))] } : {}),
     });
     const back = { ticket, state: 'ready-for-dev', written_by: 'human', replans: Math.min(1, (current.status?.replans ?? 0) + 1) };
     const moveContext = { move: { reason: 'plan-rejected' } };
@@ -304,7 +322,7 @@ function noteAgainstTicketFile(store, keys, ticket, reason) {
 // The document types approved with --file that aren't tickets. More come with B's units (epic,
 // HLD …); each is approved on its exact bytes, after the lint as at approval. Unit 32 adds the
 // PRD, approved with its brief (approvePrd).
-const DOCUMENTS = new Set(['brief', 'prd', 'epic']);
+// DOCUMENTS: src/documents/approval.js (unit 62b).
 
 function documentTypeOf(bytes) {
   try {
@@ -326,6 +344,8 @@ async function approveDocument({ id, type, file, store, io, now, fileArg, base =
   // Unit 37: the type as the project's approved overlays make it.
   const registry = withOverlays(trust, store, io, type === 'prd' ? ['prd', 'brief'] : type === 'brief' ? ['brief', 'interview'] : [type, 'prd', 'story', 'bug']);
   if (type === 'epic') return approveEpic({ id, file, store, io, now, registry, config, project: projectOfConfig(config), base, conn });
+  // Unit 62b: the technical note, with the ADRs it proposes.
+  if (type === 'tech-note') return approveTechNote({ id, fm, file, store, io, now, fileArg, base, conn });
   if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project: projectOfConfig(config), base, conn });
   const text = file.bytes.toString('utf8');
   // Unit 41 (Scope 4): a brief waits for the business.md proposal beside it.
@@ -681,17 +701,8 @@ export function showMisses(io, misses) {
   for (const m of misses) io.stdout.write(`recorded as a miss of ${fullName('mirai-verifier')}: she passed ${plain(m.path)}, and you rejected it${m.note ? ` (${plain(m.note)})` : ''}\n`);
 }
 
-// Whether `bytes` are the document `id` as you last approved it: { approved, stale, seq }.
-// Only your signed lines count (readJournal verifies them); your last decision on the document
-// is the one that holds. `files` (unit 35: a brief's interview, from briefFiles) are the other
-// files its line binds, as they are now, [{ path, bytes }]: the same paths with the same bytes,
-// or it's stale. Left out, only the document's own bytes are compared.
-export function documentApproval(store, id, bytes, files) {
-  const last = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && DOCUMENTS.has(e.kind) && e.kind !== 'epic' && e.item === id).at(-1);
-  if (!last || last.decision === 'rejected') return { approved: false, stale: false, seq: last?.seq ?? null };
-  const same = last.content_hash === contentHash(bytes) && (files === undefined || signatureOf(last.files ?? []) === signatureOf(fileHashes(files)));
-  return { approved: same, stale: !same, seq: last.seq };
-}
+// documentApproval lives in src/documents/approval.js (unit 62b), re-exported here.
+export { documentApproval };
 
 // ---- The epic (unit 33, Scope 6) -----------------------------------------------------------
 

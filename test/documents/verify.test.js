@@ -451,7 +451,7 @@ function registryWith(changes) {
 test('40 T7: every Vera-checked type\'s checklist has [vera] items; one without fails the registry check; an overlay\'s lines are hers', () => {
   const checked = Object.values(REGISTRY.documentTypes).filter(isVeraType).map((d) => d.name).sort();
   // Unit 42 (decision 2): a lone story or bug too. Unit 61: the ADR.
-  assert.deepEqual(checked, ['adr', 'brief', 'bug', 'business', 'conventions', 'epic', 'journeys', 'prd', 'story'], 'decision 6');
+  assert.deepEqual(checked, ['adr', 'brief', 'bug', 'business', 'conventions', 'epic', 'journeys', 'prd', 'story', 'tech-note'], 'decision 6');
   for (const name of checked) assert.match(checklistTextOf(REGISTRY, REGISTRY.documentTypes[name]), VERA_LINE, name);
   // Lines left for you on business.md: what only the owner knows.
   assert.match(read('templates/business-checklist.md'), /^- Is each "you said" really something the owner said/m);

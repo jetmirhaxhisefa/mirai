@@ -148,3 +148,53 @@ function trackOf(conn, initiative) {
     return null;
   }
 }
+
+// ---- An ADR signed on another document's screen (62b's note, 62's HLD; 61's decision 6) --------
+
+// A proposed ADR as its own approval checks it: in the ADR folder, proposed, the lint as at
+// approval (its PRD linked, the folder read), Vera's result for it as it is now. Throws as
+// approveAdr would. Returns { adr, vera, old } (`old`: the ADR it supersedes, or null).
+export function proposedAdrReady({ io, store, config, registry, base, s, adr, adrs }) {
+  const def = registry.documentTypes.adr;
+  if (posix.dirname(adr.path) !== s.folder) throw Object.assign(new MiraiError(`${adr.path} isn't in the project's ADR folder (${s.folder}/); nothing was written`, EXIT.BLOCKED), { code: 'adr-folder' });
+  const linked = {};
+  try {
+    for (const l of linkLinesOf(parseDocument(adr.text, adr.path).scan, def).filter((x) => x.link.label === 'PRD')) {
+      const target = l.targets[0]?.split('#')[0];
+      if (!target) continue;
+      try {
+        linked[target] = readApprovedFile(base, base, posix.normalize(posix.join(posix.dirname(adr.path), target))).bytes.toString('utf8');
+      } catch {
+        // the lint reports it
+      }
+    }
+  } catch {
+    // the lint says why
+  }
+  refuseOnLint(io, [{ path: adr.path, errors: lintText(adr.text, { source: adr.path, registry, project: projectOf(config), approving: true, linked, adrRoot: base }) }]);
+  const vera = verifierFor({ store, config, def, id: adr.id, path: adr.path, bytes: adr.bytes });
+  const old = adr.supersedes ? adrs.find((a) => a.id.toLowerCase() === adr.supersedes.toLowerCase()) ?? null : null;
+  return { adr, vera, old };
+}
+
+// What accepting (or rejecting, with `reason`) one ready ADR makes: { approval, writes, misses }.
+// The caller writes the files, signs the lines in its own withSeq, then calls adrsSigned.
+export function adrDecision({ ready, decision, reason, answeredAfter }) {
+  const { adr, vera, old } = ready;
+  const mine = Buffer.from(withFields(adr.text, decision === 'accepted' ? { status: 'accepted' } : { status: 'rejected', status_reason: reason }));
+  const superseded = decision === 'accepted' && old ? Buffer.from(withFields(old.text, { status: 'superseded', superseded_by: adr.id })) : null;
+  const files = superseded ? [{ path: old.path, content_hash: contentHash(superseded) }] : [];
+  const approval = checkEvent({ type: 'approval', by: 'human', item: adr.id, kind: 'adr', path: adr.path, content_hash: contentHash(mine), decision, ...(reason ? { reason } : {}), answered_after_s: answeredAfter, ...(files.length ? { files } : {}), ...verifierField(vera) });
+  const misses = decision === 'rejected' ? missesOf([{ item: adr.id, kind: 'adr', path: adr.path, vera }], reason) : [];
+  const writes = [{ path: adr.path, bytes: mine, was: adr.bytes }, ...(superseded ? [{ path: old.path, bytes: superseded, was: old.bytes }] : [])];
+  return { approval, writes, misses };
+}
+
+// After the lines are signed: the signed copies, and the index rendered. Returns the index's path.
+export function adrsSigned({ store, base, s, writes }) {
+  for (const w of writes) keepSignedCopy(store, w.bytes);
+  const reader = workTreeReader(base);
+  const indexPath = indexPathOf(reader, s);
+  writeFileSync(join(base, indexPath), renderIndex(listAdrs(reader, s)));
+  return indexPath;
+}

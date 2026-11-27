@@ -219,6 +219,7 @@ A whole list (an array) is replaced, never merged.
 | `docs.limits.epic_summary_words` | project | `400` | An epic's summary word budget; the lint fails above it. |
 | `docs.limits.epic_summary_warn_words` | project | `300` | The word count at which the lint warns that an epic's summary is near its budget. |
 | `docs.limits.business_words` | project | `1000` | The most words `.mirai/context/business.md` may have, its Sources table not counted; the lint fails above it ([context.md](context.md)). From 300 to 3000. |
+| `docs.limits.tech_note_words` | project | `800` | The technical note's word cap (unit 62b): above it the lint fails, saying the feature belongs on the `full` track. From 300 to 3000. |
 | `docs.limits.business_warn_words` | project | `800` | The word count at which the lint warns that `business.md` is near its cap; below `docs.limits.business_words`. From 200 to 3000. |
 
 ## [tickets]

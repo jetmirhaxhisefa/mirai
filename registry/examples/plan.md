@@ -1,7 +1,7 @@
 ---
 id: PMT-31-plan
 type: plan
-template: plan@v1
+template: plan@v2
 ticket: PMT-31
 acs: [AC-PMT-31.1, AC-PMT-31.2]
 risk: normal

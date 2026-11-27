@@ -28,6 +28,7 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | `brief` | the business case for a feature: the first document | `docs/mirai/<initiative>/brief.md` | "The business brief", below |
 | `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
 | `adr` | one hard architecture decision: its options, the choice and its cost; project-wide, its status in the file, written by MIRAI at your signature | `docs/decisions/ADR-<n>-<slug>.md` (`[adr] folder`), with the index `README.md` | [adr.md](adr.md) |
+| `tech-note` | how a `standard` feature is built, on one page: its approach, components, data changes, API, decisions (D-n, or an ADR) and coverage; approved after the PRD, before the tickets | `docs/mirai/<initiative>/tech-note.md` | "The technical note", below |
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
 | `ticket-notes` | your notes from a ticket set's approval screen: each ticket to merge, split or change, in your words; MIRAI writes it, Tess's next run reads it; never approved | `docs/mirai/<initiative>/ticket-notes.md` | [tickets.md](tickets.md), "From approved documents to an approved set" |
 | `story` | a ticket: one vertical slice of work | `docs/mirai/<initiative>/tickets/<key>.md` | "Epics and ticket sets", below; [agents.md](agents.md) for how it's built |
@@ -740,6 +741,48 @@ an initiative's documents reach the integration branch through one docs merge re
 MIRAI opens with `mirai docs publish <initiative>` and merges with `mirai docs merge
 <initiative>` after your signed approvals. [Stores and the docs merge request](stores.md) has the
 whole flow.
+
+## The technical note
+
+On the `standard` track, a short technical note says how the feature is built before its tickets
+are cut (unit 62b). It is your technical review first: you read it in about five minutes and
+correct the approach while nothing is cut yet. `standard` then has three approvals: the brief with
+the PRD, the note, and the ticket set.
+
+```
+docs/mirai/due-dates/
+  prd.md
+  tech-note.md      # PRD: [<the PRD's title>](prd.md) under its title
+```
+
+Its seven sections, in order: **Approach** (3–5 sentences, and what isn't changing), **Components
+touched** (each with its file), **Data changes** (each `reversible` or `not reversible`), **API and
+contracts**, **Decisions** (`D-n`, one line each, or a link to an ADR), **Coverage** (every FR and
+NFR of the PRD → the component that delivers it), **Risks and rollout**. `mirai show template
+tech-note` shows it; `registry/examples/tech-note.md` is a filled one.
+
+The lint checks: the seven sections; at most 800 words (`[docs.limits] tech_note_words`; above
+it, the feature belongs on `full`); every FR and NFR of the PRD in Coverage and no other ID; each
+`D-n` one line or a link to an accepted or proposed ADR; every cited file exists in the repo (one
+to be created ends with `(new)`, a warning); each data change says whether it can be undone;
+`(open)`. Vera then checks the judgement: the approach answers every requirement, the claims hold at
+the cited files, two engineers couldn't build parts that don't fit, and a decision that passes the
+ADR test is an ADR ([adr.md](adr.md)).
+
+**Approving it:** `mirai approve <id> --file docs/mirai/<initiative>/tech-note.md`, after the PRD is
+approved as it is now. The ADRs its decisions link that are still proposed are on the same screen:
+accepting the note accepts them, one signed line each. Then the initiative is published, and the
+offer to start Tess follows.
+
+**What follows it:** Tess cuts the tickets along its components and coverage. Kai's plan gets it,
+and adds "## Technical note" with `Relies on: D-1, D-3`, and `Departs from D-n: <why>` for a
+decision it can't follow. At the plan gate a departure is flagged (`plan-departs-tech-note`), never
+blocking: you accept it with your reason, signed, or reject the plan. Rex checks the code against
+the note's decisions; a change against one is a finding, graded as a broken convention. The note
+changes only through a new approval.
+
+Until Arlo, the architect (unit 64), writes notes, one is optional: written by hand or in your
+session with the `mirai-write` skill.
 
 ## Epics and ticket sets
 
