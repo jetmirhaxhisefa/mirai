@@ -1,7 +1,7 @@
 ---
 unit: "63"
 name: lld
-status: approved (Jet, 2026-11-26: interview Q1 "B", shape "A", Q2 "A" ("go with your recommendation"), Q3 "A", Q4 "A", Q5 "A", restatement "yes"; after the research in research.md; batch mode with 62, 64, 65)
+status: done (Jet, 2026-11-27: "approve 63", built and probed; spec approved 2026-11-26: interview Q1 "B", shape "A", Q2 "A" ("go with your recommendation"), Q3 "A", Q4 "A", Q5 "A", restatement "yes"; after the research in research.md; batch mode with 62, 64, 65)
 roadmap: design/07-implementation-roadmap.md, row 63; design/01 §4 (design: HLD, ADR, LLD); research/07 §6.3 (superseded where this spec differs); units 31 (templates), 40 (Vera), 43 (trace), 45 (`[tickets.inputs]`), 61 (ADR), 62 (HLD), 64 (Arlo), 65 (the design workflow)
 depends_on: ["31", "40", "45", "61", "62"]
 ---
