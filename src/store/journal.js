@@ -95,7 +95,7 @@ export const EVENT_TYPES = Object.freeze({
       // status into the file first, so `content_hash` is of the file with it. A superseding ADR's
       // line lists the old one in `files`, as MIRAI marked it superseded, so one signature covers
       // both.
-      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay', 'business-change', 'adr', 'tech-note', 'hld'] },
+      kind: { type: 'enum', values: ['ticket', 'plan', 'merge', 'brief', 'prd', 'epic', 'context', 'overlay', 'business-change', 'adr', 'tech-note', 'hld', 'lld'] },
       proposal: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
       template_version: { type: 'integer', min: 1 },
       template_hash: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },
@@ -147,7 +147,7 @@ export const EVENT_TYPES = Object.freeze({
       if ((e.template_version !== undefined || e.template_hash !== undefined) && e.kind !== 'overlay') report('template_hash', 'template_version and template_hash go with an overlay\'s approval only');
       if (e.reader_test !== undefined && !['brief', 'prd', 'epic', 'hld'].includes(e.kind)) report('reader_test', 'reader_test goes with a document approved from its summary only');
       if ((e.kind === 'context') !== (e.file_type !== undefined)) report('file_type', 'file_type goes with a context file\'s approval, and only there');
-      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket', 'adr', 'tech-note', 'hld'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
+      if (e.verifier !== undefined && !['brief', 'prd', 'epic', 'context', 'ticket', 'adr', 'tech-note', 'hld', 'lld'].includes(e.kind)) report('verifier', 'verifier goes with a document the verifier checks only');
       if (e.vera_open !== undefined && e.verifier === undefined) report('vera_open', 'vera_open goes with the verifier result it comes from');
       if ((e.release_mode !== undefined || e.dropped !== undefined) && e.kind !== 'epic') report('release_mode', 'release_mode and dropped go with a ticket set\'s approval only');
       if (e.release_reason !== undefined && e.release_mode === undefined) report('release_reason', 'release_reason goes with the release mode it explains');
@@ -195,7 +195,7 @@ export const EVENT_TYPES = Object.freeze({
   verifier_miss: {
     privileged: true,
     fields: {
-      kind: { type: 'enum', values: ['brief', 'prd', 'epic', 'business', 'journeys', 'conventions', 'adr', 'tech-note', 'hld'] },
+      kind: { type: 'enum', values: ['brief', 'prd', 'epic', 'business', 'journeys', 'conventions', 'adr', 'tech-note', 'hld', 'lld'] },
       path: { type: 'string', pattern: /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f\\]{1,512}$/, patternHint: 'a path in the repo or the docs store' },
       note: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
       verifier: { type: 'string', pattern: /^sha256:[0-9a-f]{64}$/, patternHint: 'sha256:<hex>' },

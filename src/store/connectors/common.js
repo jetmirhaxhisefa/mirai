@@ -34,6 +34,7 @@ function defaultName(type, initiative) {
   if (type === 'tech-note') return 'tech-note.md';
   // Unit 62: the HLD.
   if (type === 'hld') return 'hld.md';
+  if (type === 'lld') return 'lld.md';
   if (type === 'epic') return `epic-${initiative}.md`;
   return null;
 }

@@ -25,6 +25,7 @@ import { baselineRevision } from './checkpoints.js';
 import { ticketAcs } from './inputs.js';
 import { ADR_RULES } from '../adr/context.js';
 import { noteDecisions } from './tech-note.js';
+import { lldItemIds } from '../lint/lld-items.js';
 import { declaredChanges, LAUNCH_OPTIONS, namerOf } from './plan.js';
 import { checkLaunchToken } from './requests.js';
 import { inRun, launchInRun, REVIEW_AGENT } from './run.js';
@@ -202,6 +203,8 @@ export function reviewPrompt({ ticket, round, testChanges = false }) {
     'A blocking finding needs file and line inside the change (line: the file\'s line number, printed in front of each diff line), the symbol, and a basis: one of the plan\'s ACs, or an ADR the ticket is governed by.',
     // Unit 61 (decision 5): the ADRs given are binding; each one's Confirmation says what to check.
     'When tech-note.md is in the input folder (the approved technical note): a change that goes against one of its decisions is a finding with basis kind "rule" and ref its D-n, worded "departs from the technical note\'s D-n", graded as a broken convention.',
+    // Unit 63 (Scope 8): the LLD's items are rule bases.
+    'When lld.md is in the input folder (the approved LLD): code that differs from a contract (C-n) or schema change (S-n) the ticket\'s `uses` names (a name, a type, a status or code, a missing failure, a migration without its rollback) is a finding with basis kind "rule" and ref that C-n or S-n, worded "differs from the LLD\'s C-n", graded as a broken convention.',
     `${ADR_RULES} For each ADR given in full, check the change against its "## Confirmation": a change that breaks an accepted decision is a blocking finding with that ADR as its basis.`,
     'Return your verdict and findings as your structured output. Change nothing.',
   );
@@ -415,7 +418,7 @@ export async function runReview({ cwd, env, ticket, launchToken = null, nextToke
         // Unit 61: the accepted ADRs given in full are a basis too.
         adrs: [...new Set([...adrs, ...givenAdrIds(given.inputs)])],
         // Unit 62b (Scope 7): the approved technical note's decisions, graded as a broken convention.
-        rules: [...noteDecisions(given.inputs['tech-note.md'] ?? '').keys(), ...noteDecisions(given.inputs['hld.md'] ?? '').keys()],
+        rules: [...noteDecisions(given.inputs['tech-note.md'] ?? '').keys(), ...noteDecisions(given.inputs['hld.md'] ?? '').keys(), ...lldItemIds(given.inputs['lld.md'] ?? '')],
         changedLines: diff.changedLines,
         ...(prior ? { round, priorBlocking: priorBlocking.map((f) => f.id), delta: delta.changedLines } : {}),
       };

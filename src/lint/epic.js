@@ -42,6 +42,8 @@ function withDetail(t, registry) {
   return { ...t, title, ownAcs };
 }
 
+import { lldItems } from './lld-items.js';
+
 export function checkEpic(doc, def, ctx, add) {
   const { scan, value } = doc;
   const title = scan.headings.find((h) => h.level === 1);
@@ -51,6 +53,14 @@ export function checkEpic(doc, def, ctx, add) {
   const up = ctx.upstream?.status === 'ok' ? ctx.upstream : null;
   const set = ticketSet(doc, ctx);
   const tickets = set.status === 'ok' ? set.tickets : null;
+
+  // Unit 63: with an LLD beside the epic, every contract and schema change is built by a ticket.
+  const lld = ctx.readDocument ? ctx.readDocument('lld.md') : { problem: 'unavailable' };
+  if (tickets && lld && !lld.problem && lld.value?.type === 'lld') {
+    const used = new Set(tickets.flatMap((t) => (Array.isArray(t.value?.uses) ? t.value.uses : [])));
+    const unused = [...lldItems(lld)].filter((id) => !used.has(id));
+    if (unused.length) add({ code: 'epic-lld-unused', ...ticketsAt, reason: `${unused.join(', ')} of the LLD ${unused.length === 1 ? 'is' : 'are'} in no ticket's uses`, hint: 'add each to the uses of the ticket that builds it' });
+  }
 
   // ---- The release mode ----------------------------------------------------------------------
   const release = h2('Release');
@@ -116,7 +126,7 @@ export function checkEpic(doc, def, ctx, add) {
 
   // ---- The generated sections (decision 2) -----------------------------------------------------
   if (!up) return; // the coverage needs the PRD
-  const want = renderSections({ track: value.track, tickets, items });
+  const want = renderSections({ track: value.track, tickets, items, adrPath: ctx.adrPath ?? null });
   const fileLines = (doc.text ?? '').replace(/\r\n/g, '\n').split('\n');
   const hint = `run: mirai epic render ${ctx.file ?? '<epic file>'}`;
   for (const name of GENERATED) {
@@ -152,7 +162,7 @@ const ids = (v) => (Array.isArray(v) && v.length ? v.filter((x) => typeof x === 
 
 // The four sections' text, each as lines: the start marker, the body, the end marker. `items`:
 // the PRD's coverable IDs (graph.js prdItems).
-export function renderSections({ track, tickets, items }) {
+export function renderSections({ track, tickets, items, adrPath = null }) {
   const out = new Map();
   const key = (t) => cell(t.value.id);
   const sorted = [...tickets].sort((a, b) => byKey(String(a.value.id), String(b.value.id)));
@@ -201,7 +211,8 @@ export function renderSections({ track, tickets, items }) {
     }
   }
   out.set('Design decisions', adrs.size
-    ? [...adrs.keys()].sort(byKey).map((a) => `- [${cell(a)}](adr/${cell(a)}.md): governs ${adrs.get(a).join(', ')}.`)
+    // Unit 63 (P2): each ADR linked at its file in the ADR folder (61), when the caller knows it.
+    ? [...adrs.keys()].sort(byKey).map((a) => `- [${cell(a)}](${adrPath?.(a) ?? `adr/${cell(a)}.md`}): governs ${adrs.get(a).join(', ')}.`)
     : ['None — no ticket names an ADR in `governed_by`.']);
 
   for (const [name, body] of out) out.set(name, [START, ...body, END]);

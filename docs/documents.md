@@ -29,6 +29,7 @@ Each type is a file in `registry/document-types/`, with its template and checkli
 | `prd` | what the product must do, and how each requirement is checked | `docs/mirai/<initiative>/prd.md` | "The PRD", below |
 | `adr` | one hard architecture decision: its options, the choice and its cost; project-wide, its status in the file, written by MIRAI at your signature | `docs/decisions/ADR-<n>-<slug>.md` (`[adr] folder`), with the index `README.md` | [adr.md](adr.md) |
 | `hld` | how a `full` feature is built: components, flows, data, conventions, decisions (D-n, or an ADR), a trace of every requirement to a component, and whether an LLD is needed | `docs/mirai/<initiative>/hld.md` | [hld.md](hld.md) |
+| `lld` | the exact shapes a `full` initiative's tickets share: names, contracts (C-n), schema changes (S-n), failures, a test map; only where the HLD says `lld: required` | `docs/mirai/<initiative>/lld.md` | [lld.md](lld.md) |
 | `tech-note` | how a `standard` feature is built, on one page: its approach, components, data changes, API, decisions (D-n, or an ADR) and coverage; approved after the PRD, before the tickets | `docs/mirai/<initiative>/tech-note.md` | "The technical note", below |
 | `epic` | a set of tickets, approved together | `docs/mirai/<initiative>/epic-<slug>.md` | "Epics and ticket sets", below |
 | `ticket-notes` | your notes from a ticket set's approval screen: each ticket to merge, split or change, in your words; MIRAI writes it, Tess's next run reads it; never approved | `docs/mirai/<initiative>/ticket-notes.md` | [tickets.md](tickets.md), "From approved documents to an approved set" |
@@ -810,6 +811,10 @@ Design: [HLD](hld.md), [LLD for reminders](lld-reminders.md)
 `PRD:` is always required. `Design:` is required on `full`, and on `standard` once a ticket names
 an ADR in `governed_by`. The lint checks that its links resolve; their types are checked once
 the HLD and LLD types exist (unit 62).
+
+On `full`, with an approved LLD ([lld.md](lld.md)), a story or bug names the LLD items it builds
+in `uses` (`uses: [C-1, S-1]`): the ticket lint refuses an ID the initiative's `lld.md` doesn't
+have, and the epic's lint refuses an LLD item no ticket uses.
 
 ### Reading an epic as its approver
 

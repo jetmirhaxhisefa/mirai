@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
+import { adrPathFor } from '../../adr/adr.js';
 
 import { EXIT } from '../exit-codes.js';
 import { MiraiError, UsageError } from '../errors.js';
@@ -46,7 +47,7 @@ import { lastTessRun } from '../../tess/run.js';
 import { isQuickTicket } from '../../tickets/quick.js';
 import { approveAdr } from './approve-adr.js';
 import { DOCUMENTS, documentApproval } from '../../documents/approval.js';
-import { approveHld, approveTechNote } from './approve-tech-note.js';
+import { approveHld, approveLld, approveTechNote } from './approve-tech-note.js';
 import { approvedHld, approvedTechNote } from '../../agent/inputs.js';
 import { techNoteFlags } from '../../agent/tech-note.js';
 
@@ -350,6 +351,7 @@ async function approveDocument({ id, type, file, store, io, now, fileArg, base =
   if (type === 'tech-note') return approveTechNote({ id, fm, file, store, io, now, fileArg, base, conn });
   // Unit 62: the HLD, with the ADRs it proposes and its reader test.
   if (type === 'hld') return approveHld({ id, fm, file, store, io, now, fileArg, base, conn });
+  if (type === 'lld') return approveLld({ id, fm, file, store, io, now, fileArg, base, conn });
   if (type === 'prd') return approvePrd({ id, fm, file, store, io, now, fileArg, registry, config, project: projectOfConfig(config), base, conn });
   const text = file.bytes.toString('utf8');
   // Unit 41 (Scope 4): a brief waits for the business.md proposal beside it.
@@ -786,7 +788,7 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
           const date = now().toISOString().slice(0, 10);
           const notesAbs = join(base, dir, 'ticket-notes.md');
           writeFileSync(notesAbs, notesText({ initiative, epic: id, round, notes: changes, date }));
-          if (drops.length) renderEpicFile({ abs: join(base, file.path), root: base, registry });
+          if (drops.length) renderEpicFile({ abs: join(base, file.path), root: base, registry, config });
           const signer = await decisionSigner(io, store, { prompter, ticket: id, confirm: confirmByTyping });
           logDecisions(store, signer, { initiative, epic: id, round, decisions: [...dropped, ...choice.decisions] });
           prompter.close();
@@ -796,7 +798,7 @@ async function approveEpic({ id, file, store, io, now, registry, config, project
           return EXIT.OK;
         }
         // Drops only: the epic rendered again, the lint and trace as at approval, then the screen again.
-        renderEpicFile({ abs: join(base, file.path), root: base, registry });
+        renderEpicFile({ abs: join(base, file.path), root: base, registry, config });
         try {
           epicState({ id, file, store, io, registry, config, project, base, conn, dropped: true, before });
         } catch (err) {
@@ -880,14 +882,21 @@ function epicState({ id, file, store, io, registry, config, project, base, conn,
   const bytes = readApprovedFile(base, base, file.path).bytes;
   const text = bytes.toString('utf8');
   const input = epicInputs(base, file.path, text, registry);
-  const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [input.prdLink]: input.prd.bytes.toString('utf8') }, tickets: input.folder }) }];
+  // Unit 63: the LLD beside the epic (every item in some ticket's uses), and the ADRs at their files.
+  let lldText = null;
+  try {
+    lldText = readApprovedFile(base, base, posix.join(posix.dirname(file.path), 'lld.md')).bytes.toString('utf8');
+  } catch {
+    lldText = null;
+  }
+  const results = [{ path: file.path, errors: lintText(text, { source: file.path, registry, project, approving: true, linked: { [input.prdLink]: input.prd.bytes.toString('utf8'), ...(lldText ? { 'lld.md': lldText } : {}) }, tickets: input.folder, adrPath: adrPathFor({ repo: store.checkout, fromDir: join(base, posix.dirname(file.path)), config }) }) }];
   // Unit 43 (Scope 8): each ticket's IDs against the version the set's last approval signed.
   const lastSet = readJournal(store).events.filter((e) => e.type === 'approval' && e.by === 'human' && e.kind === 'epic' && e.item === id && e.decision !== 'rejected').at(-1);
   const repoStore = !conn || conn.kind === 'repo';
   for (const t of input.tickets) {
     const signed = (lastSet?.files ?? []).find((f) => f.path === t.path);
     const previous = signed && repoStore ? approvedText(store, t.path, signed.content_hash) : null;
-    results.push({ path: t.path, errors: lintText(t.bytes.toString('utf8'), { source: t.path, registry, project, approving: true, previous }) });
+    results.push({ path: t.path, errors: lintText(t.bytes.toString('utf8'), { source: t.path, registry, project, approving: true, previous, ...(lldText ? { linked: { '../lld.md': lldText } } : {}) }) });
   }
   refuseOnLint(io, results);
   // Unit 43 (Scope 2): trace's documents scope, once more as the gate (Tess's run already ran it

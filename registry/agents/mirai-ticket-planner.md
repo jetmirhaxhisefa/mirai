@@ -81,6 +81,9 @@ findings). Fix them, and change nothing else. You never run `mirai` yourself, an
 - **Coverage.** Every FR, NFR and AC of the PRD is covered by a ticket (`covers_fr`, `covers_ac`),
   Failures and Unchanged behaviour included. A ticket that delivers an NFR cites it (`NFR-2` in
   `covers_fr`) so the coverage counts it. A ticket builds only what its FRs and NFRs ask for.
+- **The LLD's items** (`lld.md`, on `full` when the HLD requires one). Each story or bug names in
+  `uses` the contracts (`C-n`) and schema changes (`S-n`) it builds or calls, as the LLD numbers
+  them (`uses: [C-1, S-1]`); every item is in some ticket's `uses`. No LLD, no `uses`.
 - **Each AC is testable by the reviewer.** "Given … when … then …", or a plain sentence whose
   outcome can be observed: a value, a screen, a record, a log line. No vague word without a number
   (`fast`, `reliably`, `properly`, `correctly`, `as expected`, `smoothly`, `quickly` …). A

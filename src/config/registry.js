@@ -214,7 +214,7 @@ export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date'
 // Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
 // and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint). Unit 35: `interview`.
 // Unit 36: the five context files (src/lint/context.js).
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'id-stability', 'adr', 'tech-note', 'hld']);
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'id-stability', 'adr', 'tech-note', 'hld', 'lld']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
@@ -253,6 +253,8 @@ export const CHECK_READS = Object.freeze({
   // Unit 62b: the technical note's components, data changes, decisions and coverage.
   'tech-note': ['Components touched', 'Data changes', 'Decisions', 'Coverage'],
   // Unit 62: the HLD's goals, context, current state, building blocks, flows, decisions and trace.
+  // Unit 63: the LLD's names, contracts, schema changes, failures and test map.
+  lld: ['Names', 'Contracts', 'Schema changes', 'Failures', 'Test map', 'Open questions'],
   hld: ['Goals and quality goals', 'Context and scope', 'Current state', 'Building blocks', 'Key flows', 'Decisions', 'Trace table', 'Decisions for you'],
 });
 // The parts (### headings, not sections) a check reads: they may be protected too.

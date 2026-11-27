@@ -16,6 +16,9 @@ refuses, the commit is refused and the line names it.
   reads them, or a file there MIRAI doesn't write.
 - **A hand-added agent file (unit 39).** A file under `.claude/`, `.cursor/` or `.codex/` that
   MIRAI didn't render: it names the `mirai custom add` command for each.
+- **A shipped initiative's LLD (unit 63).** A change to an `lld.md` once every ticket of its
+  initiative is merged into the integration branch: the code owns those shapes now; write the change
+  into a new initiative's LLD ([lld.md](lld.md)).
 
 When the check itself can't run, the commit is refused.
 

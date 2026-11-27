@@ -57,12 +57,20 @@ export async function approveHld(o) {
   return approveDesignDoc({ ...o, type: 'hld' });
 }
 
-const WORDS = { 'tech-note': 'technical note', hld: 'HLD' };
+// Unit 63: the LLD, approved after its HLD: the HLD approved as it is now and saying `lld: required`.
+export async function approveLld(o) {
+  return approveDesignDoc({ ...o, type: 'lld' });
+}
+
+const WORDS = { 'tech-note': 'technical note', hld: 'HLD', lld: 'LLD' };
+// The document each type builds: the link line's label and that document's type.
+const UPSTREAM = { 'tech-note': { label: 'PRD', type: 'prd' }, hld: { label: 'PRD', type: 'prd' }, lld: { label: 'HLD', type: 'hld' } };
 
 async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, base = store.checkout, conn = null }) {
   const trust = snapshot({ cwd: io.cwd, env: io.env });
   const config = trustedConfig(trust);
-  const registry = withOverlays(trust, store, io, [type, 'prd', 'adr']);
+  const up = UPSTREAM[type];
+  const registry = withOverlays(trust, store, io, [type, 'prd', 'adr', ...(up.type === 'prd' ? [] : [up.type])]);
   const def = registry.documentTypes[type];
   const word = WORDS[type];
   const text = file.bytes.toString('utf8');
@@ -73,26 +81,41 @@ async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, b
     doc = null;
   }
 
-  // The PRD it builds, approved as it is now.
-  const prdLine = doc ? linkLinesOf(doc.scan, def).find((l) => l.link.label === 'PRD') : null;
+  // The document it builds (the PRD; the HLD for an LLD), approved as it is now.
+  const L = up.label;
+  const prdLine = doc ? linkLinesOf(doc.scan, def).find((l) => l.link.label === L) : null;
   const prdLink = prdLine?.targets[0]?.split('#')[0] ?? null;
-  if (!prdLink) throw Object.assign(new MiraiError(`${file.path} doesn't link its PRD in the line under its title; nothing was written`, EXIT.BLOCKED), { hint: 'add "PRD: [<its title>](prd.md)" under the # title, then approve again' });
+  if (!prdLink) throw Object.assign(new MiraiError(`${file.path} doesn't link its ${L} in the line under its title; nothing was written`, EXIT.BLOCKED), { hint: `add "${L}: [<its title>](${up.type}.md)" under the # title, then approve again` });
   let prd;
   try {
     prd = readApprovedFile(base, base, posix.normalize(posix.join(posix.dirname(file.path), prdLink)));
   } catch {
-    throw Object.assign(new MiraiError(`${file.path} links its PRD ${plain(prdLink)}, which isn't a file in the repo; nothing was written`, EXIT.BLOCKED), { hint: 'correct the "PRD:" line, then approve again' });
+    throw Object.assign(new MiraiError(`${file.path} links its ${L} ${plain(prdLink)}, which isn't a file in the repo; nothing was written`, EXIT.BLOCKED), { hint: `correct the "${L}:" line, then approve again` });
   }
   const prdValue = readFrontmatter(prd.bytes)?.value ?? {};
   const prdId = typeof prdValue.id === 'string' ? prdValue.id : null;
-  if (prdValue.type !== 'prd' || !prdId) throw Object.assign(new MiraiError(`${prd.path}, which ${file.path} links, is not a PRD; nothing was written`, EXIT.BLOCKED), { hint: 'link the PRD this note builds' });
+  if (prdValue.type !== up.type || !prdId) throw Object.assign(new MiraiError(`${prd.path}, which ${file.path} links, is not ${L === 'HLD' ? 'an' : 'a'} ${L}; nothing was written`, EXIT.BLOCKED), { hint: `link the ${L} this ${word} builds` });
   const prdState = documentApproval(store, prdId, prd.bytes);
-  if (!prdState.approved) throw Object.assign(new MiraiError(`the PRD ${prdId} isn't approved${prdState.stale ? ' as it is now' : ''}: the ${word} builds an approved PRD; nothing was written`, EXIT.BLOCKED), { code: 'prd-not-approved', hint: `approve it first: mirai approve ${prdId} --file ${prd.path}` });
+  if (!prdState.approved) throw Object.assign(new MiraiError(`the ${L} ${prdId} isn't approved${prdState.stale ? ' as it is now' : ''}: the ${word} builds an approved ${L}; nothing was written`, EXIT.BLOCKED), { code: `${up.type}-not-approved`, hint: `approve it first: mirai approve ${prdId} --file ${prd.path}` });
+  if (type === 'lld' && prdValue.lld !== 'required') throw Object.assign(new MiraiError(`the HLD ${prdId} says \`lld: ${plain(String(prdValue.lld ?? 'unset'))}\`: an LLD is approved only where its HLD says it is required; nothing was written`, EXIT.BLOCKED), { code: 'lld-not-required', hint: 'set lld: required in the HLD with the triggers that fire, approve it again, then this LLD' });
+  // An LLD's test map is checked against the PRD beside it; the track is the PRD's.
+  let track = typeof prdValue.track === 'string' ? prdValue.track : null;
+  const extra = {};
+  if (type === 'lld') {
+    try {
+      const p = readApprovedFile(base, base, posix.join(posix.dirname(file.path), 'prd.md'));
+      extra['prd.md'] = p.bytes.toString('utf8');
+      const v = readFrontmatter(p.bytes)?.value ?? {};
+      if (typeof v.track === 'string') track = v.track;
+    } catch {
+      // no PRD beside it: the lint skips the AC coverage
+    }
+  }
 
   // The ADRs its Decisions link: read for the lint, and the proposed ones made ready for this screen.
   const s = adrSettings(config);
   const adrs = listAdrs(workTreeReader(base), s);
-  const linked = { [prdLink]: prd.bytes.toString('utf8') };
+  const linked = { ...extra, [prdLink]: prd.bytes.toString('utf8') };
   const proposed = [];
   for (const x of doc ? decisionLinks(doc, file.path) : []) {
     const adr = adrs.find((a) => a.path === x.rel);
@@ -106,7 +129,7 @@ async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, b
   const reader = readerFor({ store, config, def, value: fm?.value ?? readFrontmatter(file.bytes)?.value ?? {}, id, path: file.path, text });
   const hash = contentHash(file.bytes);
   const before = documentApproval(store, id, file.bytes);
-  io.stdout.write(`${word}: ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}\nfile:   ${file.path}\nhash:   ${hash}\nPRD:    ${prdId}, approved as it is now (seq ${prdState.seq})\n`);
+  io.stdout.write(`${word}: ${id}${before.approved ? ' (approved before, as it is now)' : before.stale ? ' (approved before; it has changed since)' : ''}\nfile:   ${file.path}\nhash:   ${hash}\n${`${L}:`.padEnd(8)}${prdId}, approved as it is now (seq ${prdState.seq})\n`);
   showVerifier(io, vera);
   showReader(io, reader);
   for (const p of proposed) {
@@ -165,7 +188,7 @@ async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, b
     if (indexPath) io.stdout.write(`index:  ${indexPath} rendered; commit the ADRs and the index: git add ${s.folder} && git commit -m "ADRs of ${id}"\n`);
     if (decision !== 'rejected') {
       await publishAfter({ io, file });
-      start = await tessOffer({ io, prompter, store, conn, registry, config, initiative: posix.basename(posix.dirname(file.path)), track: typeof prdValue.track === 'string' ? prdValue.track : null });
+      start = await tessOffer({ io, prompter, store, conn, registry, config, initiative: posix.basename(posix.dirname(file.path)), track });
     }
     for (const w of writes) io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, w.path), rel: w.path, bytes: w.bytes })}\n`);
     io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: file.bytes })}\n`);
