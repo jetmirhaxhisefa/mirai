@@ -1,7 +1,7 @@
 ---
 unit: "30"
 name: pilot
-status: approved (Jet, 2026-11-16: "approve 30"; interview decisions 1–9)
+status: done (pilot finished 2026-11-18, PR #71: go for B; spec approved 2026-11-16: "approve 30"; interview decisions 1–9)
 roadmap: design/07-implementation-roadmap.md, row 30 (the pilot checkpoint) and its early stop rule; design/05-open-questions.md §E (Q16–22)
 depends_on: ["29", "17a", "17b", "29b", "29c", "29d", "18h", "30b"]
 ---
