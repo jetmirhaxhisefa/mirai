@@ -346,10 +346,10 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   if (chosen.toPin) writePin(store, chosen.toPin, tested, loadRecordSigner(env, store), { now });
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
   const levels = [...Object.keys(config.checks ?? {}), ...(config.testing?.levels ?? []).map((l) => l.name)];
-  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress, progressLabel, levels });
+  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress, progressLabel, levels, collect, webSeed });
 }
 
-async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, session = null, round = 1, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress = null, progressLabel = null, levels = null }) {
+async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, session = null, round = 1, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress = null, progressLabel = null, levels = null, collect = null, webSeed = null }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';

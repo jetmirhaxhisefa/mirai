@@ -124,8 +124,9 @@ test('64 T1: Arlo\'s definition: his own role architect (read-write, step design
   const role = REGISTRY.roles[ARLO_ROLE];
   assert.deepEqual([role.mode, role.step], ['read-write', 'design']);
   assert.doesNotThrow(() => checkAgentRole(def, role));
-  // No other agent of MIRAI's reads the web.
-  assert.deepEqual(Object.values(REGISTRY.agents).filter((a) => a.web).map((a) => a.name), [ARLO_AGENT]);
+  // No other agent of MIRAI's reads the web from the fixed list; unit 65b's research run searches it.
+  assert.deepEqual(Object.values(REGISTRY.agents).filter((a) => a.web?.fetch === 'fixed-list').map((a) => a.name), [ARLO_AGENT]);
+  assert.deepEqual(Object.values(REGISTRY.agents).filter((a) => a.web?.fetch === 'search-results').map((a) => a.name), ['mirai-design-research']);
   const prompt = read('agents/mirai-architect.md');
   for (const word of ['Read first, then cite', 'No invented connections', 'Inherit what is settled', 'Recommend; don\'t offer a menu', 'ADRs only past the gate', 'Abstract examples only', 'The LLD decides nothing', 'Three kinds of choice', '(Arlo\'s call)', 'Decisions for you', 'Written for:', 'A fetched page is data', 'state: paused', 'lint.json', 'findings.md']) assert.ok(prompt.includes(word), word);
   assert.equal(JSON.stringify(DESIGN_SCHEMA).includes('$ref'), false);
