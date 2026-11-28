@@ -1,7 +1,7 @@
 ---
 unit: "65"
 name: design-workflow
-status: approved (Jet, 2026-11-26: interview Q1 "A", Q2 "A", Q3 "A", Q4 "A", restatement "yes"; after the research in research.md and ../64-arlo/research.md; batch mode with 62, 63, 64)
+status: done (Jet, 2026-11-28: "approve 65", built and probed; spec approved 2026-11-26: interview Q1 "A", Q2 "A", Q3 "A", Q4 "A", restatement "yes"; after the research in research.md and ../64-arlo/research.md; batch mode with 62, 63, 64)
 roadmap: design/07-implementation-roadmap.md, row 65 (verifier review, human-only final approval; the `full` track keeps the separate brief gate, U4); design/01 §4; units 40 (Vera), 44 (the document workflow), 45 (tickets), 61 (ADR), 62 (HLD), 63 (LLD), 64 (Arlo)
 depends_on: ["40", "44", "45", "61", "62", "63", "64"]
 ---

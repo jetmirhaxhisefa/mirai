@@ -5,6 +5,7 @@ background (unit 64). You read the result and approve it, as you do the PRD and 
 
 ```
 mirai design due-dates          # in your session: /mirai design due-dates
+mirai design due-dates --change "Send the reminders from one nightly command"   # after approval
 ```
 
 ## What he writes
@@ -50,8 +51,39 @@ page outside the list is refused (the loopback canary page and the internet), th
 offline, web search stays absent, and a page on the list is reached (the control). His launches
 need a green result that covers his template, as any widened agent's do ([red-team.md](red-team.md)).
 
-## Approving
+## The workflow
 
-Until unit 65 you approve each document on its own, in order:
-`mirai approve <hld-id> --file docs/mirai/<initiative>/hld.md` (its proposed ADRs on the same
-screen), then the LLD; or the technical note on `standard`.
+From unit 65 the design is one flow, from the approved PRD to the approved set and on to Tess.
+
+1. **The offer.** Approving the PRD on `full` asks "Start Arlo on the design now? [y/N]"; on
+   `standard`, "Start Arlo on the technical note now?". Tess's offer comes after the design is
+   approved (on `standard`, after the note's approval).
+2. **One early pause, for a choice that is hard to reverse.** When run 1 proposes an ADR whose
+   `gate` names `hard-to-reverse`, MIRAI asks you in `interview.md`, before the LLD and Vera's full
+   review: the ADR's options, his choice as the guess. Answer it in your session, confirm the
+   interview, and run `mirai design` again; the PRD doesn't change for it.
+3. **The set check.** On top of each document's own checks, the set is checked whole. MIRAI:
+   every ADR of the initiative is linked from a D-n line; every component carries a requirement in
+   the trace table; every FR the LLD's Scope cites is traced to a component. Vera (her HLD and LLD
+   checks get the ADRs and the set's checklist): the D-n lines and the ADRs agree, every requirement
+   reaches a component and an LLD item, no orphan or invented component, and "construct two units
+   that each obey every decision and still don't fit".
+4. **One sitting.** On `full`, `mirai approve <hld-id> --file docs/mirai/<initiative>/hld.md` is
+   the set's sitting: the summary, each "Decision for you" (you answer with a letter; Enter takes
+   the one it's written for), "Arlo's calls", Vera's open findings, the LLD, and each proposed ADR
+   (accept, or reject with your reason). When every answer is what's written, one signature: one
+   line each for the HLD, its ADRs and the LLD, in one step; MIRAI writes the ADRs' status; the
+   docs merge request updates; Tess is offered. When an answer differs or you reject an ADR,
+   nothing is approved: your answers are signed, `design-notes.md` is written beside the HLD, his
+   next run (`mirai design`) changes the set as they say, and it comes back to the same sitting.
+5. **Changes after approval.** `mirai design <initiative> --change "<what changes>"`: where a
+   decision changes, Arlo writes a new ADR that supersedes the old one and amends the HLD (and the
+   LLD when it's reached), with a line in each document's `changelog` field; IDs stay stable. Vera
+   reviews only the change and what it reaches. You approve the changed documents in the same kind
+   of sitting. MIRAI lists the impact: the tickets citing a changed ID (`governed_by`, `uses`).
+   Those not built yet go back to Tess, who re-cuts them with the change as her notes; built ones
+   are flagged in `mirai show` for you (a new ticket changes merged code). A change of requirements
+   goes through the PRD first.
+
+On `standard`, the technical note is approved on its own (`mirai approve <id> --file …/tech-note.md`),
+with any ADR it proposes on the same screen.

@@ -15,9 +15,25 @@ export function designStateOf(events, initiative, { runState = null } = {}) {
   return { state: lost ? 'lost' : last.state, last };
 }
 
+// Unit 65 (decision 4): the last change's built tickets, flagged for you.
+export function changeLines(events, initiative) {
+  const c = events.filter((e) => e.type === 'design_change' && e.item === initiative).at(-1);
+  if (!c) return [];
+  const ids = [...c.decisions, ...c.adrs, ...c.items];
+  return [
+    `  design change: ${plain(c.change)} (changed: ${ids.join(', ') || 'no cited ID'})`,
+    ...(c.unbuilt.length ? [`    not built yet, back to the ticket planner: ${c.unbuilt.join(', ')}`] : []),
+    ...(c.built.length ? [`    built already, for you to decide: ${c.built.join(', ')} (a new ticket changes merged code)`] : []),
+  ];
+}
+
 export function designStateLines(events, initiative, { who = (id) => fullName(id), runState = null } = {}) {
   const t = designStateOf(events, initiative, { runState });
   if (t.state === null) return [];
+  return [...designStateLine(events, initiative, t, who), ...changeLines(events, initiative)];
+}
+
+function designStateLine(events, initiative, t, who) {
   const name = who(AGENT);
   const l = t.last;
   const what = (l.written ?? []).length ? l.written.map((d) => WORD[d] ?? d).join(' and ') : WORD[l.document] ?? 'the design';

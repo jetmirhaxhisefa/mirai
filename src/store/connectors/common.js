@@ -30,6 +30,7 @@ function defaultName(type, initiative) {
   if (type === 'brief' || type === 'prd' || type === 'interview' || type === 'requirements' || type === 'business-change') return `${type}.md`;
   // Unit 45: your notes on a ticket set for the ticket planner's next run.
   if (type === 'ticket-notes') return 'ticket-notes.md';
+  if (type === 'design-notes') return 'design-notes.md';
   // Unit 62b: the technical note, beside the PRD it builds.
   if (type === 'tech-note') return 'tech-note.md';
   // Unit 62: the HLD.

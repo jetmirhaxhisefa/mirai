@@ -1,0 +1,32 @@
+the probe home: /Users/jetmir.haxhisefa/.mirai-probes-DtDUd4
+the home: full, PRD own-due-dates-prd approved
+Arlo: write hld (round 1): ok
+lint, hld: clean
+Vera, docs/mirai/due-dates/hld.md: round 1, 1 must-fix
+Arlo: fix hld (round 2): ok
+lint, hld: clean
+Vera, docs/mirai/due-dates/hld.md: round 2, 0 must-fix
+Arlo: write lld (round 3): ok
+lint, lld: 2 problem(s)
+Arlo: fix lld (round 4): ok
+lint, lld: 2 problem(s)
+Arlo: fix lld (round 5): ok
+lint, lld: 2 problem(s)
+Arlo (mirai-architect): stopped on the LLD: the lint still finds 2 problems after 2 fixes of this draft, such as "the component "The web app" carries no requirement in the trace table: an orphan" (docs/mirai/due-dates/hld.md, line 102) (run r-20261127-072841-4ebc; rounds: lint 2, Vera (mirai-verifier) 2; 5 launches; deep, claude-opus-5-5)
+why: the lint still finds 2 problems after 2 fixes of this draft, such as "the component "The web app" carries no requirement in the trace table: an orphan" (docs/mirai/due-dates/hld.md, line 102)
+  Vera own-due-dates-hld r1: must-fix writing: The summary hides that a missing or unknown time zone is judged in UTC, so near midnight a date can be a day off. The detail decides this in D-4 and in the Risks section.
+  Vera own-due-dates-hld r1: suggestion decision/trade-off: Option B isn't a real option. The existing test expects another user's edit to be refused before validation, and a controller-side check conflicts with the backend rule that Form Requests validate and the policy decides who may change a task.
+  Vera own-due-dates-hld r1: suggestion writing: The edit flow never shows UpdateTaskRequest or the controller calling the owner's today. It also never shows the controller calling the task policy. Yet the building-blocks diagram draws reqs→today and ctrl→today, and the complete step in the list flow gets its 403 from a policy call by the controller. The diagram has no ctrl→policy edge.
+  Vera own-due-dates-hld r1: suggestion decision/other: The visible wording of the late mark is a product choice the owner would expect to be asked about. It sits quietly in the detail.
+  Vera own-due-dates-hld r1: suggestion writing: AC-FR-2.1 (the list shows "Due 15 Jan 2027") is in no test line. The UI test line mentions the text without citing the AC.
+HLD: own-due-dates-hld
+mirai: docs/mirai/due-dates/lld.md has no result from Vera (mirai-verifier) for it as it is now; nothing was written
+run: mirai verify docs/mirai/due-dates/lld.md, then approve again
+signed at the sitting: ; your answers: 0
+the home is kept: /Users/jetmir.haxhisefa/.mirai-probes-DtDUd4
+pass  p1.offer
+FAIL  p1.done
+FAIL  p1.signed
+FAIL  p1.tessOffered
+FAIL  p2.change
+p65: FAIL

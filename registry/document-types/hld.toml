@@ -46,6 +46,12 @@ values = ["entity", "contract", "modules", "state"]
 [frontmatter.fields.lld_reason]
 type = "string"
 
+# Unit 65 (decision 4): one line per change after approval, written by the architect's change run:
+# "<date>: <what changed>", the newest last; IDs stay stable.
+[frontmatter.fields.changelog]
+type = "list"
+pattern = "[0-9]{4}-[0-9]{2}-[0-9]{2}: .{3,300}"
+
 # Cited from the PRD, never defined here.
 [[ids]]
 prefix = "FR"

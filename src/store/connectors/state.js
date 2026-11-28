@@ -1,4 +1,6 @@
 import { lstatSync, readdirSync } from 'node:fs';
+import { designNotesNotSigned } from '../../design/sitting.js';
+import { interviewAsBound } from '../../design/hard.js';
 import { join } from 'node:path';
 
 import { readApprovedFile } from '../../cli/human-move.js';
@@ -96,7 +98,9 @@ export function approvalGaps({ store, docs, events = null, words = hostWords(nul
       else if (a.content_hash !== contentHash(d.bytes) || a.path !== d.rel) gaps.push({ path: d.rel, gap: `changed after its approval: the ${type} ${id} isn't the file you approved`, hint: `mirai approve ${id} --file ${d.rel}` });
       else {
         for (const f of a.files ?? []) {
-          if (hashOf(f.path) !== f.content_hash) gaps.push({ path: f.path, gap: `changed after its approval: it was signed with the ${type} ${id}, and isn't that file now`, hint: `mirai approve ${id} --file ${d.rel}` });
+          // Unit 65: an interview read without MIRAI's own early-pause questions, as the brief bound it.
+          const asBound = byRel.has(f.path) ? contentHash(interviewAsBound(byRel.get(f.path).bytes, journal, f.path.split('/').at(-2) ?? '')) : null;
+          if (hashOf(f.path) !== f.content_hash && asBound !== f.content_hash) gaps.push({ path: f.path, gap: `changed after its approval: it was signed with the ${type} ${id}, and isn't that file now`, hint: `mirai approve ${id} --file ${d.rel}` });
           else covered.add(f.path);
         }
         if (type === 'epic') {
@@ -124,6 +128,12 @@ export function approvalGaps({ store, docs, events = null, words = hostWords(nul
     if (type === 'ticket-notes') {
       const bad = notesNotSigned(d.bytes.toString('utf8'), journal);
       if (bad.length) gaps.push({ path: d.rel, gap: `${bad.length} note${bad.length === 1 ? '' : 's'} not from your signed ticket decisions (${bad.slice(0, 3).join('; ')})`, hint: 'MIRAI writes this file from the set\'s approval screen: take the hand-written lines out' });
+      continue;
+    }
+    // Unit 65: your notes from the design set's sitting, line by line against your signed answers.
+    if (type === 'design-notes') {
+      const bad = designNotesNotSigned(d.bytes.toString('utf8'), journal);
+      if (bad.length) gaps.push({ path: d.rel, gap: `${bad.length} note${bad.length === 1 ? '' : 's'} not from your signed design decisions (${bad.slice(0, 3).join('; ')})`, hint: 'MIRAI writes this file from the design set\'s sitting: take the hand-written lines out' });
       continue;
     }
     gaps.push({ path: d.rel, gap: `a ${type ?? 'document with no type'} has no approval MIRAI checks before a docs merge`, hint: 'keep it out of the initiative\'s folder' });

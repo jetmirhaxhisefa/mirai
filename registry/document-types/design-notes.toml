@@ -1,0 +1,38 @@
+# Your notes on a design set (unit 65, decision 3; Jet, 2026-11-26). At the set's sitting you answer
+# each "Decision for you" with a letter and accept or reject each proposed ADR. When an answer isn't
+# the option the HLD is written for, or you reject an ADR (with your reason), nothing is signed: MIRAI
+# writes each such line here, at docs/mirai/<initiative>/design-notes.md, and the architect's next
+# run takes them as an input; the set comes back to the same sitting. Every line is one of your
+# signed design_decision lines (the docs merge checks it). A source, not something you approve.
+kind = "document-type"
+schema_version = 1
+name = "design-notes"
+template = "templates/design-notes.md"
+template_version = 1
+checklist = "templates/design-notes-checklist.md"
+status = "forbidden"
+required_sections = ["Notes"]
+section_order = ["Notes"]
+
+# The HLD the notes are on, and the sitting's round they came from (1 for the first sitting).
+[frontmatter.fields.hld]
+type = "string"
+required = true
+
+[frontmatter.fields.round]
+type = "integer"
+required = true
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop.
+
+[[protected_sections]]
+name = "Notes"
+read_by = ["design"]
+
+[[protected_fields]]
+name = "hld"
+read_by = ["design"]
+
+[[protected_fields]]
+name = "round"
+read_by = ["design"]
