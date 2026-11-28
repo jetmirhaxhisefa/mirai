@@ -272,7 +272,7 @@ export async function preGate({ cwd, env, store, trust, role: roleName, ticket =
 
 // One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
 // every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
-export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, ownTier = false, fallbackClaude = null, onProgress = null, progressLabel = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, ownTier = false, fallbackClaude = null, onProgress = null, progressLabel = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, collect = null, webSeed = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
@@ -366,7 +366,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     // while this hashes shows up at the hook's first call.
     const fingerprint = trustFingerprint(trust.dir);
     verifyTrustRoot(trust);
-    launched = prepareLaunch({ trust, template, checkout: store.checkout, env, item, inputs, fingerprint, ...(agentDef ? { agentsJson: agentDef.json, agent: agentDef.name } : {}) });
+    launched = prepareLaunch({ trust, template, checkout: store.checkout, env, item, inputs, fingerprint, ...(webSeed ? { webSeed } : {}), ...(agentDef ? { agentsJson: agentDef.json, agent: agentDef.name } : {}) });
     launched.expectedInit.model = model;
     if (jsonSchema) launched.expectedInit.tools = launchTools(template, { structured: true });
     if (createHash('sha256').update(readFileSync(join(launched.launchDir, 'input', 'settings.json'))).digest('hex') !== launched.settingsSha256) throw refuse('the launch\'s settings changed before it started', 'settings-changed');
@@ -517,6 +517,16 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     let repoChanged = null;
     const launchId = launched.launchId;
     const hashes = { settings: launched.settingsSha256, canonical: launched.canonicalSha256 };
+    // Unit 65b: what a caller reads from the launch's folders before they go (the research run's
+    // research.md, its URL list and its evidence); never at the cost of the run.
+    let collected = null;
+    if (collect) {
+      try {
+        collected = collect(launched);
+      } catch (err) {
+        collected = { error: String(err.message).slice(0, 300) };
+      }
+    }
     try {
       finishLaunch(launched);
     } catch (err) {
@@ -625,7 +635,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     sessionClean = outcome === 'ok' && !scope.violations.length;
     progressEnd(outcome === 'ok' ? 'handed over' : outcome);
     if (kept?.kept && !sessionClean) kept = { kept: false, why: `the launch ended ${outcome}` };
-    return { outcome, why, launchId, text, structured, resumed, kept, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
+    return { outcome, why, launchId, text, structured, resumed, kept, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model), collected };
   } catch (err) {
     // Thrown after Claude Code started: the agent ran, so a caller never gives its round back (21c
     // re-review).

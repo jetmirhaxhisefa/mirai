@@ -614,7 +614,9 @@ export function launchPolicy(template, facts, trust, fingerprint = null, { now =
 // input/files/ for the agent to read (its plan and the like); their paths are on
 // `plan.inputs`. `probe` is for the probes only ({ home, dockerSocket }): their fixture's MIRAI
 // home sits under a temporary HOME; it requires `miraiHomeDir`, which only they pass.
-export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, agent = null, id = null, miraiHomeDir = null, probe = null, item = null, inputs = {}, fingerprint = null }) {
+// Unit 65b: `webSeed` ({ listed, evidence }), a research fix round's start: the URLs and the
+// evidence of the run before it, written into the launch's web/ folder (the hook's state).
+export function prepareLaunch({ trust, template, checkout, env, agentsJson = null, agent = null, id = null, miraiHomeDir = null, probe = null, item = null, inputs = {}, fingerprint = null, webSeed = null }) {
   if (probe && !miraiHomeDir) throw new StrictError('probe settings are for the probes only', { code: 'bad-probe' });
   if (Boolean(agentsJson) !== Boolean(agent) || (agent !== null && !/^mirai-[a-z0-9-]+$/.test(agent))) throw new StrictError('an agent launch needs both its definition and its name', { code: 'bad-agent' });
   if (agentsJson) checkAgentsJson(agentsJson, agent, template);
@@ -634,6 +636,10 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
   let guard = null;
   try {
     for (const sub of ['input', 'claude-config', ...(template.research ? ['web'] : [])]) ensurePrivateDir(join(launchDir, sub));
+    if (webSeed) {
+      if (!template.research) throw new StrictError('only a research launch takes a web seed', { code: 'bad-seed' });
+      writeSeed(join(launchDir, 'web'), webSeed);
+    }
     // The agent's input files first, read-only in a read-only folder (unit 15a).
     const inputPaths = {};
     let inputDir = null;
@@ -725,6 +731,13 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
     if (err && typeof err === 'object' && !Object.hasOwn(err, 'scratchDir')) Object.defineProperty(err, 'scratchDir', { value: scratchDir, enumerable: false });
     throw err;
   }
+}
+
+function writeSeed(dir, { listed = [], evidence = [] }) {
+  const urls = listed.filter((u) => typeof u === 'string' && /^https:\/\/[^\s]+$/.test(u));
+  if (urls.length) writeFileSync(join(dir, 'urls.txt'), `${urls.join('\n')}\n`, { mode: 0o600 });
+  const lines = evidence.filter((e) => e && typeof e.url === 'string' && typeof e.result === 'string').map((e) => JSON.stringify({ url: e.url, code: Number.isInteger(e.code) ? e.code : null, result: e.result }));
+  if (lines.length) writeFileSync(join(dir, 'evidence.jsonl'), `${lines.join('\n')}\n`, { mode: 0o600 });
 }
 
 // The red team tests the mode templates, never an agent's definition (unit 21a), so a launch takes

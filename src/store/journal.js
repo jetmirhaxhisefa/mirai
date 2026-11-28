@@ -292,6 +292,43 @@ export const EVENT_TYPES = Object.freeze({
       if (e.state === 'running' && (e.rounds !== undefined || e.launches !== undefined)) report('rounds', 'a run that has just started has no record yet');
     },
   },
+  // Unit 65b (decision 1): you approved an initiative's design questions in your session (not a
+  // signed gate): `sha` is research-questions.md's sha256 as approved, `questions` how many. The
+  // research run takes the file only as approved.
+  research_questions: {
+    privileged: true,
+    fields: {
+      sha: { type: 'string', pattern: /^[0-9a-f]{64}$/, patternHint: 'a sha256' },
+      questions: { type: 'integer', min: 1, max: 50 },
+    },
+    required: ['item', 'sha', 'questions'],
+  },
+  // Unit 65b (decisions 2 and 5): the design research run, as `design_run`: one line when it starts,
+  // one when it ends. `questions_sha`: the approved list it answered; `research_sha`: research.md as
+  // MIRAI checked it and copied it; the counts of its searches, fetches and suspicious pages.
+  // `skipped`: you chose "no open questions" (--no-explore), recorded with no run.
+  design_research: {
+    privileged: true,
+    fields: {
+      run_id: { type: 'string', pattern: /^r-\d{8}-\d{6}-[0-9a-f]{4}$/, patternHint: 'a run id' },
+      state: { type: 'enum', values: ['running', 'done', 'failed', 'skipped'] },
+      questions_sha: { type: 'string', pattern: /^[0-9a-f]{64}$/, patternHint: 'a sha256' },
+      research_sha: { type: 'string', pattern: /^[0-9a-f]{64}$/, patternHint: 'a sha256' },
+      searches: { type: 'integer', min: 0 },
+      fetches: { type: 'integer', min: 0 },
+      suspicious: { type: 'integer', min: 0 },
+      launches: { type: 'integer', min: 0 },
+      why: { type: 'string', pattern: /^[^\n\r]{1,500}$/, patternHint: 'one line' },
+      tier: { type: 'string', pattern: /^[a-z]{1,20}$/, patternHint: 'a tier' },
+      model: { type: 'string', pattern: /^[A-Za-z0-9][A-Za-z0-9._:@/[\]-]{0,127}$/, patternHint: 'a model id' },
+    },
+    required: ['item', 'state'],
+    check(e, report) {
+      if (e.state !== 'skipped' && e.run_id === undefined) report('run_id', 'a research run names its run');
+      if (e.state === 'done' && e.research_sha === undefined) report('research_sha', 'a done research run names the research.md it checked');
+      if (e.state === 'skipped' && (e.run_id !== undefined || e.research_sha !== undefined)) report('state', 'a skipped research step has no run');
+    },
+  },
   // Unit 44 (Scope 6): a decision a document's check found, sent to you as an interview question
   // (`decision_question`), and your answer to it (`decision_answer`). `item` is the document's id;
   // `version` its version (prd.md is 1, prd.v2.draft.md 2); `question_id` the interview's Q-n;

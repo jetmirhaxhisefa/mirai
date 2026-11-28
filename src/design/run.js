@@ -93,7 +93,9 @@ const approvedAsNow = (s, d) => Boolean(d && typeof d.value.id === 'string' && d
 // The subject, checked before anything runs. Refused: the local store; a PRD that isn't approved as
 // it is now; the quick track; an interview that isn't confirmed; the PRD behind his last pause; a
 // dirty tree, the integration branch, no author.
-export function designSubject({ cwd, env, initiative, store = openStore({ cwd, env }) }) {
+// Unit 65b: `clean: false` for the steps that don't launch (approving the design questions, skipping
+// them), which check the tree their own way.
+export function designSubject({ cwd, env, initiative, store = openStore({ cwd, env }), clean = true }) {
   checkInitiative(initiative);
   const { conn } = docsStoreFor({ cwd, env, store });
   if (conn.kind !== 'repo') throw refuse(`${who()} writes the design beside the code it cites and the ADRs it links, in the repo; this project keeps its documents in MIRAI's local store`, 'local-store', 'write the design in your session for now (/mirai write), or move the documents to the repo store ([docs] store = "repo")');
@@ -120,7 +122,7 @@ export function designSubject({ cwd, env, initiative, store = openStore({ cwd, e
   }
   s.interview = interview;
   prdBehind(s, id, prd);
-  checkTree(s);
+  if (clean) checkTree(s);
   return s;
 }
 
