@@ -1,7 +1,7 @@
 ---
 unit: "65b"
 name: design-research
-status: draft (interview 2026-11-27: Q1 "C", Q2 "A", Q3 "A", Q4 "A" plus Jet's gate, Q5 "A", Q6 "A", Q7 "A", Q8 "A", restatement "yes"; after the research in research.md). Checked for clashes against 65 (six points, "Checked against the other units"): on its branch 2026-11-27, and its merged code (`8428a89`) 2026-11-28, unchanged in those places
+status: approved (Jet, 2026-11-28: "approve 152"; interview 2026-11-27: Q1 "C", Q2 "A", Q3 "A", Q4 "A" plus Jet's gate, Q5 "A", Q6 "A", Q7 "A", Q8 "A", restatement "yes"; after the research in research.md). Checked for clashes against 65 (six points, "Checked against the other units"): on its branch 2026-11-27, and its merged code (`8428a89`) 2026-11-28, unchanged in those places
 roadmap: design/07-implementation-roadmap.md, row 65b; units 64 (Arlo, his web fence), 65 (the design workflow, the sitting), 45b (`mirai models`), 19c (agents started from your session), 13 and 19a (the hook, the launch), 18 (the red team); post-MVP P42 (`design/20`)
 depends_on: ["64", "65", "45b", "19c"]
 ---
