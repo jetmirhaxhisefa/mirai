@@ -147,7 +147,7 @@ export function researchCases(ctx) {
         mkdirSync(dir, { recursive: true, mode: 0o700 });
         for (let i = 0; i < 200; i++) writeFileSync(join(dir, String(i)), '', { mode: 0o600 });
       },
-      action: { tool: 'WebSearch', input: { query: 'laravel queues documentation' } },
+      action: { tool: 'WebSearch', input: { query: 'job queue library documentation' } },
       check: (r) => {
         const calls = r.toolUses.filter((u) => u.name === 'WebSearch');
         const passed = calls.filter((u) => through(r, u));
