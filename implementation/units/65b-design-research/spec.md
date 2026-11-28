@@ -1,7 +1,7 @@
 ---
 unit: "65b"
 name: design-research
-status: draft (interview 2026-11-27: Q1 "C", Q2 "A", Q3 "A", Q4 "A" plus Jet's gate, Q5 "A", Q6 "A", Q7 "A", Q8 "A", restatement "yes"; after the research in research.md). Checked for clashes against 65's branch 2026-11-27 (six points, "Checked against the other units"); the code is re-checked once 65 merges, before approval
+status: draft (interview 2026-11-27: Q1 "C", Q2 "A", Q3 "A", Q4 "A" plus Jet's gate, Q5 "A", Q6 "A", Q7 "A", Q8 "A", restatement "yes"; after the research in research.md). Checked for clashes against 65 (six points, "Checked against the other units"): on its branch 2026-11-27, and its merged code (`8428a89`) 2026-11-28, unchanged in those places
 roadmap: design/07-implementation-roadmap.md, row 65b; units 64 (Arlo, his web fence), 65 (the design workflow, the sitting), 45b (`mirai models`), 19c (agents started from your session), 13 and 19a (the hook, the launch), 18 (the red team); post-MVP P42 (`design/20`)
 depends_on: ["64", "65", "45b", "19c"]
 ---
@@ -183,7 +183,7 @@ with the new cases; the roadmap's row 65b holds.
 
 - **64:** Arlo's web fence (`WebFetch` per domain) stays as it is; the research template is
   separate. Arlo's inputs gain the two files.
-- **65** (checked against its branch at `3aa484c`, 2026-11-27; re-check the code once it merges):
+- **65** (checked against its branch at `3aa484c`, 2026-11-27, and the merged code at `8428a89`, 2026-11-28: `nextOffer`, `hardAdrsOpen`, the set checklist and `design-notes.md` unchanged):
   1. **The offer.** 65 asks "Start Arlo on the design now? [y/N]" after the PRD's approval
      (`nextOffer` in `src/cli/commands/approve.js`). The explore step is a conversation in your
      session, so the terminal can't run it. On `full` the offer becomes: "Next: the design questions,
