@@ -46,11 +46,11 @@ const FIX = new URL('../fixtures/sample-due-dates/', import.meta.url).pathname;
 const OUT = new URL('../../implementation/units/64-arlo/', import.meta.url).pathname;
 const green = async () => ({ state: 'green', blocker_seen: null, changed: [] });
 const git = (home, ...a) => spawnSync('/usr/bin/git', ['-c', 'user.email=p@example.invalid', '-c', 'user.name=p', ...a], { cwd: home.root, env: { PATH: '/usr/bin:/bin', HOME: home.home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' }, encoding: 'utf8' });
-const commit = (home, m) => {
+export const commit = (home, m) => {
   git(home, 'add', '-A');
   if (git(home, 'status', '--porcelain').stdout.trim()) git(home, 'commit', '-qm', m, '--no-verify');
 };
-async function term(home, argv, answers) {
+export async function term(home, argv, answers) {
   let out = '';
   let err = '';
   const stdin = Readable.from([`${answers.join('\n')}\n`]);
@@ -58,7 +58,7 @@ async function term(home, argv, answers) {
   const code = await main(argv, { stdin, stdout: { isTTY: true, write: (s) => (out += s) }, stderr: { write: (s) => (err += s) }, env: home.env, cwd: home.root });
   return { code, out, err };
 }
-const put = (home, rel, text) => {
+export const put = (home, rel, text) => {
   mkdirSync(dirname(join(home.root, rel)), { recursive: true });
   writeFileSync(join(home.root, rel), text);
 };
@@ -141,7 +141,7 @@ class LegacyReportController extends Controller
 }
 `;
 
-async function setup(home, log, { track, offer = false }) {
+export async function setup(home, log, { track, offer = false }) {
   for (const n of ['interview.md']) put(home, `${D}/${n}`, readFileSync(join(FIX, n), 'utf8'));
   const brief = readFileSync(join(FIX, 'brief.md'), 'utf8');
   put(home, `${D}/brief.md`, track === 'full' ? brief.replace(/^track: standard$/m, 'track: full').replace(/Track: standard[^\n]*/, 'Track: full, because the design is reviewed before the tickets are cut.') : brief);
@@ -180,9 +180,9 @@ async function setup(home, log, { track, offer = false }) {
   note(home, `probe --auto: the brief and ${prdId} approved with the probe home's key`);
   log(`the home: ${track}, PRD ${prdId} approved`);
 }
-const note = (home, message) => appendEvent(openStore({ cwd: home.root, env: home.env }), { type: 'note', by: 'script', message });
+export const note = (home, message) => appendEvent(openStore({ cwd: home.root, env: home.env }), { type: 'note', by: 'script', message });
 
-async function arlo(home, log) {
+export async function arlo(home, log) {
   const onStep = (e) => log(e.kind === 'launch' ? `Arlo: ${e.step} ${e.doc} (round ${e.round}): ${e.outcome}` : e.kind === 'lint' ? `lint, ${e.doc}: ${e.errors ? `${e.errors} problem(s)` : 'clean'}` : `Vera, ${e.file}: round ${e.round}, ${e.must_fix} must-fix${e.reused ? ' (reused)' : ''}`);
   const r = await runDesign({ cwd: home.root, env: home.env, initiative: 'due-dates', nextToken: () => mintLaunchToken(), launchOptions: { status: green }, onStep });
   const store = openStore({ cwd: home.root, env: home.env });
@@ -274,7 +274,7 @@ async function sitting(home, log) {
 export async function p65(home, log) {
   const checks = {};
   await setup(home, log, { track: 'full', offer: true });
-  checks.offer = /Start Arlo \(mirai-architect\) on the design now\? \[y\/N\]/.test(home.offerOut ?? '');
+  checks.offer = /Start Arlo \(mirai-architect\) on the design now\? \[y\/N\]|Skip them and start Arlo \(mirai-architect\) now\? \[y\/N\]/.test(home.offerOut ?? '');
   let r = await arlo(home, log);
   if (r.state === 'paused' && r.question_id) {
     const p = join(home.root, D, 'interview.md');
