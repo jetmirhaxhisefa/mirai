@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 import { MiraiError, UsageError } from '../cli/errors.js';
 import { EXIT } from '../cli/exit-codes.js';
-import { agentTemplate, checkInit, expectedInit, fetchDomainsOf, finishLaunch, prepareLaunch, removeLaunch, webTemplate } from '../launch/strict.js';
+import { agentTemplate, checkInit, expectedInit, fetchDomainsOf, finishLaunch, prepareLaunch, removeLaunch, researchCapsOf, researchTemplate, webTemplate } from '../launch/strict.js';
 import { agentOverlay } from '../trust/overlays.js';
 import { containsToken, parseStream, redact } from '../redteam/claude.js';
 import { resolveClaude } from '../redteam/key.js';
@@ -207,6 +207,9 @@ export function agentFor(trust, name, role, template, { structured = false, stor
   // Unit 64 (decision 3): the architect's read-write launches read the web, from the fixed list only,
   // under his own template (never an overlay's doing: [web] is MIRAI's own registry's).
   if (registry.agents[name].web?.fetch === 'fixed-list' && used.mode === 'read-write' && !used.overlay) used = webTemplate(used, { agent: name, domains: fetchDomainsOf(trustedConfig(trust)) });
+  // Unit 65b (decision 3): the design research run, under the research template, with the trust
+  // root's caps.
+  if (registry.agents[name].web?.fetch === 'search-results' && used.mode === 'read-only' && !used.overlay) used = researchTemplate(used, { agent: name, ...researchCapsOf(trustedConfig(trust)) });
   return { name, json: renderAgentsJson(def, prompt, launchTools(used, { structured })), template: used, change, why: own ? own.overlay.result.why : [], overlay: own ? own.path : null };
 }
 
@@ -269,7 +272,7 @@ export async function preGate({ cwd, env, store, trust, role: roleName, ticket =
 
 // One launch inside a run whose lock the caller holds (unit 19c, for unit 28's `mirai run`):
 // every check, then the launch. With `startRun`, it starts the run state itself, as runAgent does.
-export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, ownTier = false, fallbackClaude = null, onProgress = null, progressLabel = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
+export async function launchInRun({ cwd, env, store: given = null, runId, startRun: begin = false, ownsRun = false, tookOver = null, launchToken, agent = null, expectBase = null, role: roleName, step = null, risk = null, size = null, tier = null, verifies = null, ownTier = false, fallbackClaude = null, onProgress = null, progressLabel = null, prompt, item = null, maxTurns = DEFAULT_MAX_TURNS, inputs = {}, jsonSchema = null, collect = null, webSeed = null, session = null, round = 1, signal = null, hardSignal = null, timeoutMs = DEFAULT_TIMEOUT_MS, initDeadlineMs = INIT_DEADLINE_MS, claude = null, status = redTeamStatus, launch = runInGroup, check = checkInit, now = () => new Date(), plan = 'unknown' }) {
   const stopped = () => {
     if (signal?.aborted) throw Object.assign(new MiraiError('stopped by you before it started', EXIT.INTERRUPTED), { code: 'interrupted' });
   };
@@ -343,10 +346,10 @@ export async function launchInRun({ cwd, env, store: given = null, runId, startR
   if (chosen.toPin) writePin(store, chosen.toPin, tested, loadRecordSigner(env, store), { now });
   if (begin) startRun(store, { runId, preset: config.preset, plan, now });
   const levels = [...Object.keys(config.checks ?? {}), ...(config.testing?.levels ?? []).map((l) => l.name)];
-  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress, progressLabel, levels });
+  return await launchAndLog({ store, env, trust, template, agentDef, c, model, runId, ownsRun, plan, mode, tier: picked.tier, why: picked.why, rung, role, step: picked.step, prompt, item, maxTurns, inputs, jsonSchema, session, round, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress, progressLabel, levels, collect, webSeed });
 }
 
-async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, session = null, round = 1, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress = null, progressLabel = null, levels = null }) {
+async function launchAndLog({ store, env, trust, template, agentDef = null, c, model, runId, ownsRun, plan = 'unknown', mode, tier, why: tierWhy, rung, role, step, prompt, item, maxTurns, inputs, jsonSchema = null, session = null, round = 1, signal, hardSignal, timeoutMs, initDeadlineMs, launch, check, tookOver, onProgress = null, progressLabel = null, levels = null, collect = null, webSeed = null }) {
   let launched = null;
   let finished = false;
   let endState = 'stopped';
@@ -363,7 +366,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     // while this hashes shows up at the hook's first call.
     const fingerprint = trustFingerprint(trust.dir);
     verifyTrustRoot(trust);
-    launched = prepareLaunch({ trust, template, checkout: store.checkout, env, item, inputs, fingerprint, ...(agentDef ? { agentsJson: agentDef.json, agent: agentDef.name } : {}) });
+    launched = prepareLaunch({ trust, template, checkout: store.checkout, env, item, inputs, fingerprint, ...(webSeed ? { webSeed } : {}), ...(agentDef ? { agentsJson: agentDef.json, agent: agentDef.name } : {}) });
     launched.expectedInit.model = model;
     if (jsonSchema) launched.expectedInit.tools = launchTools(template, { structured: true });
     if (createHash('sha256').update(readFileSync(join(launched.launchDir, 'input', 'settings.json'))).digest('hex') !== launched.settingsSha256) throw refuse('the launch\'s settings changed before it started', 'settings-changed');
@@ -514,6 +517,16 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     let repoChanged = null;
     const launchId = launched.launchId;
     const hashes = { settings: launched.settingsSha256, canonical: launched.canonicalSha256 };
+    // Unit 65b: what a caller reads from the launch's folders before they go (the research run's
+    // research.md, its URL list and its evidence); never at the cost of the run.
+    let collected = null;
+    if (collect) {
+      try {
+        collected = collect(launched);
+      } catch (err) {
+        collected = { error: String(err.message).slice(0, 300) };
+      }
+    }
     try {
       finishLaunch(launched);
     } catch (err) {
@@ -622,7 +635,7 @@ async function launchAndLog({ store, env, trust, template, agentDef = null, c, m
     sessionClean = outcome === 'ok' && !scope.violations.length;
     progressEnd(outcome === 'ok' ? 'handed over' : outcome);
     if (kept?.kept && !sessionClean) kept = { kept: false, why: `the launch ended ${outcome}` };
-    return { outcome, why, launchId, text, structured, resumed, kept, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model) };
+    return { outcome, why, launchId, text, structured, resumed, kept, processes: raw.processes, line, tookOver, scope, refundable, family: familyNote(tier, parsed.init?.model ?? model), collected };
   } catch (err) {
     // Thrown after Claude Code started: the agent ran, so a caller never gives its round back (21c
     // re-review).

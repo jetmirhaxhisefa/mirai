@@ -429,7 +429,8 @@ function bodyOf(text) {
 // `repo` (unit 36): the repo's top folder, for a context file's checks against the code (at its
 // approval); without it they're skipped. `previous` (unit 43): the text of the document's last
 // approved version, for the ID-stability lint; without it, that lint is skipped.
-export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null, repo = null, previous = null, adrRoot = null, adrPath = null }) {
+// Unit 65b: `research`, the research run's record ({ listed, evidence }), for research.md's own check.
+export function lintText(text, { source = '<text>', registry, project = projectDefaults(), files = null, approving = false, linked = {}, tickets = null, repo = null, previous = null, adrRoot = null, adrPath = null, research = null }) {
   const problems = [];
   const problem = (p) => problems.push({ severity: 'error', file: source, line: 1, column: 1, ...p });
   if (Buffer.byteLength(text, 'utf8') > LIMITS.fileBytes) {
@@ -492,7 +493,7 @@ export function lintText(text, { source = '<text>', registry, project = projectD
   const code = repo ? repoReader(repo) : null;
   // Unit 61: an ADR, with the other ADRs of its folder when `adrRoot` (the repo) is given.
   const adr = type === 'adr' && adrRoot ? adrContext(project, dirname(source), workTreeReader(adrRoot)) : {};
-  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code, previous, adrPath, ...adr })) problems.push({ file: source, ...p });
+  for (const p of checkDocument(doc, own, { linkTarget, readDocument, readTickets, file: source, project, template, registry, files, approving, repo: code, previous, adrPath, ...adr, ...(research ? { research } : {}) })) problems.push({ file: source, ...p });
   return problems.sort((a, b) => a.line - b.line || a.column - b.column);
 }
 

@@ -137,6 +137,13 @@ export function verifyInputs(subject, { previous = null } = {}) {
         // no LLD (yet): the set is the HLD and its ADRs
       }
     }
+    // Unit 65b: your design decisions, which the set must follow (its checklist's last line).
+    try {
+      const dd = readApprovedFile(base, base, posix.join(posix.dirname(path), 'design-decisions.md'));
+      add('set-design-decisions.md', dd.bytes.toString('utf8'), { path: dd.path, why: 'the owner\'s design decisions for this initiative: the set must follow every pick' });
+    } catch {
+      // no decisions: the research step was skipped, or the initiative predates it
+    }
     try {
       add('set-checklist.md', readFileSync(join(registry.dir, 'templates', 'design-set-checklist.md'), 'utf8'), { why: 'the design set\'s checklist: its [vera] lines are yours too, read across the HLD, its ADRs and the LLD' });
     } catch {

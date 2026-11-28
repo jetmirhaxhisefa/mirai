@@ -33,7 +33,7 @@ const WORD = /^[A-Za-z0-9][A-Za-z0-9._|*()-]{0,99}$/;
 const MODEL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 const STAGE = /^(scan|migrate|context|connect|finish)$/;
 // The arguments a command may take besides those it needs (unit 39's optional ones).
-const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop', 'answer', 'slug', 'supersedes', 'adr']);
+const OPTIONAL = Object.freeze(['as', 'role', 'event', 'matcher', 'server', 'service', 'place', 'summary', 'note', 'n', 'drop', 'answer', 'slug', 'supersedes', 'adr', 'question', 'pick', 'reason', 'hard']);
 // What the red team costs, as the terminal says it before its y/N.
 export const RED_TEAM_COST = 'Roughly (the terminal works out the exact numbers): the red team runs about 320 short Claude Code runs (Haiku; the adversarial ones on Opus), 6 at a time, roughly 25 to 35 minutes, on your Claude subscription. It works in clones of your integration branch under your home folder, with canary secrets and a canary keychain item and git credential it removes afterwards; your checkout isn\'t touched. If macOS asks whether a program may control Terminal or System Events, answer no. It also runs your test levels once in their containers (Docker Desktop must be running).';
 // One-time codes for a red-team run, kept in this server only, for ten minutes.
@@ -115,6 +115,12 @@ export const COMMANDS = Object.freeze({
   tickets: { needs: ['initiative'], flags: ['one'], tty: true, run: true, argv: (a) => ['tickets', a.initiative, ...(a.one ? ['--one'] : [])] },
   // Unit 64 (Scope 7): the architect's run, from your session (not a gate: it signs nothing).
   design: { needs: ['initiative'], opts: ['change'], tty: true, run: true, argv: (a) => ['design', a.initiative, ...(a.change ? ['--change', a.change] : [])] },
+  // Unit 65b: the design explore step, from your session.
+  'design explore': { quick: true, needs: ['initiative'], argv: (a) => ['design', a.initiative, '--explore'] },
+  'design approve-questions': { quick: true, needs: ['initiative'], argv: (a) => ['design', a.initiative, '--approve-questions'] },
+  'design research': { needs: ['initiative'], tty: true, run: true, argv: (a) => ['design', a.initiative, '--research'] },
+  'design skip-research': { needs: ['initiative'], tty: true, run: true, argv: (a) => ['design', a.initiative, '--no-explore'] },
+  'design decide': { quick: true, needs: ['initiative'], opts: ['question', 'pick', 'reason', 'hard'], argv: (a) => ['design', a.initiative, '--decide', a.question, '--pick', a.pick, ...(a.reason ? ['--reason', a.reason] : []), '--hard', a.hard] },
   // Jet's answer 3 (2026-11-24): a lone ticket fixed from the verifier's findings on it (/mirai ticket fix <KEY>).
   // With `answer` (Jet's answer to question 4): your answer to an open point in its Notes, one line.
   'ticket fix': { needs: ['ticket'], opts: ['answer'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket, ...(a.answer ? ['--answer', a.answer] : [])] },
@@ -221,7 +227,7 @@ export function checkCommand(args) {
     } else if (k === 'n') {
       if (!Number.isInteger(args.n) || args.n < 1 || args.n > 50) return { refused: 'n is a checklist line\'s number' };
       out.n = args.n;
-    } else if (typeof args[k] !== 'string' || !((k === 'place' || k === 'summary' || k === 'note' || k === 'answer') ? LINE : WORD).test(args[k])) return { refused: `${k} isn't a value MIRAI takes here` };
+    } else if (typeof args[k] !== 'string' || !((k === 'place' || k === 'summary' || k === 'note' || k === 'answer' || k === 'reason') ? LINE : WORD).test(args[k])) return { refused: `${k} isn't a value MIRAI takes here` };
     else out[k] = args[k];
   }
   // Unit 33: a document's path in the repo (`epic render`), relative, a Markdown file.
@@ -260,6 +266,7 @@ export function checkCommand(args) {
     for (const k of ['ticket', 'level', 'file', 'type', 'initiative', 'path', 'stage', 'target', 'value']) if (out[k] !== undefined && ![...(spec.needs ?? []), ...(spec.takes ?? [])].includes(k)) return { refused: `${command} doesn't take ${k}` };
     // Unit 61: adr new needs its slug.
     if (command === 'adr new' && out.slug === undefined) return { refused: 'adr new needs slug' };
+    if (command === 'design decide' && (out.question === undefined || out.pick === undefined || out.hard === undefined)) return { refused: 'design decide needs question (Q-n), pick (a letter, or arlo) and hard (yes or no)' };
   }
   return { args: out };
 }
@@ -311,6 +318,10 @@ export const miraiCommand = Object.freeze({
       adr: { type: 'string', pattern: WORD.source, description: 'with adr review: one ADR\'s id; without it, every ADR in force' },
       answer: { type: 'string', pattern: LINE.source, description: 'with ticket fix: your answer to an open point in the ticket\'s Notes, in your words (one line, unit 42)' },
       change: { type: 'string', pattern: LINE.source, description: 'with design: a change to the approved design, in your words (one line, unit 65)' },
+      question: { type: 'string', pattern: WORD.source, description: 'with design decide: the question, Q-n (unit 65b)' },
+      pick: { type: 'string', pattern: WORD.source, description: 'with design decide: the option\'s letter, or arlo for his call' },
+      reason: { type: 'string', pattern: LINE.source, description: 'with design decide: the owner\'s reason, in their words (one line)' },
+      hard: { type: 'string', pattern: WORD.source, description: 'with design decide: yes or no, whether it is hard to reverse' },
       n: { type: 'integer', description: 'with setup checklist: a line you mark done' },
     },
     required: ['command'],

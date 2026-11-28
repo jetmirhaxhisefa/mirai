@@ -1,0 +1,23 @@
+# Arlo's research run (unit 65b, decision 2): after you approve an initiative's design questions, it
+# answers exactly those questions from current, cited sources, in research.md, for the design
+# conversation in your session and for Arlo's run 1. It runs in the background in its own cage (the
+# `research` template, src/launch/strict.js): nothing to steal (no repo, no secrets, no store, no
+# shell; only the questions, the PRD and the stack summary), web search allowed, a fetch only of a
+# URL one of its searches returned (MIRAI's hook), and one output, research.md.
+kind = "agent"
+schema_version = 1
+name = "mirai-design-research"
+role = "design-research"
+persona = "Arlo"
+description = "Arlo's research run: answers an initiative's approved design questions from the web, with sources, in research.md"
+read_only = true
+prompt = "agents/mirai-design-research.md"
+
+# The read-only template's tools: it changes nothing in the project. Its launches run under the
+# `research` template, which gives exactly Read, Glob, Grep (its folder and input only), Write (to
+# research.md only), WebSearch and WebFetch, and no Bash, Edit or MCP tools.
+[tools]
+allowed = ["Read", "Glob", "Grep"]
+
+[web]
+fetch = "search-results"

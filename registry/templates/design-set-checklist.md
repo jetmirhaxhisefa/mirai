@@ -14,3 +14,6 @@ thin set is not sent back for being thin.
   orphan), or is any connection drawn that no component or flow needs (an invented one)?
 - [vera] Construct two units of work that each obey every decision in the set and still build
   things that don't fit together. If you can, name both and the decision that lets them.
+- [vera] Unit 65b: when the initiative has design-decisions.md, does the set follow every pick (the
+  approach, the D-n lines, the ADRs), with nothing in it against a pick, even in passing? Is each
+  pick marked hard to reverse an ADR written for that pick?

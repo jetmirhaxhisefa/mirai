@@ -629,28 +629,39 @@ export async function nextOffer({ io, prompter, store, conn, registry, config, i
   const later = `mirai design ${plain(initiative)} (/mirai design ${plain(initiative)} in your session)`;
   const last = lastDesignRun(readJournal(store).events, initiative);
   const paused = last?.state === 'paused';
+  // Unit 65b (decision 5; 65's point 1): on `full` the design questions come first, in your session;
+  // "y" here is "no open questions": the skip is recorded, and Arlo starts.
+  let explore = false;
+  if (track === 'full' && !paused) {
+    try {
+      const { exploreSettled, exploreState } = await import('../../design/explore.js');
+      explore = !exploreSettled(exploreState({ cwd: io.cwd, env: io.env, initiative }));
+    } catch {
+      explore = false;
+    }
+  }
   let answer;
   try {
-    answer = (await prompter.ask(paused ? `${who(ARCHITECT)} paused on ${plain(last.question_id ?? 'a question')} for this; continue his run now? [Y/n] ` : `Start ${arlo} on the ${track === 'full' ? 'design' : 'technical note'} now? [y/N] `)).toLowerCase();
+    answer = (await prompter.ask(paused ? `${who(ARCHITECT)} paused on ${plain(last.question_id ?? 'a question')} for this; continue his run now? [Y/n] ` : explore ? `Next: the design questions, in your session: /mirai design --explore ${plain(initiative)}. Skip them and start ${arlo} now? [y/N] ` : `Start ${arlo} on the ${track === 'full' ? 'design' : 'technical note'} now? [y/N] `)).toLowerCase();
   } catch (err) {
     if (err instanceof MiraiError && err.exitCode === EXIT.INTERRUPTED) answer = 'n';
     else throw err;
   }
   const yes = paused ? answer === '' || answer === 'y' || answer === 'yes' : answer === 'y' || answer === 'yes';
   if (!yes) {
-    io.stdout.write(`\nnot started; when you're ready: ${later}\n`);
+    io.stdout.write(explore ? `\nnot started; next, in your session: /mirai design --explore ${plain(initiative)} (or, with no open questions: mirai design ${plain(initiative)} --no-explore)\n` : `\nnot started; when you're ready: ${later}\n`);
     return null;
   }
-  return { agent: 'arlo', initiative };
+  return { agent: 'arlo', initiative, ...(explore ? { skipExplore: true } : {}) };
 }
 
 // Starts the offered run in this terminal (tests give io.startTess and io.startArlo).
 export async function startNext(io, start) {
   if (typeof start === 'string') return startTess(io, start);
   if (start.agent === 'tess') return startTess(io, start.initiative);
-  if (io.startArlo) return io.startArlo(start.initiative, io);
+  if (io.startArlo) return io.startArlo(start.initiative, io, start.skipExplore ? { skipExplore: true } : {});
   const { createDesignCommand } = await import('./design.js');
-  return createDesignCommand().run({ positionals: [start.initiative], values: {} }, io);
+  return createDesignCommand().run({ positionals: [start.initiative], values: start.skipExplore ? { 'no-explore': true } : {} }, io);
 }
 
 // ---- The offer to start the ticket planner (unit 45, decision 1, Scope 1) -------------------------

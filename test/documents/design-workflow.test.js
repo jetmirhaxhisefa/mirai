@@ -116,7 +116,8 @@ test('65 T1: the offer after the PRD\'s approval: on full, Arlo on the design; o
   const calls = [];
   const r = await approveUpstream(full, 'full', ['a', 'due-dates-prd', 'n']);
   assert.equal(r.code, EXIT.OK, r.err);
-  assert.match(r.out, /Start Arlo \(mirai-architect\) on the design now\? \[y\/N\] /);
+  // Unit 65b (65's point 1): on full the design questions come first; "y" is the skip.
+  assert.match(r.out, /Next: the design questions, in your session: \/mirai design --explore due-dates\. Skip them and start Arlo \(mirai-architect\) now\? \[y\/N\] /);
   const std = await fixture({ track: 'standard', approve: false });
   await passReader(std, `${D}/prd.md`);
   const no = await tty(['approve', 'due-dates-prd', '--file', `${D}/prd.md`], std.io, ['a', 'due-dates-prd', 'n']);

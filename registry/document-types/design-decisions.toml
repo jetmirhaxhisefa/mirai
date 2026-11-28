@@ -1,0 +1,42 @@
+# Your design decisions (unit 65b, decision 4; Jet, 2026-11-27). After the research run, in your
+# session, you decide the questions one at a time; each decision is written here, at
+# docs/mirai/<initiative>/design-decisions.md: the options considered (citing research.md's
+# sources), your pick and your reason, or "(Arlo's call)" when you leave it to him, and whether it's
+# hard to reverse (then it becomes a draft ADR, `proposed`, which Arlo completes and you sign at the
+# set's sitting, unit 65). The Log keeps each question and answer with its date. Arlo's run 1 must
+# follow every pick; Vera's set check checks that he did. A source, not something you approve.
+kind = "document-type"
+schema_version = 1
+name = "design-decisions"
+template = "templates/design-decisions.md"
+template_version = 1
+checklist = "templates/design-decisions-checklist.md"
+status = "forbidden"
+required_sections = ["Decisions", "Log"]
+section_order = ["Decisions", "Log"]
+lint_checks = ["design-decisions"]
+
+[frontmatter.fields.initiative]
+type = "string"
+required = true
+
+# The research it cites, beside it.
+[frontmatter.fields.research]
+type = "string"
+required = true
+
+[[protected_sections]]
+name = "Decisions"
+read_by = ["design", "verify"]
+
+[[protected_sections]]
+name = "Log"
+read_by = ["design"]
+
+[[protected_fields]]
+name = "initiative"
+read_by = ["design"]
+
+[[protected_fields]]
+name = "research"
+read_by = ["design"]

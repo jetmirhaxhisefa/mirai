@@ -377,6 +377,9 @@ export const CONFIG_SCHEMA = {
       type: 'table',
       fields: {
         fetch_domains: { type: 'array', items: { type: 'string', pattern: /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, patternHint: 'a domain such as "docs.example.com", or "*.example.com" for its subdomains' } },
+        // Unit 65b: the design research run's caps (the hook counts the searches; the launch, the time).
+        research_max_searches: { type: 'integer', min: 1, max: 200 },
+        research_minutes: { type: 'integer', min: 1, max: 120 },
       },
     },
     // Unit 42: tickets. `key_prefix`, the ticket keys' prefix (PROJ in PROJ-12; the tracker's project

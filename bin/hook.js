@@ -29,8 +29,14 @@ process.stdin.on('end', () => {
   if (tooLarge) return refuse('its input is too large');
   const [policyFile, policySha] = process.argv.slice(2);
   const d = policyFile && policySha ? runHook({ policyFile, policySha, stdin }) : { allow: false, reason: 'the hook was started without its policy' };
+  // Unit 65b: after a research run's web call, the hook only records; it has nothing to answer.
+  if (d.post) {
+    process.exitCode = 0;
+    return undefined;
+  }
   if (!d.allow) return refuse(d.reason);
-  if (d.write) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'MIRAI checked this call' } }));
+  // Unit 65b: a research run allows nothing by rule, so each call it lets through gets its "allow".
+  if (d.write || d.grant) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'MIRAI checked this call' } }));
   process.exitCode = 0;
   return undefined;
 });

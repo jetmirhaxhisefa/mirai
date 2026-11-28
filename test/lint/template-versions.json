@@ -18,6 +18,9 @@
   "conventions": {
     "1": "sha256:ce53902f86055abed6166d38540c931feb595831c9de3e2bd7b77462e97bc0e8"
   },
+  "design-decisions": {
+    "1": "sha256:370a4caee20ca6875bf85b0059c70c2122196a616f2e6592f75b31d07be54501"
+  },
   "design-notes": {
     "1": "sha256:9a15f4226a8a179e6c8cf72853849e6a5b9f308308de63af68150dc0dcf0e1a5"
   },
@@ -57,6 +60,12 @@
   },
   "requirements": {
     "1": "sha256:dcf28b079ebe8ea5da8fc2aefa0f2a1b26c88e56cd202d2976ed73fe115607aa"
+  },
+  "research": {
+    "1": "sha256:9f2063294b933f5ff148190802974a4cb6ea7d66c8f73b69f6802eeb628f490e"
+  },
+  "research-questions": {
+    "1": "sha256:8388209253ffef79769feaeb792b5cb68e90ad5e0bf63cb0744834ec5d259cf4"
   },
   "story": {
     "1": "sha256:bf226d89b060f21c781e8ab233dea08bd6b2ee85b95935e13707ff79e00aee2b",

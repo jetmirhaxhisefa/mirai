@@ -1,0 +1,35 @@
+# The design questions (unit 65b, decision 1; Jet, 2026-11-27). In your session, you and the
+# architect (Arlo's persona) list the open design questions an approved PRD leaves, with a short
+# stack summary; you approve the list in the session (MIRAI records it as a journal line), and the
+# research run answers exactly these questions in research.md. It lives at
+# docs/mirai/<initiative>/research-questions.md. It's all the research run sees of your project
+# besides the PRD: write nothing in it you wouldn't show a web page.
+kind = "document-type"
+schema_version = 1
+name = "research-questions"
+template = "templates/research-questions.md"
+template_version = 1
+checklist = "templates/research-questions-checklist.md"
+status = "forbidden"
+required_sections = ["Stack summary", "Questions"]
+section_order = ["Stack summary", "Questions"]
+lint_checks = ["research-questions"]
+
+# The initiative the questions are for.
+[frontmatter.fields.initiative]
+type = "string"
+required = true
+
+# Unit 37: what MIRAI's machinery reads, which no overlay may drop.
+
+[[protected_sections]]
+name = "Questions"
+read_by = ["design-research"]
+
+[[protected_sections]]
+name = "Stack summary"
+read_by = ["design-research"]
+
+[[protected_fields]]
+name = "initiative"
+read_by = ["design-research"]

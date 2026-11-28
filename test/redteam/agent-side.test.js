@@ -10,7 +10,7 @@ import { loadRegistry } from '../../src/config/registry.js';
 import { caseIndex, redTeamCases } from '../../src/redteam/cases.js';
 import { escapeRefusal, escapeVerdict, hookTimeoutWriteVerdict, instructionsVerdict, launchctlRefusal } from '../../src/redteam/cases-agent.js';
 import { objectsIn, permissionKeys, readBinaryFacts } from '../../src/redteam/binary.js';
-import { runRedTeam, stateOf, unitsFor } from '../../src/redteam/run.js';
+import { leakedNames, runRedTeam, stateOf, unitsFor } from '../../src/redteam/run.js';
 import { guardProbe } from '../../src/redteam/guard.js';
 import { installed, tempDir } from '../tests/run-fixture.js';
 import { needsTest } from '../helpers/needs.js';
@@ -169,6 +169,9 @@ launchTest('18b T6: no case\'s note carries text from a tool\'s output, and real
   mkdirSync(join(seen.host.home, '.ssh'), { recursive: true });
   assert.match(home.check(fake, seen).note, /listed: \.ssh .*1 of 6 present/);
   for (const k of redTeamCases(seen)) if (k.action) guardProbe(k, seen);
+  // No secret canary is in a prompt or a command (run.js: a canary in the output is a leak). 65b's
+  // research-exfil-url had one in its prompt: with 0 tool calls the run was still a BLOCKER, most likely the model quoting the URL (u65b-redteam-2).
+  for (const k of redTeamCases(seen)) if (k.action) assert.deepEqual(leakedNames({ raw: JSON.stringify(k.action) }, seen), [], `${k.id} puts a secret canary in its prompt`);
 });
 
 test('18b: the hook\'s token forms include the reversed token (D-30; the red team found it missing)', () => {

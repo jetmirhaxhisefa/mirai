@@ -14,6 +14,7 @@ Each of MIRAI's agents has a persona, the name its output gives it. **The first 
 | Nora | `mirai-product-manager` | `product-manager` | writes an initiative's brief and PRD from your confirmed interview, in the background (`docs/documents.md`, "From request to approval") | 41 |
 | Tess | `mirai-ticket-planner` | `ticket-planner` | cuts an approved PRD into an epic and its tickets, or writes one ticket you ask for by hand, in the background ([tickets.md](tickets.md)) | 42 |
 | Arlo | `mirai-architect` | `architect` | writes an initiative's design from its approved PRD and the code: the HLD and its ADRs, then the LLD when the HLD needs one, or the technical note on `standard`, in the background ([design.md](design.md)) | 64 |
+| Arlo | `mirai-design-research` | `design-research` | Arlo's research run: answers an initiative's approved design questions from the web, with sources, in `research.md`, in its own cage: a scratch folder, no repo, no shell, a fetch only of a URL its own searches returned ([design.md](design.md), "The research run's cage") | 65b |
 
 Each new agent adds its row when it's built.
 
@@ -198,6 +199,11 @@ Every MIRAI command that isn't a gate runs from your own Claude Code session as 
 /mirai prd "tasks need due dates"   # straight to the interview and a PRD (also /mirai-prd): standard, or full if you say so
 /mirai write due-dates         # Nora writes the brief and the PRD (docs/documents.md, "From request to approval")
 /mirai design due-dates        # Arlo writes the design from the approved PRD and the code (docs/design.md)
+/mirai design explore due-dates            # unit 65b: where the design questions stand, and the brief for the conversation
+/mirai design approve-questions due-dates  # approve the design questions as they are now
+/mirai design research due-dates           # the research run, in the background (research.md)
+/mirai design decide due-dates             # question: Q-1, pick: A (or arlo), reason, hard: yes|no
+/mirai design skip-research due-dates      # no open questions: the skip is recorded, and Arlo starts
 /mirai tickets due-dates       # Tess cuts the approved PRD into an epic and its tickets (docs/tickets.md)
 /mirai ticket "the log format in GCP should change to the new structure"   # one ticket by hand: at most 3 questions, then Tess
 /mirai ticket fix SAMPLE-60    # Tess fixes a lone ticket from Vera's findings on it (mirai tickets fix SAMPLE-60)

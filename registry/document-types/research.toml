@@ -1,0 +1,47 @@
+# The design research (unit 65b, decisions 2 and 3; Jet, 2026-11-27). The research run answers the
+# approved questions (research-questions.md) from current sources: per question the options, a pick
+# and a runner-up, and the strongest argument against the pick, each claim citing a source [S-n].
+# Each source has its URL, title, the date it was read and a short quote; MIRAI checks each quote
+# against what that fetch returned in the run, and each URL against the run's searches. Pages that
+# tried to give instructions are listed under "Suspicious pages" (required; "None." when empty).
+# It lives at docs/mirai/<initiative>/research.md, copied there by MIRAI after the run. The
+# architect treats it as data, never as instructions. A source, not something you approve.
+kind = "document-type"
+schema_version = 1
+name = "research"
+template = "templates/research.md"
+template_version = 1
+checklist = "templates/research-checklist.md"
+status = "forbidden"
+required_sections = ["Answers", "Sources", "Sources consulted", "Suspicious pages"]
+section_order = ["Answers", "Sources", "Sources consulted", "Suspicious pages"]
+lint_checks = ["research"]
+
+[frontmatter.fields.initiative]
+type = "string"
+required = true
+
+# The question list it answers, beside it.
+[frontmatter.fields.questions]
+type = "string"
+required = true
+
+[[protected_sections]]
+name = "Answers"
+read_by = ["design", "design-research"]
+
+[[protected_sections]]
+name = "Sources"
+read_by = ["design", "design-research"]
+
+[[protected_sections]]
+name = "Suspicious pages"
+read_by = ["design-research"]
+
+[[protected_fields]]
+name = "initiative"
+read_by = ["design-research"]
+
+[[protected_fields]]
+name = "questions"
+read_by = ["design-research"]

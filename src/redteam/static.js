@@ -127,7 +127,10 @@ function winner(p, deny, allow) {
 // S4: the floor, on a rendered settings file. A fixed list in code, so no data change can drop it.
 // Unit 64: `web`, the domains of a web template (the architect's): WebFetch may then be off the deny
 // list, but only as one allow rule per listed domain, never whole; every other floor tool stays denied.
-export function floorCheck(settings, { home, repoHome, uid, web = null }) {
+// Unit 65b: `research`, the research template's caps: WebFetch and WebSearch may then be off the
+// deny list, but neither on an allow rule (the hook's yes covers each call), with a PreToolUse hook
+// on both and a PostToolUse hook that records; no allow rule at all, Bash denied.
+export function floorCheck(settings, { home, repoHome, uid, web = null, research = null }) {
   const problems = [];
   for (const k of looseKeys(settings)) problems.push(`${k} is loose`);
   for (const k of FILE_TOOL_BLOCKS) if (settings.permissions?.[k] !== true) problems.push(`permissions.${k} isn't on`);
@@ -159,7 +162,15 @@ export function floorCheck(settings, { home, repoHome, uid, web = null }) {
     if (m && (/~|\*\*?\)?$/.test(m[2]) || floor.some((p) => m[2].replace(/^\/\//, '/').startsWith(p)))) problems.push(`the permission rule ${r} could re-open a denied place`);
   }
   const deny = settings.permissions?.deny ?? [];
-  for (const t of ['WebFetch', 'WebSearch', 'Task', 'Agent']) if (!deny.includes(t) && !(t === 'WebFetch' && web)) problems.push(`the ${t} tool isn't denied`);
+  for (const t of ['WebFetch', 'WebSearch', 'Task', 'Agent']) if (!deny.includes(t) && !(t === 'WebFetch' && web) && !(research && (t === 'WebFetch' || t === 'WebSearch'))) problems.push(`the ${t} tool isn't denied`);
+  if (research) {
+    if ((settings.permissions?.allow ?? []).length) problems.push(`the research template allows by rule (${settings.permissions.allow.slice(0, 3).join(', ')}): every call must need the hook's yes`);
+    if (!deny.includes('Bash')) problems.push('the research template doesn\'t deny Bash');
+    const pre = (settings.hooks?.PreToolUse ?? []).map((h) => String(h.matcher ?? '').split('|'));
+    for (const t of ['WebFetch', 'WebSearch', 'Read', 'Write']) if (!pre.some((m) => m.includes(t))) problems.push(`the research template's hook doesn't gate ${t}`);
+    const post = (settings.hooks?.PostToolUse ?? []).map((h) => String(h.matcher ?? '').split('|'));
+    for (const t of ['WebFetch', 'WebSearch']) if (!post.some((m) => m.includes(t))) problems.push(`the research template's hook doesn't record after ${t}`);
+  }
   const fetchRules = (settings.permissions?.allow ?? []).filter((r) => /^WebFetch\b/.test(r));
   const wanted = (web?.domains ?? []).map((d) => `WebFetch(domain:${d})`);
   for (const r of fetchRules) if (!wanted.includes(r)) problems.push(`the permission rule ${r} opens the web beyond the fixed list`);

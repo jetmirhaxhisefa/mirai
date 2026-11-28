@@ -78,6 +78,7 @@ A whole list (an array) is replaced, never merged.
 | `models.steps.lld` | project, personal repo | `"standard"` | The tier of the architect's LLD run (unit 64); one tier up for high risk or size L. |
 | `models.steps.tech-note` | project, personal repo | `"standard"` | The tier of the architect's technical note run (unit 64); one tier up for high risk or size L. |
 | `models.steps.reader-test` | project, personal repo | `"standard"` | The tier that runs the reader test's fresh agent, which reads only a summary; one tier up for high risk or size L. |
+| `models.steps.design-research` | project, personal repo | `"standard"` | The tier that runs the design research run (unit 65b): the approved design questions answered from the web, in research.md; one tier up for high risk or size L. |
 
 ## [dependencies]
 
@@ -235,6 +236,8 @@ Unit 42 ([tickets.md](tickets.md)). Team policy: the project file only.
 | Key | Who may set it | Default | What it does |
 |---|---|---|---|
 | `design.fetch_domains` | project | none | The documentation sites the architect may fetch pages from, beside MIRAI's fixed list of package sites (unit 64): each a plain domain such as `docs.example.com`, or `*.example.com` for its subdomains. Changing it changes his launch template, so the red team runs again before his next launch ([design.md](design.md)). |
+| `design.research_max_searches` | project | `30` | The design research run's cap on web searches (unit 65b, 1–200): MIRAI's hook refuses a search past it. Part of the research template, so changing it runs the red team again before the next research run ([design.md](design.md), "The research run's cage"). |
+| `design.research_minutes` | project | `20` | The design research run's time limit in minutes (unit 65b, 1–120): past it the hook refuses every call, and the launch stops five minutes later. Part of the research template, as above. |
 | `tickets.inputs.standard` | project | MIRAI's list | The document types the `standard` track needs approved before Tess cuts the set (unit 45). MIRAI's list always counts: the PRD and the technical note (`tech-note`); a type MIRAI doesn't have yet is skipped with a warning naming its unit. A project may only add types, such as `["requirements"]`. |
 | `tickets.inputs.full` | project | MIRAI's list | The same for the `full` track: MIRAI's list is the PRD, the HLD, the ADRs and the LLD; a project may only add types. |
 | `tickets.key_prefix` | project | none | The ticket keys' prefix (`PROJ` in `PROJ-12`): capital letters and digits, up to 10. Tess numbers new tickets on from the highest key with it; with none set, she doesn't start, and says so. |
