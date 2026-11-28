@@ -8,7 +8,7 @@ import { openStore, repoIdentity } from '../store/home.js';
 import { committedKeys } from '../sign/keys.js';
 import { readJournal } from '../store/journal.js';
 import { baseCommit, trustedConfig, trustedFile, trustedRegistry } from './snapshot.js';
-import { agentTemplate, fetchDomainsOf, webTemplate } from '../launch/strict.js';
+import { agentTemplate, fetchDomainsOf, researchCapsOf, researchTemplate, webTemplate } from '../launch/strict.js';
 
 // Where MIRAI reads a project's overlays (unit 37, Scope 5): only from the trust root, the
 // integration branch's commit, like the project's roles and stacks, and only those you approved as
@@ -115,6 +115,15 @@ export function webTemplates(trust, modeTemplates, { registry = trustedRegistry(
   for (const def of Object.values(registry.agents)) {
     if (def.web?.fetch !== 'fixed-list') continue;
     const t = webTemplate(base, { agent: def.name, domains });
+    out.set(t.name, t);
+  }
+  // Unit 65b: the design research run's template, from the plain read-only one, with the trust
+  // root's caps; the red team runs the research cases under it.
+  const ro = [...modeTemplates.values()].find((t) => t.mode === 'read-only' && !t.overlay && !t.web && !t.research);
+  const caps = researchCapsOf(trustedConfig(trust));
+  for (const def of Object.values(registry.agents)) {
+    if (def.web?.fetch !== 'search-results' || !ro) continue;
+    const t = researchTemplate(ro, { agent: def.name, ...caps });
     out.set(t.name, t);
   }
   return out;

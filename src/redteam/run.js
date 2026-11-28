@@ -371,7 +371,7 @@ function floorAll(templates, ctx, env) {
     try {
       const settings = JSON.parse(readFileSync(join(plan.launchDir, 'input', 'settings.json'), 'utf8'));
       rendered.set(name, settings);
-      floor.set(name, floorCheck(settings, { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid(), web: template.web ?? null }));
+      floor.set(name, floorCheck(settings, { home: env.HOME, repoHome: ctx.repoHome, uid: process.getuid(), web: template.web ?? null, research: template.research ?? null }));
     } finally {
       finishLaunch(plan);
     }

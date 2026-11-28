@@ -1,0 +1,14 @@
+# A role (unit 19b): what a run may change, and its step. Unit 65b: the design research run's. It
+# answers an initiative's approved research questions from the web, in research.md, and changes
+# nothing in the project: the role is read-only, and its launch runs under the `research` template
+# (src/launch/strict.js), whose working folder is a fresh scratch folder holding only the questions,
+# the PRD and the stack summary. MIRAI copies research.md into the initiative's folder afterwards.
+kind = "role"
+schema_version = 1
+name = "design-research"
+description = "Answers an initiative's approved design questions from the web, in research.md; changes nothing in the project"
+mode = "read-only"
+step = "design-research"
+
+[may_write]
+paths = []

@@ -184,6 +184,8 @@ export const WEB_TOOLS = Object.freeze(['WebFetch', 'WebSearch']);
 export const RESEARCH_TOOLS = Object.freeze(['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch', 'Write']);
 const researchCaps = (r) => r && typeof r === 'object' && Object.keys(r).sort().join(',') === 'max_searches,minutes'
   && Number.isInteger(r.max_searches) && r.max_searches >= 1 && r.max_searches <= 200 && Number.isInteger(r.minutes) && r.minutes >= 1 && r.minutes <= 120;
+// The trust root's caps for the research template ([design] research_max_searches, research_minutes).
+export const researchCapsOf = (config) => ({ maxSearches: config?.design?.research_max_searches ?? RESEARCH_DEFAULTS.max_searches, minutes: config?.design?.research_minutes ?? RESEARCH_DEFAULTS.minutes });
 export function researchTemplate(base, { agent, maxSearches = RESEARCH_DEFAULTS.max_searches, minutes = RESEARCH_DEFAULTS.minutes }) {
   if (base.mode !== 'read-only' || base.overlay || base.web || base.research) throw new StrictError('the research template is made from the plain read-only template', { code: 'bad-template' });
   const research = { max_searches: maxSearches, minutes };

@@ -65,11 +65,14 @@ const AGENT = {
     // the fixed list of package and documentation sites ([design] fetch_domains adds a project's own
     // docs). Its launches run under a template of its own (agent-<name>-read-write) whose floor keeps
     // WebSearch, Task and Agent denied and the shell's network empty. Only the architect has it.
-    web: { type: 'table', fields: { fetch: { type: 'enum', values: ['fixed-list'] } }, required: ['fetch'] },
+    // Unit 65b: `search-results`, the design research run's (mirai-design-research): web search, and a
+    // fetch only of a URL its own searches returned, under the `research` template.
+    web: { type: 'table', fields: { fetch: { type: 'enum', values: ['fixed-list', 'search-results'] } }, required: ['fetch'] },
   },
   required: ['kind', 'schema_version', 'name', 'role', 'description', 'read_only', 'prompt', 'tools'],
   check(value, path, report) {
-    if (value.web !== undefined && (value.name !== 'mirai-architect' || value.read_only === true)) report('web', 'only the architect (mirai-architect, read-write) reads the web', undefined, 'web');
+    if (value.web?.fetch === 'fixed-list' && (value.name !== 'mirai-architect' || value.read_only === true)) report('web', 'only the architect (mirai-architect, read-write) reads the web from the fixed list', undefined, 'web');
+    if (value.web?.fetch === 'search-results' && value.name !== 'mirai-design-research') report('web', 'only the design research run (mirai-design-research) searches the web', undefined, 'web');
     if (value.read_only === true && (value.may_write?.paths?.length ?? 0) > 0) {
       report('may_write.paths', 'a read-only agent can\'t have may_write.paths', undefined, 'read-only');
     }
@@ -220,7 +223,7 @@ export const FIELD_TYPES = Object.freeze(['string', 'integer', 'boolean', 'date'
 // Unit 31: `summary` (the summary for approval, PM-03), `writing` (the writing rules, research/13)
 // and `brief`. Unit 32: `prd`. Unit 33: `epic` (with the ticket graph lint). Unit 35: `interview`.
 // Unit 36: the five context files (src/lint/context.js).
-export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'id-stability', 'adr', 'tech-note', 'hld', 'lld']);
+export const BUILT_IN_CHECKS = Object.freeze(['ticket', 'plan', 'summary', 'writing', 'brief', 'prd', 'epic', 'interview', 'business', 'journeys', 'feature-map', 'project', 'conventions', 'requirements', 'business-change', 'id-stability', 'adr', 'tech-note', 'hld', 'lld', 'research-questions', 'research', 'design-decisions']);
 // In an ID pattern, `{id}` stands for the document's own id (unit 08a), so a ticket's own
 // `AC-<id>.n` never clashes with a PRD's `AC-FR-n.m` mentioned in it.
 export const OWN_ID = '{id}';
@@ -232,7 +235,7 @@ export const SUMMARY_PARTS = Object.freeze(['The ask', 'Why', 'What changes', 'D
 // checks; the others are named for their command or step.
 // Unit 42: `run-pick`, the run's pick of the next ready ticket (src/tickets/pick.js).
 // Unit 45: `tickets`, the ticket planner's run (src/tess/run.js: your notes as her input).
-export const READERS = Object.freeze(['approval', 'reader-test', 'trace', 'epic-coverage', 'graph-lint', 'gate', 'lint', 'epic-render', 'run-pick', 'tickets', 'design']);
+export const READERS = Object.freeze(['approval', 'reader-test', 'trace', 'epic-coverage', 'graph-lint', 'gate', 'lint', 'epic-render', 'run-pick', 'tickets', 'design', 'design-research', 'verify']);
 // The sections and parts (### headings) each built-in check reads by name (unit 37, Scope 1).
 // A type whose lint_checks read one of its own sections must list it in protected_sections, so
 // no overlay can drop what a check depends on. `*required*`: every required section (the

@@ -42,7 +42,7 @@ const codes = (text, path = 'tickets/PMT-12.md', repos) => lintDocs({ [path]: te
 
 test('T1: MIRAI\'s registry: brief, PRD, epic, story, bug, plan, interview and the five context files, templates that match their types, and known checks', () => {
   // Unit 41: your requirements list and a business.md proposal. Unit 61: the ADR.
-  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['adr', 'brief', 'bug', 'business', 'business-change', 'conventions', 'design-notes', 'epic', 'feature-map', 'hld', 'interview', 'investigation', 'journeys', 'lld', 'plan', 'prd', 'project', 'requirements', 'story', 'tech-note', 'ticket-notes']);
+  assert.deepEqual(Object.keys(REGISTRY.documentTypes).sort(), ['adr', 'brief', 'bug', 'business', 'business-change', 'conventions', 'design-decisions', 'design-notes', 'epic', 'feature-map', 'hld', 'interview', 'investigation', 'journeys', 'lld', 'plan', 'prd', 'project', 'requirements', 'research', 'research-questions', 'story', 'tech-note', 'ticket-notes']);
   assert.deepEqual([...BUILT_IN_CHECKS].sort(), Object.keys(CHECKS).sort());
   for (const [name, def] of Object.entries(REGISTRY.documentTypes)) {
     const template = read(def.template);

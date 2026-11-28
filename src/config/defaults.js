@@ -26,6 +26,8 @@ export const STEPS = Object.freeze([
   'reader-test',
   // Unit 64 (decision 4): the architect's LLD run and his technical note run, beside `design`.
   'lld', 'tech-note',
+  // Unit 65b: the design research run (mirai-design-research).
+  'design-research',
 ]);
 
 // The usual model family of each tier. Any model may be set (D-58); a model outside its tier's
@@ -41,7 +43,7 @@ export const TIER_FAMILIES = Object.freeze({
 export const STEP_DEFAULTS = Object.freeze({
   prd: 'deep', design: 'deep', tickets: 'standard', verify: 'standard', plan: 'standard', replan: 'deep', build: 'standard', review: 'standard',
   'review-high-risk': 'deep', qa: 'standard', 'commit-message': 'light', 'mr-description': 'light', 'report-summary': 'light', 'parking-note': 'light',
-  'reader-test': 'standard', lld: 'standard', 'tech-note': 'standard',
+  'reader-test': 'standard', lld: 'standard', 'tech-note': 'standard', 'design-research': 'standard',
 });
 
 // Judgement steps are never run below the deep tier (D-14).

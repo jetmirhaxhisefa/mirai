@@ -35,7 +35,9 @@ test('45b T1: the listing: every step with its agent, tier, model, tool and sour
   assert.equal(r.code, EXIT.OK, r.err);
   assert.match(r.out, /^step +agent +tier +model +tool +from$/m);
   for (const step of STEPS) assert.ok(rowOf(r.out, step), step);
-  assert.equal(STEPS.length, 17);
+  assert.equal(STEPS.length, 18);
+  // Unit 65b, T7: the design research run's own row.
+  assert.match(rowOf(r.out, 'design-research'), /Arlo \(mirai-design-research\) +standard +claude-sonnet-5-5 +Claude Code +default$/);
   assert.match(rowOf(r.out, 'prd'), /Nora \(mirai-product-manager\) +deep +claude-opus-5-5 +Claude Code +default \(must stay deep\)$/);
   assert.match(rowOf(r.out, 'tickets'), /Tess \(mirai-ticket-planner\) +standard +claude-sonnet-5-5 +Claude Code +default$/);
   assert.match(rowOf(r.out, 'verify'), /Vera \(mirai-verifier\) +standard/);
@@ -55,7 +57,7 @@ test('45b T1: the listing: every step with its agent, tier, model, tool and sour
   assert.match(rowOf(p.out, 'review'), /deep .*your personal file$/);
   assert.match(p.out, /^standard +claude-sonnet-5-5 +your personal file$/m);
   const j = JSON.parse((await run(f, ['models', '--json'])).out);
-  assert.equal(j.steps.length, 17);
+  assert.equal(j.steps.length, 18);
   assert.equal(j.steps.find((s) => s.step === 'review').from, 'your personal file');
 });
 

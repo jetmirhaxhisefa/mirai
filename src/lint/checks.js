@@ -6,6 +6,7 @@ import { checkEpic } from './epic.js';
 import { checkInterview } from './interview.js';
 import { checkAdr } from './adr.js';
 import { checkTechNote } from './tech-note.js';
+import { checkDesignDecisions, checkResearch, checkResearchQuestions } from './research.js';
 import { checkHld } from './hld.js';
 import { checkLld } from './lld.js';
 import { lldItems } from './lld-items.js';
@@ -179,6 +180,10 @@ export const CHECKS = Object.freeze({
   hld: (...a) => checkHld(...a),
   // Unit 63: the LLD.
   lld: (...a) => checkLld(...a),
+  // Unit 65b: the design questions, the research, your design decisions.
+  'research-questions': (...a) => checkResearchQuestions(...a),
+  research: (...a) => checkResearch(...a),
+  'design-decisions': (...a) => checkDesignDecisions(...a),
   'id-stability': (doc, def, ctx, add) => {
     for (const p of idStabilityProblems(doc, ctx.previous)) add(p);
   },
