@@ -35,7 +35,9 @@ const read = (rel) => readFileSync(join(REGISTRY_DIR, rel), 'utf8');
 const D = 'docs/mirai/due-dates';
 const HLD = read('examples/hld.md');
 const LLD = read('examples/lld.md');
-const ADR = read('examples/adr.md');
+// 64's runs: an ADR that isn't hard to reverse (65's early pause has its own tests).
+const ADR_HARD = read('examples/adr.md');
+const ADR = ADR_HARD.replace('gate: [hard-to-reverse, nfr]', 'gate: [nfr]');
 const NOTE = read('examples/tech-note.md');
 const ADR_PATH = 'docs/decisions/ADR-0001-reminder-queue.md';
 const SAMPLE = join(REGISTRY_DIR, '..', 'test', 'fixtures', 'sample-app');

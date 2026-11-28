@@ -18,6 +18,8 @@ import { snapshot, trustedConfig } from '../../trust/snapshot.js';
 import { verifierField, verifierFor } from '../../verify/gate.js';
 import { documentApproval, missesOf, publishAfter, readerField, readerFor, refuseOnLint, showMisses, showReader, showVerifier, startTess, tessOffer, withOverlays } from './approve.js';
 import { adrDecision, adrsSigned, proposedAdrReady } from './approve-adr.js';
+import { readJournal } from '../../store/journal.js';
+import { answerOk, arloCalls, decisionsForYou, notesText, sittingRound } from '../../design/sitting.js';
 
 // mirai approve <id> --file docs/mirai/<initiative>/tech-note.md (unit 62b, Scope 4; decision 2):
 // the technical note, after the PRD and before the ticket set. The lint as at approval (the PRD it
@@ -63,6 +65,81 @@ export async function approveLld(o) {
 }
 
 const WORDS = { 'tech-note': 'technical note', hld: 'HLD', lld: 'LLD' };
+
+// ---- The design set's sitting (unit 65, decision 3) -----------------------------------------------
+
+// The rest of the set beside the HLD: the LLD when the HLD says required (refused when it isn't
+// written yet, or doesn't pass its lint as at approval), your decisions, Arlo's calls, the round.
+function designSet({ io, store, config, registry, base, file, doc, prdText, hldText }) {
+  const dir = posix.dirname(file.path);
+  const initiative = posix.basename(dir);
+  const out = { initiative, decisions: doc ? decisionsForYou(doc) : [], calls: doc ? arloCalls(doc) : [], lld: null, round: sittingRound(readJournal(store).events, typeof doc?.value.id === 'string' ? doc.value.id : '') };
+  if (doc?.value.lld !== 'required') return out;
+  const path = `${dir}/lld.md`;
+  let read;
+  try {
+    read = readApprovedFile(base, base, path);
+  } catch {
+    throw Object.assign(new MiraiError(`the HLD says lld: required, and ${path} isn't written yet: the design set is signed whole; nothing was written`, EXIT.BLOCKED), { code: 'set-not-whole', hint: `have it written: mirai design ${initiative}` });
+  }
+  const lldText = read.bytes.toString('utf8');
+  const value = readFrontmatter(read.bytes)?.value ?? {};
+  if (value.type !== 'lld' || typeof value.id !== 'string') throw Object.assign(new MiraiError(`${path} isn't an LLD; nothing was written`, EXIT.BLOCKED), { code: 'set-not-whole' });
+  refuseOnLint(io, [{ path, errors: lintText(lldText, { source: path, registry, project: projectOf(config), approving: true, linked: { 'hld.md': hldText, 'prd.md': prdText } }) }]);
+  const vera = verifierFor({ store, config, def: registry.documentTypes.lld, id: value.id, path, bytes: read.bytes });
+  out.lld = { id: value.id, path, bytes: read.bytes, vera };
+  return out;
+}
+
+// Your answer to each decision for you (Enter: the option it's written for), and your yes to each
+// proposed ADR (no: with your reason). Returns { events, notes }: every answer as an event; the notes
+// are the answers that differ and the ADRs you rejected.
+async function askSitting({ io, prompter, set, proposed }) {
+  const events = [];
+  const notes = [];
+  for (const d of set.decisions) {
+    io.stdout.write(`\nDecision ${d.n}: ${plain(d.question)}\n${Object.entries(d.options).map(([k, v]) => `  ${k}: ${plain(v)}${d.recommended === k ? ' (recommended)' : ''}`).join('\n')}\n`);
+    const raw = (await prompter.ask(`your answer [${Object.keys(d.options).join('/')}] (Enter: ${d.writtenFor}, what it's written for) `)).trim().toUpperCase();
+    const letter = raw === '' ? d.writtenFor : raw;
+    if (!answerOk(letter, d)) throw new UsageError(`${JSON.stringify(raw.slice(0, 10))} isn't one of Decision ${d.n}'s options; nothing was written`, 'run it again');
+    const e = { ref: `Decision ${d.n}`, decision: 'answer', answer: letter, written_for: d.writtenFor };
+    events.push(e);
+    if (letter !== d.writtenFor) notes.push(e);
+  }
+  for (const p of proposed) {
+    const yes = (await prompter.ask(`accept ${p.adr.id} (${plain(p.adr.title)}) with the set? [Y/n] `)).trim().toLowerCase();
+    if (yes === '' || yes === 'y' || yes === 'yes') {
+      events.push({ ref: p.adr.id, decision: 'accept' });
+      continue;
+    }
+    const reason = (await prompter.ask(`why not ${p.adr.id} (one line, for the architect): `)).trim();
+    if (!reason || reason.length > 500) throw new UsageError('a rejected ADR needs your reason, in one line; nothing was written', 'run it again');
+    const e = { ref: p.adr.id, decision: 'reject', reason };
+    events.push(e);
+    notes.push(e);
+  }
+  return { events, notes };
+}
+
+// An answer that differs, or an ADR rejected: nothing is approved. Your answers are signed (the
+// design_decision lines), design-notes.md is written for the architect's next run, and the set
+// comes back to this sitting.
+async function notesOnly({ io, prompter, store, config, conn, base, file, set, sitting, id, now }) {
+  const signer = await decisionSigner(io, store, { prompter, ticket: id, confirm: confirmByTyping });
+  const date = now().toISOString().slice(0, 10);
+  const rel = `${posix.dirname(file.path)}/design-notes.md`;
+  const text = notesText({ initiative: set.initiative, hld: id, round: set.round, notes: sitting.notes, date });
+  const events = sitting.events.map((e) => checkEvent({ type: 'design_decision', by: 'human', item: set.initiative, hld: id, round: set.round, ...e }));
+  const seqs = withSeq(store, (ctx) => events.map((ev) => {
+    const n = ctx.take();
+    ctx.event(n, ev, { signer });
+    return n;
+  }));
+  writeFileSync(join(base, rel), text);
+  io.stdout.write(`\nnothing was approved: ${sitting.notes.length} of your answers ${sitting.notes.length === 1 ? 'differs' : 'differ'} from the set as written (signed with ${signer.keyId}, seq ${seqs.join(', ')})\nyour notes: ${plain(rel)}\nnext: commit them (git add ${plain(rel)} && git commit -m "${plain(set.initiative)}: design notes"), then the architect changes the set: mirai design ${plain(set.initiative)} (/mirai design ${plain(set.initiative)}); the set comes back to this sitting\n`);
+  io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, rel), rel, bytes: Buffer.from(text) })}\n`);
+  return EXIT.OK;
+}
 // The document each type builds: the link line's label and that document's type.
 const UPSTREAM = { 'tech-note': { label: 'PRD', type: 'prd' }, hld: { label: 'PRD', type: 'prd' }, lld: { label: 'HLD', type: 'hld' } };
 
@@ -136,9 +213,25 @@ async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, b
     io.stdout.write(`ADR ${p.adr.id} (${p.d}): ${plain(p.adr.title)}: proposed; accepting the ${word} accepts it too${p.old ? `, and marks ${p.old.id} superseded` : ''}\n`);
     showVerifier(io, p.vera);
   }
+  // Unit 65 (decision 3): on `full` the HLD's approval is the design set's sitting: the LLD (when the
+  // HLD says required) comes with it, checked as at its own approval; your answer to each decision for
+  // you; your yes to each proposed ADR; one signature for the set.
+  const set = type === 'hld' && track === 'full' ? designSet({ io, store, config, registry, base, file, doc, prdText: prd.bytes.toString('utf8'), hldText: text }) : null;
+  if (set) {
+    if (set.lld) {
+      io.stdout.write(`LLD:    ${set.lld.id}, signed with the set\nfile:   ${set.lld.path}\n`);
+      showVerifier(io, set.lld.vera);
+    }
+    for (const c of set.calls) io.stdout.write(`Arlo's call ${c.id}: ${plain(c.text.replace(/\s*\(Arlo's call\)\s*/, ''))}\n`);
+  }
   const prompter = createPrompter(io);
   let start = null;
   try {
+    let sitting = null;
+    if (set) {
+      sitting = await askSitting({ io, prompter, set, proposed });
+      if (sitting.notes.length) return await notesOnly({ io, prompter, store, config, conn, base, file, set, sitting, id, now });
+    }
     const asked = now().getTime();
     const answer = (await prompter.ask(`accepted as is / edited / rejected?${proposed.length ? ` (with ${proposed.length === 1 ? 'its ADR' : `its ${proposed.length} ADRs`})` : ''} [a/e/r] `)).toLowerCase();
     const decision = DECISIONS[answer];
@@ -162,16 +255,20 @@ async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, b
     const adrMade = decision === 'rejected' ? [] : proposed.map((p) => adrDecision({ ready: p, decision: 'accepted', answeredAfter }));
     const writes = adrMade.flatMap((m) => m.writes);
     const misses = decision === 'rejected' ? missesOf([{ item: id, kind: type, path: file.path, vera }], reason) : [];
+    // The set: the LLD's line, and your answers, in the same step as the HLD's and its ADRs'.
+    const setEvents = set && decision !== 'rejected' ? [...(set.lld ? [checkEvent({ type: 'approval', by: 'human', item: set.lld.id, kind: 'lld', path: set.lld.path, content_hash: contentHash(set.lld.bytes), decision, answered_after_s: answeredAfter, ...verifierField(set.lld.vera) })] : [])] : [];
+    const answerEvents = sitting ? sitting.events.map((e) => checkEvent({ type: 'design_decision', by: 'human', item: set.initiative, hld: id, round: set.round, ...e })) : [];
     for (const w of writes) writeFileSync(join(base, w.path), w.bytes);
     let seqs;
     try {
       seqs = withSeq(store, (ctx) => {
         const out = [];
-        for (const ev of [approval, ...adrMade.map((m) => m.approval)]) {
+        for (const ev of [approval, ...adrMade.map((m) => m.approval), ...setEvents]) {
           const n = ctx.take();
           ctx.event(n, ev, { signer });
           out.push(n);
         }
+        for (const ev of answerEvents) ctx.event(ctx.take(), ev, { signer });
         for (const m of misses) ctx.event(ctx.take(), m);
         return out;
       });
@@ -185,12 +282,14 @@ async function approveDesignDoc({ type, id, fm, file, store, io, now, fileArg, b
       ? `recorded: the ${word} ${id} rejected (signed with ${signer.keyId}, seq ${seqs[0]})${proposed.length ? `; its ADR${proposed.length === 1 ? ' stays' : 's stay'} proposed` : ''}\n`
       : `approved: the ${word} ${id}, as ${file.path} is now (${decision}; signed with ${signer.keyId}, seq ${seqs.join(', ')}); a change to it needs a new approval\n`);
     for (const [i, p] of (decision === 'rejected' ? [] : proposed).entries()) io.stdout.write(`accepted: the ADR ${p.adr.id}${p.old ? `; ${p.old.id} is now superseded by it` : ''} (seq ${seqs[i + 1]})\n`);
+    if (setEvents.length) io.stdout.write(`approved: the LLD ${set.lld.id}, with the set (seq ${seqs[1 + proposed.length]})\n`);
     if (indexPath) io.stdout.write(`index:  ${indexPath} rendered; commit the ADRs and the index: git add ${s.folder} && git commit -m "ADRs of ${id}"\n`);
     if (decision !== 'rejected') {
       await publishAfter({ io, file });
       start = await tessOffer({ io, prompter, store, conn, registry, config, initiative: posix.basename(posix.dirname(file.path)), track });
     }
     for (const w of writes) io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, w.path), rel: w.path, bytes: w.bytes })}\n`);
+    if (setEvents.length) io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, set.lld.path), rel: set.lld.path, bytes: set.lld.bytes })}\n`);
     io.stdout.write(`${documentLine({ store, config, conn, abs: join(base, file.path), rel: file.path, bytes: file.bytes })}\n`);
   } finally {
     prompter.close();

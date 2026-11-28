@@ -1,0 +1,65 @@
+the probe home: /Users/jetmir.haxhisefa/.mirai-probes-d9g9nx
+the home: full, PRD own-due-dates-prd approved
+Arlo: write hld (round 1): ok
+Arlo (mirai-architect): paused on the PRD, waiting for your answer to Q-4 in interview.md: Q-4: Store a due date as a calendar day, with no time and no zone (ADR-0002, hard to reverse) — Which option should ADR-0002 take? (run r-20261127-075803-a9d0; rounds: lint 0, Vera (mirai-verifier) 0; 1 launch; deep, claude-opus-5-5)
+the early pause on Q-4 answered A
+Arlo: continue hld (round 1): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0002-due-date-calendar-day.md: round 1, 0 must-fix
+Vera, docs/mirai/due-dates/hld.md: round 1, 3 must-fix
+Arlo: fix hld (round 2): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0002-due-date-calendar-day.md: round 1, 0 must-fix (reused)
+Vera, docs/mirai/due-dates/hld.md: round 2, 0 must-fix
+Arlo: write lld (round 3): ok
+lint, lld: clean
+Vera, docs/mirai/due-dates/lld.md: round 1, 1 must-fix
+Arlo: fix lld (round 4): ok
+lint, lld: clean
+Vera, docs/mirai/due-dates/lld.md: round 2, 0 must-fix
+Arlo (mirai-architect): done: the HLD and the LLD are ready for your approval (run r-20261127-080310-71e1; rounds: lint 0, Vera (mirai-verifier) 5; 4 launches; deep, claude-opus-5-5)
+  Vera own-due-dates-hld r1: must-fix writing: The create flow shows the task model checking the title and the date, but the components table gives that check to the task requests. The requests are not in the flow. In the edit flow, nothing links the owner's today to the past-date check. So the owner of the due-date rule is unclear: model or request.
+  Vera own-due-dates-hld r1: suggestion writing: The add form, the task list and the task requests are in the components table but not in the Building blocks diagram.
+  Vera own-due-dates-hld r1: must-fix decision/scope: NG-5 is a scope exclusion the HLD adds. The PRD and the brief have NG-1 to NG-4 only. The summary presents it as settled, not as a decision.
+  Vera own-due-dates-hld r1: must-fix writing: The detail says a done task's date control is locked (D-8). So a done task's date can't be changed or removed. The summary says the list can change or remove "each task's date" and leaves out the lock.
+  Vera own-due-dates-hld r1: suggestion decision/other: ADR-0001 covers only a missing header. Treating an unknown zone name as UTC is a new cross-cutting rule. It is cited to ADR-0001 in the table and the rules, it affects late and refusal answers, and it is not in the summary.
+  Vera own-due-dates-hld r1: suggestion decision/trade-off: Shipping with no flag, and a rollback that drops every date, is a rollout choice the owner would expect to be asked about. It is under "Arlo's call" and not under "Decisions for you".
+  Vera own-due-dates-lld r1: must-fix decision/number: The 64-character limit on X-Time-Zone is a choice made only in the LLD. No HLD D-n or ADR holds it. D-12 covers only unknown names.
+  Vera own-due-dates-lld r1: suggestion writing: The test map has no row for a late task saved with its date unchanged, which D-4 and decision 2 turn on. The contract also doesn't say where the drop happens relative to the 403 check and the shape rules.
+  Vera own-due-dates-lld r1: suggestion decision/other: The contract doesn't say what C-3 does for a done task. HLD D-8 locks the date control only in the list, so a builder has to guess whether the API refuses or accepts a date change on a done task.
+HLD: own-due-dates-hld
+ADR ADR-0002 (D-2): Store a due date as a calendar day, with no time and no zone: proposed; accepting the HLD accepts it too
+LLD:    own-due-dates-lld, signed with the set
+Arlo's call D-3: One new class reads `X-Time-Zone` into today's date, so the requests and the list judge "today" the same way.
+Arlo's call D-6: The edit call sends the task's current title with the date, so the edit rules keep matching the create rules.
+Arlo's call D-7: An edit without a `due_date` key leaves the date as it is, and `null` removes it, so renaming keeps the date.
+Arlo's call D-8: A done task shows its date and no late mark, and its date control locks like its done box.
+Arlo's call D-9: The list keeps ordering by newest ID, as NG-3 asks, and the date adds no index.
+Arlo's call D-10: The migration, the API and the list ship together, with no flag, as a task without a date is unchanged.
+Arlo's call D-11: The edit request checks the owner through the task policy before validation, as the tests expect today.
+Arlo's call D-12: An unknown zone name in `X-Time-Zone` counts as no header, so today falls back to UTC.
+Decision 1: How is a due date stored (ADR-0002, answered A in the interview's Q-4)?
+Decision 2: When the owner saves a late task without touching its date, is the old date checked again (D-4)?
+Decision 3: Should the list leave out renaming a task and undoing "done" (NG-5)? No requirement asks for them, and the PRD lists no such non-goal.
+accepted: the ADR ADR-0002 (seq 25)
+approved: the LLD own-due-dates-lld, with the set (seq 26)
+Start Tess (mirai-ticket-planner) on the ticket set now? [y/N] 
+signed at the sitting: hld, adr, lld; your answers: 4
+tickets SAMPLE-91 (unbuilt) and SAMPLE-92 (merged) cite C-1, C-2, C-3, C-4, S-1
+Arlo: change hld (round 1): ok
+his change run: paused
+docs/mirai/due-dates/brief.md:12:1: the interview interview.md has open questions: Q-5
+docs/mirai/due-dates/interview.md:5:1: the interview is paused: Q-5 is open
+docs/mirai/due-dates/interview.md:86:1: Q-5 isn't answered
+7 files, 3 problems, 1 warning, 0 skipped
+the home is kept: /Users/jetmir.haxhisefa/.mirai-probes-d9g9nx
+pass  p1.offer
+pass  p1.hardPause
+pass  p1.done
+pass  p1.signed
+pass  p1.tessOffered
+FAIL  p2.done
+FAIL  p2.impact
+FAIL  p2.changelog
+FAIL  p2.lintClean
+p65: FAIL

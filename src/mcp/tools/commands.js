@@ -114,7 +114,7 @@ export const COMMANDS = Object.freeze({
   // interview asks for (the command file's step 0, then this).
   tickets: { needs: ['initiative'], flags: ['one'], tty: true, run: true, argv: (a) => ['tickets', a.initiative, ...(a.one ? ['--one'] : [])] },
   // Unit 64 (Scope 7): the architect's run, from your session (not a gate: it signs nothing).
-  design: { needs: ['initiative'], tty: true, run: true, argv: (a) => ['design', a.initiative] },
+  design: { needs: ['initiative'], opts: ['change'], tty: true, run: true, argv: (a) => ['design', a.initiative, ...(a.change ? ['--change', a.change] : [])] },
   // Jet's answer 3 (2026-11-24): a lone ticket fixed from the verifier's findings on it (/mirai ticket fix <KEY>).
   // With `answer` (Jet's answer to question 4): your answer to an open point in its Notes, one line.
   'ticket fix': { needs: ['ticket'], opts: ['answer'], tty: true, run: true, argv: (a) => ['tickets', 'fix', a.ticket, ...(a.answer ? ['--answer', a.answer] : [])] },
@@ -310,6 +310,7 @@ export const miraiCommand = Object.freeze({
       supersedes: { type: 'string', pattern: WORD.source, description: 'with adr new: the accepted ADR it replaces, such as ADR-0003' },
       adr: { type: 'string', pattern: WORD.source, description: 'with adr review: one ADR\'s id; without it, every ADR in force' },
       answer: { type: 'string', pattern: LINE.source, description: 'with ticket fix: your answer to an open point in the ticket\'s Notes, in your words (one line, unit 42)' },
+      change: { type: 'string', pattern: LINE.source, description: 'with design: a change to the approved design, in your words (one line, unit 65)' },
       n: { type: 'integer', description: 'with setup checklist: a line you mark done' },
     },
     required: ['command'],

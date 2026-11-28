@@ -18,6 +18,9 @@
   "conventions": {
     "1": "sha256:ce53902f86055abed6166d38540c931feb595831c9de3e2bd7b77462e97bc0e8"
   },
+  "design-notes": {
+    "1": "sha256:9a15f4226a8a179e6c8cf72853849e6a5b9f308308de63af68150dc0dcf0e1a5"
+  },
   "epic": {
     "1": "sha256:21d71c598c17289de1b69e1990c6973a2e6143acf4c4a4b18ddb76dde0b1909d",
     "2": "sha256:675c1b49f211369fbb24d41af96c2cea4d603bdc4f59aadeb86400ff73380b03",

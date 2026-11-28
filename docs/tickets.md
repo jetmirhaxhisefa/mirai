@@ -50,6 +50,13 @@ Unit 45 joins the steps from your approved documents to an approved, merged tick
 | `standard` | the approved PRD and the technical note | the note is required from unit 64 (Arlo) on; until then a missing one is a warning, and an approved one is her input |
 | `full` | the approved PRD, HLD, ADRs and LLD | no HLD or LLD yet (units 62, 63): she cuts from the PRD and the ADRs |
 
+Since unit 65 the design comes first: approving the PRD offers the architect's run
+([design.md](design.md)), and Tess's offer follows the design's approval (the note's on
+`standard`; on `full` the set's one signature at its sitting). After a change to an approved design
+(`mirai design <initiative> --change`), the tickets citing a changed ADR (`governed_by`) or LLD item
+(`uses`) that aren't built yet come back to her: her next run re-cuts them with the change as her
+notes (`design-change.md`); built ones are flagged in `mirai show` for you.
+
 `mirai tickets <initiative>` refuses while a needed document of a type MIRAI has isn't approved as
 it is now, naming it and its approval command. A type not built yet is skipped, and her run line
 says so (`inputs: not built yet, so not needed: no HLD yet (unit 62)`).

@@ -1,0 +1,72 @@
+the probe home: /Users/jetmir.haxhisefa/.mirai-probes-Fp7h3r
+the home: full, PRD own-due-dates-prd approved
+Arlo: write hld (round 1): ok
+Arlo (mirai-architect): paused on the PRD, waiting for your answer to Q-4 in interview.md: Q-4: Store a due date as a calendar day with no time and no zone (ADR-0002, hard to reverse) — Which option should ADR-0002 take? (run r-20261127-082202-2ebf; rounds: lint 0, Vera (mirai-verifier) 0; 1 launch; deep, claude-opus-5-5)
+the early pause on Q-4 answered A
+Arlo: continue hld (round 1): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0002-due-date-calendar-day.md: round 1, 0 must-fix
+Vera, docs/mirai/due-dates/hld.md: round 1, 2 must-fix
+Arlo: fix hld (round 2): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0002-due-date-calendar-day.md: round 1, 0 must-fix (reused)
+Vera, docs/mirai/due-dates/hld.md: round 2, 1 must-fix
+Arlo: fix hld (round 3): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0002-due-date-calendar-day.md: round 1, 0 must-fix (reused)
+Vera, docs/mirai/due-dates/hld.md: round 3, 0 must-fix
+Arlo: write lld (round 4): ok
+lint, lld: clean
+Vera, docs/mirai/due-dates/lld.md: round 1, 1 must-fix
+Arlo: fix lld (round 5): ok
+lint, lld: clean
+Vera, docs/mirai/due-dates/lld.md: round 2, 0 must-fix
+Arlo (mirai-architect): done: the HLD and the LLD are ready for your approval (run r-20261127-082628-a310; rounds: lint 0, Vera (mirai-verifier) 6; 5 launches; deep, claude-opus-5-5)
+  Vera own-due-dates-hld r1: must-fix decision/scope: The HLD adds a non-goal NG-5 (no completion record) that the PRD doesn't hold, so the PRD's success metric SM-1 (70% done by their date) can only be read from `updated_at`, which any later edit also changes. Nobody put this scope cut to the approver under Decisions for you.
+  Vera own-due-dates-hld r1: must-fix writing: D-7 and D-10 set behaviour the approver would feel: whether a title-only edit keeps the date, and whether done tasks keep their date control. The summary names neither, and D-10 reverses today's locking of a done task.
+  Vera own-due-dates-hld r1: suggestion decision/trade-off: The two-step rollout and the rollback that drops every date are a release plan the owner would expect to be asked about. It sits as Arlo's call, not under Decisions for you.
+  Vera own-due-dates-hld r1: suggestion writing: The task policy is in the components table and the NFR-1 trace row, but the complete flow shows a 403 with no policy. The building-blocks diagram draws only requests→policy, while `complete` and `destroy` call `Gate::authorize` in the controller.
+  Vera own-due-dates-hld r2: must-fix writing: The summary's 'Not in this' names NG-4, a page of late tasks, but the detail's non-goals stop at NG-3, so the top names a boundary the detail doesn't hold.
+  Vera own-due-dates-hld r2: suggestion writing: This is unchanged from round 1: the complete flow shows a 403 with no task policy, though the policy is in the components table and the NFR-1 trace row.
+  Vera own-due-dates-hld r2: suggestion decision/trade-off: This is unchanged from round 1: the two-step rollout and the rollback that drops every date are still Arlo's call and not under Decisions for you.
+  Vera own-due-dates-hld r3: suggestion writing: Unchanged: the complete flow shows a 403 with no task policy, though the policy is in the components table and the NFR-1 trace row.
+  Vera own-due-dates-hld r3: suggestion decision/trade-off: Unchanged: the two-step rollout and the rollback that drops every date are still Arlo's call and not under Decisions for you.
+  Vera own-due-dates-lld r1: must-fix writing: The LLD makes an empty string clear the date on C-2. The HLD's D-7 only says `null` removes it, and C-1 and the failure table say nothing about an empty string.
+  Vera own-due-dates-lld r1: suggestion writing: C-2 doesn't say whether a done task's date can be changed. The HLD's D-10 leaves that open, so a builder can't tell whether to reject it.
+  Vera own-due-dates-lld r1: suggestion writing: This test-map row repeats the row above it, 'the owner's day past in the browser, not yet in the API'. That row has the same seam and the same case, and its failure-table row is worded confusingly.
+  Vera own-due-dates-lld r2: suggestion writing: C-2 still doesn't say whether a done task's date can be changed; the HLD's D-10 leaves it open, so a builder can't tell whether to reject it.
+HLD: own-due-dates-hld
+ADR ADR-0002 (D-1): Store a due date as a calendar day with no time and no zone: proposed; accepting the HLD accepts it too
+LLD:    own-due-dates-lld, signed with the set
+Arlo's call D-4: The list shows "Due 15 Jan 2027" and the word "Late" by the title, so the mark needs no colour.
+Arlo's call D-5: The helpers format the month from a fixed English list, so every browser shows "Jan" and never a local spelling.
+Arlo's call D-7: An edit changes `due_date` only when the key is sent, and `null` removes it, so a title-only edit keeps the date.
+Arlo's call D-8: The migration and the API ship before the browser, because an older API drops the dates the new list sends.
+Arlo's call D-9: A header naming no known zone counts as missing, so the day is judged in UTC, as ADR-0001 says.
+Decision 1: How is a due date stored (ADR-0002)?
+Decision 2: Where does an edit check the task's owner, now that the request classes must be added (D-6)?
+Decision 3: Can an owner change the date of a done task (D-10)?
+Decision 4: How is SM-1 (dated tasks done by their date) read (D-11)?
+accepted: the ADR ADR-0002 (seq 27)
+approved: the LLD own-due-dates-lld, with the set (seq 28)
+Start Tess (mirai-ticket-planner) on the ticket set now? [y/N] 
+signed at the sitting: hld, adr, lld; your answers: 5
+tickets SAMPLE-91 (unbuilt) and SAMPLE-92 (merged) cite C-1, C-2, C-3, C-4, C-5, C-6, S-1
+Arlo: change hld (round 1): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0003-time-zone-query-parameter.md: round 1, 0 must-fix
+Vera, docs/mirai/due-dates/hld.md: round 4, 1 must-fix
+his change run: done
+impact: changed D-9, ADR-0001; re-cut: none; flagged: none
+7 files, 0 problems, 2 warnings, 0 skipped
+the home is kept: /Users/jetmir.haxhisefa/.mirai-probes-Fp7h3r
+pass  p1.offer
+pass  p1.hardPause
+pass  p1.done
+pass  p1.signed
+pass  p1.tessOffered
+pass  p2.done
+FAIL  p2.impact
+pass  p2.changelog
+pass  p2.lintClean
+p65: FAIL

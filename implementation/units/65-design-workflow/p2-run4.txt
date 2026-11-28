@@ -1,0 +1,21 @@
+the probe home: /Users/jetmir.haxhisefa/.mirai-probes-Fp7h3r
+the PRD approved again (unchanged): ok
+tickets SAMPLE-91 (unbuilt) and SAMPLE-92 (merged) cite C-1, C-2, C-3, C-4, C-5, C-6, S-1
+Arlo: change hld (round 1): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0003-browser-time-zone-query-parameter.md: round 2, 2 must-fix
+Arlo: fix hld (round 2): ok
+lint, hld: clean
+Vera, docs/decisions/ADR-0003-browser-time-zone-query-parameter.md: round 3, 0 must-fix
+Vera, docs/mirai/due-dates/hld.md: round 5, 0 must-fix
+lint, lld: clean
+Vera, docs/mirai/due-dates/lld.md: round 3, 0 must-fix
+his change run: done
+impact: changed D-9, ADR-0001, C-5, C-6; re-cut: SAMPLE-91; flagged: SAMPLE-92
+7 files, 0 problems, 4 warnings, 0 skipped
+the home is deleted
+pass  p2.done
+pass  p2.impact
+pass  p2.changelog
+pass  p2.lintClean
+p65change: PASS
