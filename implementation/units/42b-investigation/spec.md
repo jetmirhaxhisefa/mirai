@@ -1,7 +1,7 @@
 ---
 unit: "42b"
 name: investigation
-status: draft (interview with Jet 2026-11-28: Q1 "A", Q2 "B", Q3 Jet's "D" (four choices), Q4 "A", Q5 "A" with `dropped`, Q6 "A", restatement "yes"). One open question for Jet below (the two launches); not approved
+status: draft (interview with Jet 2026-11-28: Q1 "A", Q2 "B", Q3 Jet's "D" (four choices), Q4 "A", Q5 "A" with `dropped`, Q6 "A", restatement "yes"; then the two launches, "A"). Not approved yet
 roadmap: design/07-implementation-roadmap.md, row 42b; units 42 (ticket types, the investigation template), 65b (the research run, its cage and lint, the brainstorm engine), 14d and 15a (`run_tests` through MIRAI's MCP server), 44 (the document loop: Vera's rounds, approval, publish), 45 (lone tickets), 19c (agents started from your session), 21f (session commands), 18 (the red team)
 depends_on: ["42", "65b", "14d", "44", "45"]
 ---
@@ -50,7 +50,7 @@ them: the answer, with its evidence, lands in the ticket, and you decide what it
    **`mirai investigate <KEY> --decide`**, also `/mirai investigate <KEY> --decide` in your session
    (Claude Code, Cursor, Codex; 21f's list).
 
-## Question for Jet: two launches, so no launch holds both your code and the web
+## Question for Jet: two launches, so no launch holds both your code and the web (answered 2026-11-28: "A")
 
 65b's cage rests on "nothing to steal": its research run sees no repo (65b, decision 3.1). Decision
 2 above gives one agent your code **and** the web. That is the "lethal trifecta" 65b avoided: private
@@ -79,12 +79,11 @@ after the fact; it can't take a query back.
   answered.
 
 **Recommendation: A.** It keeps 65b's guarantee by construction, and the extra launch is skipped
-whenever the web isn't needed. The rest of this spec is written for A; B or C changes Scope 2–4
-and the red team cases.
+whenever the web isn't needed. Jet chose A (2026-11-28); the scope below is written for it.
 
 ## Scope
 
-**In** (written for A)
+**In**
 
 1. **`mirai investigate <KEY>`** (`src/cli/commands/investigate.js`) and its place in `mirai run`:
    - refuses a ticket that isn't an investigation (by its type's `runs_as`), not `ready-for-dev`,
