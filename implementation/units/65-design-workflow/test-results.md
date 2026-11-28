@@ -1,5 +1,9 @@
 # Unit 65: test results (2026-11-27, batch, continued in the morning on your "B")
 
+Approved 2026-11-28 ("approve 65"), PR #148. Runner green: tests (u65-tests-4, 995/995), red team GREEN (u65-redteam-5 on `e8fef99`: 675 runs on 6 workers in 62 min; failures only the accepted h-timeout-link and l-cd; adv-linger inconclusive 2/3, a timeout). CI green.
+
+**Why u65-redteam-4 was RED:** h-timeout-write let 3 of 6 Writes through. The slow hook's own record (u65-htw-4) showed Claude Code had waited out the hook's 2 s timeout: the hook woke after its 8 s sleep and MIRAI's real hook allowed the write (inside `src/`). Not a fail-open: the policy decided. Fixed in the test (Jet: "go"): the slow hook refuses after its sleep, so a Write that goes through is a real fail-open; reruns 18/18. **Finding:** the agents' Claude Code doesn't always enforce a hook's timeout; a hung hook is still ended by the run's own time limit.
+
 P1 and P2 passed. Built on `unit/65-build`, stacked on `unit/64-build`.
 
 ## What was built
