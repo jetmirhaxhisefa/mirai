@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { appendFileSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -30,7 +30,9 @@ export const HOOKED_TOOLS = Object.freeze([...READ_TOOLS, ...WRITE_TOOLS]);
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
 // The policy for one launch: everything the hook decides by, in absolute paths.
-export function hookPolicy({ checkout, readRoots, writeRoots, writeDenied, hooksPaths, readableEnv, protectedFiles, trust, tokenFile, secrets }) {
+// Unit 65b: `writeOnly` (the only files a write may name) and `web` ({ state, max_searches,
+// deadline }: the research run's fetch gate), both only for a research launch.
+export function hookPolicy({ checkout, readRoots, writeRoots, writeDenied, hooksPaths, readableEnv, protectedFiles, trust, tokenFile, secrets, writeOnly = null, web = null }) {
   const inodes = [];
   for (const p of protectedFiles) {
     try {
@@ -43,6 +45,7 @@ export function hookPolicy({ checkout, readRoots, writeRoots, writeDenied, hooks
   return {
     schema: POLICY_SCHEMA, checkout, readRoots, writeRoots, writeDenied, hooksPaths, readableEnv, protectedInodes: inodes,
     trust, tokenFile, secrets: secrets.map((s) => ({ name: s.name, regex: s.regex })),
+    ...(writeOnly ? { writeOnly } : {}), ...(web ? { web } : {}),
   };
 }
 
@@ -155,6 +158,7 @@ function pathProblem(policy, target, write, given = target) {
     }
     if (policy.hooksPaths.some((h) => within(target, h) || within(given, h))) return `${target} is in the project's git hooks folder`;
     if (policy.readableEnv.some((p) => fold(p) === fold(target))) return `${target} is a .env file`;
+    if (policy.writeOnly && !policy.writeOnly.some((p) => fold(p) === fold(target))) return `${target} isn't this run's output (${policy.writeOnly.map((p) => basename(p)).join(', ')})`;
   }
   // The inode check: the same file on disk as a protected one, under any name (a hard link).
   for (const st of [() => lstatSync(target), () => statSync(target)]) {
@@ -173,9 +177,12 @@ function pathProblem(policy, target, write, given = target) {
 // The decision for one call: { allow: true } or { allow: false, reason }. `token` is the login
 // token (the hook reads it itself), or null when none is set; `tokenUnreadable` when its file
 // couldn't be read: then writes are refused, never let through unchecked.
-export function decide(policy, call, { token = null, tokenUnreadable = false } = {}) {
+export function decide(policy, call, { token = null, tokenUnreadable = false, now = Date.now() } = {}) {
   const tool = call.tool_name;
+  if (WEB_TOOLS.includes(tool)) return decideWeb(policy, call, { now });
   if (!HOOKED_TOOLS.includes(tool)) return { allow: false, reason: `${tool} isn't a tool this hook knows` };
+  // A research launch's every call needs the hook's yes (no allow rules), so a timeout refuses.
+  if (policy.web && now > policy.web.deadline) return { allow: false, reason: 'the research run is past its time' };
   const input = call.tool_input ?? {};
   const cwd = typeof call.cwd === 'string' && isAbsolute(call.cwd) ? call.cwd : policy.checkout;
   const write = WRITE_TOOLS.includes(tool);
@@ -199,8 +206,132 @@ export function decide(policy, call, { token = null, tokenUnreadable = false } =
       }
     }
   }
-  return { allow: true, write };
+  return { allow: true, write, ...(policy.web ? { grant: true } : {}) };
 }
+
+// ---- The research run's fetch gate (unit 65b, decision 3.2) -------------------------------------
+
+export const WEB_TOOLS = Object.freeze(['WebSearch', 'WebFetch']);
+const URLS = 'urls.txt';
+const EVIDENCE = 'evidence.jsonl';
+const SEARCHES = 'searches';
+const MAX_EVIDENCE = 256 * 1024;
+
+// A URL as the gate compares it, or null for one it never allows: http(s) only, no user or
+// password; the host lower-case, the default port and the fragment dropped, http and https the
+// same (WebFetch upgrades http); the path as given and the query exactly as given.
+export function gateUrl(raw) {
+  if (typeof raw !== 'string' || raw.length > 4096 || /\s/.test(raw)) return null;
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  if (u.username || u.password || !u.hostname) return null;
+  const port = u.port && !((u.protocol === 'https:' && u.port === '443') || (u.protocol === 'http:' && u.port === '80')) ? `:${u.port}` : '';
+  return `https://${u.hostname.toLowerCase()}${port}${u.pathname}${u.search}`;
+}
+
+// The URLs one search returned, from Claude Code's tool_response (P0: { query, results: [{
+// content: [{ title, url }] }] }); anything else gives none.
+export function searchUrls(response) {
+  let r = response;
+  if (typeof r === 'string') {
+    try {
+      r = JSON.parse(r);
+    } catch {
+      return [];
+    }
+  }
+  const out = [];
+  for (const block of Array.isArray(r?.results) ? r.results : []) {
+    for (const item of Array.isArray(block?.content) ? block.content : []) {
+      const g = gateUrl(item?.url);
+      if (g) out.push(g);
+    }
+  }
+  return [...new Set(out)];
+}
+
+const listed = (state) => {
+  try {
+    return new Set(readFileSync(join(state, URLS), 'utf8').split('\n').filter(Boolean));
+  } catch {
+    return new Set();
+  }
+};
+
+// Before a web call: a search takes one of the cap's slots (a file made with O_EXCL, so two at
+// once can't both take the last); a fetch must name a listed URL.
+function decideWeb(policy, call, { now }) {
+  const web = policy.web;
+  if (!web) return { allow: false, reason: `${call.tool_name} isn't allowed in this launch` };
+  if (now > web.deadline) return { allow: false, reason: 'the research run is past its time' };
+  const input = call.tool_input ?? {};
+  if (call.tool_name === 'WebSearch') {
+    if (typeof input.query !== 'string' || !input.query.trim()) return { allow: false, reason: 'the search has no query' };
+    mkdirSync(join(web.state, SEARCHES), { recursive: true, mode: 0o700 });
+    for (let i = 0; i < web.max_searches; i++) {
+      try {
+        closeSync(openSync(join(web.state, SEARCHES, String(i)), 'wx', 0o600));
+        return { allow: true, grant: true };
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw err;
+      }
+    }
+    return { allow: false, reason: `the run has used its ${web.max_searches} searches` };
+  }
+  const url = gateUrl(input.url);
+  if (!url) return { allow: false, reason: 'the fetch names no plain http(s) URL' };
+  if (!listed(web.state).has(url)) return { allow: false, reason: `${input.url} isn't a URL one of this run's searches returned` };
+  return { allow: true, grant: true };
+}
+
+// After a web call: a search's URLs join the list; a fetch's returned text is kept as the run's
+// evidence (decision 3.4). Nothing to answer: the call has run.
+export function recordWeb(policy, call) {
+  const web = policy.web;
+  if (!web || !WEB_TOOLS.includes(call.tool_name)) return { recorded: false };
+  if (call.tool_name === 'WebSearch') {
+    const urls = searchUrls(call.tool_response);
+    if (urls.length) appendFileSync(join(web.state, URLS), `${urls.join('\n')}\n`, { mode: 0o600 });
+    return { recorded: true, urls: urls.length };
+  }
+  let r = call.tool_response;
+  if (typeof r === 'string') {
+    try {
+      r = JSON.parse(r);
+    } catch {
+      r = { result: r };
+    }
+  }
+  const text = typeof r?.result === 'string' ? r.result.slice(0, MAX_EVIDENCE) : '';
+  const line = { url: gateUrl(call.tool_input?.url), code: Number.isInteger(r?.code) ? r.code : null, result: text };
+  appendFileSync(join(web.state, EVIDENCE), `${JSON.stringify(line)}\n`, { mode: 0o600 });
+  return { recorded: true };
+}
+
+// The run's evidence, for the research lint: [{ url, code, result }], in order.
+export function readEvidence(state) {
+  let text = '';
+  try {
+    text = readFileSync(join(state, EVIDENCE), 'utf8');
+  } catch {
+    return [];
+  }
+  return text.split('\n').filter(Boolean).map((l) => {
+    try {
+      return JSON.parse(l);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+// The URLs the run's searches returned, for the research lint.
+export const readListed = (state) => [...listed(state)];
 
 // One hook call, end to end: check the trust root and the policy, read the token, decide. Any
 // error is a refusal.
@@ -228,6 +359,7 @@ export function runHook({ policyFile, policySha, stdin }) {
     } catch {
       tokenUnreadable = true;
     }
+    if (call?.hook_event_name === 'PostToolUse') return { post: true, ...recordWeb(policy, call) };
     return decide(policy, call, { token, tokenUnreadable });
   } catch (err) {
     return { allow: false, reason: `the hook refused because it failed: ${err.message}` };

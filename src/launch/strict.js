@@ -166,6 +166,35 @@ export function webTemplate(base, { agent, domains }) {
   return { ...base, name: agentTemplateName(agent, base.mode), agent, tools: [...new Set([...base.tools, 'WebFetch'])].sort(), deny_tools: base.deny_tools.filter((t) => t !== 'WebFetch'), web: { domains: list } };
 }
 
+// Unit 65b (decision 3): the design research run's template. Its read-only mode's, with
+// - nothing to steal: its working folder is the launch's fresh scratch folder (the cwd), and it
+//   reads only that and its input files: never the checkout, the home or the store (renderStrict,
+//   launchPolicy). No Bash, no Task or Agent, no MCP server;
+// - the fetch gate: WebSearch and WebFetch off the deny list but never on the allow rules, so each
+//   call needs the hook's yes (a hook that fails or is too slow refuses). The hook counts searches
+//   against `max_searches`, allows a fetch only of a URL one of this run's searches returned, and
+//   keeps what each fetch returned (src/launch/hook.js);
+// - one output: Write, to research.md in its folder only.
+// The file tools get no allow rule either: Claude Code reads inside its working folders without
+// one, and the hook's yes covers each call; anywhere else is refused under dontAsk.
+export const RESEARCH_TEMPLATE = 'research';
+export const RESEARCH_OUTPUT = 'research.md';
+export const RESEARCH_DEFAULTS = Object.freeze({ max_searches: 30, minutes: 20 });
+export const WEB_TOOLS = Object.freeze(['WebFetch', 'WebSearch']);
+export const RESEARCH_TOOLS = Object.freeze(['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch', 'Write']);
+const researchCaps = (r) => r && typeof r === 'object' && Object.keys(r).sort().join(',') === 'max_searches,minutes'
+  && Number.isInteger(r.max_searches) && r.max_searches >= 1 && r.max_searches <= 200 && Number.isInteger(r.minutes) && r.minutes >= 1 && r.minutes <= 120;
+export function researchTemplate(base, { agent, maxSearches = RESEARCH_DEFAULTS.max_searches, minutes = RESEARCH_DEFAULTS.minutes }) {
+  if (base.mode !== 'read-only' || base.overlay || base.web || base.research) throw new StrictError('the research template is made from the plain read-only template', { code: 'bad-template' });
+  const research = { max_searches: maxSearches, minutes };
+  if (!researchCaps(research)) throw new StrictError('the research caps are whole numbers: searches 1–200, minutes 1–120', { code: 'bad-template' });
+  return {
+    ...base, name: RESEARCH_TEMPLATE, agent, tools: [...RESEARCH_TOOLS],
+    deny_tools: [...new Set([...base.deny_tools.filter((t) => !WEB_TOOLS.includes(t)), 'Bash'])].sort(),
+    mcp: { tests: null, log: [] }, research,
+  };
+}
+
 // The templates a trust root holds: one per access mode.
 export function strictTemplates({ registry, config }) {
   const out = new Map();
@@ -239,7 +268,7 @@ export function readableEnv(template, tracked) {
 // project, so for them the hook only adds refusals.
 export function renderStrict(template, facts) {
   if (template?.schema !== STRICT_SCHEMA) throw new StrictError('the strict template isn\'t one this MIRAI reads', { code: 'bad-template' });
-  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets', 'mcp', 'overlay', 'web'];
+  const known = ['schema', 'name', 'agent', 'mode', 'tools', 'deny_tools', 'deny_commands', 'deny_env', 'write_denied', 'readable_env', 'builtin', 'secrets', 'mcp', 'overlay', 'web', 'research'];
   const extra = Object.keys(template).filter((k) => !known.includes(k));
   if (extra.length) throw new StrictError(`the strict template has fields MIRAI doesn't know (${extra.join(', ')})`, { code: 'bad-template' });
   if (!MODES.includes(template.mode)) throw new StrictError('the strict template\'s mode is neither read-write nor read-only', { code: 'bad-template' });
@@ -253,6 +282,9 @@ export function renderStrict(template, facts) {
   // template, this one's exception included: src/redteam/static.js).
   const web = template.web ?? null;
   if (web !== null && (template.mode !== 'read-write' || !Array.isArray(web.domains) || !web.domains.length || !web.domains.every((d) => typeof d === 'string' && FETCH_DOMAIN.test(d)) || Object.keys(web).length !== 1)) throw new StrictError('the strict template\'s web field isn\'t one this MIRAI reads', { code: 'bad-template' });
+  // Unit 65b: the research template names its caps; never beside web or an overlay.
+  const research = template.research ?? null;
+  if (research !== null && (template.mode !== 'read-only' || web !== null || template.overlay || !researchCaps(research))) throw new StrictError('the strict template\'s research field isn\'t one this MIRAI reads', { code: 'bad-template' });
   const off = template.builtin?.skills_off ?? [];
   if (!Array.isArray(off) || !off.every((s) => typeof s === 'string' && /^[A-Za-z][A-Za-z0-9._-]{0,80}$/.test(s))) throw new StrictError('the strict template\'s builtin.skills_off isn\'t a list of skill names', { code: 'bad-template' });
   const co = plain(facts.checkout, 'the checkout');
@@ -284,7 +316,8 @@ export function renderStrict(template, facts) {
   const denyRead = [...homes, keychains, configDir, join(repoHome, 'store'), claudeTmp, ...(facts.userDirs ?? []).map((d) => plain(d, 'a temp folder')), ...OUTSIDE_HOME_DENIED, ...realEnv, `${co}/**/.env*`];
   // The launch's scratch is readable as well as writable: it's the run's temp folder, and tools
   // read back what they write there (13b's bundle probes: node and cat failed without it).
-  const allowRead = [co, trustDir, join(launch, 'input'), scratch, ...readableAbs];
+  const allowRead = research ? [join(launch, 'input'), scratch] : [co, trustDir, join(launch, 'input'), scratch, ...readableAbs];
+  if (research) denyRead.push(co);
   // The launch's input/ is write-denied outright (unit 15a): --add-dir, which the file tools
   // need to read it under --restricted, also opens a folder to sandboxed writes (b2b probe), and
   // a denyWrite wins over that (G20).
@@ -307,6 +340,7 @@ export function renderStrict(template, facts) {
     ...[...envGlobs, ...realEnv, `${configDir}/**`, `${join(repoHome, 'store')}/**`, `${keychains}/**`, claudeTmp, `${claudeTmp}/**`].map((p) => rule('Read', p)),
     ...[...envGlobs, ...realEnv, ...gitDirs, ...gitDirs.map((g) => `${g}/**`), join(co, '.mirai'), `${co}/.mirai/**`, ...writeDenied, ...hooks, ...hooks.map((h) => `${h}/**`),
       `${trustDir}/**`, `${repoHome}/store/**`, join(launch, 'input'), `${join(launch, 'input')}/**`, join(launch, 'claude-config'), `${join(launch, 'claude-config')}/**`, `${configDir}/**`, join(mhome, 'launcher.json'), join(mhome, 'claude-code'), `${join(mhome, 'claude-code')}/**`].map((p) => rule('Edit', p)),
+    ...(research ? [co, `${co}/**`, trustDir, `${trustDir}/**`].map((p) => rule('Read', p)) : []),
   ];
 
   if (typeof facts.hookCommand !== 'string' || facts.hookCommand === '') throw new StrictError('the settings need the hook command', { code: 'no-hook' });
@@ -314,8 +348,12 @@ export function renderStrict(template, facts) {
     // Unit 18d: a second check beside --restricted, in Claude Code's own code. Under --restricted
     // it never gets the first word (R1), but a Claude Code update could change that flag unseen.
     // Unit 64: WebFetch is never allowed whole: one rule per domain of the web template's list.
-    permissions: { allow: [...template.tools.filter((t) => !WRITE_TOOLS.includes(t) && t !== 'WebFetch'), ...(web ? web.domains.map((d) => `WebFetch(domain:${d})`) : []), ...mcpTools(template)], deny: [...new Set(deny)], ...Object.fromEntries(FILE_TOOL_BLOCKS.map((k) => [k, true])) },
-    hooks: { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
+    // Unit 65b: the research template allows nothing by rule; the hook's yes covers every call.
+    permissions: { allow: research ? [] : [...template.tools.filter((t) => !WRITE_TOOLS.includes(t) && t !== 'WebFetch'), ...(web ? web.domains.map((d) => `WebFetch(domain:${d})`) : []), ...mcpTools(template)], deny: [...new Set(deny)], ...Object.fromEntries(FILE_TOOL_BLOCKS.map((k) => [k, true])) },
+    // Unit 65b: the research template's hook also gates the web tools, and records after each.
+    hooks: research
+      ? { PreToolUse: [{ matcher: [...HOOKED_TOOLS, ...WEB_TOOLS].join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }], PostToolUse: [{ matcher: WEB_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] }
+      : { PreToolUse: [{ matcher: HOOKED_TOOLS.join('|'), hooks: [{ type: 'command', command: facts.hookCommand, timeout: 30 }] }] },
     // The bundled ship-local (/ship), steward (/steward) and claude-approvals act on a PR as you, some
     // of it outside the sandbox: turned off by name (Jet's "A", 2026-11-23 and -24). S6 checks they're here.
     ...(off.length ? { skillOverrides: skillOverrides(off) } : {}),
@@ -533,14 +571,22 @@ export function launchFacts({ trust, checkout, env, launchDir, scratchDir, mirai
 }
 
 // The hook's policy for one launch, from the same facts as the settings.
-export function launchPolicy(template, facts, trust, fingerprint = null) {
+// Unit 65b: a research launch reads only its input and its folder, writes only research.md, and
+// gets the web gate: its state folder (the launch's web/, never the agent's to read or write), its
+// search cap and its deadline (`now` + its minutes).
+export function launchPolicy(template, facts, trust, fingerprint = null, { now = Date.now() } = {}) {
   const co = facts.checkout;
   const { readable } = readableEnv(template, facts.tracked ?? []);
   const configDir = join(facts.home, '.config', 'mirai');
+  const research = template.research ?? null;
   return hookPolicy({
     checkout: co,
-    readRoots: [co, facts.trustDir, join(facts.launchDir, 'input'), facts.scratchDir],
+    readRoots: research ? [join(facts.launchDir, 'input'), facts.scratchDir] : [co, facts.trustDir, join(facts.launchDir, 'input'), facts.scratchDir],
     writeRoots: template.mode === 'read-only' ? [facts.scratchDir] : [co, facts.scratchDir],
+    ...(research ? {
+      writeOnly: [join(facts.scratchDir, RESEARCH_OUTPUT)],
+      web: { state: join(facts.launchDir, 'web'), max_searches: research.max_searches, deadline: now + research.minutes * 60_000 },
+    } : {}),
     writeDenied: [...template.write_denied],
     hooksPaths: facts.hooksPaths ?? [],
     readableEnv: readable.map((p) => join(co, p)),
@@ -585,7 +631,7 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
   let scratchDir = null;
   let guard = null;
   try {
-    for (const sub of ['input', 'claude-config']) ensurePrivateDir(join(launchDir, sub));
+    for (const sub of ['input', 'claude-config', ...(template.research ? ['web'] : [])]) ensurePrivateDir(join(launchDir, sub));
     // The agent's input files first, read-only in a read-only folder (unit 15a).
     const inputPaths = {};
     let inputDir = null;
@@ -656,13 +702,14 @@ export function prepareLaunch({ trust, template, checkout, env, agentsJson = nul
       launchId,
       launchDir: facts.launchDir,
       scratchDir,
-      cwd: facts.checkout,
+      // Unit 65b: a research run works in its scratch folder, never the checkout.
+      cwd: template.research ? facts.scratchDir : facts.checkout,
       args: launchArgs({ template, settingsFile, agentsJson, agent, mcpConfig, inputDir }),
       env: launchEnv({ env, launchDir: facts.launchDir, scratchDir, configHome: join(facts.launchDir, 'claude-config'), gitconfig, checkout: facts.checkout, miraiHome: facts.miraiHome }),
       settingsSha256: sha256(settingsText),
       templateSha256: listed?.sha256 ?? sha256(templateText(template)),
       canonicalSha256: canonicalSha256(template),
-      expectedInit: { ...expectedInit(template, { cwd: facts.checkout, additionalDirectories: inputDir ? [inputDir] : [] }), agent },
+      expectedInit: { ...expectedInit(template, { cwd: template.research ? facts.scratchDir : facts.checkout, additionalDirectories: inputDir ? [inputDir] : [] }), agent },
       inputs: inputPaths,
     };
     Object.defineProperty(plan, 'fds', { value: Object.freeze({ 3: token }), enumerable: false });
