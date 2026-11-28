@@ -1,7 +1,7 @@
 ---
 unit: "42b"
 name: investigation
-status: draft (interview with Jet 2026-11-28: Q1 "A", Q2 "B", Q3 Jet's "D" (four choices), Q4 "A", Q5 "A" with `dropped`, Q6 "A", restatement "yes"; then the two launches, "A"). Not approved yet
+status: approved (Jet, 2026-11-28: "approve 155"; interview with Jet 2026-11-28: Q1 "A", Q2 "B", Q3 Jet's "D" (four choices), Q4 "A", Q5 "A" with `dropped`, Q6 "A", restatement "yes"; then the two launches, "A")
 roadmap: design/07-implementation-roadmap.md, row 42b; units 42 (ticket types, the investigation template), 65b (the research run, its cage and lint, the brainstorm engine), 14d and 15a (`run_tests` through MIRAI's MCP server), 44 (the document loop: Vera's rounds, approval, publish), 45 (lone tickets), 19c (agents started from your session), 21f (session commands), 18 (the red team)
 depends_on: ["42", "65b", "14d", "44", "45"]
 ---
