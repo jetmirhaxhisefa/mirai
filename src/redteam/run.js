@@ -132,8 +132,10 @@ export function unitsFor(cases, templates, only = null) {
       // gives that tool beyond its mode, and is never "skipped" where none does.
       // Unit 64: a web case runs only under a web template (the architect's), and `a-web` (WebFetch
       // absent) never under one; with no web template a web case isn't "skipped" either.
-      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w))) && (!k.webOnly || t.web) && !(k.notWeb && t.web)).map(([n]) => n);
-      if (!names.length && !k.widened && !k.webOnly) skipped.push({ id: k.id, template: mode });
+      // Unit 65b: a research case runs only under the research template, and a case marked
+      // `notResearch` (one that needs the checkout, Bash or MCP) never under it.
+      const names = [...templates.entries()].filter(([, t]) => t.mode === mode && (!k.widened || (t.overlay?.widened ?? []).some((w) => k.widened.includes(w))) && (!k.webOnly || t.web) && !(k.notWeb && t.web) && (!k.researchOnly || t.research) && !(k.notResearch && t.research)).map(([n]) => n);
+      if (!names.length && !k.widened && !k.webOnly && !k.researchOnly) skipped.push({ id: k.id, template: mode });
       for (const n of names) units.push({ id: k.id, template: n });
     }
   }
